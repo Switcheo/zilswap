@@ -97,32 +97,6 @@ let inputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
     let result = builtin div numerator denominator in
     builtin to_uint128 result
 
-let sqrt : Nat -> Nat =
-  fun (n : Nat) =>
-  let folder = @nat_fold (Pair (Pair Nat Nat) Nat) in
-  let zero = Zero in
-  let p00 = Pair {Nat Nat} zero zero in
-  let init = Pair {(Pair Nat Nat) Nat} p00 zero in
-  let f = fun (acc : Pair (Pair Nat Nat) Nat) => fun (unused : Nat) =>
-    match acc with
-    | Pair (Pair p q) r =>
-      match r with
-      | Zero => let sp = Succ p in
-                let sq = Succ q in
-                let ssq = Succ sq in
-                let new_pq = Pair {Nat Nat} sp ssq in
-                let new_r = ssq in
-                Pair {(Pair Nat Nat) Nat} new_pq new_r
-      | Succ r1 =>
-                let pq = Pair {Nat Nat} p q in
-                Pair {(Pair Nat Nat) Nat} pq r1
-      end
-    end in
-  let res = folder f init n in
-  match res with
-  | Pair (Pair sqrt _) _ => sqrt
-  end
-
 contract ZilSwap
 ()
 
@@ -169,7 +143,7 @@ procedure Send(
   is_zil = builtin eq token zil_address;
   match is_zil with
   | True =>
-    msg = { _tag : "_"; _recipient: to; _amount: amount };
+    msg = { _tag : ""; _recipient: to; _amount: amount };
     msgs =
       let nil = Nil {Message} in
       Cons {Message} msg nil;
@@ -183,6 +157,29 @@ procedure Send(
       let nil = Nil {Message} in
       Cons {Message} msg_to_token nil;
     send msgs
+  end
+end
+
+procedure UpdatePool(
+  pool : Pool,
+  token_address: ByStr20,
+  zil_in: Uint128,
+  token_in: Uint128,
+  zil_out: Uint128,
+  token_out: Uint128
+)
+  match pool with
+  | Pool x y => (* zil reserve, token reserve *)
+    new_pool =
+    let new_x = let x_add = builtin add x zil_in in builtin sub x_add zil_out in
+    let new_y = let y_add = builtin add y token_in in builtin sub y_add token_out in
+    Pool new_x new_y;
+    pools[token_address] := new_pool;
+
+    e = { _eventname: "Swap"; token_address: token_address;
+      zil_in: zil_in; token_in: token_in;
+      zil_out: zil_out; token_out: token_out };
+    event e
   end
 end
 
@@ -218,8 +215,8 @@ end
 
 transition AddLiquidity(
   token_address : ByStr20,
-  min_contribution_amount : Uint128, (* the minimum contribution, which is determined by zil sent / zil reserve * total contribution *)
-  max_token_amount : Uint128, (* the maximum amount of tokens to transfer; this is directly used for new pools *)
+  min_contribution_amount : Uint128, (* the minimum contribution to add, which is determined by zil sent / zil reserve * total contribution *)
+  max_token_amount : Uint128, (* the maximum amount of tokens to transfer for the txn to not revert; this is directly used for new pools and will never revert *)
   deadline_block : BNum
 )
   (* check transition validity *)
@@ -289,6 +286,8 @@ transition AddLiquidity(
           e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y };
           throw e
         | True =>
+          Receive _sender token_address delta_y;
+
           new_pool =
             let new_x = builtin add x _amount in
             let new_y = builtin add y delta_y in
@@ -306,26 +305,32 @@ transition AddLiquidity(
 
           new_total_contribution = builtin add total_contribution new_contribution;
           total_contributions[token_address] := new_total_contribution;
-          Receive _sender token_address delta_y
+
+          e = { _eventname: "Mint"; address: _sender; amount: new_contribution };
+          event e
         end
       end
     | None =>
       Receive _sender token_address max_token_amount;
+
       new_pool = Pool _amount max_token_amount;
       pools[token_address] := new_pool;
+      e1 = { _eventname: "PoolCreated"; token: token_address };
+      event e1;
+
       balances[token_address][_sender] := _amount;
-      total_contributions[token_address] := _amount
+      total_contributions[token_address] := _amount;
+      e2 = { _eventname: "Mint"; address: _sender; amount: _amount };
+      event e2
     end
   end
-
-  (* TODO: log effects *)
 end
 
 transition RemoveLiquidity(
   token_address : ByStr20,
-  contribution_amount : Uint128, (* the contribution amount to remove *)
-  min_zil_amount : Uint128, (* the min amount of zil to withdraw *)
-  min_token_amount : Uint128, (* the min amount of tokens to withdraw *)
+  contribution_amount : Uint128, (* the desired contribution amount to remove *)
+  min_zil_amount : Uint128, (* the min amount of zil to withdraw for the txn to not revert *)
+  min_token_amount : Uint128, (* the min amount of tokens to withdraw for the txn to not revert *)
   deadline_block : BNum
 )
 
@@ -412,31 +417,38 @@ transition RemoveLiquidity(
               existing_balance <- balances[token_address][_sender];
               match existing_balance with
               | Some b =>
+                new_pool =
+                  let new_x = builtin sub x zil_amount in
+                  let new_y = builtin sub y token_amount in
+                  Pool new_x new_y;
+                pools[token_address] := new_pool;
+
                 new_balance = builtin sub b contribution_amount;
                 balances[token_address][_sender] := new_balance;
                 new_total_contribution = builtin sub total_contribution contribution_amount;
                 total_contributions[token_address] := new_total_contribution;
 
                 Send _sender zil_address zil_amount;
-                Send _sender token_address token_amount
+                Send _sender token_address token_amount;
+
+                e = { _eventname: "Burn"; address: _sender; amount: contribution_amount };
+                event e
               | None =>
                 e = { _exception : "MissingBalance" };
                 throw e
               end
             end
-
           end
         end
       end
     end
   end
-
-  (* TODO: log effects *)
 end
 
-transition BuyTokens(
+transition SwapExactZILForTokens(
   token_address : ByStr20,
-  min_token_amount : Uint128,
+  (* _amount: the zil amount to be sent in *)
+  min_token_amount : Uint128, (* the min token amount that must be received for the txn to not revert *)
   deadline_block : BNum
 )
   (* check transition validity *)
@@ -468,27 +480,26 @@ transition BuyTokens(
           e = { _exception : "IntegerOverflow" };
           throw e
         | Some tokens_bought =>
-            within_limits = uint128_ge tokens_bought min_token_amount;
-            match within_limits with
-            | False =>
-              e = { _exception : "RequestedRatesCannotBeFulfilled" };
-              throw e
-            | True =>
-              Receive _sender zil_address _amount;
-              Send _sender token_address tokens_bought
-            end
+          within_limits = uint128_ge tokens_bought min_token_amount;
+          match within_limits with
+          | False =>
+            e = { _exception : "RequestedRatesCannotBeFulfilled" };
+            throw e
+          | True =>
+            Receive _sender zil_address _amount;
+            Send _sender token_address tokens_bought;
+            UpdatePool pool token_address _amount zero zero tokens_bought
+          end
         end
       end
     end
   end
-
-  (* TODO: log effects *)
 end
 
-transition SellTokens(
+transition SwapExactTokensForZIL(
   token_address : ByStr20,
-  token_amount : Uint128,
-  min_zil_amount : Uint128,
+  token_amount : Uint128, (* amount of tokens to send in *)
+  min_zil_amount : Uint128, (* min zil amount that must be received for the txn to not revert *)
   deadline_block : BNum
 )
   (* check transition validity *)
@@ -520,26 +531,26 @@ transition SellTokens(
           e = { _exception : "IntegerOverflow" };
           throw e
         | Some zil_bought =>
-            within_limits = uint128_ge zil_bought min_zil_amount;
-            match within_limits with
-            | False =>
-              e = { _exception : "RequestedRatesCannotBeFulfilled" };
-              throw e
-            | True =>
-              Receive _sender token_address token_amount;
-              Send _sender zil_address zil_bought
-            end
+          within_limits = uint128_ge zil_bought min_zil_amount;
+          match within_limits with
+          | False =>
+            e = { _exception : "RequestedRatesCannotBeFulfilled" };
+            throw e
+          | True =>
+            Receive _sender token_address token_amount;
+            Send _sender zil_address zil_bought;
+            UpdatePool pool token_address zero token_amount zil_bought zero
+          end
         end
       end
     end
   end
-
-  (* TODO: log effects *)
 end
 
-transition BuyTokensWithExactOutput(
+transition SwapZILForExactTokens(
   token_address : ByStr20,
-  token_amount : Uint128,
+  (* _amount: the max zil amount to be sent in *)
+  token_amount : Uint128, (* the amount of tokens to receive *)
   deadline_block : BNum
 )
   (* check transition validity *)
@@ -574,19 +585,18 @@ transition BuyTokensWithExactOutput(
           refund_amount = builtin sub _amount zil_amount;
           Receive _sender zil_address token_amount;
           Send _sender zil_address refund_amount;
-          Send _sender token_address token_amount
+          Send _sender token_address token_amount;
+          UpdatePool pool token_address zil_amount zero zero token_amount
         end
       end
     end
   end
-
-  (* TODO: log effects *)
 end
 
-transition SellTokensWithExactOutput(
+transition SwapTokensForExactZIL(
   token_address : ByStr20,
-  zil_amount : Uint128,
-  max_token_amount : Uint128,
+  zil_amount : Uint128, (* the zil amount to be received *)
+  max_token_amount : Uint128, (* max token amount that may be sent before the txn will revert *)
   deadline_block : BNum
 )
   (* check transition validity *)
@@ -625,29 +635,152 @@ transition SellTokensWithExactOutput(
             throw e
           | True =>
             Receive _sender token_address token_amount;
-            Send _sender zil_address zil_amount
+            Send _sender zil_address zil_amount;
+            UpdatePool pool token_address zero token_amount zil_amount zero
           end
         end
       end
     end
   end
-
-  (* TODO: log effects *)
 end
 
-transition BuyTokensWithTokens(
+transition SwapExactTokensForTokens(
+  token0_address : ByStr20,
+  token1_address : ByStr20,
+  token0_amount : Uint128, (* the token0 amount to be sent in *)
+  min_token1_amount : Uint128, (* min token0 amount that must be received for the txn to not revert *)
+  deadline_block : BNum
 )
+
+  (* check transition validity *)
+  current_block <- & BLOCKNUMBER;
+  is_valid_transaction =
+    let has_token0 = uint128_gt token0_amount zero in
+    let has_token1 = uint128_gt min_token1_amount zero in
+    let is_not_expired =
+      let expired = builtin blt current_block deadline_block in
+      negb expired in
+    andb3 has_token0 has_token1 is_not_expired;
+
+  match is_valid_transaction with
+  | False =>
+    e = { _exception : "TransactionInvalidOrExpired" };
+    throw e
+  | True =>
+    maybe_pool0 <- pools[token0_address];
+    match maybe_pool0 with
+    | None =>
+      e = { _exception : "MissingPool" };
+      throw e
+    | Some pool0 =>
+      match pool0 with
+      | Pool x0 y0 => (* zil reserve, token reserve *)
+        maybe_zil_intermediate = outputFor token0_amount y0 x0;
+        match maybe_zil_intermediate with
+        | None =>
+          e = { _exception : "IntegerOverflow" };
+          throw e
+        | Some zil_intermediate =>
+          maybe_pool1 <- pools[token1_address];
+          match maybe_pool1 with
+          | None =>
+            e = { _exception : "MissingPool" };
+            throw e
+          | Some pool1 =>
+            match pool1 with
+            | Pool x1 y1 => (* zil reserve, token reserve *)
+              maybe_tokens_bought = outputFor zil_intermediate x1 y1;
+              match maybe_tokens_bought with
+              | None =>
+                e = { _exception : "IntegerOverflow" };
+                throw e
+              | Some tokens_bought =>
+                within_limits = uint128_ge tokens_bought min_token1_amount;
+                match within_limits with
+                | False =>
+                  e = { _exception : "RequestedRatesCannotBeFulfilled" };
+                  throw e
+                | True =>
+                  Receive _sender token0_address token0_amount;
+                  UpdatePool pool0 token0_address zero token0_amount zil_intermediate zero;
+                  Send _sender token1_address tokens_bought;
+                  UpdatePool pool1 token1_address zil_intermediate zero zero tokens_bought
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
 end
 
-transition SellTokensWithTokens(
+transition SwapTokensForExactTokens(
+  token0_address : ByStr20,
+  token1_address : ByStr20,
+  max_token0_amount : Uint128, (* the max token0 amount that may be sent in before the txn will revert *)
+  token1_amount : Uint128, (* token1 amount to be received *)
+  deadline_block : BNum
 )
-end
+  (* check transition validity *)
+  current_block <- & BLOCKNUMBER;
+  is_valid_transaction =
+    let has_token0 = uint128_gt max_token0_amount zero in
+    let has_token1 = uint128_gt token1_amount zero in
+    let is_not_expired =
+      let expired = builtin blt current_block deadline_block in
+      negb expired in
+    andb3 has_token0 has_token1 is_not_expired;
 
-transition BuyTokensWithTokensWithExactOutput(
-)
-end
-
-transition SellTokensWithTokensWithExactOutput(
-
-)
+  match is_valid_transaction with
+  | False =>
+    e = { _exception : "TransactionInvalidOrExpired" };
+    throw e
+  | True =>
+    maybe_pool1 <- pools[token1_address];
+    match maybe_pool1 with
+    | None =>
+      e = { _exception : "MissingPool" };
+      throw e
+    | Some pool1 =>
+      match pool1 with
+      | Pool x1 y1 => (* zil reserve, token reserve *)
+        maybe_zil_intermediate = inputFor token1_amount x1 y1;
+        match maybe_zil_intermediate with
+        | None =>
+          e = { _exception : "IntegerOverflow" };
+          throw e
+        | Some zil_intermediate =>
+          maybe_pool0 <- pools[token0_address];
+          match maybe_pool0 with
+          | None =>
+            e = { _exception : "MissingPool" };
+            throw e
+          | Some pool0 =>
+            match pool0 with
+            | Pool x0 y0 => (* zil reserve, token reserve *)
+              maybe_token_amount = inputFor zil_intermediate y0 x0;
+              match maybe_token_amount with
+              | None =>
+                e = { _exception : "IntegerOverflow" };
+                throw e
+              | Some token_amount =>
+                within_limits = uint128_ge max_token0_amount token_amount;
+                match within_limits with
+                | False =>
+                  e = { _exception : "RequestedRatesCannotBeFulfilled" };
+                  throw e
+                | True =>
+                  Receive _sender token0_address token_amount;
+                  UpdatePool pool0 token0_address zero token_amount zil_intermediate zero;
+                  Send _sender token1_address token1_amount;
+                  UpdatePool pool1 token1_address zil_intermediate zero zero token1_amount
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
 end
