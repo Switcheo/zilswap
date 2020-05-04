@@ -41,14 +41,6 @@ let andb3 : Bool -> Bool -> Bool -> Bool =
     let b12 = andb b1 b2 in
     andb b12 b3
 
-let btwn : Uint128 -> Uint128 -> Uint128 -> Bool =
-  fun (min : Uint128) =>
-  fun (var : Uint128) =>
-  fun (max : Uint128) =>
-    let gtm = uint128_gt min var in
-    let ltm = uint128_lt var max in
-    andb gtm ltm
-
 (* computes the amount of the fraction d / x that is in y *)
 (* TODO: we should grow all uint128 to 256 at the start to reduce need for type checking *)
 let frac : Uint128 -> Uint128 -> Uint128 -> Option Uint128  =
@@ -163,6 +155,7 @@ end
 procedure UpdatePool(
   pool : Pool,
   token_address: ByStr20,
+  address: ByStr20,
   zil_in: Uint128,
   token_in: Uint128,
   zil_out: Uint128,
@@ -176,9 +169,11 @@ procedure UpdatePool(
     Pool new_x new_y;
     pools[token_address] := new_pool;
 
-    e = { _eventname: "Swap"; token_address: token_address;
+    e = {
+      _eventname: "Swap"; pool: token_address; address: address;
       zil_in: zil_in; token_in: token_in;
-      zil_out: zil_out; token_out: token_out };
+      zil_out: zil_out; token_out: token_out
+    };
     event e
   end
 end
@@ -306,7 +301,7 @@ transition AddLiquidity(
           new_total_contribution = builtin add total_contribution new_contribution;
           total_contributions[token_address] := new_total_contribution;
 
-          e = { _eventname: "Mint"; address: _sender; amount: new_contribution };
+          e = { _eventname: "Mint"; pool: token_address; address: _sender; amount: new_contribution };
           event e
         end
       end
@@ -315,12 +310,12 @@ transition AddLiquidity(
 
       new_pool = Pool _amount max_token_amount;
       pools[token_address] := new_pool;
-      e1 = { _eventname: "PoolCreated"; token: token_address };
+      e1 = { _eventname: "PoolCreated"; pool: token_address };
       event e1;
 
       balances[token_address][_sender] := _amount;
       total_contributions[token_address] := _amount;
-      e2 = { _eventname: "Mint"; address: _sender; amount: _amount };
+      e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
       event e2
     end
   end
@@ -431,7 +426,7 @@ transition RemoveLiquidity(
                 Send _sender zil_address zil_amount;
                 Send _sender token_address token_amount;
 
-                e = { _eventname: "Burn"; address: _sender; amount: contribution_amount };
+                e = { _eventname: "Burn"; pool: token_address; address: _sender; amount: contribution_amount };
                 event e
               | None =>
                 e = { _exception : "MissingBalance" };
@@ -488,7 +483,7 @@ transition SwapExactZILForTokens(
           | True =>
             Receive _sender zil_address _amount;
             Send _sender token_address tokens_bought;
-            UpdatePool pool token_address _amount zero zero tokens_bought
+            UpdatePool pool token_address _sender _amount zero zero tokens_bought
           end
         end
       end
@@ -539,7 +534,7 @@ transition SwapExactTokensForZIL(
           | True =>
             Receive _sender token_address token_amount;
             Send _sender zil_address zil_bought;
-            UpdatePool pool token_address zero token_amount zil_bought zero
+            UpdatePool pool token_address _sender zero token_amount zil_bought zero
           end
         end
       end
@@ -586,7 +581,7 @@ transition SwapZILForExactTokens(
           Receive _sender zil_address token_amount;
           Send _sender zil_address refund_amount;
           Send _sender token_address token_amount;
-          UpdatePool pool token_address zil_amount zero zero token_amount
+          UpdatePool pool token_address _sender zil_amount zero zero token_amount
         end
       end
     end
@@ -636,7 +631,7 @@ transition SwapTokensForExactZIL(
           | True =>
             Receive _sender token_address token_amount;
             Send _sender zil_address zil_amount;
-            UpdatePool pool token_address zero token_amount zil_amount zero
+            UpdatePool pool token_address _sender zero token_amount zil_amount zero
           end
         end
       end
@@ -702,9 +697,9 @@ transition SwapExactTokensForTokens(
                   throw e
                 | True =>
                   Receive _sender token0_address token0_amount;
-                  UpdatePool pool0 token0_address zero token0_amount zil_intermediate zero;
+                  UpdatePool pool0 token0_address _sender zero token0_amount zil_intermediate zero;
                   Send _sender token1_address tokens_bought;
-                  UpdatePool pool1 token1_address zil_intermediate zero zero tokens_bought
+                  UpdatePool pool1 token1_address _sender zil_intermediate zero zero tokens_bought
                 end
               end
             end
@@ -772,9 +767,9 @@ transition SwapTokensForExactTokens(
                   throw e
                 | True =>
                   Receive _sender token0_address token_amount;
-                  UpdatePool pool0 token0_address zero token_amount zil_intermediate zero;
+                  UpdatePool pool0 token0_address _sender zero token_amount zil_intermediate zero;
                   Send _sender token1_address token1_amount;
-                  UpdatePool pool1 token1_address zil_intermediate zero zero token1_amount
+                  UpdatePool pool1 token1_address _sender zil_intermediate zero zero token1_amount
                 end
               end
             end
