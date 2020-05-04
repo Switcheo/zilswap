@@ -1,5 +1,12 @@
 # Smart Contract
 
+## Addresses
+
+The zilswap smart contract is currently located at:
+
+- TestNet: [zil1wma7t6h6292h7cjzmhh6uuy5tjzfdvsnlmftpc](https://viewblock.io/zilliqa/address/zil1wma7t6h6292h7cjzmhh6uuy5tjzfdvsnlmftpc?network=testnet)
+- MainNet: Coming Soon
+
 ## Events
 
 Frontend dApps may listen to the following smart contract events to watch for changes in state due to user interaction.
@@ -67,11 +74,65 @@ same goes for `amount_in` and `amount_out`.
 
 ## Transitions
 
+The following are the public transitions that can be called via smart contract invocations.
+
 ### AddLiquidity
 
+This transition adds liquidity to the pool for the ZRC-2 token given by `token_address`.
+Liquidity providers deposit ZIL and ZRC-2 tokens using the exchange rate of the liquidity pool
+(i.e. the ratios between the two tokens' reserve amounts) at the moment of the transition.
 
+The ZIL `_amount` sent is the exact amount of ZIL that the sender wishes to add to the liquidity
+pool and it should be 50% of the total value that they wish to deposit into the pool.
+
+Because the ratio of tokens in a liquidity pool can fluctutate between when the sender signs
+the transaction and when it is processed by the blockchain, the parameter bound `max_token_amount`
+is used to bound the exchange rate. For the first liquidity provider, `max_token_amount`
+is the exact amount of ZRC-2 tokens that will be deposited.
+
+The `min_contribution_amount` can be used to set the lower bound of the sender's
+the contribution share (given by `min_contribution_amount/total_contributions[pool_address]`)
+when the transaction is executed. For the first liquidity provider, `min_contribution_amount` is ignored.
+
+Additionally, a `deadline_block` can be used to set the time after which the transaction is no longer
+valid to be executed by the Zilliqa blockchain. This can prevent a "transaction withholding attack" by miners.
+
+Note that liquidity providers should aim to deposit what they believe to be **equal values** of
+both ZIL and the ZRC-2 tokens. While the initial exchange rate is set by the first liquidity provider
+that creates a pool, arbitrage traders will bring the prices to equilibrium at the expense of the
+initial liquidity provider(s), should this ratio be irreflective of their true value.
+
+| Parameter        | Type    | Description                                                       |
+|------------------|---------|-------------------------------------------------------------------|
+| token_address    | ByStr20 | The token address of the pool to add liquidity to                 |
+| `_amount`        | Uint128 | The amount of ZIL to contribute to the pool                       |
+| min_contribution_amount | ByStr20 | The minimum liquidity tokens that needs to be minted       |
+| max_token_amount | Uint128 | The maximum amount of ZRC-2 token to contribute to the pool       |
+| deadline_block   | BNum    | The deadline that this transaction must be executed by            |
 
 ### RemoveLiquidity
+
+This transition removes liquidity from the pool for the ZRC-2 token given by `token_address`.
+Liquidity providers can withdraw their share of ZIL and ZRC-2 tokens based on the exchange rate
+of the liquidity pool (i.e. the ratios between the two tokens' reserve amounts) at the moment of the transition.
+
+The `contribution_amount` can be used to redraw all or some of the sender's tokens based on his
+previous contributions found in `balances[pool_address][_sender]`.
+
+Because the ratio of tokens in a liquidity pool can fluctutate between when the sender signs
+the transaction and when it is processed by the blockchain, the parameter bounds `min_zil_amount`
+and `min_token_amount` is used to bound the exchange rate.
+
+Additionally, a `deadline_block` can be used to set the time after which the transaction is no longer
+valid to be executed by the Zilliqa blockchain. This can prevent a "transaction withholding attack" by miners.
+
+| Parameter        | Type    | Description                                            |
+|------------------|---------|--------------------------------------------------------|
+| token_address    | ByStr20 | The token address of the pool to add liquidity to      |
+| contribution_amount | Uint128 | The share of contribution to remove                 |
+| min_zil_amount   | ByStr20 | The minimum amount of ZIL to be withdrawn              |
+| min_token_amount | Uint128 | The minimum amount of ZRC-2 tokens to be withdrawn     |
+| deadline_block   | BNum    | The deadline that this transaction must be executed by |
 
 ### SwapExactZILForTokens
 
