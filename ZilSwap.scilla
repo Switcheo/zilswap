@@ -28,12 +28,6 @@ let addBoolList : Bool -> List Bool -> List Bool =
   fun (list : List Bool) =>
     Cons {Bool} bool list
 
-let allTrue : List Bool -> Bool =
-  fun (list : List Bool) =>
-    let isTrue = fun (bool : Bool) => bool in
-    let list_forall_bool = @list_forall Bool in
-    list_forall_bool isTrue list
-
 let andb3 : Bool -> Bool -> Bool -> Bool =
   fun (b1: Bool) =>
   fun (b2: Bool) =>
@@ -95,6 +89,27 @@ contract ZilSwap
 field pools : Map ByStr20 Pool = Emp ByStr20 Pool
 field balances : Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
 field total_contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+
+procedure ThrowIfExpired(deadline_block: BNum)
+  current_block <- & BLOCKNUMBER;
+  is_not_expired = builtin blt current_block deadline_block;
+  match is_not_expired with
+  | True =>
+  | False =>
+    e = { _exception : "TransactionExpired" };
+    throw e
+  end
+end
+
+procedure ThrowIfZero(number: Uint128)
+  gt_zero = uint128_gt _amount zero;
+  match gt_zero with
+  | True =>
+  | False =>
+    e = { _exception : "InvalidParameter" };
+    throw e
+  end
+end
 
 procedure Receive(
   from : ByStr20,
@@ -184,8 +199,6 @@ transition RecipientAcceptTransferFrom(
   recipient : ByStr20,
   amount : Uint128
 )
-  (* here we just check that the transfer from is triggered from this contract
-    and the recipient is this contract. does not check the sender, token, or amount. *)
   is_valid_transfer_to_self =
     let self_triggered = builtin eq initiator _this_address in
     let is_transfer_to_self = builtin eq recipient _this_address in
@@ -205,178 +218,119 @@ transition TransferFromSuccessCallBack(
   recipient : ByStr20,
   amount : Uint128
 )
-  (* no-op, nothing needed here as we handle transfer receipt in RecipientAcceptTransferFrom  *)
 end
 
 transition AddLiquidity(
   token_address : ByStr20,
-  min_contribution_amount : Uint128, (* the minimum contribution to add, which is determined by zil sent / zil reserve * total contribution *)
-  max_token_amount : Uint128, (* the maximum amount of tokens to transfer for the txn to not revert; this is directly used for new pools and will never revert *)
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_zil = uint128_gt _amount zero in
-    let has_token = uint128_gt max_token_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in negb expired
-    in
-    andb3 has_zil has_token is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero _amount;
+  ThrowIfZero max_token_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
-    throw e
-  | True =>
-    Receive _sender zil_address _amount;
+  Receive _sender zil_address _amount;
 
-    maybe_pool <- pools[token_address];
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None =>
+    Receive _sender token_address max_token_amount;
 
-    (* dumb adding for now *)
-    match maybe_pool with
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
+    new_pool = Pool _amount max_token_amount;
+    pools[token_address] := new_pool;
+    e1 = { _eventname: "PoolCreated"; pool: token_address };
+    event e1;
 
-        (* dY = dX * Y / X + 1 *)
-        (* dX is always the QA transferred *)
-        delta_y = zero;
-        maybe_result = frac _amount x y;
-        match maybe_result with
-        | Some result =>
-          delta_y = builtin add result one
-        | None =>
-          e = { _exception : "IntegerOverflow" };
-          throw e
-        end;
+    balances[token_address][_sender] := _amount;
+    total_contributions[token_address] := _amount;
+    e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
+    event e2
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
 
-        total_contribution = zero;
+      (* dY = dX * Y / X + 1 *)
+      (* dX is always the QA transferred *)
+      maybe_result = frac _amount x y;
+      match maybe_result with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some result =>
+        delta_y = builtin add result one;
         maybe_total_contribution <- total_contributions[token_address];
         match maybe_total_contribution with
-        | Some c =>
-          total_contribution = c
         | None =>
           e = { _exception : "MissingContributions" };
           throw e
-        end;
-
-        new_contribution = zero;
-        maybe_new_contribution = frac _amount total_contribution x;
-        match maybe_new_contribution with
-        | Some c =>
-          new_contribution = c
-        | None =>
-          e = { _exception : "IntegerOverflow" };
-          throw e
-        end;
-
-        within_limits =
-          let token_lte_max = uint128_le delta_y max_token_amount in
-          let contribution_gte_max = uint128_ge new_contribution min_contribution_amount in
-          andb token_lte_max contribution_gte_max;
-
-        match within_limits with
-        | False =>
-          e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y };
-          throw e
-        | True =>
-          Receive _sender token_address delta_y;
-
-          new_pool =
-            let new_x = builtin add x _amount in
-            let new_y = builtin add y delta_y in
-            Pool new_x new_y;
-          pools[token_address] := new_pool;
-
-          existing_balance <- balances[token_address][_sender];
-          match existing_balance with
-          | Some b =>
-            new_balance = builtin add b new_contribution;
-            balances[token_address][_sender] := new_balance
+        | Some total_contribution =>
+          maybe_new_contribution = frac _amount total_contribution x;
+          match maybe_new_contribution with
           | None =>
-            balances[token_address][_sender] := new_contribution
-          end;
+            e = { _exception : "IntegerOverflow" };
+            throw e
+          | Some new_contribution =>
+            within_limits =
+              let token_lte_max = uint128_le delta_y max_token_amount in
+              let contribution_gte_max = uint128_ge new_contribution min_contribution_amount in
+              andb token_lte_max contribution_gte_max;
+            match within_limits with
+            | False =>
+              e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y };
+              throw e
+            | True =>
+              Receive _sender token_address delta_y;
 
-          new_total_contribution = builtin add total_contribution new_contribution;
-          total_contributions[token_address] := new_total_contribution;
+              new_pool =
+                let new_x = builtin add x _amount in
+                let new_y = builtin add y delta_y in
+                Pool new_x new_y;
+              pools[token_address] := new_pool;
 
-          e = { _eventname: "Mint"; pool: token_address; address: _sender; amount: new_contribution };
-          event e
+              existing_balance <- balances[token_address][_sender];
+              match existing_balance with
+              | Some b =>
+                new_balance = builtin add b new_contribution;
+                balances[token_address][_sender] := new_balance
+              | None =>
+                balances[token_address][_sender] := new_contribution
+              end;
+
+              new_total_contribution = builtin add total_contribution new_contribution;
+              total_contributions[token_address] := new_total_contribution;
+
+              e = { _eventname: "Mint"; pool: token_address; address: _sender; amount: new_contribution };
+              event e
+            end
+          end
         end
       end
-    | None =>
-      Receive _sender token_address max_token_amount;
-
-      new_pool = Pool _amount max_token_amount;
-      pools[token_address] := new_pool;
-      e1 = { _eventname: "PoolCreated"; pool: token_address };
-      event e1;
-
-      balances[token_address][_sender] := _amount;
-      total_contributions[token_address] := _amount;
-      e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
-      event e2
     end
   end
 end
 
 transition RemoveLiquidity(
   token_address : ByStr20,
-  contribution_amount : Uint128, (* the desired contribution amount to remove *)
-  min_zil_amount : Uint128, (* the min amount of zil to withdraw for the txn to not revert *)
-  min_token_amount : Uint128, (* the min amount of tokens to withdraw for the txn to not revert *)
+  contribution_amount : Uint128,
+  min_zil_amount : Uint128,
+  min_token_amount : Uint128,
   deadline_block : BNum
 )
+  ThrowIfExpired deadline_block;
+  ThrowIfZero contribution_amount;
+  ThrowIfZero min_zil_amount;
+  ThrowIfZero min_token_amount;
 
-  validity_checks = Nil {Bool};
+  Receive _sender zil_address _amount;
 
-  current_block <- & BLOCKNUMBER;
-
-  validity_checks =
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    addBoolList is_not_expired validity_checks;
-
-  validity_checks =
-    let has_amount = uint128_neq contribution_amount zero in
-    addBoolList has_amount validity_checks;
-
-  validity_checks =
-    let has_amount = uint128_neq min_zil_amount zero in
-    addBoolList has_amount validity_checks;
-
-  validity_checks =
-    let has_amount = uint128_neq min_token_amount zero in
-    addBoolList has_amount validity_checks;
-
-  is_valid_transaction = allTrue validity_checks;
-
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_total_contribution <- total_contributions[token_address];
+  match maybe_total_contribution with
+  | None =>
+    e = { _exception : "MissingContributions" };
     throw e
-  | True =>
-    Receive _sender zil_address _amount;
-
-    total_contribution = zero;
-    maybe_total_contribution <- total_contributions[token_address];
-    match maybe_total_contribution with
-    | Some c =>
-      c_gt_zero = builtin lt zero c;
-      match c_gt_zero with
-      | True =>
-        total_contribution = c
-      | False =>
-        e = { _exception : "MissingContributions" };
-        throw e
-      end
-    | None =>
-      e = { _exception : "MissingContributions" };
-      throw e
-    end;
-
+  | Some total_contribution =>
+    ThrowIfZero total_contribution;
     maybe_pool <- pools[token_address];
     match maybe_pool with
     | None =>
@@ -387,7 +341,6 @@ transition RemoveLiquidity(
       | Pool x y => (* zil reserve, token reserve *)
         maybe_zil_amount = frac contribution_amount x total_contribution;
         maybe_token_amount = frac contribution_amount y total_contribution;
-
         match maybe_zil_amount with
         | None =>
           e = { _exception : "IntegerOverflow" };
@@ -398,12 +351,10 @@ transition RemoveLiquidity(
             e = { _exception : "IntegerOverflow" };
             throw e
           | Some token_amount =>
-
             within_limits =
               let zil_ok = uint128_ge zil_amount min_zil_amount in
               let token_ok = uint128_ge token_amount min_token_amount in
               andb zil_ok token_ok;
-
             match within_limits with
             | False =>
               e = { _exception : "RequestedRatesCannotBeFulfilled" };
@@ -411,6 +362,9 @@ transition RemoveLiquidity(
             | True =>
               existing_balance <- balances[token_address][_sender];
               match existing_balance with
+              | None =>
+                e = { _exception : "MissingBalance" };
+                throw e
               | Some b =>
                 new_pool =
                   let new_x = builtin sub x zil_amount in
@@ -428,9 +382,6 @@ transition RemoveLiquidity(
 
                 e = { _eventname: "Burn"; pool: token_address; address: _sender; amount: contribution_amount };
                 event e
-              | None =>
-                e = { _exception : "MissingBalance" };
-                throw e
               end
             end
           end
@@ -446,45 +397,33 @@ transition SwapExactZILForTokens(
   min_token_amount : Uint128, (* the min token amount that must be received for the txn to not revert *)
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_zil = uint128_gt _amount zero in
-    let has_token = uint128_gt min_token_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_zil has_token is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero _amount;
+  ThrowIfZero min_token_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool <- pools[token_address];
-    match maybe_pool with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
-        maybe_tokens_bought = outputFor _amount x y;
-        match maybe_tokens_bought with
-        | None =>
-          e = { _exception : "IntegerOverflow" };
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
+      maybe_tokens_bought = outputFor _amount x y;
+      match maybe_tokens_bought with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some tokens_bought =>
+        within_limits = uint128_ge tokens_bought min_token_amount;
+        match within_limits with
+        | False =>
+          e = { _exception : "RequestedRatesCannotBeFulfilled" };
           throw e
-        | Some tokens_bought =>
-          within_limits = uint128_ge tokens_bought min_token_amount;
-          match within_limits with
-          | False =>
-            e = { _exception : "RequestedRatesCannotBeFulfilled" };
-            throw e
-          | True =>
-            Receive _sender zil_address _amount;
-            Send _sender token_address tokens_bought;
-            UpdatePool pool token_address _sender _amount zero zero tokens_bought
-          end
+        | True =>
+          Receive _sender zil_address _amount;
+          Send _sender token_address tokens_bought;
+          UpdatePool pool token_address _sender _amount zero zero tokens_bought
         end
       end
     end
@@ -497,45 +436,33 @@ transition SwapExactTokensForZIL(
   min_zil_amount : Uint128, (* min zil amount that must be received for the txn to not revert *)
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_token = uint128_gt token_amount zero in
-    let has_zil = uint128_gt min_zil_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_zil has_token is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero token_amount;
+  ThrowIfZero min_zil_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool <- pools[token_address];
-    match maybe_pool with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
-        maybe_zil_bought = outputFor token_amount y x;
-        match maybe_zil_bought with
-        | None =>
-          e = { _exception : "IntegerOverflow" };
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
+      maybe_zil_bought = outputFor token_amount y x;
+      match maybe_zil_bought with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some zil_bought =>
+        within_limits = uint128_ge zil_bought min_zil_amount;
+        match within_limits with
+        | False =>
+          e = { _exception : "RequestedRatesCannotBeFulfilled" };
           throw e
-        | Some zil_bought =>
-          within_limits = uint128_ge zil_bought min_zil_amount;
-          match within_limits with
-          | False =>
-            e = { _exception : "RequestedRatesCannotBeFulfilled" };
-            throw e
-          | True =>
-            Receive _sender token_address token_amount;
-            Send _sender zil_address zil_bought;
-            UpdatePool pool token_address _sender zero token_amount zil_bought zero
-          end
+        | True =>
+          Receive _sender token_address token_amount;
+          Send _sender zil_address zil_bought;
+          UpdatePool pool token_address _sender zero token_amount zil_bought zero
         end
       end
     end
@@ -548,41 +475,29 @@ transition SwapZILForExactTokens(
   token_amount : Uint128, (* the amount of tokens to receive *)
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_token = uint128_gt token_amount zero in
-    let has_zil = uint128_gt _amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_zil has_token is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero _amount;
+  ThrowIfZero token_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool <- pools[token_address];
-    match maybe_pool with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
-        maybe_zil_amount = inputFor token_amount x y;
-        match maybe_zil_amount with
-        | None =>
-          e = { _exception : "IntegerOverflow" };
-          throw e
-        | Some zil_amount =>
-          refund_amount = builtin sub _amount zil_amount;
-          Receive _sender zil_address token_amount;
-          Send _sender zil_address refund_amount;
-          Send _sender token_address token_amount;
-          UpdatePool pool token_address _sender zil_amount zero zero token_amount
-        end
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
+      maybe_zil_amount = inputFor token_amount x y;
+      match maybe_zil_amount with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some zil_amount =>
+        refund_amount = builtin sub _amount zil_amount;
+        Receive _sender zil_address token_amount;
+        Send _sender zil_address refund_amount;
+        Send _sender token_address token_amount;
+        UpdatePool pool token_address _sender zil_amount zero zero token_amount
       end
     end
   end
@@ -594,45 +509,33 @@ transition SwapTokensForExactZIL(
   max_token_amount : Uint128, (* max token amount that may be sent before the txn will revert *)
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_token = uint128_gt max_token_amount zero in
-    let has_zil = uint128_gt zil_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_zil has_token is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero zil_amount;
+  ThrowIfZero max_token_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool <- pools[token_address];
-    match maybe_pool with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
-        maybe_token_amount = inputFor zil_amount y x;
-        match maybe_token_amount with
-        | None =>
-          e = { _exception : "IntegerOverflow" };
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
+      maybe_token_amount = inputFor zil_amount y x;
+      match maybe_token_amount with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some token_amount =>
+        within_limits = uint128_ge max_token_amount token_amount;
+        match within_limits with
+        | False =>
+          e = { _exception : "RequestedRatesCannotBeFulfilled" };
           throw e
-        | Some token_amount =>
-          within_limits = uint128_ge max_token_amount token_amount;
-          match within_limits with
-          | False =>
-            e = { _exception : "RequestedRatesCannotBeFulfilled" };
-            throw e
-          | True =>
-            Receive _sender token_address token_amount;
-            Send _sender zil_address zil_amount;
-            UpdatePool pool token_address _sender zero token_amount zil_amount zero
-          end
+        | True =>
+          Receive _sender token_address token_amount;
+          Send _sender zil_address zil_amount;
+          UpdatePool pool token_address _sender zero token_amount zil_amount zero
         end
       end
     end
@@ -646,61 +549,48 @@ transition SwapExactTokensForTokens(
   min_token1_amount : Uint128, (* min token0 amount that must be received for the txn to not revert *)
   deadline_block : BNum
 )
+  ThrowIfExpired deadline_block;
+  ThrowIfZero token0_amount;
+  ThrowIfZero min_token1_amount;
 
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_token0 = uint128_gt token0_amount zero in
-    let has_token1 = uint128_gt min_token1_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_token0 has_token1 is_not_expired;
-
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool0 <- pools[token0_address];
+  match maybe_pool0 with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool0 <- pools[token0_address];
-    match maybe_pool0 with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool0 =>
-      match pool0 with
-      | Pool x0 y0 => (* zil reserve, token reserve *)
-        maybe_zil_intermediate = outputFor token0_amount y0 x0;
-        match maybe_zil_intermediate with
+  | Some pool0 =>
+    match pool0 with
+    | Pool x0 y0 => (* zil reserve, token reserve *)
+      maybe_zil_intermediate = outputFor token0_amount y0 x0;
+      match maybe_zil_intermediate with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some zil_intermediate =>
+        maybe_pool1 <- pools[token1_address];
+        match maybe_pool1 with
         | None =>
-          e = { _exception : "IntegerOverflow" };
+          e = { _exception : "MissingPool" };
           throw e
-        | Some zil_intermediate =>
-          maybe_pool1 <- pools[token1_address];
-          match maybe_pool1 with
-          | None =>
-            e = { _exception : "MissingPool" };
-            throw e
-          | Some pool1 =>
-            match pool1 with
-            | Pool x1 y1 => (* zil reserve, token reserve *)
-              maybe_tokens_bought = outputFor zil_intermediate x1 y1;
-              match maybe_tokens_bought with
-              | None =>
-                e = { _exception : "IntegerOverflow" };
+        | Some pool1 =>
+          match pool1 with
+          | Pool x1 y1 => (* zil reserve, token reserve *)
+            maybe_tokens_bought = outputFor zil_intermediate x1 y1;
+            match maybe_tokens_bought with
+            | None =>
+              e = { _exception : "IntegerOverflow" };
+              throw e
+            | Some tokens_bought =>
+              within_limits = uint128_ge tokens_bought min_token1_amount;
+              match within_limits with
+              | False =>
+                e = { _exception : "RequestedRatesCannotBeFulfilled" };
                 throw e
-              | Some tokens_bought =>
-                within_limits = uint128_ge tokens_bought min_token1_amount;
-                match within_limits with
-                | False =>
-                  e = { _exception : "RequestedRatesCannotBeFulfilled" };
-                  throw e
-                | True =>
-                  Receive _sender token0_address token0_amount;
-                  UpdatePool pool0 token0_address _sender zero token0_amount zil_intermediate zero;
-                  Send _sender token1_address tokens_bought;
-                  UpdatePool pool1 token1_address _sender zil_intermediate zero zero tokens_bought
-                end
+              | True =>
+                Receive _sender token0_address token0_amount;
+                UpdatePool pool0 token0_address _sender zero token0_amount zil_intermediate zero;
+                Send _sender token1_address tokens_bought;
+                UpdatePool pool1 token1_address _sender zil_intermediate zero zero tokens_bought
               end
             end
           end
@@ -717,60 +607,48 @@ transition SwapTokensForExactTokens(
   token1_amount : Uint128, (* token1 amount to be received *)
   deadline_block : BNum
 )
-  (* check transition validity *)
-  current_block <- & BLOCKNUMBER;
-  is_valid_transaction =
-    let has_token0 = uint128_gt max_token0_amount zero in
-    let has_token1 = uint128_gt token1_amount zero in
-    let is_not_expired =
-      let expired = builtin blt current_block deadline_block in
-      negb expired in
-    andb3 has_token0 has_token1 is_not_expired;
+  ThrowIfExpired deadline_block;
+  ThrowIfZero max_token0_amount;
+  ThrowIfZero token1_amount;
 
-  match is_valid_transaction with
-  | False =>
-    e = { _exception : "TransactionInvalidOrExpired" };
+  maybe_pool1 <- pools[token1_address];
+  match maybe_pool1 with
+  | None =>
+    e = { _exception : "MissingPool" };
     throw e
-  | True =>
-    maybe_pool1 <- pools[token1_address];
-    match maybe_pool1 with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool1 =>
-      match pool1 with
-      | Pool x1 y1 => (* zil reserve, token reserve *)
-        maybe_zil_intermediate = inputFor token1_amount x1 y1;
-        match maybe_zil_intermediate with
+  | Some pool1 =>
+    match pool1 with
+    | Pool x1 y1 => (* zil reserve, token reserve *)
+      maybe_zil_intermediate = inputFor token1_amount x1 y1;
+      match maybe_zil_intermediate with
+      | None =>
+        e = { _exception : "IntegerOverflow" };
+        throw e
+      | Some zil_intermediate =>
+        maybe_pool0 <- pools[token0_address];
+        match maybe_pool0 with
         | None =>
-          e = { _exception : "IntegerOverflow" };
+          e = { _exception : "MissingPool" };
           throw e
-        | Some zil_intermediate =>
-          maybe_pool0 <- pools[token0_address];
-          match maybe_pool0 with
-          | None =>
-            e = { _exception : "MissingPool" };
-            throw e
-          | Some pool0 =>
-            match pool0 with
-            | Pool x0 y0 => (* zil reserve, token reserve *)
-              maybe_token_amount = inputFor zil_intermediate y0 x0;
-              match maybe_token_amount with
-              | None =>
-                e = { _exception : "IntegerOverflow" };
+        | Some pool0 =>
+          match pool0 with
+          | Pool x0 y0 => (* zil reserve, token reserve *)
+            maybe_token_amount = inputFor zil_intermediate y0 x0;
+            match maybe_token_amount with
+            | None =>
+              e = { _exception : "IntegerOverflow" };
+              throw e
+            | Some token_amount =>
+              within_limits = uint128_ge max_token0_amount token_amount;
+              match within_limits with
+              | False =>
+                e = { _exception : "RequestedRatesCannotBeFulfilled" };
                 throw e
-              | Some token_amount =>
-                within_limits = uint128_ge max_token0_amount token_amount;
-                match within_limits with
-                | False =>
-                  e = { _exception : "RequestedRatesCannotBeFulfilled" };
-                  throw e
-                | True =>
-                  Receive _sender token0_address token_amount;
-                  UpdatePool pool0 token0_address _sender zero token_amount zil_intermediate zero;
-                  Send _sender token1_address token1_amount;
-                  UpdatePool pool1 token1_address _sender zil_intermediate zero zero token1_amount
-                end
+              | True =>
+                Receive _sender token0_address token_amount;
+                UpdatePool pool0 token0_address _sender zero token_amount zil_intermediate zero;
+                Send _sender token1_address token1_amount;
+                UpdatePool pool1 token1_address _sender zil_intermediate zero zero token1_amount
               end
             end
           end
