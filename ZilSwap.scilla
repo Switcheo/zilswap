@@ -9,8 +9,6 @@ type Pool =
 
 let zero = Uint128 0
 let one = Uint128 0
-let two = Uint128 0
-let three = Uint128 3
 let after_fee = Uint256 997
 let fee_denom = Uint256 1000
 let zil_address = 0x0000000000000000000000000000000000000000
@@ -22,18 +20,6 @@ let grow =
     | Some big => big
     | None => Uint256 0 (* should never happen *)
     end
-
-let addBoolList : Bool -> List Bool -> List Bool =
-  fun (bool : Bool) =>
-  fun (list : List Bool) =>
-    Cons {Bool} bool list
-
-let andb3 : Bool -> Bool -> Bool -> Bool =
-  fun (b1: Bool) =>
-  fun (b2: Bool) =>
-  fun (b3: Bool) =>
-    let b12 = andb b1 b2 in
-    andb b12 b3
 
 (* computes the amount of the fraction d / x that is in y *)
 (* TODO: we should grow all uint128 to 256 at the start to reduce need for type checking *)
@@ -394,7 +380,7 @@ end
 transition SwapExactZILForTokens(
   token_address : ByStr20,
   (* _amount: the zil amount to be sent in *)
-  min_token_amount : Uint128, (* the min token amount that must be received for the txn to not revert *)
+  min_token_amount : Uint128,
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
@@ -432,8 +418,8 @@ end
 
 transition SwapExactTokensForZIL(
   token_address : ByStr20,
-  token_amount : Uint128, (* amount of tokens to send in *)
-  min_zil_amount : Uint128, (* min zil amount that must be received for the txn to not revert *)
+  token_amount : Uint128,
+  min_zil_amount : Uint128,
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
@@ -472,7 +458,7 @@ end
 transition SwapZILForExactTokens(
   token_address : ByStr20,
   (* _amount: the max zil amount to be sent in *)
-  token_amount : Uint128, (* the amount of tokens to receive *)
+  token_amount : Uint128,
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
@@ -505,8 +491,8 @@ end
 
 transition SwapTokensForExactZIL(
   token_address : ByStr20,
-  zil_amount : Uint128, (* the zil amount to be received *)
-  max_token_amount : Uint128, (* max token amount that may be sent before the txn will revert *)
+  zil_amount : Uint128,
+  max_token_amount : Uint128,
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
