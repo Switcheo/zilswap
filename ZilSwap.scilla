@@ -8,7 +8,8 @@ type Pool =
   | Pool of Uint128 Uint128
 
 let zero = Uint128 0
-let one = Uint128 0
+let one = Uint128 1
+let min_liquidity = Uint128 100
 let after_fee = Uint256 997
 let fee_denom = Uint256 1000
 let zil_address = 0x0000000000000000000000000000000000000000
@@ -221,17 +222,24 @@ transition AddLiquidity(
   maybe_pool <- pools[token_address];
   match maybe_pool with
   | None =>
-    Receive _sender token_address max_token_amount;
+    min_zil_contributed = uint128_ge _amount min_liquidity;
+    match min_zil_contributed with
+    | False =>
+      e = { _exception : "InvalidParameter" };
+      throw e
+    | True =>
+      Receive _sender token_address max_token_amount;
 
-    new_pool = Pool _amount max_token_amount;
-    pools[token_address] := new_pool;
-    e1 = { _eventname: "PoolCreated"; pool: token_address };
-    event e1;
+      new_pool = Pool _amount max_token_amount;
+      pools[token_address] := new_pool;
+      e1 = { _eventname: "PoolCreated"; pool: token_address };
+      event e1;
 
-    balances[token_address][_sender] := _amount;
-    total_contributions[token_address] := _amount;
-    e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
-    event e2
+      balances[token_address][_sender] := _amount;
+      total_contributions[token_address] := _amount;
+      e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
+      event e2
+    end
   | Some pool =>
     match pool with
     | Pool x y => (* zil reserve, token reserve *)
@@ -251,7 +259,7 @@ transition AddLiquidity(
           e = { _exception : "MissingContributions" };
           throw e
         | Some total_contribution =>
-          maybe_new_contribution = frac _amount total_contribution x;
+          maybe_new_contribution = frac _amount x total_contribution;
           match maybe_new_contribution with
           | None =>
             e = { _exception : "IntegerOverflow" };
@@ -325,8 +333,8 @@ transition RemoveLiquidity(
     | Some pool =>
       match pool with
       | Pool x y => (* zil reserve, token reserve *)
-        maybe_zil_amount = frac contribution_amount x total_contribution;
-        maybe_token_amount = frac contribution_amount y total_contribution;
+        maybe_zil_amount = frac contribution_amount total_contribution x;
+        maybe_token_amount = frac contribution_amount total_contribution y;
         match maybe_zil_amount with
         | None =>
           e = { _exception : "IntegerOverflow" };
