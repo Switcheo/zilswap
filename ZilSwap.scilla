@@ -321,7 +321,7 @@ transition RemoveLiquidity(
   maybe_total_contribution <- total_contributions[token_address];
   match maybe_total_contribution with
   | None =>
-    e = { _exception : "MissingContributions" };
+    e = { _exception : "MissingPool" };
     throw e
   | Some total_contribution =>
     ThrowIfZero total_contribution;
@@ -499,8 +499,8 @@ end
 
 transition SwapTokensForExactZIL(
   token_address : ByStr20,
-  zil_amount : Uint128,
   max_token_amount : Uint128,
+  zil_amount : Uint128,
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
