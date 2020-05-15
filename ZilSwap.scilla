@@ -89,7 +89,7 @@ procedure ThrowIfExpired(deadline_block: BNum)
 end
 
 procedure ThrowIfZero(number: Uint128)
-  gt_zero = uint128_gt _amount zero;
+  gt_zero = uint128_gt number zero;
   match gt_zero with
   | True =>
   | False =>
@@ -145,7 +145,7 @@ procedure Send(
   | False =>
     msg_to_token = {
       _tag : "Transfer"; _recipient: token; _amount: zero;
-      from: _this_address; to: to; amount: amount
+      to: to; amount: amount
     };
     msgs =
       let nil = Nil {Message} in
@@ -155,7 +155,7 @@ procedure Send(
 end
 
 procedure UpdatePool(
-  pool : Pool,
+  pool: Pool,
   token_address: ByStr20,
   address: ByStr20,
   zil_in: Uint128,
@@ -201,6 +201,13 @@ end
 
 transition TransferFromSuccessCallBack(
   initiator : ByStr20,
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
+
+transition TransferSuccessCallBack(
   sender : ByStr20,
   recipient : ByStr20,
   amount : Uint128
@@ -315,8 +322,6 @@ transition RemoveLiquidity(
   ThrowIfZero contribution_amount;
   ThrowIfZero min_zil_amount;
   ThrowIfZero min_token_amount;
-
-  Receive _sender zil_address _amount;
 
   maybe_total_contribution <- total_contributions[token_address];
   match maybe_total_contribution with
