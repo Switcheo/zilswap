@@ -492,11 +492,18 @@ transition SwapZILForExactTokens(
         e = { _exception : "IntegerOverflow" };
         throw e
       | Some zil_amount =>
-        refund_amount = builtin sub _amount zil_amount;
-        Receive _sender zil_address token_amount;
-        Send _sender zil_address refund_amount;
-        Send _sender token_address token_amount;
-        UpdatePool pool token_address _sender zil_amount zero zero token_amount
+        within_limits = uint128_ge _amount zil_amount;
+        match within_limits with
+        | False =>
+          e = { _exception : "RequestedRatesCannotBeFulfilled" };
+          throw e
+        | True =>
+          refund_amount = builtin sub _amount zil_amount;
+          Receive _sender zil_address _amount;
+          Send _sender zil_address refund_amount;
+          Send _sender token_address token_amount;
+          UpdatePool pool token_address _sender zil_amount zero zero token_amount
+        end
       end
     end
   end
