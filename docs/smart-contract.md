@@ -59,7 +59,7 @@ All events also have the `token_in` and `token_out` to signify the corresponding
 
 The address of the token sent or received in `token_in` and `token_out` is given by `token_address`.
 
-Note that if `zil_in` is non-zero, then `zil_out` will always be zero, and vice versa. The same goes for `amount_in` and `amount_out`.
+Note that if `zil_in` is non-zero, then `zil_out` will always be zero, and vice versa. The same goes for `token_in` and `token_out`.
 
 | Parameter | Type    | Description                                                       |
 |-----------|---------|-------------------------------------------------------------------|
