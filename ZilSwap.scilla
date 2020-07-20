@@ -4,12 +4,16 @@ import BoolUtils IntUtils
 
 library ZilSwap
 
-type Pool = | Pool of Uint128 Uint128
+type Denom =
+  | Zil
+  | Token of ByStr20 (* token address / hash *)
+type Coins = | Coins of Denom Uint128 (* denom, amount *)
+type Pool = | Pool of Uint128 Uint128 (* x, y = zil reserve, token reserve *)
 type SwapDirection = | ZilToToken | TokenToZil
 type ExactSide = | ExactInput | ExactOutput
 type Swap = | Swap of (Option Pool) SwapDirection ExactSide Uint128 (Option Uint128) (* exact amt, limit amt *)
-type Result =
- | Amount of Uint128
+type ResultOrError =
+ | Result of Pool Uint128 (* unwrapped pool, calculated amount *)
  | Error of String
 
 let zero = Uint128 0
@@ -18,6 +22,7 @@ let min_liquidity = Uint128 100
 let after_fee = Uint256 997
 let fee_denom = Uint256 1000
 let zil_address = 0x0000000000000000000000000000000000000000
+let zil = Zil
 
 let oneMsg : Message -> List Message =
   fun (msg : Message) =>
@@ -79,30 +84,23 @@ let inputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
     let result = builtin div numerator denominator in
     builtin to_uint128 result
 
-(* computes the corresponding input or output amount for a pool,
-   given the swap direction and an exact output or input amount *)
-let resultFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Option Uint128 =
+(* computes the corresponding input or output amount for
+   the given exact output or input amount, pool, and direction *)
+let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Option Uint128 =
   fun (pool : Pool) =>
   fun (direction : SwapDirection) =>
   fun (exact_side: ExactSide) =>
   fun (exact_amount: Uint128) =>
     match pool with
     | Pool zil_reserve token_reserve =>
+      let calc = fun (exact: ExactSide) =>
+        match exact with
+        | ExactInput => outputFor
+        | ExactOutput => inputFor
+        end in
       match direction with
-      | ZilToToken =>
-        match exact_side with
-        | ExactInput =>
-          outputFor exact_amount zil_reserve token_reserve
-        | ExactOutput =>
-          inputFor exact_amount zil_reserve token_reserve
-        end
-      | TokenToZil =>
-        match exact_side with
-        | ExactInput =>
-          outputFor exact_amount token_reserve zil_reserve
-        | ExactOutput =>
-          inputFor exact_amount token_reserve zil_reserve
-        end
+      | ZilToToken => calc exact_side exact_amount zil_reserve token_reserve
+      | TokenToZil => calc exact_side exact_amount token_reserve zil_reserve
       end
     end
 
@@ -129,7 +127,7 @@ let withinLimits : Uint128 -> Option Uint128 -> ExactSide -> Bool =
     end
 
 (* computes the resultant amount for the given swap *)
-let resultForSwap : Swap -> Result =
+let resultFor : Swap -> ResultOrError =
   fun (swap : Swap) =>
     match swap with
     | Swap maybe_pool direction exact_side exact_amount maybe_limit_amount =>
@@ -137,17 +135,17 @@ let resultForSwap : Swap -> Result =
       | None =>
         let e = "MissingPool" in Error e
       | Some pool =>
-        let maybe_result = resultFor pool direction exact_side exact_amount in
-        match maybe_result with
+        let maybe_amount = amountFor pool direction exact_side exact_amount in
+        match maybe_amount with
         | None =>
           let e = "IntegerOverflow" in Error e
-        | Some result =>
-          let within_limits = withinLimits result maybe_limit_amount exact_side in
+        | Some amount =>
+          let within_limits = withinLimits amount maybe_limit_amount exact_side in
           match within_limits with
           | False =>
             let e = "RequestedRatesCannotBeFulfilled" in Error e
           | True =>
-            Amount result
+            Result pool amount
           end
         end
       end
@@ -192,80 +190,199 @@ procedure ThrowIfZero(number: Uint128)
   end
 end
 
-procedure Send(
-  token : ByStr20,
-  amount : Uint128
-)
-  is_zil = builtin eq token zil_address;
+procedure ThrowIfZil(address : ByStr20)
+  is_zil = builtin eq address zil_address;
   match is_zil with
-  | True =>
-    msg = { _tag : "AddFunds"; _recipient: _sender; _amount: amount };
-    msgs = oneMsg msg;
-    send msgs
   | False =>
-    msg_to_token =  {
-      _tag : "Transfer"; _recipient: token; _amount: zero;
-      to: _sender; amount: amount
-    };
-    msgs = oneMsg msg_to_token;
-    send msgs
-  end
-end
-
-procedure Receive(
-  token : ByStr20,
-  amount : Uint128
-)
-  is_zil = builtin eq token zil_address;
-  match is_zil with
   | True =>
-    accept;
-    needs_refund = uint128_gt _amount amount;
-    match needs_refund with
-    | True =>
-      refund_amount = builtin sub _amount amount;
-      Send zil_address refund_amount
-    | False => (* do nothing *)
-    end
-  | False =>
-    msg_to_token = {
-      _tag : "TransferFrom"; _recipient: token; _amount: zero;
-      from: _sender; to: _this_address; amount: amount
-    };
-    msgs = oneMsg msg_to_token;
-    send msgs
-  end
-end
-
-procedure UpdatePool(
-  maybe_pool: Option Pool,
-  token_address: ByStr20,
-  address: ByStr20,
-  zil_in: Uint128,
-  token_in: Uint128,
-  zil_out: Uint128,
-  token_out: Uint128
-)
-  match maybe_pool with
-  | Some pool =>
-    match pool with
-    | Pool x y => (* zil reserve, token reserve *)
-      new_pool =
-      let new_x = let x_add = builtin add x zil_in in builtin sub x_add zil_out in
-      let new_y = let y_add = builtin add y token_in in builtin sub y_add token_out in
-      Pool new_x new_y;
-      pools[token_address] := new_pool;
-
-      e = {
-        _eventname: "Swap"; pool: token_address; address: address;
-        zil_in: zil_in; token_in: token_in;
-        zil_out: zil_out; token_out: token_out
-      };
-      event e
-    end
-  | None =>
-    e = { _exception : "MissingPool" };
+    e = { _exception : "InvalidParameter" };
     throw e
+  end
+end
+
+procedure Send(coins : Coins)
+  match coins with
+  | Coins denom amount =>
+    match denom with
+    | Zil =>
+      msg = { _tag : "AddFunds"; _recipient: _sender; _amount: amount };
+      msgs = oneMsg msg;
+      send msgs
+    | Token token =>
+      msg_to_token =  {
+        _tag : "Transfer"; _recipient: token; _amount: zero;
+        to: _sender; amount: amount
+      };
+      msgs = oneMsg msg_to_token;
+      send msgs
+    end
+  end
+end
+
+procedure Receive(coins : Coins)
+  match coins with
+  | Coins denom amount =>
+    match denom with
+    | Zil =>
+      needs_refund = uint128_gt _amount amount;
+      accept;
+      match needs_refund with
+      | True =>
+        refund =
+          let refund_amount = builtin sub _amount amount in
+          Coins zil refund_amount;
+        Send refund
+      | False => (* do nothing *)
+      end
+    | Token token =>
+      msg_to_token = {
+        _tag : "TransferFrom"; _recipient: token; _amount: zero;
+        from: _sender; to: _this_address; amount: amount
+      };
+      msgs = oneMsg msg_to_token;
+      send msgs
+    end
+  end
+end
+
+procedure DoSwap(
+  pool : Pool,
+  token_address : ByStr20,
+  input : Coins,
+  output : Coins,
+  input_from : ByStr20,
+  output_to : ByStr20
+)
+  match pool with
+  | Pool x y => (* zil reserve, token reserve *)
+
+    (* update new pool balances *)
+    match input with
+    | Coins input_denom input_amount =>
+      match output with
+      | Coins output_denom output_amount =>
+        match input_denom with
+        | Zil =>
+          new_pool =
+            let new_x = builtin add x input_amount in
+            let new_y = builtin sub y output_amount in
+          Pool new_x new_y;
+          pools[token_address] := new_pool
+        | Token t =>
+          new_pool =
+            let new_x = builtin sub x output_amount in
+            let new_y = builtin add y input_amount in
+          Pool new_x new_y;
+          pools[token_address] := new_pool
+        end
+      end
+    end;
+
+    (* do receive / send *)
+    sending_from_self = builtin eq input_from _this_address;
+    match sending_from_self with
+    | True => (* don't do anything on internal send *)
+    | False => Receive input (* accept the expected input *)
+    end;
+
+    sending_to_self = builtin eq output_to _this_address;
+    match sending_to_self with
+    | True => (* don't do anything on internal receive *)
+    | False => Send output (* send the expected outpu *)
+    end;
+
+    (* emit swap event *)
+    e = {
+      _eventname: "Swap";
+      pool: token_address; address: _sender;
+      input: input; output: output
+    };
+    event e
+  end
+end
+
+(* helper procedure to do swap twice, first to internally
+   swap to an intermediate zil amount with pool0 and then
+   to swap that zil with pool1 to the _sender *)
+procedure DoSwapTwice(
+  pool0 : Pool,
+  token0_address : ByStr20,
+  pool1 : Pool,
+  token1_address : ByStr20,
+  input_amount : Uint128,
+  intermediate_amount : Uint128,
+  output_amount : Uint128
+)
+  input = let token0 = Token token0_address in
+    Coins token0 input_amount;
+  intermediate = Coins zil intermediate_amount;
+  output = let token1 = Token token1_address in
+    Coins token1 output_amount;
+  DoSwap
+    pool0
+    token0_address
+    input
+    intermediate
+    _sender
+    _this_address
+  ;
+  DoSwap
+    pool1
+    token1_address
+    intermediate
+    output
+    _this_address
+    _sender
+end
+
+procedure SwapUsingZIL(
+  token_address : ByStr20,
+  direction : SwapDirection,
+  exact_side : ExactSide,
+  exact_amount : Uint128,
+  limit_amount : Uint128,
+  deadline_block : BNum
+)
+  ThrowIfExpired deadline_block;
+  ThrowIfZero exact_amount;
+  ThrowIfZero limit_amount;
+
+  maybe_pool <- pools[token_address];
+  result =
+    let option_limit_amount = Some {Uint128} limit_amount in
+    let swap = Swap maybe_pool direction exact_side exact_amount option_limit_amount in
+    resultFor swap;
+
+  match result with
+  | Error msg =>
+    e = { _exception : msg };
+    throw e
+  | Result pool calculated_amount =>
+    token = Token token_address;
+    match exact_side with
+    | ExactInput =>
+      match direction with
+      | ZilToToken =>
+        input = Coins zil exact_amount;
+        output = Coins token calculated_amount;
+        DoSwap pool token_address input output _sender _sender
+      | TokenToZil =>
+        input = Coins token exact_amount;
+        output = Coins zil calculated_amount;
+        DoSwap pool token_address input output _sender _sender
+      end
+    | ExactOutput =>
+      match direction with
+      | ZilToToken =>
+        input = Coins zil calculated_amount;
+        output = Coins token exact_amount;
+        DoSwap pool token_address input output _sender _sender
+      | TokenToZil =>
+        input = Coins token calculated_amount;
+        output = Coins zil exact_amount;
+        DoSwap pool token_address input output _sender _sender
+      end
+    end
   end
 end
 
@@ -310,10 +427,15 @@ transition AddLiquidity(
   deadline_block : BNum
 )
   ThrowIfExpired deadline_block;
+  ThrowIfZil token_address;
   ThrowIfZero _amount;
   ThrowIfZero max_token_amount;
 
-  Receive zil_address _amount;
+  token = Token token_address;
+
+  (* accept all zil *)
+  zils_in = Coins zil _amount;
+  Receive zils_in;
 
   maybe_pool <- pools[token_address];
   match maybe_pool with
@@ -324,7 +446,8 @@ transition AddLiquidity(
       e = { _exception : "InvalidParameter" };
       throw e
     | True =>
-      Receive token_address max_token_amount;
+      tokens_in = Coins token max_token_amount;
+      Receive tokens_in;
 
       new_pool = Pool _amount max_token_amount;
       pools[token_address] := new_pool;
@@ -370,7 +493,8 @@ transition AddLiquidity(
               e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y };
               throw e
             | True =>
-              Receive token_address delta_y;
+              tokens_in = Coins token delta_y;
+              Receive tokens_in;
 
               new_pool =
                 let new_x = builtin add x _amount in
@@ -411,6 +535,8 @@ transition RemoveLiquidity(
   ThrowIfZero contribution_amount;
   ThrowIfZero min_zil_amount;
   ThrowIfZero min_token_amount;
+
+  token = Token token_address;
 
   maybe_total_contribution <- total_contributions[token_address];
   match maybe_total_contribution with
@@ -462,6 +588,7 @@ transition RemoveLiquidity(
                 is_pool_now_empty = poolEmpty new_pool;
                 match is_pool_now_empty with
                 | True =>
+                  (* clear pool entries when there is no more liquidity *)
                   delete pools[token_address];
                   delete balances[token_address];
                   delete total_contributions[token_address]
@@ -473,8 +600,10 @@ transition RemoveLiquidity(
                   total_contributions[token_address] := new_total_contribution
                 end;
 
-                Send zil_address zil_amount;
-                Send token_address token_amount;
+                zils_out = Coins zil zil_amount;
+                tokens_out = Coins token token_amount;
+                Send zils_out;
+                Send tokens_out;
 
                 e = { _eventname: "Burn"; pool: token_address; address: _sender; amount: contribution_amount };
                 event e
@@ -493,28 +622,18 @@ transition SwapExactZILForTokens(
   min_token_amount : Uint128,
   deadline_block : BNum
 )
-  ThrowIfExpired deadline_block;
-  ThrowIfZero _amount;
-  ThrowIfZero min_token_amount;
+  direction = ZilToToken;
+  exact_side = ExactInput;
+  exact_amount = _amount;
+  limit_amount = min_token_amount;
 
-  pool <- pools[token_address];
-
-  result =
-    let direction = ZilToToken in
-    let exact_side = ExactInput in
-    let limit_amount = Some {Uint128} min_token_amount in
-    let swap = Swap pool direction exact_side _amount limit_amount in
-      resultForSwap swap;
-
-  match result with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
-  | Amount token_amount =>
-    Receive zil_address _amount;
-    Send token_address token_amount;
-    UpdatePool pool token_address _sender _amount zero zero token_amount
-  end
+  SwapUsingZIL
+    token_address
+    direction
+    exact_side
+    exact_amount
+    limit_amount
+    deadline_block
 end
 
 transition SwapExactTokensForZIL(
@@ -523,28 +642,18 @@ transition SwapExactTokensForZIL(
   min_zil_amount : Uint128,
   deadline_block : BNum
 )
-  ThrowIfExpired deadline_block;
-  ThrowIfZero token_amount;
-  ThrowIfZero min_zil_amount;
+  direction = TokenToZil;
+  exact_side = ExactInput;
+  exact_amount = token_amount;
+  limit_amount = min_zil_amount;
 
-  pool <- pools[token_address];
-
-  result =
-    let direction = TokenToZil in
-    let exact_side = ExactInput in
-    let limit_amount = Some {Uint128} min_zil_amount in
-    let swap = Swap pool direction exact_side _amount limit_amount in
-      resultForSwap swap;
-
-  match result with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
-  | Amount zil_amount =>
-    Receive token_address token_amount;
-    Send zil_address zil_amount;
-    UpdatePool pool token_address _sender zero token_amount zil_amount zero
-  end
+  SwapUsingZIL
+    token_address
+    direction
+    exact_side
+    exact_amount
+    limit_amount
+    deadline_block
 end
 
 transition SwapZILForExactTokens(
@@ -553,28 +662,18 @@ transition SwapZILForExactTokens(
   token_amount : Uint128,
   deadline_block : BNum
 )
-  ThrowIfExpired deadline_block;
-  ThrowIfZero _amount;
-  ThrowIfZero token_amount;
+  direction = ZilToToken;
+  exact_side = ExactOutput;
+  exact_amount = token_amount;
+  limit_amount = _amount;
 
-  pool <- pools[token_address];
-
-  result =
-    let direction = ZilToToken in
-    let exact_side = ExactOutput in
-    let limit_amount = Some {Uint128} _amount in
-    let swap = Swap pool direction exact_side token_amount limit_amount in
-      resultForSwap swap;
-
-  match result with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
-  | Amount zil_amount =>
-    Receive zil_address zil_amount;
-    Send token_address token_amount;
-    UpdatePool pool token_address _sender zil_amount zero zero token_amount
-  end
+  SwapUsingZIL
+    token_address
+    direction
+    exact_side
+    exact_amount
+    limit_amount
+    deadline_block
 end
 
 transition SwapTokensForExactZIL(
@@ -583,28 +682,18 @@ transition SwapTokensForExactZIL(
   zil_amount : Uint128,
   deadline_block : BNum
 )
-  ThrowIfExpired deadline_block;
-  ThrowIfZero zil_amount;
-  ThrowIfZero max_token_amount;
+  direction = TokenToZil;
+  exact_side = ExactOutput;
+  exact_amount = zil_amount;
+  limit_amount = max_token_amount;
 
-  pool <- pools[token_address];
-
-  result =
-    let direction = TokenToZil in
-    let exact_side = ExactOutput in
-    let limit_amount = Some {Uint128} max_token_amount in
-    let swap = Swap pool direction exact_side zil_amount limit_amount in
-      resultForSwap swap;
-
-  match result with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
-  | Amount token_amount =>
-    Receive token_address token_amount;
-    Send zil_address zil_amount;
-    UpdatePool pool token_address _sender zero token_amount zil_amount zero
-  end
+  SwapUsingZIL
+    token_address
+    direction
+    exact_side
+    exact_amount
+    limit_amount
+    deadline_block
 end
 
 transition SwapExactTokensForTokens(
@@ -618,38 +707,42 @@ transition SwapExactTokensForTokens(
   ThrowIfZero token0_amount;
   ThrowIfZero min_token1_amount;
 
-  pool0 <- pools[token0_address];
+  maybe_pool0 <- pools[token0_address];
 
   result0 =
     let direction = TokenToZil in
     let exact_side = ExactInput in
     let limit_amount = None {Uint128} in
-    let swap = Swap pool0 direction exact_side token0_amount limit_amount in
-      resultForSwap swap;
+    let swap = Swap maybe_pool0 direction exact_side token0_amount limit_amount in
+      resultFor swap;
 
   match result0 with
   | Error msg =>
     e = { _exception : msg };
     throw e
-  | Amount zil_intermediate_amount =>
-    pool1 <- pools[token1_address];
+  | Result pool0 zil_intermediate_amount =>
+    maybe_pool1 <- pools[token1_address];
 
     result1 =
       let direction = ZilToToken in
       let exact_side = ExactInput in
       let limit_amount = Some {Uint128} min_token1_amount in
-      let swap = Swap pool1 direction exact_side zil_intermediate_amount limit_amount in
-        resultForSwap swap;
+      let swap = Swap maybe_pool1 direction exact_side zil_intermediate_amount limit_amount in
+        resultFor swap;
 
     match result1 with
     | Error msg =>
       e = { _exception : msg };
       throw e
-    | Amount output_amount =>
-      Receive token0_address token0_amount;
-      UpdatePool pool0 token0_address _sender zero token0_amount zil_intermediate_amount zero;
-      Send token1_address output_amount;
-      UpdatePool pool1 token1_address _sender zil_intermediate_amount zero zero output_amount
+    | Result pool1 output_amount =>
+      DoSwapTwice
+        pool0
+        token0_address
+        pool1
+        token1_address
+        token0_amount
+        zil_intermediate_amount
+        output_amount
     end
   end
 end
@@ -665,38 +758,42 @@ transition SwapTokensForExactTokens(
   ThrowIfZero max_token0_amount;
   ThrowIfZero token1_amount;
 
-  pool1 <- pools[token1_address];
+  maybe_pool1 <- pools[token1_address];
 
   result1 =
     let direction = ZilToToken in
     let exact_side = ExactOutput in
     let limit_amount = None {Uint128} in
-    let swap = Swap pool1 direction exact_side token1_amount limit_amount in
-      resultForSwap swap;
+    let swap = Swap maybe_pool1 direction exact_side token1_amount limit_amount in
+      resultFor swap;
 
   match result1 with
   | Error msg =>
     e = { _exception : msg };
     throw e
-  | Amount zil_intermediate_amount =>
-    pool0 <- pools[token0_address];
+  | Result pool1 zil_intermediate_amount =>
+    maybe_pool0 <- pools[token0_address];
 
     result0 =
       let direction = TokenToZil in
       let exact_side = ExactOutput in
       let limit_amount = Some {Uint128} max_token0_amount in
-      let swap = Swap pool1 direction exact_side zil_intermediate_amount limit_amount in
-        resultForSwap swap;
+      let swap = Swap maybe_pool0 direction exact_side zil_intermediate_amount limit_amount in
+        resultFor swap;
 
     match result0 with
     | Error msg =>
       e = { _exception : msg };
       throw e
-    | Amount input_amount =>
-      Receive token0_address input_amount;
-      UpdatePool pool0 token0_address _sender zero input_amount zil_intermediate_amount zero;
-      Send token1_address token1_amount;
-      UpdatePool pool1 token1_address _sender zil_intermediate_amount zero zero token1_amount
+    | Result pool0 input_amount =>
+      DoSwapTwice
+        pool0
+        token0_address
+        pool1
+        token1_address
+        input_amount
+        zil_intermediate_amount
+        token1_amount
     end
   end
 end
