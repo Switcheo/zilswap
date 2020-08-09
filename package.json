@@ -1,0 +1,18 @@
+{
+  "name": "zilswap",
+  "version": "1.0.0",
+  "description": "Zilswap is a fully decentralized protocol for ZRC-2 token exchanges on Zilliqa.",
+  "main": "index.js",
+  "repository": "https://github.com/Switcheo/zilswap.git",
+  "author": "Ivan Poon <ivan.poon@switcheo.network>",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "@zilliqa-js/zilliqa": "^1.0.0-alpha.1",
+    "bn.js": "^5.1.2",
+    "tslib": "^2.0.1"
+  }
+}
