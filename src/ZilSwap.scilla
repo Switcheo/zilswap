@@ -200,18 +200,18 @@ procedure ThrowIfZil(address : ByStr20)
   end
 end
 
-procedure Send(coins : Coins)
+procedure Send(coins : Coins, to_address : ByStr20)
   match coins with
   | Coins denom amount =>
     match denom with
     | Zil =>
-      msg = { _tag : "AddFunds"; _recipient: _sender; _amount: amount };
+      msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
       msgs = oneMsg msg;
       send msgs
     | Token token =>
       msg_to_token =  {
         _tag : "Transfer"; _recipient: token; _amount: zero;
-        to: _sender; amount: amount
+        to: to_address; amount: amount
       };
       msgs = oneMsg msg_to_token;
       send msgs
@@ -231,7 +231,7 @@ procedure Receive(coins : Coins)
         refund =
           let refund_amount = builtin sub _amount amount in
           Coins zil refund_amount;
-        Send refund
+        Send refund _sender
       | False => (* do nothing *)
       end
     | Token token =>
@@ -288,7 +288,7 @@ procedure DoSwap(
     sending_to_self = builtin eq output_to _this_address;
     match sending_to_self with
     | True => (* don't do anything on internal receive *)
-    | False => Send output (* send the expected outpu *)
+    | False => Send output output_to (* send the expected outpu *)
     end;
 
     (* emit swap event *)
@@ -311,7 +311,8 @@ procedure DoSwapTwice(
   token1_address : ByStr20,
   input_amount : Uint128,
   intermediate_amount : Uint128,
-  output_amount : Uint128
+  output_amount : Uint128,
+  recipient_address : ByStr20
 )
   input = let token0 = Token token0_address in
     Coins token0 input_amount;
@@ -332,7 +333,7 @@ procedure DoSwapTwice(
     intermediate
     output
     _this_address
-    _sender
+    recipient_address
 end
 
 procedure SwapUsingZIL(
@@ -341,7 +342,8 @@ procedure SwapUsingZIL(
   exact_side : ExactSide,
   exact_amount : Uint128,
   limit_amount : Uint128,
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   ThrowIfExpired deadline_block;
   ThrowIfZero exact_amount;
@@ -365,22 +367,22 @@ procedure SwapUsingZIL(
       | ZilToToken =>
         input = Coins zil exact_amount;
         output = Coins token calculated_amount;
-        DoSwap pool token_address input output _sender _sender
+        DoSwap pool token_address input output _sender recipient_address
       | TokenToZil =>
         input = Coins token exact_amount;
         output = Coins zil calculated_amount;
-        DoSwap pool token_address input output _sender _sender
+        DoSwap pool token_address input output _sender recipient_address
       end
     | ExactOutput =>
       match direction with
       | ZilToToken =>
         input = Coins zil calculated_amount;
         output = Coins token exact_amount;
-        DoSwap pool token_address input output _sender _sender
+        DoSwap pool token_address input output _sender recipient_address
       | TokenToZil =>
         input = Coins token calculated_amount;
         output = Coins zil exact_amount;
-        DoSwap pool token_address input output _sender _sender
+        DoSwap pool token_address input output _sender recipient_address
       end
     end
   end
@@ -602,8 +604,8 @@ transition RemoveLiquidity(
 
                 zils_out = Coins zil zil_amount;
                 tokens_out = Coins token token_amount;
-                Send zils_out;
-                Send tokens_out;
+                Send zils_out _sender;
+                Send tokens_out _sender;
 
                 e = { _eventname: "Burn"; pool: token_address; address: _sender; amount: contribution_amount };
                 event e
@@ -620,7 +622,8 @@ transition SwapExactZILForTokens(
   token_address : ByStr20,
   (* _amount: the zil amount to be sent in *)
   min_token_amount : Uint128,
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   direction = ZilToToken;
   exact_side = ExactInput;
@@ -634,13 +637,15 @@ transition SwapExactZILForTokens(
     exact_amount
     limit_amount
     deadline_block
+    recipient_address
 end
 
 transition SwapExactTokensForZIL(
   token_address : ByStr20,
   token_amount : Uint128,
   min_zil_amount : Uint128,
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   direction = TokenToZil;
   exact_side = ExactInput;
@@ -654,13 +659,15 @@ transition SwapExactTokensForZIL(
     exact_amount
     limit_amount
     deadline_block
+    recipient_address
 end
 
 transition SwapZILForExactTokens(
   token_address : ByStr20,
   (* _amount: the max zil amount to be sent in *)
   token_amount : Uint128,
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   direction = ZilToToken;
   exact_side = ExactOutput;
@@ -674,13 +681,15 @@ transition SwapZILForExactTokens(
     exact_amount
     limit_amount
     deadline_block
+    recipient_address
 end
 
 transition SwapTokensForExactZIL(
   token_address : ByStr20,
   max_token_amount : Uint128,
   zil_amount : Uint128,
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   direction = TokenToZil;
   exact_side = ExactOutput;
@@ -694,6 +703,7 @@ transition SwapTokensForExactZIL(
     exact_amount
     limit_amount
     deadline_block
+    recipient_address
 end
 
 transition SwapExactTokensForTokens(
@@ -701,7 +711,8 @@ transition SwapExactTokensForTokens(
   token1_address : ByStr20,
   token0_amount : Uint128, (* the token0 amount to be sent in *)
   min_token1_amount : Uint128, (* min token0 amount that must be received for the txn to not revert *)
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   ThrowIfExpired deadline_block;
   ThrowIfZero token0_amount;
@@ -743,6 +754,7 @@ transition SwapExactTokensForTokens(
         token0_amount
         zil_intermediate_amount
         output_amount
+        recipient_address
     end
   end
 end
@@ -752,7 +764,8 @@ transition SwapTokensForExactTokens(
   token1_address : ByStr20,
   max_token0_amount : Uint128, (* the max token0 amount that may be sent in before the txn will revert *)
   token1_amount : Uint128, (* token1 amount to be received *)
-  deadline_block : BNum
+  deadline_block : BNum,
+  recipient_address : ByStr20
 )
   ThrowIfExpired deadline_block;
   ThrowIfZero max_token0_amount;
@@ -794,6 +807,7 @@ transition SwapTokensForExactTokens(
         input_amount
         zil_intermediate_amount
         token1_amount
+        recipient_address
     end
   end
 end

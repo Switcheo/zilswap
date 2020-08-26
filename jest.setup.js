@@ -1,1 +1,1 @@
-jest.setTimeout(120000)
+jest.setTimeout(process.env.TIMEOUT || 10 * 60 * 1000) // default: 10 mins

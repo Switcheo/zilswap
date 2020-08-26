@@ -61,7 +61,14 @@ async function deployFungibleToken(
   return deployContract(privateKey, code, init)
 }
 
-async function deployZilswap(privateKey) {
+async function useFungibleToken(privateKey, params) {
+  if (process.env.TOKEN_HASH) {
+    return getContract(privateKey, process.env.TOKEN_HASH)
+  }
+  return deployFungibleToken(privateKey, params)
+}
+
+async function deployZilswap(privateKey, { version = '0' }) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -75,11 +82,18 @@ async function deployZilswap(privateKey) {
       vname: '_scilla_version',
       type: 'Uint32',
       value: '0',
-    }
+    },
   ];
 
   console.log(`Deploying zilswap...`)
   return deployContract(privateKey, code, init)
+}
+
+async function useZilswap(privateKey, params) {
+  if (process.env.CONTRACT_HASH) {
+    return getContract(privateKey, process.env.CONTRACT_HASH)
+  }
+  return deployZilswap(privateKey, params)
 }
 
 async function deployContract(privateKey, code, init) {
@@ -128,7 +142,7 @@ async function deployContract(privateKey, code, init) {
   }
 
   // Print txn receipt
-  console.log(`Deployment transaction receipt: ${deployTx.txParams.receipt}`)
+  console.log(`Deployment transaction receipt:\n${JSON.stringify(deployTx.txParams.receipt)}`)
 
   // Refetch contract
   console.log(`The contract address is: ${token.address}`)
@@ -137,10 +151,18 @@ async function deployContract(privateKey, code, init) {
   const state = await deployedContract.getState()
 
   // Print contract state
-  console.log(`The state of the contract is: \n${JSON.stringify(state, null, 2)}`)
+  console.log(`The state of the contract is:\n${JSON.stringify(state, null, 2)}`)
 
   // Return the contract and state
   return [deployedContract, state]
+}
+
+async function getContract(privateKey, contractHash) {
+  const zilliqa = new Zilliqa(TESTNET_RPC)
+  zilliqa.wallet.addByPrivateKey(privateKey)
+  const contract = zilliqa.contracts.at(contractHash)
+  const state = await contract.getState()
+  return [contract, state]
 }
 
 const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
@@ -148,4 +170,6 @@ const matchComments = /[(][*].*?[*][)]/gs
 const matchWhitespace = /\s+/g
 
 exports.deployFungibleToken = deployFungibleToken
+exports.useFungibleToken = useFungibleToken
 exports.deployZilswap = deployZilswap
+exports.useZilswap = useZilswap

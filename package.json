@@ -12,7 +12,12 @@
   },
   "dependencies": {
     "@zilliqa-js/zilliqa": "^1.0.0-alpha.1",
+    "bignumber.js": "^9.0.0",
     "bn.js": "^5.1.2",
+    "dotenv": "^8.2.0",
     "tslib": "^2.0.1"
+  },
+  "devDependencies": {
+    "jest": "^26.4.2"
   }
 }
