@@ -1,8 +1,8 @@
 
-const { TransactionError } = require('@zilliqa-js/core')
 const { Zilliqa } = require('@zilliqa-js/zilliqa')
-const { BN, Long, bytes, units } = require('@zilliqa-js/util')
+const { Long, bytes, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
+const BigNumber = require('bignumber.js')
 
 const TESTNET_VERSION = bytes.pack(333, 1)
 const TESTNET_RPC = 'https://dev-api.zilliqa.com'
@@ -37,6 +37,7 @@ async function callContract(privateKey, contract, transition, args,
     )
   }
 
+  console.info(`Calling: ${transition}`)
   return await contract.call(transition, args,
     {
       version: TESTNET_VERSION,
@@ -47,4 +48,26 @@ async function callContract(privateKey, contract, transition, args,
   )
 }
 
+async function getState(privateKey, contract, token) {
+  const zilliqa = new Zilliqa(TESTNET_RPC)
+
+  const userAddress = getAddressFromPrivateKey(privateKey)
+  const cState = await contract.getState()
+  const tState = await token.getState()
+  const pool = cState.pools[token.address.toLowerCase()]
+  const [x, y] = pool ? pool.arguments : [0, 0]
+
+  const state = {
+    product: new BigNumber(x).times(y),
+    userZils: new BigNumber((await zilliqa.blockchain.getBalance(userAddress)).result.balance),
+    userTokens: new BigNumber(await tState.balances[userAddress.toLowerCase()]),
+    poolZils: new BigNumber((await zilliqa.blockchain.getBalance(contract.address)).result.balance),
+    poolTokens: new BigNumber(await tState.balances[contract.address.toLowerCase()]),
+  }
+
+  console.log('state: ', JSON.stringify(state, null, 2))
+  return state
+}
+
 exports.callContract = callContract
+exports.getState = getState

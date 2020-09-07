@@ -4,6 +4,8 @@ const { TransactionError } = require('@zilliqa-js/core')
 const { Zilliqa } = require('@zilliqa-js/zilliqa')
 const { BN, Long, bytes, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
+const BigNumber = require('bignumber.js')
+const { callContract } = require('./call.js')
 
 const readFile = util.promisify(fs.readFile)
 const TESTNET_VERSION = bytes.pack(333, 1)
@@ -57,15 +59,38 @@ async function deployFungibleToken(
     }
   ];
 
-  console.log(`Deploying fungible token ${symbol}...`)
+  console.info(`Deploying fungible token ${symbol}...`)
   return deployContract(privateKey, code, init)
 }
 
-async function useFungibleToken(privateKey, params) {
-  if (process.env.TOKEN_HASH) {
-    return getContract(privateKey, process.env.TOKEN_HASH)
+async function useFungibleToken(privateKey, params, approveContractAddress, useExisting = process.env.TOKEN_HASH) {
+  const [contract, state] = await (useExisting ?
+    getContract(privateKey, useExisting) : deployFungibleToken(privateKey, params))
+
+  const address = getAddressFromPrivateKey(privateKey).toLowerCase()
+  const allowance = new BigNumber(state.allowances[address] ? state.allowances[address][approveContractAddress.toLowerCase()] : 0)
+  if (allowance.isNaN() || allowance.eq(0)) {
+    await callContract(
+      privateKey, contract,
+      'IncreaseAllowance',
+      [
+        {
+          vname: 'spender',
+          type: 'ByStr20',
+          value: approveContractAddress,
+        },
+        {
+          vname: 'amount',
+          type: 'Uint128',
+          value: state.total_supply.toString(),
+        },
+      ],
+      0, false, false
+    )
+    return [contract, await contract.getState()]
   }
-  return deployFungibleToken(privateKey, params)
+
+  return [contract, state]
 }
 
 async function deployZilswap(privateKey, { version = '0' }) {
@@ -85,7 +110,7 @@ async function deployZilswap(privateKey, { version = '0' }) {
     },
   ];
 
-  console.log(`Deploying zilswap...`)
+  console.info(`Deploying zilswap...`)
   return deployContract(privateKey, code, init)
 }
 
@@ -127,7 +152,7 @@ async function deployContract(privateKey, code, init) {
   if (!deployTx.id) {
     throw new Error(JSON.stringify(token.error || 'Failed to get tx id!', null, 2))
   }
-  console.log(`Deployment transaction id: ${deployTx.id}`)
+  console.info(`Deployment transaction id: ${deployTx.id}`)
 
   // Check for txn execution success
   if (!deployTx.txParams.receipt.success) {
@@ -145,7 +170,7 @@ async function deployContract(privateKey, code, init) {
   console.log(`Deployment transaction receipt:\n${JSON.stringify(deployTx.txParams.receipt)}`)
 
   // Refetch contract
-  console.log(`The contract address is: ${token.address}`)
+  console.info(`The contract address is: ${token.address}`)
   console.log('Refetching contract state...')
   const deployedContract = zilliqa.contracts.at(token.address)
   const state = await deployedContract.getState()

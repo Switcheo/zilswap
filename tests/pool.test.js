@@ -3,34 +3,15 @@ const { callContract } = require('../scripts/call.js')
 
 test('addLiquidity and removeLiquidity', async () => {
   const key = process.env.PRIVATE_KEY
-  const [contract, _] = await useZilswap(key, { version: 1 })
+  const [contract, _cs] = await useZilswap(key, { version: 1 })
   expect(contract.address).toBeDefined()
 
-  const [token, tokenState] = await useFungibleToken(key, { decimals: 6 })
+  const [token, _ts] = await useFungibleToken(key, { decimals: 6 }, contract.address, null)
   expect(token.address).toBeDefined()
 
   // test amts
   const zilAmount = '10000000000000'
   const tokenAmount = '500000000'
-
-  // const approveTxn = await callContract(
-  //   key, token,
-  //   'IncreaseAllowance',
-  //   [
-  //     {
-  //       vname: 'spender',
-  //       type: 'ByStr20',
-  //       value: contract.address,
-  //     },
-  //     {
-  //       vname: 'amount',
-  //       type: 'Uint128',
-  //       value: tokenState.total_supply.toString(),
-  //     },
-  //   ],
-  //   0, false, false
-  // )
-  // expect(approveTxn.status).toEqual(2)
 
   let state = await contract.getState()
   console.log("initial state", JSON.stringify(state, null, 2))
