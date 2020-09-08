@@ -11,7 +11,7 @@ type Coins = | Coins of Denom Uint128 (* denom, amount *)
 type Pool = | Pool of Uint128 Uint128 (* x, y = zil reserve, token reserve *)
 type SwapDirection = | ZilToToken | TokenToZil
 type ExactSide = | ExactInput | ExactOutput
-type Swap = | Swap of (Option Pool) SwapDirection ExactSide Uint128 (Option Uint128) (* exact amt, limit amt *)
+type Swap = | Swap of (Option Pool) SwapDirection ExactSide Uint128 (Option Uint128) Uint256 (* exact amt, limit amt, after fee amt *)
 type ResultOrError =
  | Result of Pool Uint128 (* unwrapped pool, calculated amount *)
  | Error of String
@@ -19,8 +19,7 @@ type ResultOrError =
 let zero = Uint128 0
 let one = Uint128 1
 let min_liquidity = Uint128 100
-let after_fee = Uint256 997
-let fee_denom = Uint256 1000
+let fee_denom = Uint256 10000 (* fee denominated in basis points (1 b.p. = 0.01%) *)
 let zil_address = 0x0000000000000000000000000000000000000000
 let zil = Zil
 
@@ -51,10 +50,11 @@ let frac : Uint128 -> Uint128 -> Uint128 -> Option Uint128  =
 
 (* computes the output that should be taken from the output reserve
    when the given input amount is added to the input reserve *)
-let outputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
+let outputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
   fun (input_amount_u128 : Uint128) =>
   fun (input_reserve_u128 : Uint128) =>
   fun (output_reserve_u128 : Uint128) =>
+  fun (after_fee : Uint256) =>
     let input_amount = grow input_amount_u128 in
     let input_reserve = grow input_reserve_u128 in
     let output_reserve = grow output_reserve_u128 in
@@ -68,10 +68,11 @@ let outputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
 
 (* computes the input that should be given to the input reserve
    when the given output amount is removed from the output reserve *)
-let inputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
+let inputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
   fun (output_amount_u128 : Uint128) =>
   fun (input_reserve_u128 : Uint128) =>
   fun (output_reserve_u128 : Uint128) =>
+  fun (after_fee : Uint256) =>
     let output_amount = grow output_amount_u128 in
     let input_reserve = grow input_reserve_u128 in
     let output_reserve = grow output_reserve_u128 in
@@ -86,11 +87,12 @@ let inputFor : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
 
 (* computes the corresponding input or output amount for
    the given exact output or input amount, pool, and direction *)
-let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Option Uint128 =
+let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Uint256 -> Option Uint128 =
   fun (pool : Pool) =>
   fun (direction : SwapDirection) =>
-  fun (exact_side: ExactSide) =>
-  fun (exact_amount: Uint128) =>
+  fun (exact_side : ExactSide) =>
+  fun (exact_amount : Uint128) =>
+  fun (after_fee : Uint256) =>
     match pool with
     | Pool zil_reserve token_reserve =>
       let calc = fun (exact: ExactSide) =>
@@ -99,8 +101,8 @@ let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Option Uint128 
         | ExactOutput => inputFor
         end in
       match direction with
-      | ZilToToken => calc exact_side exact_amount zil_reserve token_reserve
-      | TokenToZil => calc exact_side exact_amount token_reserve zil_reserve
+      | ZilToToken => calc exact_side exact_amount zil_reserve token_reserve after_fee
+      | TokenToZil => calc exact_side exact_amount token_reserve zil_reserve after_fee
       end
     end
 
@@ -130,12 +132,12 @@ let withinLimits : Uint128 -> Option Uint128 -> ExactSide -> Bool =
 let resultFor : Swap -> ResultOrError =
   fun (swap : Swap) =>
     match swap with
-    | Swap maybe_pool direction exact_side exact_amount maybe_limit_amount =>
+    | Swap maybe_pool direction exact_side exact_amount maybe_limit_amount after_fee =>
       match maybe_pool with
       | None =>
         let e = "MissingPool" in Error e
       | Some pool =>
-        let maybe_amount = amountFor pool direction exact_side exact_amount in
+        let maybe_amount = amountFor pool direction exact_side exact_amount after_fee in
         match maybe_amount with
         | None =>
           let e = "IntegerOverflow" in Error e
@@ -163,11 +165,21 @@ let poolEmpty : Pool -> Bool =
     end
 
 contract ZilSwap
-()
+(
+  initial_owner : ByStr20,
+  initial_fee : Uint256
+)
+
+with
+  uint256_le initial_fee fee_denom
+=>
 
 field pools : Map ByStr20 Pool = Emp ByStr20 Pool
 field balances : Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
 field total_contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field output_after_fee : Uint256 = builtin sub fee_denom initial_fee
+field owner : ByStr20 = initial_owner
+field pending_owner : ByStr20 = zil_address
 
 procedure ThrowIfExpired(deadline_block: BNum)
   current_block <- & BLOCKNUMBER;
@@ -196,6 +208,17 @@ procedure ThrowIfZil(address : ByStr20)
   | False =>
   | True =>
     e = { _exception : "InvalidParameter" };
+    throw e
+  end
+end
+
+procedure ThrowUnlessSenderIsOwner()
+  current_owner <- owner;
+  is_owner = builtin eq _sender current_owner;
+  match is_owner with
+  | True =>
+  | False =>
+    e = { _exception : "InvalidSender" };
     throw e
   end
 end
@@ -288,12 +311,12 @@ procedure DoSwap(
     sending_to_self = builtin eq output_to _this_address;
     match sending_to_self with
     | True => (* don't do anything on internal receive *)
-    | False => Send output output_to (* send the expected outpu *)
+    | False => Send output output_to (* send the expected output *)
     end;
 
     (* emit swap event *)
     e = {
-      _eventname: "Swap";
+      _eventname: "Swapped";
       pool: token_address; address: _sender;
       input: input; output: output
     };
@@ -349,10 +372,11 @@ procedure SwapUsingZIL(
   ThrowIfZero exact_amount;
   ThrowIfZero limit_amount;
 
+  after_fee <- output_after_fee;
   maybe_pool <- pools[token_address];
   result =
     let option_limit_amount = Some {Uint128} limit_amount in
-    let swap = Swap maybe_pool direction exact_side exact_amount option_limit_amount in
+    let swap = Swap maybe_pool direction exact_side exact_amount option_limit_amount after_fee in
     resultFor swap;
 
   match result with
@@ -420,6 +444,53 @@ transition TransferSuccessCallBack(
   recipient : ByStr20,
   amount : Uint128
 )
+end
+
+transition SetFee(
+  new_fee : Uint256
+)
+  ThrowUnlessSenderIsOwner;
+  is_valid_fee = uint256_le new_fee fee_denom;
+  match is_valid_fee with
+  | False =>
+    e = { _exception : "InvalidParameter" };
+    throw e
+  | True =>
+    new_output_after_fee = builtin sub fee_denom new_fee;
+    output_after_fee := new_output_after_fee;
+    e = { _eventname: "FeeSet"; fee: new_fee };
+    event e
+  end
+end
+
+transition TransferOwnership(
+  new_owner : ByStr20
+)
+  ThrowUnlessSenderIsOwner;
+  existing_owner <- owner;
+  new_owner_is_existing_owner = builtin eq new_owner existing_owner;
+  match new_owner_is_existing_owner with
+  | True =>
+    e = { _exception : "InvalidParameter" };
+    throw e
+  | False =>
+    pending_owner := new_owner
+  end
+end
+
+transition AcceptPendingOwnership()
+  new_owner <- pending_owner;
+  sender_is_pending_owner = builtin eq _sender new_owner;
+  match sender_is_pending_owner with
+  | False =>
+    e = { _exception : "InvalidSender" };
+    throw e
+  | True =>
+    owner := new_owner;
+    pending_owner := zil_address;
+    e = { _eventname: "OwnershipTransferred"; owner: new_owner };
+    event e
+  end
 end
 
 transition AddLiquidity(
@@ -607,7 +678,7 @@ transition RemoveLiquidity(
                 Send zils_out _sender;
                 Send tokens_out _sender;
 
-                e = { _eventname: "Burn"; pool: token_address; address: _sender; amount: contribution_amount };
+                e = { _eventname: "Burnt"; pool: token_address; address: _sender; amount: contribution_amount };
                 event e
               end
             end
@@ -718,13 +789,14 @@ transition SwapExactTokensForTokens(
   ThrowIfZero token0_amount;
   ThrowIfZero min_token1_amount;
 
+  after_fee <- output_after_fee;
   maybe_pool0 <- pools[token0_address];
 
   result0 =
     let direction = TokenToZil in
     let exact_side = ExactInput in
     let limit_amount = None {Uint128} in
-    let swap = Swap maybe_pool0 direction exact_side token0_amount limit_amount in
+    let swap = Swap maybe_pool0 direction exact_side token0_amount limit_amount after_fee in
       resultFor swap;
 
   match result0 with
@@ -738,7 +810,7 @@ transition SwapExactTokensForTokens(
       let direction = ZilToToken in
       let exact_side = ExactInput in
       let limit_amount = Some {Uint128} min_token1_amount in
-      let swap = Swap maybe_pool1 direction exact_side zil_intermediate_amount limit_amount in
+      let swap = Swap maybe_pool1 direction exact_side zil_intermediate_amount limit_amount after_fee in
         resultFor swap;
 
     match result1 with
@@ -771,13 +843,14 @@ transition SwapTokensForExactTokens(
   ThrowIfZero max_token0_amount;
   ThrowIfZero token1_amount;
 
+  after_fee <- output_after_fee;
   maybe_pool1 <- pools[token1_address];
 
   result1 =
     let direction = ZilToToken in
     let exact_side = ExactOutput in
     let limit_amount = None {Uint128} in
-    let swap = Swap maybe_pool1 direction exact_side token1_amount limit_amount in
+    let swap = Swap maybe_pool1 direction exact_side token1_amount limit_amount after_fee in
       resultFor swap;
 
   match result1 with
@@ -791,7 +864,7 @@ transition SwapTokensForExactTokens(
       let direction = TokenToZil in
       let exact_side = ExactOutput in
       let limit_amount = Some {Uint128} max_token0_amount in
-      let swap = Swap maybe_pool0 direction exact_side zil_intermediate_amount limit_amount in
+      let swap = Swap maybe_pool0 direction exact_side zil_intermediate_amount limit_amount after_fee in
         resultFor swap;
 
     match result0 with

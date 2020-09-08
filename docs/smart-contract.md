@@ -11,9 +11,27 @@ The zilswap smart contract is currently located at:
 
 Frontend dApps may listen to the following smart contract events to watch for changes in state due to user interaction.
 
+### FeeSet
+
+The `FeeSet` is emitted when the contract owner sets a new fee. It is emitted even if the new
+fee is the same as the old fee.
+
+| Parameter | Type    | Description                         |
+|-----------|---------|-------------------------------------|
+| fee       | Uint256 | The fee in basis points (1 = 0.01%) |
+
+### OwnershipTransferred
+
+The `OwnershipTransferred` is emitted when the existing contract owner transfers ownership to a
+new address.
+
+| Parameter | Type    | Description                  |
+|-----------|---------|------------------------------|
+| new_owner | ByStr20 | The address of the new owner |
+
 ### PoolCreated
 
-This event is emitted when liquidity is first added for a ZRC-2 token.
+The `PoolCreated` event is emitted when liquidity is first added for a ZRC-2 token.
 
 Pools are indexed by the ZRC-2 token's smart contract address, emitted in the parameter, `pool`.
 
@@ -21,9 +39,9 @@ Pools are indexed by the ZRC-2 token's smart contract address, emitted in the pa
 |-----------|---------|-------------------------------------------------------|
 | pool      | ByStr20 | The ZRC-2 token address for the pool that was created |
 
-### Mint
+### Minted
 
-The `mint` event is emitted when liquidity is added to a pool and "liquidity tokens" are "minted".
+The `Minted` event is emitted when liquidity is added to a pool and "liquidity tokens" are "minted".
 
 The amount of liquidity tokens minted is calculated by taking the ratio of pool tokens added as compared to that already residing in the pool.
 
@@ -35,9 +53,9 @@ The share of liquidity contribution for a pool can then be found by dividing `am
 | address   | ByStr20 | The address that contributed liquidity                         |
 | amount    | Uint128 | The amount of liquidity contributed                            |
 
-### Burn
+### Burnt
 
-The `burn` event is emitted when liquidity is removed from a pool and "liquidity tokens" are "burnt".
+The `Burnt` event is emitted when liquidity is removed from a pool and "liquidity tokens" are "burnt".
 
 The amount of liquidity tokens burnt is calculated by taking the ratio of pool tokens removed as compared to the total pool tokens residing in the pool.
 
@@ -49,9 +67,9 @@ The share of liquidity contribution removed for the address can be found by divi
 | address   | ByStr20 | The address that removed liquidity                            |
 | amount    | Uint128 | The amount of liquidity removed                               |
 
-### Swap
+### Swapped
 
-The `swap` event is emitted when a swap is made in a pool.
+The `Swapped` event is emitted when a swap is made in a pool.
 
 Since pools are already balanced against `ZIL`, all events have a `zil_in` and `zil_out` amount to signify the amount of `ZIL` sent to or received from the pool during the swap respectively.
 

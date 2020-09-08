@@ -1,9 +1,10 @@
+const { getDefaultAccount } = require('../scripts/account.js')
 const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
 const { callContract } = require('../scripts/call.js')
 
 test('addLiquidity and removeLiquidity', async () => {
-  const key = process.env.PRIVATE_KEY
-  const [contract, _cs] = await useZilswap(key, { version: 1 })
+  const { key, address: owner } = getDefaultAccount()
+  const [contract, _cs] = await useZilswap(key, {})
   expect(contract.address).toBeDefined()
 
   const [token, _ts] = await useFungibleToken(key, { decimals: 6 }, contract.address, null)
@@ -83,6 +84,9 @@ test('addLiquidity and removeLiquidity', async () => {
   expect(state).toEqual({
     "_balance": "0",
     "balances": {},
+    "output_after_fee": "9970",
+    "owner": owner,
+    "pending_owner": "0x0000000000000000000000000000000000000000",
     "pools": {},
     "total_contributions": {}
   })

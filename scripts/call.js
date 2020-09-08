@@ -1,17 +1,38 @@
 
-const { Zilliqa } = require('@zilliqa-js/zilliqa')
-const { Long, bytes, units } = require('@zilliqa-js/util')
+const { TESTNET_VERSION, zilliqa, useKey } = require('./zilliqa')
+const { BN, Long, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
 
-const TESTNET_VERSION = bytes.pack(333, 1)
-const TESTNET_RPC = 'https://dev-api.zilliqa.com'
+async function transfer(privateKey, toAddr, amount) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+  useKey(privateKey)
+
+  return await zilliqa.blockchain.createTransaction(
+    zilliqa.transactions.new(
+      {
+        version: TESTNET_VERSION,
+        toAddr,
+        amount: new BN(units.toQa(amount, units.Units.Zil)),
+        gasPrice: units.toQa('1000', units.Units.Li),
+        gasLimit: Long.fromNumber(1),
+      },
+      false,
+    ),
+  );
+}
 
 async function callContract(privateKey, contract, transition, args,
   zilsToSend = 0, insertRecipientAsSender = true, insertDeadlineBlock = true) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+  useKey(privateKey)
 
-  const zilliqa = new Zilliqa(TESTNET_RPC)
-  zilliqa.wallet.addByPrivateKey(privateKey)
   const address = getAddressFromPrivateKey(privateKey)
 
   const response = await zilliqa.blockchain.getNumTxBlocks()
@@ -49,8 +70,6 @@ async function callContract(privateKey, contract, transition, args,
 }
 
 async function getState(privateKey, contract, token) {
-  const zilliqa = new Zilliqa(TESTNET_RPC)
-
   const userAddress = getAddressFromPrivateKey(privateKey)
   const cState = await contract.getState()
   const tState = await token.getState()
@@ -69,5 +88,6 @@ async function getState(privateKey, contract, token) {
   return state
 }
 
+exports.transfer = transfer
 exports.callContract = callContract
 exports.getState = getState

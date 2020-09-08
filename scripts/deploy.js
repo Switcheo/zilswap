@@ -1,15 +1,13 @@
 const fs = require('fs')
 const util = require('util')
-const { TransactionError } = require('@zilliqa-js/core')
-const { Zilliqa } = require('@zilliqa-js/zilliqa')
-const { BN, Long, bytes, units } = require('@zilliqa-js/util')
-const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
+const { TransactionError } = require('@zilliqa-js/core')
+const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
+const { BN, Long, units } = require('@zilliqa-js/util')
 const { callContract } = require('./call.js')
+const { TESTNET_VERSION, zilliqa, useKey } = require('./zilliqa')
 
 const readFile = util.promisify(fs.readFile)
-const TESTNET_VERSION = bytes.pack(333, 1)
-const TESTNET_RPC = 'https://dev-api.zilliqa.com'
 
 async function deployFungibleToken(
   privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('1000000000000000000000') }
@@ -93,11 +91,15 @@ async function useFungibleToken(privateKey, params, approveContractAddress, useE
   return [contract, state]
 }
 
-async function deployZilswap(privateKey, { version = '0' }) {
+async function deployZilswap(privateKey, { fee = null, owner = null }) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
   }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!fee) fee = '30'
 
   // Load code and contract initialization variables
   const code = (await readFile('./src/ZilSwap.scilla')).toString()
@@ -108,23 +110,31 @@ async function deployZilswap(privateKey, { version = '0' }) {
       type: 'Uint32',
       value: '0',
     },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'initial_fee',
+      type: 'Uint256',
+      value: fee,
+    },
   ];
 
   console.info(`Deploying zilswap...`)
   return deployContract(privateKey, code, init)
 }
 
-async function useZilswap(privateKey, params) {
-  if (process.env.CONTRACT_HASH) {
-    return getContract(privateKey, process.env.CONTRACT_HASH)
+async function useZilswap(privateKey, params, useExisting = process.env.CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
   }
   return deployZilswap(privateKey, params)
 }
 
 async function deployContract(privateKey, code, init) {
-  // Init SDK
-  const zilliqa = new Zilliqa(TESTNET_RPC)
-  zilliqa.wallet.addByPrivateKey(privateKey)
+  useKey(privateKey)
 
   // Check for account
   const address = getAddressFromPrivateKey(privateKey)
@@ -183,8 +193,7 @@ async function deployContract(privateKey, code, init) {
 }
 
 async function getContract(privateKey, contractHash) {
-  const zilliqa = new Zilliqa(TESTNET_RPC)
-  zilliqa.wallet.addByPrivateKey(privateKey)
+  useKey(privateKey)
   const contract = zilliqa.contracts.at(contractHash)
   const state = await contract.getState()
   return [contract, state]

@@ -9,7 +9,7 @@ const tokenAmount = '500000000' // y = 500
 let key, contract, token, token2
 beforeAll(async () => {
   key = process.env.PRIVATE_KEY
-  const zilswap = await useZilswap(key, { version: 1 })
+  const zilswap = await useZilswap(key, {})
   contract = zilswap[0]
   const ft = await useFungibleToken(key, { decimals: 6 }, contract.address)
   token = ft[0]
@@ -76,64 +76,6 @@ afterAll(async () => {
   )
 })
 
-getGas = (txn) => new BigNumber(txn.gasPrice.toString()).times(txn.receipt.cumulative_gas)
-
-expectTokenTransfer = (prevState, newState, direction, amount, exact = true) => {
-  switch (direction) {
-    case 'toContract': {
-      const coinsIn = newState.poolTokens.minus(prevState.poolTokens)
-      const coinsOut = prevState.userTokens.minus(newState.userTokens)
-      expect(coinsIn).toEqual(coinsOut)
-      if (exact) {
-        expect(coinsOut.eq(amount)).toBeTruthy()
-      } else {
-        expect(coinsOut.lte(amount)).toBeTruthy()
-      }
-      break
-    }
-    case 'fromContract': {
-      const coinsIn = newState.userTokens.minus(prevState.userTokens)
-      const coinsOut = prevState.poolTokens.minus(newState.poolTokens)
-      expect(coinsIn).toEqual(coinsOut)
-      if (exact) {
-        expect(coinsIn.eq(amount)).toBeTruthy()
-      } else {
-        expect(coinsIn.gte(amount)).toBeTruthy()
-      }
-      break
-    }
-    default: throw new Error('invalid direction!')
-  }
-}
-
-expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true) => {
-  switch (direction) {
-    case 'toContract': {
-      const coinsIn = newState.poolZils.minus(prevState.poolZils)
-      const coinsOut = prevState.userZils.minus(newState.userZils).plus(fees)
-      expect(coinsIn).toEqual(coinsOut)
-      if (exact) {
-        expect(coinsOut.eq(amount)).toBeTruthy()
-      } else {
-        expect(coinsOut.lte(amount)).toBeTruthy()
-      }
-      break
-    }
-    case 'fromContract': {
-      const coinsIn = newState.userZils.minus(prevState.userZils).plus(fees)
-      const coinsOut = prevState.poolZils.minus(newState.poolZils)
-      expect(coinsIn).toEqual(coinsOut)
-      if (exact) {
-        expect(coinsIn.eq(amount)).toBeTruthy()
-      } else {
-        expect(coinsIn.gte(amount)).toBeTruthy()
-      }
-      break
-    }
-    default: throw new Error('invalid direction!')
-  }
-}
-
 describe('zil <> zrc2 swaps', () => {
   let prevState
   beforeEach(async () => {
@@ -141,8 +83,8 @@ describe('zil <> zrc2 swaps', () => {
   })
 
   test('swap exact zrc2 for zil', async () => {
-    const amount = new BigNumber(tokenAmount).times('0.0002').toString() // 0.02%
-    const minZils = units.toQa(zilAmount * 0.00018, units.Units.Zil) // 0.02% - 10% slippage allowance
+    const amount = new BigNumber(tokenAmount).times('0.0002').toString() // 0.02% = 0.1
+    const minZils = units.toQa(zilAmount * 0.00018, units.Units.Zil).toString(10) // 0.02% - 10% slippage allowance ~= 20 +- 2
     const swapTxn = await callContract(
       key, contract,
       'SwapExactTokensForZIL',
@@ -162,8 +104,7 @@ describe('zil <> zrc2 swaps', () => {
           type: 'Uint128',
           value: minZils,
         },
-      ],
-      0)
+      ], 0)
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -177,8 +118,8 @@ describe('zil <> zrc2 swaps', () => {
   })
 
   test('swap exact zil for zrc2', async () => {
-    const amount = units.toQa(zilAmount * 0.0001, units.Units.Zil) // 0.01%
-    const minTokens = new BigNumber(tokenAmount).times('0.00009').toString() // 0.01% - 10% slippage allowance
+    const amount = zilAmount * 0.0001 // 0.01% = 10
+    const minTokens = new BigNumber(tokenAmount).times('0.00009').toString() // 0.01% - 10% slippage allowance ~= 0.05 +- 0.005
     const swapTxn = await callContract(
       key, contract,
       'SwapExactZILForTokens',
@@ -194,7 +135,7 @@ describe('zil <> zrc2 swaps', () => {
           value: minTokens,
         },
       ],
-      amount, false) // 1%
+      amount) // 1%
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -202,14 +143,14 @@ describe('zil <> zrc2 swaps', () => {
     // check constract product invariant
     expect(newState.product.gte(prevState.product)).toBeTruthy()
     // check sent exact zil to contract
-    expectZilTransfer(prevState, newState, 'toContract', units.toQa(amount, units.Units.Zil), getGas(swapTxn), true)
+    expectZilTransfer(prevState, newState, 'toContract', units.toQa(amount, units.Units.Zil).toString(10), getGas(swapTxn), true)
     // check contract gave > min token
     expectTokenTransfer(prevState, newState, 'fromContract', minTokens, false)
   })
 
   test('swap zrc2 for exact zil', async () => {
-    const amount = units.toQa(zilAmount * 0.0005, units.Units.Zil) // 0.05%
-    const maxTokens = new BigNumber(tokenAmount).times('0.00055').toString()// 0.05% + 10% slippage allowance
+    const amount = units.toQa(zilAmount * 0.0005, units.Units.Zil).toString(10) // 0.05% = 50
+    const maxTokens = new BigNumber(tokenAmount).times('0.00055').toString()// 0.05% + 10% slippage allowance ~= 0.25 +- 0.025
     const swapTxn = await callContract(
       key, contract,
       'SwapTokensForExactZIL',
@@ -230,7 +171,7 @@ describe('zil <> zrc2 swaps', () => {
           value: amount,
         },
       ],
-      0, false)
+      0)
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -245,10 +186,10 @@ describe('zil <> zrc2 swaps', () => {
 
   test('swap zil for exact zrc2', async () => {
     const amount = new BigNumber(tokenAmount).times('0.0005').toString()// 0.05%
-    const maxZils = units.toQa(zilAmount * 0.00055, units.Units.Zil) // 0.05% + 10% slippage allowance
+    const maxZils = zilAmount * 0.00055 // 0.05% + 10% slippage allowance
     const swapTxn = await callContract(
       key, contract,
-      'SwapZilForExactTokens',
+      'SwapZILForExactTokens',
       [
         {
           vname: 'token_address',
@@ -261,7 +202,7 @@ describe('zil <> zrc2 swaps', () => {
           value: amount,
         },
       ],
-      0.45, false)
+      maxZils)
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -271,7 +212,7 @@ describe('zil <> zrc2 swaps', () => {
     // check contract sent exact amt of tokens
     expectTokenTransfer(prevState, newState, 'fromContract', amount, true)
     // check sent < max token to contract
-    expectZilTransfer(prevState, newState, 'toContract', maxZils, getGas(swapTxn), false)
+    expectZilTransfer(prevState, newState, 'toContract', units.toQa(maxZils, units.Units.Zil).toString(10), getGas(swapTxn), false)
   })
 })
 
@@ -436,3 +377,70 @@ describe('zrc2 <> zrc2 swaps', () => {
 describe('swap with non-sender receive address', () => {
   // TODO
 })
+
+describe('swap failures', () => {
+  it('reverts if swap rates cannot be fulfilled', async () => {
+    // TODO
+  })
+})
+
+// == Helpers ==
+
+getGas = (txn) => new BigNumber(txn.gasPrice.toString()).times(txn.receipt.cumulative_gas)
+
+expectTokenTransfer = (prevState, newState, direction, amount, exact = true) => {
+  switch (direction) {
+    case 'toContract': {
+      const coinsIn = newState.poolTokens.minus(prevState.poolTokens)
+      const coinsOut = prevState.userTokens.minus(newState.userTokens)
+      expect(coinsIn).toEqual(coinsOut)
+      if (exact) {
+        expect(coinsOut.eq(amount)).toBeTruthy()
+      } else {
+        expect(coinsOut.lte(amount)).toBeTruthy()
+      }
+      break
+    }
+    case 'fromContract': {
+      const coinsIn = newState.userTokens.minus(prevState.userTokens)
+      const coinsOut = prevState.poolTokens.minus(newState.poolTokens)
+      expect(coinsIn).toEqual(coinsOut)
+      if (exact) {
+        expect(coinsIn.eq(amount)).toBeTruthy()
+      } else {
+        expect(coinsIn.gte(amount)).toBeTruthy()
+      }
+      break
+    }
+    default: throw new Error('invalid direction!')
+  }
+}
+
+expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true) => {
+  switch (direction) {
+    case 'toContract': {
+      const coinsIn = newState.poolZils.minus(prevState.poolZils)
+      const coinsOut = prevState.userZils.minus(newState.userZils).minus(fees)
+      expect(coinsIn).toEqual(coinsOut)
+      if (exact) {
+        expect(coinsOut.eq(amount)).toBeTruthy()
+      } else {
+        expect(coinsOut.lte(amount)).toBeTruthy()
+      }
+      break
+    }
+    case 'fromContract': {
+      const coinsIn = newState.userZils.minus(prevState.userZils).plus(fees)
+      const coinsOut = prevState.poolZils.minus(newState.poolZils)
+      expect(coinsIn).toEqual(coinsOut)
+      if (exact) {
+        console.log(coinsIn.toString(), amount.toString())
+        expect(coinsIn.eq(amount)).toBeTruthy()
+      } else {
+        expect(coinsIn.gte(amount)).toBeTruthy()
+      }
+      break
+    }
+    default: throw new Error('invalid direction!')
+  }
+}
