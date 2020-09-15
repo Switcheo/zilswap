@@ -1,10 +1,12 @@
 const { units } = require('@zilliqa-js/util')
 const BigNumber = require('bignumber.js')
+const { createRandomAccount } = require('../scripts/account.js')
 const { callContract, getState } = require('../scripts/call.js')
 const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
 
 const zilAmount = 100000 // x = 100000
-const tokenAmount = '500000000' // y = 500
+const tokenAmount = '500000000' // y1 = 500
+const token2Amount = '500000000000000000000' // y2 = 500
 
 let key, contract, token, token2
 beforeAll(async () => {
@@ -214,11 +216,86 @@ describe('zil <> zrc2 swaps', () => {
     // check sent < max token to contract
     expectZilTransfer(prevState, newState, 'toContract', units.toQa(maxZils, units.Units.Zil).toString(10), getGas(swapTxn), false)
   })
+
+  test('swap zrc2 to exact zil to non-sender receive address', async () => {
+    const amount = units.toQa(zilAmount * 0.0005, units.Units.Zil).toString(10) // 0.05% = 50
+    const maxTokens = new BigNumber(tokenAmount).times('0.00055').toString()// 0.05% + 10% slippage allowance ~= 0.25 +- 0.025
+    const recipient = await createRandomAccount(key)
+    const prevRecipientState = await getState(recipient.key, contract, token)
+    const swapTxn = await callContract(
+      key, contract,
+      'SwapTokensForExactZIL',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: token.address,
+        },
+        {
+          vname: 'max_token_amount',
+          type: 'Uint128',
+          value: maxTokens,
+        },
+        {
+          vname: 'zil_amount',
+          type: 'Uint128',
+          value: amount,
+        },
+        {
+          vname: 'recipient_address',
+          type: 'ByStr20',
+          value: recipient.address,
+        },
+      ],
+      0, false)
+
+    // check success
+    expect(swapTxn.status).toEqual(2)
+    const newState = await getState(key, contract, token)
+    // check constract product invariant
+    expect(newState.product.gte(prevState.product)).toBeTruthy()
+    // check sent < max token to contract
+    expectTokenTransfer(prevState, newState, 'toContract', maxTokens, false)
+    // check contract sent exact amt of zil to receipient
+    const recipientState = await getState(recipient.key, contract, token)
+    expectZilTransfer(prevRecipientState, recipientState, 'fromContract', amount, '0', true)
+  })
+
+  test('reverts if swap rates cannot be fulfilled', async () => {
+    const amount = new BigNumber(tokenAmount).times('0.0005').toString()// 0.05%
+    const maxZils = zilAmount * 0.00001 // 0.01% < 0.05%
+    const swapTxn = await callContract(
+      key, contract,
+      'SwapZILForExactTokens',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: token.address,
+        },
+        {
+          vname: 'token_amount',
+          type: 'Uint128',
+          value: amount,
+        },
+      ],
+      maxZils)
+
+    // check failure
+    expect(swapTxn.status).toEqual(3)
+    const newState = await getState(key, contract, token)
+    // check constract product invariant
+    expect(newState.product.gte(prevState.product)).toBeTruthy()
+    // check no tokens sent
+    expectTokenTransfer(prevState, newState, 'toContract', '0', true)
+    // check no zils sent
+    expectZilTransfer(prevState, newState, 'fromContract', '0', getGas(swapTxn), true)
+  })
 })
 
 describe('zrc2 <> zrc2 swaps', () => {
   beforeAll(async () => {
-    const ft = await useFungibleToken2(key, { decimals: 18 }, contract.address, process.env.TOKEN2_HASH)
+    const ft = await useFungibleToken(key, { decimals: 18 }, contract.address, null)
     token2 = ft[0]
 
     await callContract(
@@ -238,7 +315,7 @@ describe('zrc2 <> zrc2 swaps', () => {
         {
           vname: 'max_token_amount',
           type: 'Uint128',
-          value: tokenAmount,
+          value: token2Amount,
         },
       ],
       zilAmount, false
@@ -279,16 +356,16 @@ describe('zrc2 <> zrc2 swaps', () => {
           value: '1',
         },
       ],
-      0, false
+      0, false,
     )
   })
 
   test('swap exact zrc2 for zrc2', async () => {
-    const amount = '500000'// 0.1% * 500
-    const minTokens = '450000000000000000' // 0.1% x 500 - 10% slippage
+    const amount = new BigNumber(tokenAmount).times(0.001)// 0.1% * 500
+    const minTokens = new BigNumber(token2Amount).times(0.00098) // 0.1% x 500 - 2% slippage
     const swapTxn = await callContract(
       key, contract,
-      'SwapTokensForExactTokens',
+      'SwapExactTokensForTokens',
       [
         {
           vname: 'token0_address',
@@ -311,7 +388,8 @@ describe('zrc2 <> zrc2 swaps', () => {
           value: minTokens,
         },
       ],
-      0, false)
+      0
+    )
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -329,8 +407,8 @@ describe('zrc2 <> zrc2 swaps', () => {
   })
 
   test('swap zrc2 for exact zrc2', async () => {
-    const amount = '500000000000000000'// 0.1% * 500
-    const maxTokens = '550000' // 0.1% x 500 + 10% slippage
+    const amount = new BigNumber(token2Amount).times(0.001)// 0.1% * 500
+    const maxTokens = new BigNumber(tokenAmount).times(0.00102) // 0.1% x 500 + 2% slippage
     const swapTxn = await callContract(
       key, contract,
       'SwapTokensForExactTokens',
@@ -356,7 +434,8 @@ describe('zrc2 <> zrc2 swaps', () => {
           value: amount,
         },
       ],
-      0, false)
+      0
+    )
 
     // check success
     expect(swapTxn.status).toEqual(2)
@@ -371,16 +450,6 @@ describe('zrc2 <> zrc2 swaps', () => {
     expectTokenTransfer(prevState, newState1, 'fromContract', amount, true)
     // check no zlis sent
     expectZilTransfer(prevState, newState0, 'toContract', '0', getGas(swapTxn), true)
-  })
-})
-
-describe('swap with non-sender receive address', () => {
-  // TODO
-})
-
-describe('swap failures', () => {
-  it('reverts if swap rates cannot be fulfilled', async () => {
-    // TODO
   })
 })
 

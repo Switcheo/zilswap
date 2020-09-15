@@ -8,7 +8,7 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "test": "jest"
+    "test": "jest -i"
   },
   "dependencies": {
     "@zilliqa-js/zilliqa": "^1.0.0",
