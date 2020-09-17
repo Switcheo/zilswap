@@ -15,7 +15,6 @@ test('addLiquidity and removeLiquidity', async () => {
   const tokenAmount = '500000000'
 
   let state = await contract.getState()
-  console.log("initial state", JSON.stringify(state, null, 2))
 
   const addTxn = await callContract(
     key, contract,

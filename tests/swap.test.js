@@ -8,7 +8,7 @@ const zilAmount = 100000 // x = 100000
 const tokenAmount = '500000000' // y1 = 500
 const token2Amount = '500000000000000000000' // y2 = 500
 
-let key, contract, token, token2
+let key, contract, token, token2, prevState
 beforeAll(async () => {
   key = process.env.PRIVATE_KEY
   const zilswap = await useZilswap(key, {})
@@ -78,12 +78,11 @@ afterAll(async () => {
   )
 })
 
-describe('zil <> zrc2 swaps', () => {
-  let prevState
-  beforeEach(async () => {
-    prevState = await getState(key, contract, token)
-  })
+beforeEach(async () => {
+  prevState = await getState(key, contract, token)
+})
 
+describe('zil <> zrc2 swaps', () => {
   test('swap exact zrc2 for zil', async () => {
     const amount = new BigNumber(tokenAmount).times('0.0002').toString() // 0.02% = 0.1
     const minZils = units.toQa(zilAmount * 0.00018, units.Units.Zil).toString(10) // 0.02% - 10% slippage allowance ~= 20 +- 2
@@ -503,7 +502,6 @@ expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true)
       const coinsOut = prevState.poolZils.minus(newState.poolZils)
       expect(coinsIn).toEqual(coinsOut)
       if (exact) {
-        console.log(coinsIn.toString(), amount.toString())
         expect(coinsIn.eq(amount)).toBeTruthy()
       } else {
         expect(coinsIn.gte(amount)).toBeTruthy()
