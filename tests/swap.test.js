@@ -360,8 +360,8 @@ describe('zrc2 <> zrc2 swaps', () => {
   })
 
   test('swap exact zrc2 for zrc2', async () => {
-    const amount = new BigNumber(tokenAmount).times(0.001)// 0.1% * 500
-    const minTokens = new BigNumber(token2Amount).times(0.00098) // 0.1% x 500 - 2% slippage
+    const amount = new BigNumber(tokenAmount).times(0.001).toString()// 0.1% * 500
+    const minTokens = new BigNumber(token2Amount).times(0.00098).toString() // 0.1% x 500 - 2% slippage
     const swapTxn = await callContract(
       key, contract,
       'SwapExactTokensForTokens',
@@ -406,8 +406,8 @@ describe('zrc2 <> zrc2 swaps', () => {
   })
 
   test('swap zrc2 for exact zrc2', async () => {
-    const amount = new BigNumber(token2Amount).times(0.001)// 0.1% * 500
-    const maxTokens = new BigNumber(tokenAmount).times(0.00102) // 0.1% x 500 + 2% slippage
+    const amount = new BigNumber(tokenAmount).times(0.001).toString()// 0.1% * 500
+    const maxTokens = new BigNumber(token2Amount).times(0.00102).toString() // 0.1% x 500 + 2% slippage
     const swapTxn = await callContract(
       key, contract,
       'SwapTokensForExactTokens',
