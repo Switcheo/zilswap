@@ -4,8 +4,7 @@ Zilswap is a fully decentralized protocol for ZRC-2 token exchanges on Zilliqa.
 
 Zilswap makes use of an Autonomous Market Maker based on the Constant Product Formula (x * y = k) first proposed by [V. Buterin](https://www.reddit.com/r/ethereum/comments/55m04x/lets_run_onchain_decentralized_exchanges_the_way/).
 
-Holders of ZRC-2 tokens and ZIL tokens can contribute to the corresponding liquidity pool in order to
-back the liquidity pools, and will receive the fee of 3% on each swap.
+Holders of ZRC-2 tokens and ZIL tokens can contribute to the corresponding liquidity pool in order to back the liquidity pools, and will receive the fee of 0.3% on each swap.
 
 Users and dApps may use the protocol to swap between any 2 tokens without any middlemen.
 Because the swap is done against the liquidity pools, there is no need to wait for a counterparty,
