@@ -18,7 +18,7 @@ type ResultOrError =
 
 let zero = Uint128 0
 let one = Uint128 1
-let min_liquidity = Uint128 100
+let min_liquidity = Uint128 1000000000000000 (* 1000 ZIL *)
 let fee_denom = Uint256 10000 (* fee denominated in basis points (1 b.p. = 0.01%) *)
 let zil_address = 0x0000000000000000000000000000000000000000
 let zil = Zil

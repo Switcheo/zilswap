@@ -5,6 +5,7 @@ const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long, units } = require('@zilliqa-js/util')
 const { callContract } = require('./call.js')
+const { compress } = require('./compile')
 const { TESTNET_VERSION, zilliqa, useKey } = require('./zilliqa')
 
 const readFile = util.promisify(fs.readFile)
@@ -144,7 +145,7 @@ async function deployContract(privateKey, code, init) {
   }
 
   // Deploy contract
-  const compressedCode = code.replace(matchComments, '').replace(matchWhitespace, ' ')
+  const compressedCode = compress(code)
   const contract = zilliqa.contracts.new(compressedCode, init)
   const [deployTx, token] = await contract.deploy(
     {
@@ -200,8 +201,6 @@ async function getContract(privateKey, contractHash) {
 }
 
 const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
-const matchComments = /[(][*].*?[*][)]/gs
-const matchWhitespace = /\s+/g
 
 exports.deployFungibleToken = deployFungibleToken
 exports.useFungibleToken = useFungibleToken

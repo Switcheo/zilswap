@@ -5,7 +5,7 @@
 The zilswap smart contract is currently located at:
 
 - TestNet: [zil1rf3dm8yykryffr94rlrxfws58earfxzu5lw792](https://viewblock.io/zilliqa/address/zil1rf3dm8yykryffr94rlrxfws58earfxzu5lw792?network=testnet)
-- MainNet: [zil14k98ef9ydnve8dc0le3fql2fpe4hap6m887c7k](https://viewblock.io/zilliqa/address/zil14k98ef9ydnve8dc0le3fql2fpe4hap6m887c7k)
+- MainNet: [zil1hgg7k77vpgpwj3av7q7vv5dl4uvunmqqjzpv2w](https://viewblock.io/zilliqa/address/zil1hgg7k77vpgpwj3av7q7vv5dl4uvunmqqjzpv2w)
 
 ## Events
 
