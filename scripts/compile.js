@@ -8,7 +8,7 @@ async function compile() {
   return compress(code)
 }
 
-async function compress(code) {
+function compress(code) {
   return code.replace(matchComments, '').replace(matchWhitespace, ' ')
 }
 
