@@ -11,8 +11,8 @@ test('addLiquidity and removeLiquidity', async () => {
   expect(token.address).toBeDefined()
 
   // test amts
-  const zilAmount = '10000000000000'
-  const tokenAmount = '500000000'
+  const zilAmount = '1000000000000000'
+  const tokenAmount = '50000000000'
 
   let state = await contract.getState()
 
