@@ -14,15 +14,13 @@ This repository only hosts the zilswap smart contract and documentation.
 
 ### **Do you want to contribute to the Zilswap webapp or SDK?**
 
-* Please see [https://github.com/Switcheo/zilswap-webapp] to contribute to the Zilswap UI.
+* Please see https://github.com/Switcheo/zilswap-webapp to contribute to the Zilswap UI.
 
-* Please see [https://github.com/Switcheo/zilswap-sdk] to contribute to the Zilswap Typescript SDK.
+* Please see https://github.com/Switcheo/zilswap-sdk to contribute to the Zilswap Typescript SDK.
 
 ### **Did you wish to improve our documentation?**
 
 Create a pull request with the fixes. All improvements are welcome.
-
- in the [zilswap discord channel](https://discord.gg/5n8AMQH).
 
 ### **Do you have questions about the source code?**
 
