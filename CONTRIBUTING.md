@@ -4,8 +4,8 @@
 
 ### **Did you find a bug?**
 
-* **Do not open up a GitHub issue if the bug is a security vulnerability
-  in the Zilswap UI or smart contract**, and instead to send an email to [security@switcheo.network](mailto:https://security@switcheo.network).
+**Do not open up a GitHub issue if the bug is a security vulnerability in the Zilswap UI or smart contract**, 
+and instead to send an email to [security@switcheo.network](mailto:https://security@switcheo.network).
 
 ### **Do you intend to add your project's token logo?**
 
@@ -24,4 +24,4 @@ Create a pull request with the fixes. All improvements are welcome.
 
 ### **Do you have questions about the source code?**
 
-* Read the [documentation](https://docs.zilswap.org) or ask any question about how to use Zilswap
+Read the [documentation](https://docs.zilswap.org) or ask any question about how to use Zilswap
