@@ -11,13 +11,15 @@ async function transfer(privateKey, toAddr, amount) {
   }
   useKey(privateKey)
 
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+
   return await zilliqa.blockchain.createTransaction(
     zilliqa.transactions.new(
       {
         version: TESTNET_VERSION,
         toAddr,
         amount: new BN(units.toQa(amount, units.Units.Zil)),
-        gasPrice: units.toQa('1000', units.Units.Li),
+        gasPrice: new BN(minGasPrice.result),
         gasLimit: Long.fromNumber(1),
       },
       false,
@@ -58,12 +60,14 @@ async function callContract(privateKey, contract, transition, args,
     )
   }
 
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+
   console.info(`Calling: ${transition}`)
   return await contract.call(transition, args,
     {
       version: TESTNET_VERSION,
       amount: units.toQa(zilsToSend, units.Units.Zil),
-      gasPrice: units.toQa('1000', units.Units.Li),
+      gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
     }, 33, 1000, true
   )

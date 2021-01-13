@@ -144,6 +144,8 @@ async function deployContract(privateKey, code, init) {
     throw new Error(balance.error.message)
   }
 
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+
   // Deploy contract
   const compressedCode = compress(code)
   const contract = zilliqa.contracts.new(compressedCode, init)
@@ -151,7 +153,7 @@ async function deployContract(privateKey, code, init) {
     {
       version: TESTNET_VERSION,
       amount: new BN(0),
-      gasPrice: units.toQa('1000', units.Units.Li),
+      gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
     },
     33,

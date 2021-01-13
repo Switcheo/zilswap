@@ -8,7 +8,7 @@ const zilAmount = 100000 // x = 100000
 const tokenAmount = '500000000' // y1 = 500
 const token2Amount = '500000000000000000000' // y2 = 500
 
-let key, contract, token, token2, prevState
+let key, contract, token, token2, prevState, prevState2
 beforeAll(async () => {
   key = process.env.PRIVATE_KEY
   const zilswap = await useZilswap(key, {})
@@ -41,6 +41,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  if (!contract.isInitialised()) return
+
   const state = await contract.getState()
 
   const contribution = state.balances[token.address.toLowerCase()]
@@ -359,6 +361,11 @@ describe('zrc2 <> zrc2 swaps', () => {
     )
   })
 
+  beforeEach(async () => {
+    console.log('be2')
+    prevState2 = await getState(key, contract, token2)
+  })
+
   test('swap exact zrc2 for zrc2', async () => {
     const amount = new BigNumber(tokenAmount).times(0.001).toString()// 0.1% * 500
     const minTokens = new BigNumber(token2Amount).times(0.00098).toString() // 0.1% x 500 - 2% slippage
@@ -393,20 +400,21 @@ describe('zrc2 <> zrc2 swaps', () => {
     // check success
     expect(swapTxn.status).toEqual(2)
     const newState0 = await getState(key, contract, token)
-    const newState1 = await getState(key, contract, token2)
+    const newState2 = await getState(key, contract, token2)
     // check constract product invariant
     expect(newState0.product.gte(newState0.product)).toBeTruthy()
-    expect(newState1.product.gte(newState1.product)).toBeTruthy()
+    expect(newState2.product.gte(newState2.product)).toBeTruthy()
     // check sent exact amt of tokens0 to contract
     expectTokenTransfer(prevState, newState0, 'toContract', amount, true)
     // check contract sent > amt1 of tokens
-    expectTokenTransfer(prevState, newState1, 'fromContract', minTokens, false)
-    // check no zlis sent
+    expectTokenTransfer(prevState2, newState2, 'fromContract', minTokens, false)
+    // check no zils sent
     expectZilTransfer(prevState, newState0, 'toContract', '0', getGas(swapTxn), true)
+    expectZilTransfer(prevState, newState0, 'fromContract', '0', '0', true)
   })
 
   test('swap zrc2 for exact zrc2', async () => {
-    const amount = new BigNumber(tokenAmount).times(0.001).toString()// 0.1% * 500
+    const amount = new BigNumber(tokenAmount).times(0.001).toString() // 0.1% * 500
     const maxTokens = new BigNumber(token2Amount).times(0.00102).toString() // 0.1% x 500 + 2% slippage
     const swapTxn = await callContract(
       key, contract,
@@ -439,16 +447,17 @@ describe('zrc2 <> zrc2 swaps', () => {
     // check success
     expect(swapTxn.status).toEqual(2)
     const newState0 = await getState(key, contract, token)
-    const newState1 = await getState(key, contract, token2)
+    const newState2 = await getState(key, contract, token2)
     // check constract product invariant
     expect(newState0.product.gte(newState0.product)).toBeTruthy()
-    expect(newState1.product.gte(newState1.product)).toBeTruthy()
+    expect(newState2.product.gte(newState2.product)).toBeTruthy()
     // check sent exact < amt0 of tokens to contract
-    expectTokenTransfer(prevState, newState0, 'toContract', maxTokens, false)
+    expectTokenTransfer(prevState2, newState2, 'toContract', maxTokens, false)
     // check contract sent exactly amt1 tokens
-    expectTokenTransfer(prevState, newState1, 'fromContract', amount, true)
-    // check no zlis sent
+    expectTokenTransfer(prevState, newState0, 'fromContract', amount, true)
+    // check no zils sent
     expectZilTransfer(prevState, newState0, 'toContract', '0', getGas(swapTxn), true)
+    expectZilTransfer(prevState, newState0, 'fromContract', '0', '0', true)
   })
 })
 
@@ -489,6 +498,8 @@ expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true)
     case 'toContract': {
       const coinsIn = newState.poolZils.minus(prevState.poolZils)
       const coinsOut = prevState.userZils.minus(newState.userZils).minus(fees)
+      console.log('prevState.userZils, newState.userZils, fees',
+        prevState.userZils.toString(), newState.userZils.toString(), fees.toString())
       expect(coinsIn).toEqual(coinsOut)
       if (exact) {
         expect(coinsOut.eq(amount)).toBeTruthy()
