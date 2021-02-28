@@ -12,7 +12,7 @@ and transactions can be done completely on-chain.
 
 ## Getting Started
 
-Users who wish to swap between two ZRC-2 or ZIL tokens or join a liquidity pool can directly use the [Zilswap](https://zilswap.org) dApp.
+Users who wish to swap between two ZRC-2 or ZIL tokens or join a liquidity pool can directly use the [Zilswap](https://zilswap.io) dApp.
 
 dApp integraters should check out the Smart Contract [documentation](smart-contract) and may use our TypeScript [SDK](sdk) for quick integration.
 
