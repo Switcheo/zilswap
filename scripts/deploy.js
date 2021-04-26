@@ -3,10 +3,10 @@ const util = require('util')
 const BigNumber = require('bignumber.js')
 const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
-const { BN, Long, units } = require('@zilliqa-js/util')
-const { callContract } = require('./call.js')
+const { BN, Long } = require('@zilliqa-js/util')
+const { callContract, nextBlock } = require('./call.js')
 const { compress } = require('./compile')
-const { TESTNET_VERSION, zilliqa, useKey } = require('./zilliqa')
+const { TEST_VERSION, zilliqa, useKey } = require('./zilliqa')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -151,7 +151,7 @@ async function deployContract(privateKey, code, init) {
   const contract = zilliqa.contracts.new(compressedCode, init)
   const [deployTx, token] = await contract.deploy(
     {
-      version: TESTNET_VERSION,
+      version: TEST_VERSION,
       amount: new BN(0),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
@@ -181,6 +181,7 @@ async function deployContract(privateKey, code, init) {
 
   // Print txn receipt
   console.log(`Deployment transaction receipt:\n${JSON.stringify(deployTx.txParams.receipt)}`)
+  await nextBlock()
 
   // Refetch contract
   console.info(`The contract address is: ${token.address}`)

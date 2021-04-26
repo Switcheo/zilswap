@@ -362,7 +362,6 @@ describe('zrc2 <> zrc2 swaps', () => {
   })
 
   beforeEach(async () => {
-    console.log('be2')
     prevState2 = await getState(key, contract, token2)
   })
 
@@ -409,8 +408,9 @@ describe('zrc2 <> zrc2 swaps', () => {
     // check contract sent > amt1 of tokens
     expectTokenTransfer(prevState2, newState2, 'fromContract', minTokens, false)
     // check no zils sent
-    expectZilTransfer(prevState, newState0, 'toContract', '0', getGas(swapTxn), true)
-    expectZilTransfer(prevState, newState0, 'fromContract', '0', '0', true)
+    const gas = getGas(swapTxn)
+    expectZilTransfer(prevState, newState0, 'toContract', '0', gas, true)
+    expectZilTransfer(prevState, newState0, 'fromContract', '0', gas, true)
   })
 
   test('swap zrc2 for exact zrc2', async () => {
@@ -456,8 +456,9 @@ describe('zrc2 <> zrc2 swaps', () => {
     // check contract sent exactly amt1 tokens
     expectTokenTransfer(prevState, newState0, 'fromContract', amount, true)
     // check no zils sent
-    expectZilTransfer(prevState, newState0, 'toContract', '0', getGas(swapTxn), true)
-    expectZilTransfer(prevState, newState0, 'fromContract', '0', '0', true)
+    const gas = getGas(swapTxn)
+    expectZilTransfer(prevState, newState0, 'toContract', '0', gas, true)
+    expectZilTransfer(prevState, newState0, 'fromContract', '0', gas, true)
   })
 })
 
@@ -498,8 +499,6 @@ expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true)
     case 'toContract': {
       const coinsIn = newState.poolZils.minus(prevState.poolZils)
       const coinsOut = prevState.userZils.minus(newState.userZils).minus(fees)
-      console.log('prevState.userZils, newState.userZils, fees',
-        prevState.userZils.toString(), newState.userZils.toString(), fees.toString())
       expect(coinsIn).toEqual(coinsOut)
       if (exact) {
         expect(coinsOut.eq(amount)).toBeTruthy()
