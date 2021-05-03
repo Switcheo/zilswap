@@ -66,27 +66,29 @@ async function useFungibleToken(privateKey, params, approveContractAddress, useE
   const [contract, state] = await (useExisting ?
     getContract(privateKey, useExisting) : deployFungibleToken(privateKey, params))
 
-  const address = getAddressFromPrivateKey(privateKey).toLowerCase()
-  const allowance = new BigNumber(state.allowances[address] ? state.allowances[address][approveContractAddress.toLowerCase()] : 0)
-  if (allowance.isNaN() || allowance.eq(0)) {
-    await callContract(
-      privateKey, contract,
-      'IncreaseAllowance',
-      [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: approveContractAddress,
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: state.total_supply.toString(),
-        },
-      ],
-      0, false, false
-    )
-    return [contract, await contract.getState()]
+  if (!!approveContractAddress) {
+    const address = getAddressFromPrivateKey(privateKey).toLowerCase()
+    const allowance = new BigNumber(state.allowances[address] ? state.allowances[address][approveContractAddress.toLowerCase()] : 0)
+    if (allowance.isNaN() || allowance.eq(0)) {
+      await callContract(
+        privateKey, contract,
+        'IncreaseAllowance',
+        [
+          {
+            vname: 'spender',
+            type: 'ByStr20',
+            value: approveContractAddress,
+          },
+          {
+            vname: 'amount',
+            type: 'Uint128',
+            value: state.total_supply.toString(),
+          },
+        ],
+        0, false, false
+      )
+      return [contract, await contract.getState()]
+    }
   }
 
   return [contract, state]
@@ -132,6 +134,107 @@ async function useZilswap(privateKey, params, useExisting = process.env.CONTRACT
     return getContract(privateKey, useExisting)
   }
   return deployZilswap(privateKey, params)
+}
+
+async function deployZILO(privateKey, {
+  zwapAddress,
+  tokenAddress,
+  tokenAmount,
+  targetZilAmount,
+  targetZwapAmount,
+  minimumZilAmount,
+  liquidityZilAmount,
+  receiverAddress,
+  liquidityAddress,
+  startBlock,
+  endBlock,
+ }) {
+  console.log({
+    zwapAddress,
+    tokenAddress,
+    tokenAmount,
+    targetZilAmount,
+    targetZwapAmount,
+    minimumZilAmount,
+    liquidityZilAmount,
+    receiverAddress,
+    liquidityAddress,
+    startBlock,
+    endBlock,
+   })
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/ZILO.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'zwap_address',
+      type: 'ByStr20',
+      value: zwapAddress,
+    },
+    {
+      vname: 'token_address',
+      type: 'ByStr20',
+      value: tokenAddress,
+    },
+    {
+      vname: 'token_amount',
+      type: 'Uint128',
+      value: tokenAmount,
+    },
+    {
+      vname: 'target_zil_amount',
+      type: 'Uint128',
+      value: targetZilAmount,
+    },
+    {
+      vname: 'target_zwap_amount',
+      type: 'Uint128',
+      value: targetZwapAmount,
+    },
+    {
+      vname: 'minimum_zil_amount',
+      type: 'Uint128',
+      value: minimumZilAmount,
+    },
+    {
+      vname: 'liquidity_zil_amount',
+      type: 'Uint128',
+      value: liquidityZilAmount,
+    },
+    {
+      vname: 'receiver_address',
+      type: 'ByStr20',
+      value: receiverAddress,
+    },
+    {
+      vname: 'liquidity_address',
+      type: 'ByStr20',
+      value: liquidityAddress,
+    },
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: startBlock,
+    },
+    {
+      vname: 'end_block',
+      type: 'BNum',
+      value: endBlock,
+    },
+  ];
+
+  console.info(`Deploying ZILO...`)
+  return deployContract(privateKey, code, init)
 }
 
 async function deployContract(privateKey, code, init) {
@@ -209,3 +312,4 @@ exports.deployFungibleToken = deployFungibleToken
 exports.useFungibleToken = useFungibleToken
 exports.deployZilswap = deployZilswap
 exports.useZilswap = useZilswap
+exports.deployZILO = deployZILO
