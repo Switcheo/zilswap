@@ -1,5 +1,5 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { nextBlock } = require('../../scripts/call.js');
+const { getBlockNum, nextBlock } = require('../../scripts/call.js');
 const { deployZILO, useFungibleToken } = require('../../scripts/deploy.js');
 
 let key, receiver, lp, zwap, tkn
@@ -14,7 +14,7 @@ beforeAll(async () => {
 
 const CONTRACT_INVARIANT_ERR = /.+CREATE_CONTRACT_FAILED.+RUNNER_FAILED/s
 
-const defaultParams = () => ({
+const defaultParams = (bNum = 0) => ({
   zwapAddress: zwap.address,
   tokenAddress: tkn.address,
   tokenAmount: '10000',
@@ -24,13 +24,14 @@ const defaultParams = () => ({
   liquidityZilAmount: '0',
   receiverAddress: receiver,
   liquidityAddress: lp,
-  startBlock: '1000',
-  endBlock: '2000',
+  startBlock: (bNum + 1000).toString(),
+  endBlock: (bNum + 2000).toString(),
 })
 
 // test success
 test('deploy ZILO successfully', async () => {
-  const [contract, _] = await deployZILO(key, defaultParams())
+  const bNum = await getBlockNum()
+  const [contract, _] = await deployZILO(key, defaultParams(bNum))
 
   await nextBlock()
   expect(contract.address).toBeDefined()

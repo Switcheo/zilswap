@@ -41,16 +41,9 @@ async function callContract(privateKey, contract, transition, args,
 
   const address = getAddressFromPrivateKey(privateKey)
 
-  let deadline
-  if (MUST_ADVANCE_BLOCKNUM) {
-    deadline = 999999
-  } else {
-    const response = await zilliqa.blockchain.getNumTxBlocks()
-    const bNum = parseInt(response.result, 10)
-    deadline = bNum + 10
-  }
-
   if (insertDeadlineBlock) {
+    const deadline = (await getBlockNum()) + 10
+    console.log({response, deadline})
     args.push(
       {
         vname: 'deadline_block',
@@ -106,10 +99,18 @@ async function getState(privateKey, contract, token) {
   return state
 }
 
-async function nextBlock() {
+async function getBlockNum() {
+  const response = await zilliqa.provider.send('GetBlocknum', "")
+  if (!response.result) {
+    throw new Error(`Failed to get block! Error: ${JSON.stringify(response.error)}`)
+  }
+  return parseInt(response.result, 10)
+}
+
+async function nextBlock(n = 1) {
   if (MUST_ADVANCE_BLOCKNUM) {
     console.log('Advancing block...')
-    const response = await zilliqa.provider.send('IncreaseBlocknum', 1)
+    const response = await zilliqa.provider.send('IncreaseBlocknum', n)
     if (!response.result) {
       throw new Error(`Failed to advanced block! Error: ${JSON.stringify(response.error)}`)
     }
@@ -119,4 +120,5 @@ async function nextBlock() {
 exports.transfer = transfer
 exports.callContract = callContract
 exports.getState = getState
+exports.getBlockNum = getBlockNum
 exports.nextBlock = nextBlock

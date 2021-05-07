@@ -1,5 +1,5 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { callContract, nextBlock } = require('../../scripts/call.js');
+const { callContract, getBlockNum, nextBlock } = require('../../scripts/call.js');
 const { deployZILO, useFungibleToken } = require('../../scripts/deploy.js');
 
 let owner, lp, user, zwap, tkn
@@ -14,7 +14,8 @@ beforeAll(async () => {
 
 let zilo
 beforeEach(async () => {
-  zilo = (await deployZILO(owner.key, defaultParams()))[0]
+  const bNum = await getBlockNum()
+  zilo = (await deployZILO(owner.key, defaultParams(bNum)))[0]
   await nextBlock()
   // send tokens
   await callContract(
@@ -29,7 +30,7 @@ beforeEach(async () => {
       {
         vname: 'amount',
         type: 'Uint128',
-        value: '10000',
+        value: '10000000000000000',
       },
     ],
     0, false, false
@@ -47,25 +48,25 @@ beforeEach(async () => {
       {
         vname: 'amount',
         type: 'Uint128',
-        value: '10000',
+        value: '10000000000000000',
       },
     ],
     0, false, false
   )
 })
 
-const defaultParams = () => ({
+const defaultParams = (bNum = 0) => ({
   zwapAddress: zwap.address,
   tokenAddress: tkn.address,
-  tokenAmount: '10000',
-  targetZilAmount: '10000',
-  targetZwapAmount: '10000',
+  tokenAmount: '10000000000000000',
+  targetZilAmount: '10000000000000000',
+  targetZwapAmount: '10000000000000000',
   minimumZilAmount: '1',
   liquidityZilAmount: '0',
   receiverAddress: owner.address,
   liquidityAddress: lp.address,
-  startBlock: '1000',
-  endBlock: '2000',
+  startBlock: (bNum + 100).toString(),
+  endBlock: (bNum + 200).toString(),
 })
 
 // test contributing uninitialized
@@ -80,40 +81,65 @@ test('contribute to ZILO before initialized', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
 })
 
-// test contributing before
-test('contribute to ZILO before start', async () => {
-  // initialize by sending tkns
-  const initTx = await callContract(
-    owner.key, tkn,
-    'Transfer',
-    [
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: zilo.address,
-      },
-      {
-        vname: 'amount',
-        type: 'Uint128',
-        value: '10000',
-      },
-    ],
-    0, false, false
-  )
-  expect(initTx.status).toEqual(2)
-  const state = await zilo.getState()
-  expect(state.initialized.constructor).toEqual("True")
+describe('after initialized', async () => {
+  beforeEach(async() => {
+    // initialize by sending tkns
+    const initTx = await callContract(
+      owner.key, tkn,
+      'Transfer',
+      [
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: zilo.address,
+        },
+        {
+          vname: 'amount',
+          type: 'Uint128',
+          value: '10000000000000000',
+        },
+      ],
+      0, false, false
+    )
+    expect(initTx.status).toEqual(2)
+    const state = await zilo.getState()
+    expect(state.initialized.constructor).toEqual("True")
+  })
 
-  const tx = await callContract(
-    user.key, zilo,
-    'Contribute',
-    [],
-    100, false, false
-  )
-  expect(tx.status).toEqual(3)
-  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+  test('contribute to ZILO before start', async () => {
+    const tx = await callContract(
+      user.key, zilo,
+      'Contribute',
+      [],
+      100, false, false
+    )
+    expect(tx.status).toEqual(3)
+    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+  })
+
+  test('contribute to ZILO after start and before end', async () => {
+    await nextBlock(101)
+
+    const tx = await callContract(
+      user.key, zilo,
+      'Contribute',
+      [],
+      1, false, false
+    )
+    console.log(JSON.stringify(tx, null, 2))
+    expect(tx.status).toEqual(2)
+  })
+
+  test('contribute to ZILO after end', async () => {
+    await nextBlock(201)
+
+    const tx = await callContract(
+      user.key, zilo,
+      'Contribute',
+      [],
+      100, false, false
+    )
+    expect(tx.status).toEqual(3)
+    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+  })
 })
-
-// test contributing during
-
-// test contributing after

@@ -171,6 +171,7 @@ with
   let d = builtin lt liquidity_zil_amount target_zil_amount in
   let e = builtin blt _creation_block start_block in
   let f = builtin blt start_block end_block in
+  (* TODO zwap_address != token_address *)
 
   let nil = Nil {Bool} in
   let l1 = Cons {Bool} a nil in
@@ -481,5 +482,18 @@ transition RecipientAcceptTransfer(sender : ByStr20, recipient: ByStr20, amount:
 end
 
 transition RecipientAcceptTransferFrom(initiator: ByStr20, sender : ByStr20, recipient: ByStr20, amount : Uint128)
-  ValidateTransferAndInitialize _sender amount
+  (* if initiator is us, and _sender is zwap - no-op as it is callback from a contribution *)
+  initiator_is_self = builtin eq initiator _this_address;
+  match initiator_is_self with
+  | True =>
+    callback_is_from_zwap = builtin eq _sender zwap_address;
+    match callback_is_from_zwap with
+    | True =>
+      (* no op *)
+    | False =>
+      ValidateTransferAndInitialize _sender amount
+    end
+  | False =>
+    ValidateTransferAndInitialize _sender amount
+  end
 end
