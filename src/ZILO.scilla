@@ -264,15 +264,15 @@ procedure ValidateTransferAndInitialize(sender : ByStr20, amount : Uint128)
   is_token_contract = builtin eq token_address sender;
   match is_token_contract with
   | False =>
-    err = CodeInvalidTransfer; (* reject all direct transfers *)
+    err = CodeInvalidTransfer; (* reject all other direct token transfers *)
     ThrowError err
   | True =>
     inited <- initialized;
     match inited with
-    | False =>
+    | True =>
       err = CodeInvalidTransfer; (* already initialized, so just reject *)
       ThrowError err
-    | True =>
+    | False =>
       is_correct_amount = builtin eq token_amount amount;
       match is_correct_amount with
       | False =>

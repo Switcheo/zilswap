@@ -30,11 +30,12 @@ const defaultParams = () => ({
 
 // test success
 test('deploy ZILO successfully', async () => {
-  const [contract, state] = await deployZILO(key, defaultParams())
+  const [contract, _] = await deployZILO(key, defaultParams())
 
   await nextBlock()
-
   expect(contract.address).toBeDefined()
+
+  const state = await contract.getState()
   expect(state).toEqual({
     "_balance": "0",
     "contributions": {},

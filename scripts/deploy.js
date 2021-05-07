@@ -149,19 +149,6 @@ async function deployZILO(privateKey, {
   startBlock,
   endBlock,
  }) {
-  console.log({
-    zwapAddress,
-    tokenAddress,
-    tokenAmount,
-    targetZilAmount,
-    targetZwapAmount,
-    minimumZilAmount,
-    liquidityZilAmount,
-    receiverAddress,
-    liquidityAddress,
-    startBlock,
-    endBlock,
-   })
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
