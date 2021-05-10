@@ -212,7 +212,7 @@ end
 (* @dev: Distributes the token amount by contribution ratio to the sender based on the given zil amount.
   The given amount MUST be less than target_zil_amount, and should be pro-rated downwards first, if it is larger. *)
 procedure Distribute(contribution : Uint128)
-  amount = let x = frac contribution token_amount target_zil_amount in
+  amount = let x = frac contribution target_zil_amount token_amount in
     getSomeInt x; (* safe because frac should not overflow as contribution is always <= target_zil_amount due to pro-rating *)
 
   msg_to_token =  {
@@ -299,40 +299,49 @@ transition Contribute()
   | Active =>
     AssertNotZero _amount;
 
-    (* update contribution and total raise amt  *)
-    maybe_contributed <- contributions[_sender];
-    contributed = getSomeInt maybe_contributed;
-    new_contribution = builtin add contributed _amount;
-    contributions[_sender] := new_contribution;
-    new_raised_amount = builtin add raised_amount _amount;
-    total_contributions := new_raised_amount;
+    (* to prevent edge cases with calculated pro-rated contribution,
+      max contrib per account = target_zil_amt *)
+    exceeds_cap = builtin lt target_zil_amount _amount;
+    match exceeds_cap with
+    | False =>
+      (* update contribution and total raise amt  *)
+      maybe_contributed <- contributions[_sender];
+      contributed = getSomeInt maybe_contributed;
+      new_contribution = builtin add contributed _amount;
+      contributions[_sender] := new_contribution;
+      new_raised_amount = builtin add raised_amount _amount;
+      total_contributions := new_raised_amount;
 
-    (* transfer zwap and zils *)
-    maybe_amt = frac _amount target_zil_amount target_zwap_amount;
-    match maybe_amt with
-    | Some amt =>
-      (* transfer (all) zil *)
-      accept;
+      (* transfer zwap and zils *)
+      maybe_amt = frac _amount target_zil_amount target_zwap_amount;
+      match maybe_amt with
+      | Some amt =>
+        (* transfer (all) zil *)
+        accept;
 
-      (* transfer zwap by ratio *)
-      amount = builtin add amt one; (* round up *)
-      msg_to_zwap = {
-        _tag: "TransferFrom"; _recipient: zwap_address; _amount: zero;
-        from: _sender; to: _this_address; amount: amount
-      };
+        (* transfer zwap by ratio *)
+        amount = builtin add amt one; (* round up *)
+        msg_to_zwap = {
+          _tag: "TransferFrom"; _recipient: zwap_address; _amount: zero;
+          from: _sender; to: _this_address; amount: amount
+        };
 
-      (* notify sender *)
-      msg_to_sender = {
-        _tag: "Contribute"; _recipient: _sender; _amount: zero;
-        zil_amount: _amount; zwap_amount: amount
-      };
+        (* notify sender *)
+        msg_to_sender = {
+          _tag: "Contribute"; _recipient: _sender; _amount: zero;
+          zil_amount: _amount; zwap_amount: amount
+        };
 
-      msgs = twoMsg msg_to_zwap msg_to_sender;
-      send msgs;
+        msgs = twoMsg msg_to_zwap msg_to_sender;
+        send msgs;
 
-      e = {_eventname: "Contributed"; zil_amount: _amount; zwap_amount: amount };
-      event e
-    | None =>
+        e = {_eventname: "Contributed"; zil_amount: _amount; zwap_amount: amount };
+        event e
+      | None =>
+        err = CodeAmountTooLarge;
+        ThrowError err
+      end
+    | True =>
       err = CodeAmountTooLarge;
       ThrowError err
     end
@@ -371,7 +380,7 @@ transition Complete()
     event e
   | Completed =>
     (* compute lp amt *)
-    lp_amount = let x = frac raised_amount_capped liquidity_zil_amount target_zil_amount in
+    lp_amount = let x = frac raised_amount_capped target_zil_amount liquidity_zil_amount in
       getSomeInt x; (* safe because liquidity_zil_amount < target_zil_amount *)
     msg_to_lp = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
 
@@ -382,7 +391,7 @@ transition Complete()
     (* compute zwap burn amt *)
     (* due to rounding up, there may be some extra zwap locked in the contract - but
       it's probably not worth adding complexity to burn those tokens as they are permenantly locked anyway *)
-    zwap_to_burn = let x = frac target_zwap_amount raised_amount_capped target_zil_amount in
+    zwap_to_burn = let x = frac raised_amount_capped target_zil_amount target_zwap_amount  in
       getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
     msg_to_zwap =  {
       _tag : "Burn"; _recipient: zwap_address; _amount: zero;
@@ -391,7 +400,7 @@ transition Complete()
 
     (* compute tkn refund amt *)
     refund_amount =
-      let x = frac token_amount raised_amount_capped target_zil_amount in
+      let x = frac raised_amount_capped target_zil_amount token_amount in
       let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
       let distr = builtin add distr_trunc one in (* round up as value is truncated *)
       let distr_capped = min distr token_amount in (* cap at token_amount *)
@@ -446,13 +455,21 @@ transition Claim()
       | True =>
         (* if above target cap, find pro-rated amt and refund remainder *)
         prorated_contribution =
-          let x = frac contribution target_zil_amount raised_amount in (* rounded down *)
-          getSomeInt x; (* safe because target_zil_amount < raised_amount *)
-        refund =
-          let r = builtin sub contribution prorated_contribution in
-          builtin sub r one; (* refund slightly less to avoid issues caused by rounding down *)
+          let x = frac contribution raised_amount target_zil_amount in (* rounded down *)
+          getSomeInt x; (* safe because contribution < raised_amount *)
         Distribute prorated_contribution;
-        Refund refund
+
+        (* refund the remiander *)
+        refund = builtin sub contribution prorated_contribution;
+        refund_required = builtin lt one refund; (* handle case where exactly 0 refund required *)
+        match refund_required with
+        | False =>
+          (* no op*)
+        | True =>
+          (* refund slightly less to avoid issues caused by rounding down the prorated contribution *)
+          r = builtin sub refund one;
+          Refund r
+        end
       end
     | _ =>
       err = CodeCannotClaimNow;

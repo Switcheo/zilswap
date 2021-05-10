@@ -58,11 +58,11 @@ beforeEach(async () => {
 const defaultParams = (bNum = 0) => ({
   zwapAddress: zwap.address,
   tokenAddress: tkn.address,
-  tokenAmount: '10000000000000000',
-  targetZilAmount: '10000000000000000',
-  targetZwapAmount: '10000000000000000',
-  minimumZilAmount: '1',
-  liquidityZilAmount: '0',
+  tokenAmount:      '1000000000000000',
+  targetZilAmount:  '1000000000000000',
+  targetZwapAmount: '1000000000000000',
+  minimumZilAmount:                '1',
+  liquidityZilAmount:              '0',
   receiverAddress: owner.address,
   liquidityAddress: lp.address,
   startBlock: (bNum + 100).toString(),
@@ -81,65 +81,84 @@ test('contribute to ZILO before initialized', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
 })
 
-describe('after initialized', async () => {
-  beforeEach(async() => {
-    // initialize by sending tkns
-    const initTx = await callContract(
-      owner.key, tkn,
-      'Transfer',
-      [
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: zilo.address,
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: '10000000000000000',
-        },
-      ],
-      0, false, false
-    )
-    expect(initTx.status).toEqual(2)
-    const state = await zilo.getState()
-    expect(state.initialized.constructor).toEqual("True")
+describe('contribute to ZILO', () => {
+  describe('after initialized', () => {
+    beforeEach(async() => {
+      // initialize by sending tkns
+      const initTx = await callContract(
+        owner.key, tkn,
+        'Transfer',
+        [
+          {
+            vname: 'to',
+            type: 'ByStr20',
+            value: zilo.address,
+          },
+          {
+            vname: 'amount',
+            type: 'Uint128',
+            value: '1000000000000000',
+          },
+        ],
+        0, false, false
+      )
+      expect(initTx.status).toEqual(2)
+      const state = await zilo.getState()
+      expect(state.initialized.constructor).toEqual("True")
+    })
+
+    test('before start', async () => {
+      const tx = await callContract(
+        user.key, zilo,
+        'Contribute',
+        [],
+        100, false, false
+      )
+      expect(tx.status).toEqual(3)
+      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+    })
+
+    describe('after started, before ending', () => {
+      beforeEach(async() => {
+        await nextBlock(101)
+      })
+
+      test('below cap', async () => {
+        const tx = await callContract(
+          user.key, zilo,
+          'Contribute',
+          [],
+          1, false, false
+        )
+        console.log(JSON.stringify(tx, null, 2))
+        expect(tx.status).toEqual(2)
+      })
+
+
+      test('above cap', async () => {
+        const tx = await callContract(
+          user.key, zilo,
+          'Contribute',
+          [],
+          1001, false, false
+        )
+        expect(tx.status).toEqual(3)
+        expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -2") // CodeAmountTooLarge
+      })
+    })
+
+    test('contribute to ZILO after end', async () => {
+      await nextBlock(201)
+
+      const tx = await callContract(
+        user.key, zilo,
+        'Contribute',
+        [],
+        100, false, false
+      )
+      expect(tx.status).toEqual(3)
+      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+    })
   })
 
-  test('contribute to ZILO before start', async () => {
-    const tx = await callContract(
-      user.key, zilo,
-      'Contribute',
-      [],
-      100, false, false
-    )
-    expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
-  })
-
-  test('contribute to ZILO after start and before end', async () => {
-    await nextBlock(101)
-
-    const tx = await callContract(
-      user.key, zilo,
-      'Contribute',
-      [],
-      1, false, false
-    )
-    console.log(JSON.stringify(tx, null, 2))
-    expect(tx.status).toEqual(2)
-  })
-
-  test('contribute to ZILO after end', async () => {
-    await nextBlock(201)
-
-    const tx = await callContract(
-      user.key, zilo,
-      'Contribute',
-      [],
-      100, false, false
-    )
-    expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
-  })
 })

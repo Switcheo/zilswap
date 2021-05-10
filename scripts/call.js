@@ -43,7 +43,6 @@ async function callContract(privateKey, contract, transition, args,
 
   if (insertDeadlineBlock) {
     const deadline = (await getBlockNum()) + 10
-    console.log({response, deadline})
     args.push(
       {
         vname: 'deadline_block',
