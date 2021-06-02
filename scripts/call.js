@@ -1,5 +1,5 @@
 
-const { TEST_VERSION, MUST_ADVANCE_BLOCKNUM, zilliqa, useKey } = require('./zilliqa')
+const { TEST_VERSION, USE_TESTNET, zilliqa, useKey } = require('./zilliqa')
 const { BN, Long, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
@@ -99,7 +99,7 @@ async function getState(privateKey, contract, token) {
 }
 
 async function getBlockNum() {
-  const response = await zilliqa.provider.send('GetBlocknum', "")
+  const response = USE_TESTNET ? await zilliqa.blockchain.getNumTxBlocks() : await zilliqa.provider.send('GetBlocknum', "")
   if (!response.result) {
     throw new Error(`Failed to get block! Error: ${JSON.stringify(response.error)}`)
   }
@@ -107,7 +107,7 @@ async function getBlockNum() {
 }
 
 async function nextBlock(n = 1) {
-  if (MUST_ADVANCE_BLOCKNUM) {
+  if (!USE_TESTNET) {
     console.log('Advancing block...')
     const response = await zilliqa.provider.send('IncreaseBlocknum', n)
     if (!response.result) {

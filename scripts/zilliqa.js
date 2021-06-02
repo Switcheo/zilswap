@@ -4,7 +4,6 @@ const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { bytes } = require('@zilliqa-js/util')
 
 const USE_TESTNET = process.env.TEST_NETWORK === 'testnet'
-const MUST_ADVANCE_BLOCKNUM = !USE_TESTNET
 const TEST_VERSION = bytes.pack(USE_TESTNET ? 333 : 222, 1)
 const TEST_RPC = USE_TESTNET ? 'https://dev-api.zilliqa.com' : 'http://localhost:5555'
 
@@ -19,7 +18,7 @@ function useKey(privateKey) {
   zilliqa.wallet.setDefault(address)
 }
 
+exports.USE_TESTNET = USE_TESTNET
 exports.TEST_VERSION = TEST_VERSION
-exports.MUST_ADVANCE_BLOCKNUM = MUST_ADVANCE_BLOCKNUM
 exports.zilliqa = zilliqa
 exports.useKey = useKey

@@ -22,6 +22,7 @@ const defaultParams = (bNum = 0) => ({
   targetZwapAmount: '10000',
   minimumZilAmount: '1',
   liquidityZilAmount: '0',
+  liquidityTokenAmount: '0',
   receiverAddress: receiver,
   liquidityAddress: lp,
   startBlock: (bNum + 1000).toString(),

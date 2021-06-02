@@ -158,6 +158,7 @@ contract ZILO
   target_zwap_amount: Uint128,
   minimum_zil_amount: Uint128,
   liquidity_zil_amount: Uint128,
+  liquidity_token_amount: Uint128,
   receiver_address: ByStr20,
   liquidity_address: ByStr20,
   start_block: BNum,
@@ -274,7 +275,8 @@ procedure ValidateTransferAndInitialize(sender : ByStr20, amount : Uint128)
       err = CodeInvalidTransfer; (* already initialized, so just reject *)
       ThrowError err
     | False =>
-      is_correct_amount = builtin eq token_amount amount;
+      required_amount = builtin add token_amount liquidity_token_amount;
+      is_correct_amount = builtin eq required_amount amount;
       match is_correct_amount with
       | False =>
         err = CodeAmountIncorrect;
@@ -369,9 +371,10 @@ transition Complete()
   match state with
   | Failed =>
     (* refund all tkns *)
+    amount = builtin add token_amount liquidity_token_amount;
     msg_to_token =  {
       _tag: "Transfer"; _recipient: token_address; _amount: zero;
-      to: receiver_address; amount: token_amount
+      to: receiver_address; amount: amount
     };
     msgs = oneMsg msg_to_token;
     send msgs;
@@ -379,10 +382,18 @@ transition Complete()
     e = { _eventname: "Failed"; raised_amount: raised_amount };
     event e
   | Completed =>
-    (* compute lp amt *)
-    lp_amount = let x = frac raised_amount_capped target_zil_amount liquidity_zil_amount in
-      getSomeInt x; (* safe because liquidity_zil_amount < target_zil_amount *)
+    (* compute lp zil amt *)
+    lp_amount = let x = frac liquidity_zil_amount target_zil_amount raised_amount_capped  in
+      getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
     msg_to_lp = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
+
+    (* compute lp tkn amt *)
+    lp_tkn_amount = let x = frac liquidity_token_amount target_zil_amount raised_amount_capped  in
+      getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+    msg_to_token_for_lp =  {
+      _tag: "Transfer"; _recipient: token_address; _amount: zero;
+      to: liquidity_address; amount: lp_tkn_amount
+    };
 
     (* compute project amt *)
     project_amount = builtin sub raised_amount_capped lp_amount;
@@ -404,15 +415,19 @@ transition Complete()
       let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
       let distr = builtin add distr_trunc one in (* round up as value is truncated *)
       let distr_capped = min distr token_amount in (* cap at token_amount *)
-      builtin sub token_amount distr_capped;
-    msg_to_token =  {
+      let refund_main = builtin sub token_amount distr_capped in (* this is the unused tkns meant for contributors if target is not reached *)
+      let refund_lp = builtin sub liquidity_token_amount lp_tkn_amount in (* this is the tkns that is meant to be for LP, but no longer required as the pool is smaller *)
+      builtin add refund_main refund_lp;
+    msg_to_token_for_refund =  {
       _tag: "Transfer"; _recipient: token_address; _amount: zero;
       to: receiver_address; amount: refund_amount
     };
 
     (* send and burn! *)
-    msgs = let three_msg = threeMsg msg_to_project msg_to_lp msg_to_zwap in
-      Cons {Message} msg_to_token three_msg;
+    msgs =
+      let three_msg = threeMsg msg_to_project msg_to_lp msg_to_zwap in
+      let four_msg = Cons {Message} msg_to_token_for_refund three_msg in
+      Cons {Message} msg_to_token_for_lp four_msg;
     send msgs;
 
     e = {

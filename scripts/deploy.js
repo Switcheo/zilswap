@@ -144,6 +144,7 @@ async function deployZILO(privateKey, {
   targetZwapAmount,
   minimumZilAmount,
   liquidityZilAmount,
+  liquidityTokenAmount,
   receiverAddress,
   liquidityAddress,
   startBlock,
@@ -197,6 +198,11 @@ async function deployZILO(privateKey, {
       vname: 'liquidity_zil_amount',
       type: 'Uint128',
       value: liquidityZilAmount,
+    },
+    {
+      vname: 'liquidity_token_amount',
+      type: 'Uint128',
+      value: liquidityTokenAmount,
     },
     {
       vname: 'receiver_address',
