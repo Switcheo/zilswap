@@ -186,6 +186,7 @@ with
 
 (* Mutable fields *)
 field initialized : Bool = False
+field finalized : Bool = False (* funds paid out to receiver / lp *)
 field total_contributions : Uint128 = zero (* in QAs *)
 field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128 (* in QAs *)
 
@@ -365,77 +366,85 @@ transition Complete()
   (* get state *)
   current_block <- & BLOCKNUMBER;
   raised_amount <- total_contributions;
-  inited <- initialized;
-  raised_amount_capped = min raised_amount target_zil_amount;
-  state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
-  match state with
-  | Failed =>
-    (* refund all tkns *)
-    amount = builtin add token_amount liquidity_token_amount;
-    msg_to_token =  {
-      _tag: "Transfer"; _recipient: token_address; _amount: zero;
-      to: receiver_address; amount: amount
-    };
-    msgs = oneMsg msg_to_token;
-    send msgs;
+  done <- finalized;
+  finalized := true;
+  match done with
+  | False =>
+    inited <- initialized;
+    raised_amount_capped = min raised_amount target_zil_amount;
+    state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
+    match state with
+    | Failed =>
+      (* refund all tkns *)
+      amount = builtin add token_amount liquidity_token_amount;
+      msg_to_token =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: receiver_address; amount: amount
+      };
+      msgs = oneMsg msg_to_token;
+      send msgs;
 
-    e = { _eventname: "Failed"; raised_amount: raised_amount };
-    event e
-  | Completed =>
-    (* compute lp zil amt *)
-    lp_amount = let x = frac liquidity_zil_amount target_zil_amount raised_amount_capped  in
-      getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
-    msg_to_lp = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
+      e = { _eventname: "Failed"; raised_amount: raised_amount };
+      event e
+    | Completed =>
+      (* compute lp zil amt *)
+      lp_amount = let x = frac liquidity_zil_amount target_zil_amount raised_amount_capped  in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_lp = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
 
-    (* compute lp tkn amt *)
-    lp_tkn_amount = let x = frac liquidity_token_amount target_zil_amount raised_amount_capped  in
-      getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
-    msg_to_token_for_lp =  {
-      _tag: "Transfer"; _recipient: token_address; _amount: zero;
-      to: liquidity_address; amount: lp_tkn_amount
-    };
+      (* compute lp tkn amt *)
+      lp_tkn_amount = let x = frac liquidity_token_amount target_zil_amount raised_amount_capped  in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_token_for_lp =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: liquidity_address; amount: lp_tkn_amount
+      };
 
-    (* compute project amt *)
-    project_amount = builtin sub raised_amount_capped lp_amount;
-    msg_to_project = { _tag: "AddFunds"; _recipient: receiver_address; _amount: project_amount };
+      (* compute project amt *)
+      project_amount = builtin sub raised_amount_capped lp_amount;
+      msg_to_project = { _tag: "AddFunds"; _recipient: receiver_address; _amount: project_amount };
 
-    (* compute zwap burn amt *)
-    (* due to rounding up, there may be some extra zwap locked in the contract - but
-      it's probably not worth adding complexity to burn those tokens as they are permenantly locked anyway *)
-    zwap_to_burn = let x = frac raised_amount_capped target_zil_amount target_zwap_amount  in
-      getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
-    msg_to_zwap =  {
-      _tag : "Burn"; _recipient: zwap_address; _amount: zero;
-      burn_account: _this_address; amount: zwap_to_burn
-    };
+      (* compute zwap burn amt *)
+      (* due to rounding up, there may be some extra zwap locked in the contract - but
+        it's probably not worth adding complexity to burn those tokens as they are permenantly locked anyway *)
+      zwap_to_burn = let x = frac raised_amount_capped target_zil_amount target_zwap_amount  in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_zwap =  {
+        _tag : "Burn"; _recipient: zwap_address; _amount: zero;
+        burn_account: _this_address; amount: zwap_to_burn
+      };
 
-    (* compute tkn refund amt *)
-    refund_amount =
-      let x = frac raised_amount_capped target_zil_amount token_amount in
-      let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
-      let distr = builtin add distr_trunc one in (* round up as value is truncated *)
-      let distr_capped = min distr token_amount in (* cap at token_amount *)
-      let refund_main = builtin sub token_amount distr_capped in (* this is the unused tkns meant for contributors if target is not reached *)
-      let refund_lp = builtin sub liquidity_token_amount lp_tkn_amount in (* this is the tkns that is meant to be for LP, but no longer required as the pool is smaller *)
-      builtin add refund_main refund_lp;
-    msg_to_token_for_refund =  {
-      _tag: "Transfer"; _recipient: token_address; _amount: zero;
-      to: receiver_address; amount: refund_amount
-    };
+      (* compute tkn refund amt *)
+      refund_amount =
+        let x = frac raised_amount_capped target_zil_amount token_amount in
+        let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
+        let distr = builtin add distr_trunc one in (* round up as value is truncated *)
+        let distr_capped = min distr token_amount in (* cap at token_amount *)
+        let refund_main = builtin sub token_amount distr_capped in (* this is the unused tkns meant for contributors if target is not reached *)
+        let refund_lp = builtin sub liquidity_token_amount lp_tkn_amount in (* this is the tkns that is meant to be for LP, but no longer required as the pool is smaller *)
+        builtin add refund_main refund_lp;
+      msg_to_token_for_refund =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: receiver_address; amount: refund_amount
+      };
 
-    (* send and burn! *)
-    msgs =
-      let three_msg = threeMsg msg_to_project msg_to_lp msg_to_zwap in
-      let four_msg = Cons {Message} msg_to_token_for_refund three_msg in
-      Cons {Message} msg_to_token_for_lp four_msg;
-    send msgs;
+      (* send and burn! *)
+      msgs =
+        let three_msg = threeMsg msg_to_project msg_to_lp msg_to_zwap in
+        let four_msg = Cons {Message} msg_to_token_for_refund three_msg in
+        Cons {Message} msg_to_token_for_lp four_msg;
+      send msgs;
 
-    e = {
-      _eventname: "Completed"; raised_amount: raised_amount; (* ignores the cap *)
-      burnt_amount: zwap_to_burn; refund_amount: refund_amount
-    };
-    event e
-  | _ =>
+      e = {
+        _eventname: "Completed"; raised_amount: raised_amount; (* ignores the cap *)
+        burnt_amount: zwap_to_burn; refund_amount: refund_amount
+      };
+      event e
+    | _ =>
+      err = CodeCannotCompleteNow;
+      ThrowError err
+    end
+  | True =>
     err = CodeCannotCompleteNow;
     ThrowError err
   end
@@ -452,6 +461,7 @@ transition Claim()
     err = CodeContributionNotFound;
     ThrowError err
   | Some contribution =>
+    delete contributions[_sender];
     (* check offering state *)
     current_block <- & BLOCKNUMBER;
     raised_amount <- total_contributions;

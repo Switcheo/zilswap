@@ -154,6 +154,16 @@ describe('ZILO resolution', () => {
         }
       ]))
 
+      // double finalize
+      const doubleFinalizeTx = await callContract(
+        owner.key, zilo,
+        'Complete',
+        [],
+        0, false, false
+      )
+      expect(doubleFinalizeTx.status).toEqual(3)
+      expect(JSON.stringify(doubleFinalizeTx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeCannotCompleteNow
+
       // claim
       const claimTx = await callContract(
         user.key, zilo,
@@ -373,6 +383,16 @@ describe('ZILO resolution', () => {
           })
         })
       ]))
+
+      // double finalize
+      const doubleFinalizeTx = await callContract(
+        owner.key, zilo,
+        'Complete',
+        [],
+        0, false, false
+      )
+      expect(doubleFinalizeTx.status).toEqual(3)
+      expect(JSON.stringify(doubleFinalizeTx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeCannotCompleteNow
 
       // claim
       const claimTx = await callContract(
@@ -604,6 +624,16 @@ describe('ZILO resolution', () => {
           ]
         },
       ]))
+
+      // double claim
+      const doubleClaimTx = await callContract(
+        user.key, zilo,
+        'Claim',
+        [],
+        0, false, false
+      )
+      expect(doubleClaimTx.status).toEqual(3)
+      expect(JSON.stringify(doubleClaimTx.receipt.exceptions)).toContain("code : (Int32 -4)") // CodeContributionNotFound
     })
   })
 

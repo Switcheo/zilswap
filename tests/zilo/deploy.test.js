@@ -41,6 +41,11 @@ test('deploy ZILO successfully', async () => {
   expect(state).toEqual({
     "_balance": "0",
     "contributions": {},
+    "finalized": {
+      "argtypes": [],
+      "arguments": [],
+      "constructor": "False",
+    },
     "initialized": {
       "argtypes": [],
       "arguments": [],

@@ -79,7 +79,7 @@ test('contribute to ZILO before initialized', async () => {
     100, false, false
   )
   expect(tx.status).toEqual(3)
-  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5)") // CodeCannotContributeNow
 })
 
 describe('contribute to ZILO', () => {
@@ -116,7 +116,7 @@ describe('contribute to ZILO', () => {
         100, false, false
       )
       expect(tx.status).toEqual(3)
-      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5)") // CodeCannotContributeNow
     })
 
     describe('after started, before ending', () => {
@@ -144,7 +144,7 @@ describe('contribute to ZILO', () => {
           1001, false, false
         )
         expect(tx.status).toEqual(3)
-        expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -2") // CodeAmountTooLarge
+        expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -2)") // CodeAmountTooLarge
       })
     })
 
@@ -158,7 +158,7 @@ describe('contribute to ZILO', () => {
         100, false, false
       )
       expect(tx.status).toEqual(3)
-      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5") // CodeCannotContributeNow
+      expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5)") // CodeCannotContributeNow
     })
   })
 
