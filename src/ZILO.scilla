@@ -302,15 +302,16 @@ transition Contribute()
   | Active =>
     AssertNotZero _amount;
 
+    (* update contribution and total raise amt  *)
+    maybe_contributed <- contributions[_sender];
+    contributed = getSomeInt maybe_contributed;
+    new_contribution = builtin add contributed _amount;
+
     (* to prevent edge cases with calculated pro-rated contribution,
       max contrib per account = target_zil_amt *)
-    exceeds_cap = builtin lt target_zil_amount _amount;
+    exceeds_cap = builtin lt target_zil_amount new_contribution;
     match exceeds_cap with
     | False =>
-      (* update contribution and total raise amt  *)
-      maybe_contributed <- contributions[_sender];
-      contributed = getSomeInt maybe_contributed;
-      new_contribution = builtin add contributed _amount;
       contributions[_sender] := new_contribution;
       new_raised_amount = builtin add raised_amount _amount;
       total_contributions := new_raised_amount;
