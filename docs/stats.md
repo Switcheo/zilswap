@@ -114,7 +114,7 @@ if epoch 0, get swap_volume and split additional reward by volume
 
 ### Get Distribution Data 
 
-Get distribution data of the address.
+Get distributions for the given address
 
 `/distribution/data/{address}`
 
@@ -122,17 +122,9 @@ Get distribution data of the address.
 |-----------------|---------|---------------------------------------------------------|
 | address         | ByStr20 | The pool address Bech32 address. (e.g. zil...)          |
 
-### Get Address Distribution
+### Get Distribution (Current Epoch)
 
-Get distribution data for the given address
-
-steps:
-get pools (filtered for the ones to award - epoch 0 all, epoch 1 only xsgd & gzil)
-for each pool:
-1. get total time weighted liquidity from start_time to end_time
-2. get time weighted liquidity from start_time to end_time for each address that has liquidity at start_time
-split reward by pool and time weighted liquidity
-if epoch 0, get swap_volume and split additional reward by volume
+Get current epoch distribution for given address
 
 `/distribution/current/{address}`
 
