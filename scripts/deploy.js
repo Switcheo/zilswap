@@ -6,7 +6,7 @@ const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long } = require('@zilliqa-js/util')
 const { callContract, nextBlock } = require('./call.js')
 const { compress } = require('./compile')
-const { TEST_VERSION, zilliqa, useKey } = require('./zilliqa')
+const { VERSION, zilliqa, useKey } = require('./zilliqa')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -247,7 +247,7 @@ async function deployContract(privateKey, code, init) {
   const contract = zilliqa.contracts.new(compressedCode, init)
   const [deployTx, token] = await contract.deploy(
     {
-      version: TEST_VERSION,
+      version: VERSION,
       amount: new BN(0),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),

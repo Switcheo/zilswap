@@ -16,9 +16,9 @@ To run tests on Zilliqa TestNet, get some testnet ZILs first.
 
 Set the private key of your test account using the `PRIVATE_KEY` env var.
 
-Set the `USE_TESTNET` env var to `testnet`.
+Set the `NETWORK` env var to `testnet`.
 
-These can be done in a `.env` file in the root of the project, or run inline via: `PRIVATE_KEY=xxx USE_TESTNET=testnet yarn test`.
+These can be done in a `.env` file in the root of the project, or run inline via: `PRIVATE_KEY=xxx NETWORK=testnet yarn test`.
 
 ### On Local Isolated Server
 

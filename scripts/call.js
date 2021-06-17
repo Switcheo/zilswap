@@ -1,5 +1,5 @@
 
-const { TEST_VERSION, USE_TESTNET, zilliqa, useKey } = require('./zilliqa')
+const { VERSION, network, zilliqa, useKey } = require('./zilliqa')
 const { BN, Long, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
@@ -16,7 +16,7 @@ async function transfer(privateKey, toAddr, amount) {
   const tx = await zilliqa.blockchain.createTransaction(
     zilliqa.transactions.new(
       {
-        version: TEST_VERSION,
+        version: VERSION,
         toAddr,
         amount: new BN(units.toQa(amount, units.Units.Zil)),
         gasPrice: new BN(minGasPrice.result),
@@ -67,7 +67,7 @@ async function callContract(privateKey, contract, transition, args,
   console.info(`Calling: ${transition}`)
   const tx = await contract.call(transition, args,
     {
-      version: TEST_VERSION,
+      version: VERSION,
       amount: units.toQa(zilsToSend, units.Units.Zil),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
@@ -99,7 +99,7 @@ async function getState(privateKey, contract, token) {
 }
 
 async function getBlockNum() {
-  const response = USE_TESTNET ? await zilliqa.blockchain.getNumTxBlocks() : await zilliqa.provider.send('GetBlocknum', "")
+  const response = network === 'localhost' ? await zilliqa.provider.send('GetBlocknum', "") : await zilliqa.blockchain.getNumTxBlocks()
   if (!response.result) {
     throw new Error(`Failed to get block! Error: ${JSON.stringify(response.error)}`)
   }
@@ -107,7 +107,7 @@ async function getBlockNum() {
 }
 
 async function nextBlock(n = 1) {
-  if (!USE_TESTNET) {
+  if (network === 'localhost') {
     console.log('Advancing block...')
     const response = await zilliqa.provider.send('IncreaseBlocknum', n)
     if (!response.result) {
