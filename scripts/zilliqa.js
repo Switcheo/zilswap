@@ -3,14 +3,7 @@ const { Zilliqa } = require('@zilliqa-js/zilliqa')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { bytes } = require('@zilliqa-js/util')
 
-const USE_TESTNET = process.env.TEST_NETWORK === 'testnet'
-const MUST_ADVANCE_BLOCKNUM = !USE_TESTNET
-const TEST_VERSION = bytes.pack(USE_TESTNET ? 333 : 222, 1)
-const TEST_RPC = USE_TESTNET ? 'https://dev-api.zilliqa.com' : 'http://localhost:5555'
-
-const zilliqa = new Zilliqa(TEST_RPC)
-
-function useKey(privateKey) {
+const useKey = (privateKey) => {
   const address = getAddressFromPrivateKey(privateKey)
   const accounts = Object.keys(zilliqa.wallet.accounts)
   if (accounts.findIndex(a => a.toLowerCase() === address.toLowerCase()) < 0) {
@@ -19,7 +12,46 @@ function useKey(privateKey) {
   zilliqa.wallet.setDefault(address)
 }
 
-exports.TEST_VERSION = TEST_VERSION
-exports.MUST_ADVANCE_BLOCKNUM = MUST_ADVANCE_BLOCKNUM
-exports.zilliqa = zilliqa
+const getNetwork = () => {
+  const network = (process.env.NETWORK || '').toLowerCase()
+  switch (network) {
+    case 'testnet':
+    case 'mainnet':
+      return network
+    default:
+      return 'localhost'
+  }
+}
+
+const getRPC = (network) => {
+  switch (network) {
+    case 'mainnet':
+      return 'https://api.zilliqa.com'
+    case 'testnet':
+      return 'https://dev-api.zilliqa.com'
+    default:
+      return 'http://localhost:5555'
+  }
+}
+
+const getChainID = (network) => {
+  const id = bytes.pack(network === 'testnet' ? 333 : 222, 1)
+  switch (network) {
+    case 'mainnet':
+      return 1
+    case 'testnet':
+      return 333
+    default:
+      return 222
+  }
+}
+
+const network = getNetwork()
+const rpc = getRPC(network)
+const VERSION = bytes.pack(getChainID(network), 1)
+const zilliqa = new Zilliqa(rpc)
+
 exports.useKey = useKey
+exports.network = network
+exports.zilliqa = zilliqa
+exports.VERSION = VERSION

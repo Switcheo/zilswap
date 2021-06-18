@@ -13,7 +13,7 @@ async function createRandomAccount(privateKey) {
   const key = schnorr.generatePrivateKey()
   const address = getAddressFromPrivateKey(key)
 
-  await transfer(privateKey, address, '100')
+  await transfer(privateKey, address, '10000')
 
   return { key, address: address.toLowerCase() }
 }

@@ -1,5 +1,5 @@
 
-const { TEST_VERSION, MUST_ADVANCE_BLOCKNUM, zilliqa, useKey } = require('./zilliqa')
+const { VERSION, network, zilliqa, useKey } = require('./zilliqa')
 const { BN, Long, units } = require('@zilliqa-js/util')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
@@ -16,7 +16,7 @@ async function transfer(privateKey, toAddr, amount) {
   const tx = await zilliqa.blockchain.createTransaction(
     zilliqa.transactions.new(
       {
-        version: TEST_VERSION,
+        version: VERSION,
         toAddr,
         amount: new BN(units.toQa(amount, units.Units.Zil)),
         gasPrice: new BN(minGasPrice.result),
@@ -41,16 +41,8 @@ async function callContract(privateKey, contract, transition, args,
 
   const address = getAddressFromPrivateKey(privateKey)
 
-  let deadline
-  if (MUST_ADVANCE_BLOCKNUM) {
-    deadline = 999999
-  } else {
-    const response = await zilliqa.blockchain.getNumTxBlocks()
-    const bNum = parseInt(response.result, 10)
-    deadline = bNum + 10
-  }
-
   if (insertDeadlineBlock) {
+    const deadline = (await getBlockNum()) + 10
     args.push(
       {
         vname: 'deadline_block',
@@ -75,7 +67,7 @@ async function callContract(privateKey, contract, transition, args,
   console.info(`Calling: ${transition}`)
   const tx = await contract.call(transition, args,
     {
-      version: TEST_VERSION,
+      version: VERSION,
       amount: units.toQa(zilsToSend, units.Units.Zil),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
@@ -106,10 +98,18 @@ async function getState(privateKey, contract, token) {
   return state
 }
 
-async function nextBlock() {
-  if (MUST_ADVANCE_BLOCKNUM) {
+async function getBlockNum() {
+  const response = network === 'localhost' ? await zilliqa.provider.send('GetBlocknum', "") : await zilliqa.blockchain.getNumTxBlocks()
+  if (!response.result) {
+    throw new Error(`Failed to get block! Error: ${JSON.stringify(response.error)}`)
+  }
+  return parseInt(response.result, 10)
+}
+
+async function nextBlock(n = 1) {
+  if (network === 'localhost') {
     console.log('Advancing block...')
-    const response = await zilliqa.provider.send('IncreaseBlocknum', 1)
+    const response = await zilliqa.provider.send('IncreaseBlocknum', n)
     if (!response.result) {
       throw new Error(`Failed to advanced block! Error: ${JSON.stringify(response.error)}`)
     }
@@ -119,4 +119,5 @@ async function nextBlock() {
 exports.transfer = transfer
 exports.callContract = callContract
 exports.getState = getState
+exports.getBlockNum = getBlockNum
 exports.nextBlock = nextBlock

@@ -22,6 +22,7 @@ type Error =
 | CodeIsSender
 | CodeInsufficientFunds
 | CodeInsufficientAllowance
+| CodeNotSender
 
 let make_error =
   fun (result : Error) =>
@@ -30,6 +31,7 @@ let make_error =
       | CodeIsSender              => Int32 -1
       | CodeInsufficientFunds     => Int32 -2
       | CodeInsufficientAllowance => Int32 -3
+      | CodeNotSender             => Int32 -4
       end
     in
     { _exception : "Error"; code : result_code }
@@ -118,6 +120,26 @@ procedure AuthorizedMoveIfSufficientBalance(from: ByStr20, to: ByStr20, amount: 
   end
 end
 
+procedure AuthorizedBurnIfSufficientBalance(from: ByStr20, amount: Uint128)
+  o_get_bal <- balances[from];
+  bal = get_val o_get_bal;
+  can_burn = uint128_le amount bal;
+  match can_burn with
+  | True =>
+    (* Subtract amount from from *)
+    new_balance = builtin sub bal amount;
+    balances[from] := new_balance;
+    current_total_supply <- total_supply;
+    new_total_supply = builtin sub current_total_supply amount;
+    total_supply := new_total_supply;
+    e = {_eventname: "Burnt"; burner: _sender; burn_account: from; amount: amount};
+    event e
+  | False =>
+    err = CodeInsufficientFunds;
+    ThrowError err
+  end
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -200,6 +222,24 @@ transition TransferFrom(from: ByStr20, to: ByStr20, amount: Uint128)
     end
   | None =>
     err = CodeInsufficientAllowance;
+    ThrowError err
+  end
+end
+
+(* @dev: Burn existing tokens. Only can burn own tokens from sender account.      *)
+(* @param burn_account: Address of the token_owner whose balance is to decrease.  *)
+(* @param amount:       Number of tokens to be burned.                            *)
+transition Burn(burn_account: ByStr20, amount: Uint128)
+  is_sender = builtin eq _sender burn_account;
+  match is_sender with
+  | True =>
+    AuthorizedBurnIfSufficientBalance burn_account amount;
+    msg_to_sender = {_tag : "BurnSuccessCallBack"; _recipient : _sender; _amount : zero;
+                      burner : _sender; burn_account : burn_account; amount : amount};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  | False =>
+    err = CodeNotSender;
     ThrowError err
   end
 end
