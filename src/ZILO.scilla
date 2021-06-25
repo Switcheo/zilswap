@@ -5,7 +5,7 @@ scilla_version 0
 (***************************************************)
 
 import ListUtils
-library ZILO
+library Zilo
 
 (* Error events *)
 type Error =
@@ -149,7 +149,7 @@ let threeMsg : Message -> Message -> Message -> List Message =
 (*             The contract definition             *)
 (***************************************************)
 
-contract ZILO
+contract Zilo
 (
   zwap_address: ByStr20,
   token_address: ByStr20,
@@ -473,6 +473,13 @@ transition Claim()
       (* refund all *)
       Refund contribution
     | Completed =>
+      (* auto complete if first claim *)
+      msg_to_self = {
+        _tag: "Complete"; _recipient: _this_address; _amount: zero;
+      };
+      msgs = oneMsg msg_to_self;
+      send msgs;
+
       above_target = builtin lt target_zil_amount raised_amount;
       match above_target with
       | False =>
