@@ -103,16 +103,6 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
-procedure NoPendingOwner()
-  maybe_pending_owner <- pending_owner;
-  match maybe_pending_owner with
-  | Some p =>
-    err = CodePendingOwnerNotEmpty;
-    ThrowError err
-  | None =>
-  end
-end
-
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -137,7 +127,6 @@ transition AcceptOwnership()
   e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
   event e
 end
-
 
 (* @dev: Disables adding of liquidity. Only can be called by the contract_owner. *)
 transition Disable()
