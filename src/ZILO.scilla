@@ -145,6 +145,18 @@ let threeMsg : Message -> Message -> Message -> List Message =
     let msgs_tmp = twoMsg msg2 msg3 in
     Cons {Message} msg1 msgs_tmp
 
+let sixMsgs : Message -> Message -> Message -> Message -> Message -> Message -> List Message =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  fun (msg4 : Message) =>
+  fun (msg5 : Message) =>
+  fun (msg6 : Message) =>
+    let msgs_tmp1 = threeMsg msg1 msg2 msg3 in
+    let msgs_tmp2 = threeMsg msg4 msg5 msg6 in
+    let append = @list_append Message in
+    append msgs_tmp1 msgs_tmp2
+
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
@@ -391,7 +403,7 @@ transition Complete()
       (* compute lp zil amt *)
       lp_amount = let x = frac liquidity_zil_amount target_zil_amount raised_amount_capped  in
         getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
-      msg_to_lp = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
+      msg_to_lp_for_zils = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
 
       (* compute lp tkn amt *)
       lp_tkn_amount = let x = frac liquidity_token_amount target_zil_amount raised_amount_capped  in
@@ -399,6 +411,12 @@ transition Complete()
       msg_to_token_for_lp =  {
         _tag: "Transfer"; _recipient: token_address; _amount: zero;
         to: liquidity_address; amount: lp_tkn_amount
+      };
+
+      (* tell the lp how much liquidity to add *)
+      msg_to_lp = {
+        _tag: "AddLiquidity"; _recipient: liquidity_address; _amount: zero;
+        zil_amount: lp_amount; token_amount: lp_tkn_amount
       };
 
       (* compute project amt *)
@@ -430,10 +448,7 @@ transition Complete()
       };
 
       (* send and burn! *)
-      msgs =
-        let three_msg = threeMsg msg_to_project msg_to_lp msg_to_zwap in
-        let four_msg = Cons {Message} msg_to_token_for_refund three_msg in
-        Cons {Message} msg_to_token_for_lp four_msg;
+      msgs = sixMsgs msg_to_lp_for_zils msg_to_token_for_lp msg_to_lp msg_to_project msg_to_zwap msg_to_token_for_refund;
       send msgs;
 
       e = {
@@ -475,7 +490,7 @@ transition Claim()
     | Completed =>
       (* auto complete if first claim *)
       msg_to_self = {
-        _tag: "Complete"; _recipient: _this_address; _amount: zero;
+        _tag: "Complete"; _recipient: _this_address; _amount: zero
       };
       msgs = oneMsg msg_to_self;
       send msgs;
