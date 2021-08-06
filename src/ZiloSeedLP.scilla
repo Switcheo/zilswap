@@ -1,0 +1,228 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+library ZiloSeedLP
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let msgs_tmp = one_msg msg2 in
+    Cons {Message} msg1 msgs_tmp
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner              => Int32 -1
+      | CodeNotPendingOwner       => Int32 -2
+      | CodePendingOwnerNotEmpty  => Int32 -3
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+type Denom =
+  | Zil
+  | Token of ByStr20 (* token address / hash *)
+type Coin =
+  | Coin of Denom Uint128 (* denom, amount *)
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let none = None {ByStr20}
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZiloSeedLP(
+  init_owner: ByStr20,
+  token_address: ByStr20,
+  zilswap_address: ByStr20
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} init_owner
+field pending_owner : Option ByStr20 = none
+field enabled : Bool = False
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Disables adding of liquidity. Only can be called by the contract_owner. *)
+transition Disable()
+  IsOwner _sender;
+  enabled := false
+end
+
+(* @dev: Enables adding of liquidity. Only can be called by the contract_owner. *)
+transition Enable()
+  IsOwner _sender;
+  enabled := true
+end
+
+(* @dev: Adds liquidity to Zilswap using the given amounts. *)
+(* @param token_amount: Amount of token to add.             *)
+(* @param zil_amount: Amount of ZIL to add.                 *)
+transition AddLiquidity(
+  zil_amount : Uint128,
+  token_amount : Uint128
+)
+  e <- enabled;
+  match e with
+  | False => (* no op *)
+  | True =>
+    current_block <- & BLOCKNUMBER;
+    deadline_block = builtin badd current_block one;
+    msg_to_token = {
+      _tag : "IncreaseAllowance"; _recipient : token_address; _amount : zero;
+      sender : zilswap_address; amount : token_amount
+    };
+    msg_to_zilswap = {
+      _tag : "AddLiquidity"; _recipient : zilswap_address; _amount : zil_amount;
+      token_address : token_address; min_contribution_amount : zero; token_amount : token_amount; deadline_block : deadline_block
+    };
+    msgs = two_msgs msg_to_token msg_to_zilswap;
+    send msgs
+  end
+end
+
+(* @dev: Removes liquidity from Zilswap base on the given amounts.            *)
+(* @param contribution_amount: Zilswap contribution amount to remove          *)
+(* @param min_zil_amount: Mininmum amount of ZIL to expect from Zilswap.      *)
+(* @param min_token_amount: Mininmum amount of tokens to expect from Zilswap. *)
+transition RemoveLiquidity(
+  contribution_amount : Uint128,
+  min_zil_amount : Uint128,
+  min_token_amount : Uint128
+)
+  IsOwner _sender;
+  current_block <- & BLOCKNUMBER;
+  deadline_block = builtin badd current_block one;
+  msg_to_zilswap = {
+    _tag : "RemoveLiquidity"; _recipient : zilswap_address; _amount : zero;
+    token_address : token_address; contribution_amount : contribution_amount; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+  };
+  msgs = one_msg msg_to_zilswap;
+  send msgs
+end
+
+(* @dev: Withdraws tokens or ZIL from the contract to the owner.    *)
+(* Can be used to collect funds after removing liquidity, or rescue *)
+(* funds that is wrongly sent to contract.                          *)
+(* @param coin: The amount and type of coin to withdraw.            *)
+transition Withdraw(coin : Coin)
+  IsOwner _sender;
+  match coin with
+  | Coin denom amount =>
+    match denom with
+    | Zil =>
+      msg = { _tag : "AddFunds"; _recipient : _sender; _amount : amount };
+      msgs = one_msg msg;
+      send msgs
+    | Token token =>
+      msg_to_token = {
+        _tag : "Transfer"; _recipient : token; _amount : zero;
+        to : _sender; amount : amount
+      };
+      msgs = one_msg msg_to_token;
+      send msgs
+    end
+  end
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition AddFunds()
+  (* allow receiving of zils from zilo *)
+  accept
+end
+
+transition RecipientAcceptTransfer(sender : ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow receiving zrc-2s from zilo *)
+end
+
+transition TransferSuccessCallBack(sender : ByStr20, recipient : ByStr20, amount : Uint128)
+  (* no-op - allow withdrawing zrc-2s to owner *)
+end
