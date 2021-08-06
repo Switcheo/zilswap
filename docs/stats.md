@@ -88,10 +88,11 @@ Example response:
 
 ```json
 [{
-  "name": "ZWAP Rewards",
-  "reward_token": "zwap",
-  "distributor_name": "Zilswap",
-  "distributor_address_hex": "0xca6d3f56218aaa89cd20406cf22aee26ba8f6089",
+  "name": "ZWAP Rewards", // Name of distribution
+  "reward_token_symbol": "ZWAP", // Token symbol
+  "reward_token_address_hex": "0x0d21c1901a06abee40d8177f95171c8c63abdc31", // Token contract
+  "distributor_name": "Zilswap", // Rewards issuer
+  "distributor_address_hex": "0xca6d3f56218aaa89cd20406cf22aee26ba8f6089", // Distributor contract
   "developer_address": "zil1ua2dhnlykmxtnuaudmqd3uju6altn6lq0lqvl9",
   "emission_info":
     {
@@ -168,7 +169,6 @@ Example response:
 ```
 
 The token being rewarded and the distribution name can be obtained via [Get Distribution Info](#distribution/info).
-
 
 ### Get Estimated Distribution Amount
 
