@@ -488,12 +488,17 @@ transition Claim()
       (* refund all *)
       Refund contribution
     | Completed =>
-      (* auto complete if first claim *)
-      msg_to_self = {
-        _tag: "Complete"; _recipient: _this_address; _amount: zero
-      };
-      msgs = oneMsg msg_to_self;
-      send msgs;
+      f <- finalized;
+      match f with
+      | True => (* no op *)
+      | False =>
+        (* auto complete if first claim *)
+        msg_to_self = {
+          _tag: "Complete"; _recipient: _this_address; _amount: zero
+        };
+        msgs = oneMsg msg_to_self;
+        send msgs
+      end;
 
       above_target = builtin lt target_zil_amount raised_amount;
       match above_target with

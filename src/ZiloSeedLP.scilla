@@ -58,7 +58,7 @@ contract ZiloSeedLP(
 
 field contract_owner : Option ByStr20 = Some {ByStr20} init_owner
 field pending_owner : Option ByStr20 = none
-field enabled : Bool = False
+field enabled : Bool = True
 
 (**************************************)
 (*             Procedures             *)
@@ -155,11 +155,11 @@ transition AddLiquidity(
     deadline_block = builtin badd current_block one;
     msg_to_token = {
       _tag : "IncreaseAllowance"; _recipient : token_address; _amount : zero;
-      sender : zilswap_address; amount : token_amount
+      spender : zilswap_address; amount : token_amount
     };
     msg_to_zilswap = {
       _tag : "AddLiquidity"; _recipient : zilswap_address; _amount : zil_amount;
-      token_address : token_address; min_contribution_amount : zero; token_amount : token_amount; deadline_block : deadline_block
+      token_address : token_address; min_contribution_amount : zero; max_token_amount : token_amount; deadline_block : deadline_block
     };
     msgs = two_msgs msg_to_token msg_to_zilswap;
     send msgs

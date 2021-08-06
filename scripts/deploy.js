@@ -129,11 +129,55 @@ async function deployZilswap(privateKey, { fee = null, owner = null }) {
   return deployContract(privateKey, code, init)
 }
 
-async function useZilswap(privateKey, params, useExisting = process.env.CONTRACT_HASH) {
+async function useZilswap(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
   if (useExisting) {
     return getContract(privateKey, useExisting)
   }
   return deployZilswap(privateKey, params)
+}
+
+async function deploySeedLP(privateKey, {
+  owner = null,
+  tokenAddress,
+  zilswapAddress,
+}) {
+  console.log({tokenAddress, zilswapAddress})
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/ZILOSeedLP.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'init_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'token_address',
+      type: 'ByStr20',
+      value: tokenAddress,
+    },
+    {
+      vname: 'zilswap_address',
+      type: 'ByStr20',
+      value: zilswapAddress,
+    },
+  ];
+
+  console.info(`Deploying ZILO Seed LP...`)
+  return deployContract(privateKey, code, init)
 }
 
 async function deployZILO(privateKey, {
@@ -306,3 +350,4 @@ exports.useFungibleToken = useFungibleToken
 exports.deployZilswap = deployZilswap
 exports.useZilswap = useZilswap
 exports.deployZILO = deployZILO
+exports.deploySeedLP = deploySeedLP

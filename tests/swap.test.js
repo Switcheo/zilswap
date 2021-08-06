@@ -11,7 +11,7 @@ const token2Amount = '500000000000000000000' // y2 = 500
 let key, contract, token, token2, prevState, prevState2
 beforeAll(async () => {
   key = process.env.PRIVATE_KEY
-  const zilswap = await useZilswap(key, {})
+  const zilswap = await useZilswap(key)
   contract = zilswap[0]
   const ft = await useFungibleToken(key, { decimals: 6 }, contract.address)
   token = ft[0]

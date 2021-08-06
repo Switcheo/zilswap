@@ -6,7 +6,7 @@ const { useZilswap } = require('../scripts/deploy.js')
 let key, contract
 beforeAll(async () => {
   key = process.env.PRIVATE_KEY
-  const zilswap = await useZilswap(key, {}, null)
+  const zilswap = await useZilswap(key)
   contract = zilswap[0]
 })
 

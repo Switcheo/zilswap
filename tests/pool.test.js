@@ -4,7 +4,7 @@ const { callContract } = require('../scripts/call.js')
 
 test('addLiquidity and removeLiquidity', async () => {
   const { key, address: owner } = getDefaultAccount()
-  const [contract, _cs] = await useZilswap(key, {}, false)
+  const [contract, _cs] = await useZilswap(key)
   expect(contract.address).toBeDefined()
 
   const [token, _ts] = await useFungibleToken(key, { decimals: 6 }, contract.address, null)
@@ -46,7 +46,7 @@ test('addLiquidity and removeLiquidity', async () => {
       zilAmount,
       tokenAmount
     ],
-    "constructor": "Pool"
+    "constructor": `${contract.address.toLowerCase()}.Pool`
   })
   expect(state.total_contributions[token.address.toLowerCase()]).toEqual(zilAmount)
   expect(Object.values(state.balances[token.address.toLowerCase()])[0]).toEqual(zilAmount)

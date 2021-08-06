@@ -24,6 +24,10 @@ const deploy = async () => {
   console.log(JSON.stringify(contract, null, 2))
   console.log('State:')
   console.log(JSON.stringify(state, null, 2))
+
+  // deploy seed lp
+
+  // approve burn of zwap on zilo
 }
 
 deploy().then(() => console.log('Done.'))

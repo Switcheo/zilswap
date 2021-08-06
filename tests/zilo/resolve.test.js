@@ -1,15 +1,17 @@
-const { BN, Long, units } = require('@zilliqa-js/util')
+const { BN, units } = require('@zilliqa-js/util')
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { callContract, getBlockNum, nextBlock } = require('../../scripts/call.js');
-const { deployZILO, useFungibleToken } = require('../../scripts/deploy.js');
+const { deployZILO, deploySeedLP, useZilswap, useFungibleToken } = require('../../scripts/deploy.js');
 
-let owner, lp, user, zwap, tkn
+let owner, lp, user, zwap, tkn, zilswap
 beforeAll(async () => {
   owner = getDefaultAccount()
   lp = await createRandomAccount(owner.key)
   user = await createRandomAccount(owner.key)
   zwap = (await useFungibleToken(owner.key, { symbol: 'ZWAP' }))[0]
   tkn = (await useFungibleToken(owner.key, { symbol: 'TKN' }))[0]
+  zilswap = (await useZilswap(owner.key))[0]
+
   // send tokens
   await callContract(
     owner.key, zwap,
@@ -32,49 +34,7 @@ beforeAll(async () => {
 
 let zilo
 beforeEach(async () => {
-  const bNum = await getBlockNum()
-  zilo = (await deployZILO(owner.key, defaultParams(bNum)))[0]
-  // approve zilo
-  await callContract(
-    user.key, zwap,
-    'IncreaseAllowance',
-    [
-      {
-        vname: 'spender',
-        type: 'ByStr20',
-        value: zilo.address,
-      },
-      {
-        vname: 'amount',
-        type: 'Uint128',
-        value: '10000000000000000',
-      },
-    ],
-    0, false, false
-  )
-  // initialize by sending tkns
-  const initTx = await callContract(
-    owner.key, tkn,
-    'Transfer',
-    [
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: zilo.address,
-      },
-      {
-        vname: 'amount',
-        type: 'Uint128',
-        value: '11500000000000000',
-      },
-    ],
-    0, false, false
-  )
-  expect(initTx.status).toEqual(2)
-  const state = await zilo.getState()
-  expect(state.initialized.constructor).toEqual("True")
-  // wait for start
-  await nextBlock(101)
+  zilo = await initZILO()
 })
 
 const defaultParams = (bNum = 0) => ({
@@ -91,6 +51,55 @@ const defaultParams = (bNum = 0) => ({
   startBlock: (bNum + 100).toString(),
   endBlock: (bNum + 200).toString(),
 })
+
+const initZILO = async (params = {}) => {
+  const bNum = await getBlockNum()
+  const p = { ...defaultParams(bNum), ...params }
+  const z = (await deployZILO(owner.key, p))[0]
+  // approve zilo
+  await callContract(
+    user.key, zwap,
+    'IncreaseAllowance',
+    [
+      {
+        vname: 'spender',
+        type: 'ByStr20',
+        value: z.address,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: p.tokenAmount,
+      },
+    ],
+    0, false, false
+  )
+  // initialize by sending tkns
+  const initTx = await callContract(
+    owner.key, tkn,
+    'Transfer',
+    [
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: z.address,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: new BN(p.tokenAmount).add(new BN(p.liquidityTokenAmount)).toString(10),
+      },
+    ],
+    0, false, false
+  )
+  expect(initTx.status).toEqual(2)
+  const state = await z.getState()
+  expect(state.initialized.constructor).toEqual("True")
+  // wait for start
+  await nextBlock(101)
+
+  return z
+}
 
 describe('ZILO resolution', () => {
   describe('single contributor', () => {
@@ -634,6 +643,595 @@ describe('ZILO resolution', () => {
       )
       expect(doubleClaimTx.status).toEqual(3)
       expect(JSON.stringify(doubleClaimTx.receipt.exceptions)).toContain("code : (Int32 -4)") // CodeContributionNotFound
+    })
+  })
+
+  describe('auto seed lp flow', () => {
+    // swap to seed lp
+    let lp
+    beforeEach(async () => {
+      lp = (await deploySeedLP(owner.key, { tokenAddress: tkn.address, zilswapAddress: zilswap.address }))[0]
+      // raise the liquidity zil amt to > 1k zils
+      zilo = await initZILO({
+        tokenAmount:          '100000000000000000', // 10000
+        targetZilAmount:        '7000000000000000', // 7000
+        targetZwapAmount:       '3000000000000000', // 3000
+        minimumZilAmount:        '100000000000000', // 100
+        liquidityZilAmount:     '1500000000000000', // 1500
+        liquidityTokenAmount:  '15000000000000000', // 15000 // 10 tkn is worth 1 zil
+        liquidityAddress:               lp.address,
+      })
+    })
+    describe('when seed lp is disabled', () => {
+      test('first user will trigger completion and will send tokens to seed lp', async () => {
+        // disable
+        const disableTx = await callContract(
+          owner.key, lp,
+          'Disable',
+          [],
+          0, false, false
+        )
+        expect(disableTx.status).toEqual(2)
+
+        // contribute
+        const tx = await callContract(
+          user.key, zilo,
+          'Contribute',
+          [],
+          7000, false, false
+        )
+        expect(tx.status).toEqual(2)
+
+        // wait for end
+        await nextBlock(101)
+
+        // finalize
+        const claimAndFinalizeTx = await callContract(
+          user.key, zilo,
+          'Claim',
+          [],
+          0, false, false
+        )
+        expect(claimAndFinalizeTx.status).toEqual(2)
+
+        // check outputs
+        const raised_amount = '7000000000000000' // 7000 zil
+        const burnt_amount =  '3000000000000000' // 3000 zwap
+        const lp_amount =     '1500000000000000' // 1500 zil
+        const owner_amount =  '5500000000000000' // 5500 zil
+        const refund_amount = '0'
+        // user shld have full 100,000 tkns
+        const user_tkn_amount = '100000000000000000'
+        const lp_tkn_amount =    '15000000000000000'
+
+        expect(claimAndFinalizeTx.receipt.event_logs).toEqual(expect.arrayContaining([
+          // zilo completion event
+          {
+            "_eventname": "Completed",
+            "address": zilo.address.toLowerCase(),
+            "params": [
+              {
+                "type": "Uint128",
+                "value": raised_amount,
+                "vname": "raised_amount"
+              },
+              {
+                "type": "Uint128",
+                "value": burnt_amount,
+                "vname": "burnt_amount"
+              },
+              {
+                "type": "Uint128",
+                "value": refund_amount,
+                "vname": "refund_amount"
+              }
+            ]
+          },
+          // tkn refund event
+          {
+            "_eventname": "TransferSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilo.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": owner.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": refund_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+          // zwap burn event
+          {
+            "_eventname": "Burnt",
+            "address": zwap.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilo.address.toLowerCase(),
+                "vname": "burner"
+              },
+              {
+                "type": "ByStr20",
+                "value": zilo.address.toLowerCase(),
+                "vname": "burn_account"
+              },
+              {
+                "type": "Uint128",
+                "value": burnt_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+          // claim event
+          {
+            "_eventname": "Distributed",
+            "address": zilo.address.toLowerCase(),
+            "params": [
+              {
+                "type": "Uint128",
+                "value": user_tkn_amount,
+                "vname": "amount"
+              },
+              {
+                "type": "ByStr20",
+                "value": user.address.toLowerCase(),
+                "vname": "to"
+              }
+            ]
+          },
+          // tkn send to user event
+          {
+            "_eventname": "TransferSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilo.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": user.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": user_tkn_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+          // tkn send to lp event
+          {
+            "_eventname": "TransferSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilo.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_tkn_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+        ]))
+
+        expect(claimAndFinalizeTx.receipt.transitions).toEqual(expect.arrayContaining([
+          // zil xfer to lp transition
+          expect.objectContaining({
+            "addr": zilo.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": lp_amount,
+              "_recipient": lp.address.toLowerCase(),
+              "_tag": "AddFunds",
+              "params": [],
+            })
+          }),
+          // zil xfer to owner transition
+          expect.objectContaining({
+            "addr": zilo.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": owner_amount,
+              "_recipient": owner.address.toLowerCase(),
+              "_tag": "AddFunds",
+              "params": [],
+            })
+          }),
+        ]))
+      })
+    })
+
+    describe('when seed lp is enabled', () => {
+      test('received tokens will be sent to zilswap', async () => {
+        // contribute
+        const tx = await callContract(
+          user.key, zilo,
+          'Contribute',
+          [],
+          7000, false, false
+        )
+        expect(tx.status).toEqual(2)
+
+        // wait for end
+        await nextBlock(101)
+
+        // finalize
+        const claimAndFinalizeTx = await callContract(
+          user.key, zilo,
+          'Claim',
+          [],
+          0, false, false
+        )
+        expect(claimAndFinalizeTx.status).toEqual(2)
+
+        // check outputs
+        const raised_amount = '7000000000000000' // 7000 zil
+        const burnt_amount =  '3000000000000000' // 3000 zwap
+        const lp_amount =     '1500000000000000' // 1500 zil
+        const refund_amount = '0'
+        // user shld have full 100,000 tkns
+        const user_tkn_amount = '100000000000000000'
+        const lp_tkn_amount =    '15000000000000000'
+
+        // check zilswap add liq events
+        expect(claimAndFinalizeTx.receipt.event_logs).toEqual(expect.arrayContaining([
+          // zilo completion event
+          {
+            "_eventname": "Completed",
+            "address": zilo.address.toLowerCase(),
+            "params": [
+              {
+                "type": "Uint128",
+                "value": raised_amount,
+                "vname": "raised_amount"
+              },
+              {
+                "type": "Uint128",
+                "value": burnt_amount,
+                "vname": "burnt_amount"
+              },
+              {
+                "type": "Uint128",
+                "value": refund_amount,
+                "vname": "refund_amount"
+              }
+            ]
+          },
+          // tkn send to zilswap event
+          {
+            "_eventname": "TransferFromSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilswap.address.toLowerCase(),
+                "vname": "initiator"
+              },
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": zilswap.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_tkn_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+          // pool created event
+          {
+            "_eventname": "PoolCreated",
+            "address": zilswap.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": tkn.address.toLowerCase(),
+                "vname": "pool"
+              },
+            ]
+          },
+          // lp-token mint event
+          {
+            "_eventname": "Mint",
+            "address": zilswap.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": tkn.address.toLowerCase(),
+                "vname": "pool"
+              },
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "address"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+        ]))
+
+        expect(claimAndFinalizeTx.receipt.transitions).toEqual(expect.arrayContaining([
+          // zil xfer to lp transition
+          expect.objectContaining({
+            "addr": zilo.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": lp_amount,
+              "_recipient": lp.address.toLowerCase(),
+              "_tag": "AddFunds",
+              "params": [],
+            })
+          }),
+          // signal to lp to add liquidity
+          expect.objectContaining({
+            "addr": zilo.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": "0",
+              "_recipient": lp.address.toLowerCase(),
+              "_tag": "AddLiquidity",
+              "params": expect.arrayContaining([
+                {
+                  "type": "Uint128",
+                  "value": lp_amount,
+                  "vname": "zil_amount"
+                },
+                {
+                  "type": "Uint128",
+                  "value": lp_tkn_amount,
+                  "vname": "token_amount"
+                }
+              ]),
+            })
+          }),
+          // lp add liquidity to zilswap
+          expect.objectContaining({
+            "addr": lp.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": lp_amount,
+              "_recipient": zilswap.address.toLowerCase(),
+              "_tag": "AddLiquidity",
+              "params": expect.arrayContaining([
+                {
+                  "type": "ByStr20",
+                  "value": tkn.address.toLowerCase(),
+                  "vname": "token_address"
+                },
+                {
+                  "type": "Uint128",
+                  "value": "0",
+                  "vname": "min_contribution_amount"
+                },
+                {
+                  "type": "Uint128",
+                  "value": lp_tkn_amount,
+                  "vname": "max_token_amount"
+                },
+              ]),
+            })
+          }),
+        ]))
+
+        // check zilswap pool amounts through state
+        const state = await zilswap.getState()
+        expect(state).toEqual(expect.objectContaining({
+          "_balance": lp_amount,
+          "balances": {
+            [tkn.address.toLowerCase()]: {
+              [lp.address.toLowerCase()]: lp_amount
+            }
+          },
+          "pools": {
+            [tkn.address.toLowerCase()]: {
+              "argtypes": [],
+              "arguments": [
+                lp_amount,
+                lp_tkn_amount
+              ],
+              "constructor": `${zilswap.address.toLowerCase()}.Pool`
+            }
+          },
+          "total_contributions": {
+            [tkn.address.toLowerCase()]: lp_amount
+          }
+        }))
+
+        // remove liquidity
+        const removeTx = await callContract(
+          owner.key, lp,
+          'RemoveLiquidity',
+          [
+            {
+              "type": "Uint128",
+              "value": lp_amount,
+              "vname": "contribution_amount"
+            },
+            {
+              "type": "Uint128",
+              "value": lp_amount,
+              "vname": "min_zil_amount"
+            },
+            {
+              "type": "Uint128",
+              "value": lp_tkn_amount,
+              "vname": "min_token_amount"
+            },
+          ],
+          0, false, false
+        )
+        expect(removeTx.status).toEqual(2)
+        expect(removeTx.receipt.event_logs).toEqual(expect.arrayContaining([
+          // lp tkn burn event
+          {
+            "_eventname": "Burnt",
+            "address": zilswap.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": tkn.address.toLowerCase(),
+                "vname": "pool"
+              },
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "address"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+          // token transfer event
+          {
+            "_eventname": "TransferSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": zilswap.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_tkn_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+        ]))
+        expect(removeTx.receipt.transitions).toEqual(expect.arrayContaining([
+          // zil xfer to lp transition
+          expect.objectContaining({
+            "addr": zilswap.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": lp_amount,
+              "_recipient": lp.address.toLowerCase(),
+              "_tag": "AddFunds",
+              "params": [],
+            })
+          })
+        ]))
+
+        // withdraw
+        const withdrawZilTx = await callContract(
+          owner.key, lp,
+          'Withdraw',
+          [
+            {
+              "type": `${lp.address.toLowerCase()}.Coin`,
+              "value": {
+                "argtypes": [],
+                "arguments": [
+                  {
+                    "argtypes": [],
+                    "arguments": [],
+                    "constructor": `${lp.address.toLowerCase()}.Zil`
+                  },
+                  lp_amount
+                ],
+                "constructor": `${lp.address.toLowerCase()}.Coin`
+              },
+              "vname": "coin"
+            },
+          ],
+          0, false, false
+        )
+        expect(withdrawZilTx.status).toEqual(2)
+        expect(withdrawZilTx.receipt.transitions).toEqual(expect.arrayContaining([
+          // zil xfer to owner transition
+          expect.objectContaining({
+            "addr": lp.address.toLowerCase(),
+            "msg": expect.objectContaining({
+              "_amount": lp_amount,
+              "_recipient": owner.address.toLowerCase(),
+              "_tag": "AddFunds",
+              "params": [],
+            })
+          })
+        ]))
+
+        const withdrawTknTx = await callContract(
+          owner.key, lp,
+          'Withdraw',
+          [
+            {
+              "type": `${lp.address.toLowerCase()}.Coin`,
+              "value": {
+                "argtypes": [],
+                "arguments": [
+                  {
+                    "argtypes": [],
+                    "arguments": [tkn.address.toLowerCase()],
+                    "constructor": `${lp.address.toLowerCase()}.Token`
+                  },
+                  lp_tkn_amount
+                ],
+                "constructor": `${lp.address.toLowerCase()}.Coin`
+              },
+              "vname": "coin"
+            },
+          ],
+          0, false, false
+        )
+        expect(withdrawTknTx.status).toEqual(2)
+        expect(withdrawTknTx.receipt.event_logs).toEqual(expect.arrayContaining([
+          // token transfer event
+          {
+            "_eventname": "TransferSuccess",
+            "address": tkn.address.toLowerCase(),
+            "params": [
+              {
+                "type": "ByStr20",
+                "value": lp.address.toLowerCase(),
+                "vname": "sender"
+              },
+              {
+                "type": "ByStr20",
+                "value": owner.address.toLowerCase(),
+                "vname": "recipient"
+              },
+              {
+                "type": "Uint128",
+                "value": lp_tkn_amount,
+                "vname": "amount"
+              }
+            ]
+          },
+        ]))
+      })
     })
   })
 
