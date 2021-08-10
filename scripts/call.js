@@ -31,6 +31,10 @@ async function transfer(privateKey, toAddr, amount) {
   return tx
 }
 
+function getContract(contractAddress) {
+  return zilliqa.contracts.at(contractAddress)
+}
+
 async function callContract(privateKey, contract, transition, args,
   zilsToSend = 0, insertRecipientAsSender = true, insertDeadlineBlock = true) {
   // Check for key
@@ -117,6 +121,7 @@ async function nextBlock(n = 1) {
 }
 
 exports.transfer = transfer
+exports.getContract = getContract
 exports.callContract = callContract
 exports.getState = getState
 exports.getBlockNum = getBlockNum
