@@ -1,29 +1,51 @@
 const { getDefaultAccount } = require('./account')
 const { getBlockNum } = require('./call.js')
-const { deployZILO } = require('./deploy')
+const { deployZILO, deploySeedLP } = require('./deploy')
 
 const deploy = async () => {
   const owner = getDefaultAccount()
   const bNum = await getBlockNum()
-  const [contract, state] = await deployZILO(owner.key, {
-    zwapAddress:          '0x0d21c1901a06abee40d8177f95171c8c63abdc31', // ZWAP Contract (https://devex.zilliqa.com/address/zil1p5suryq6q647usxczale29cu3336hhp376c627?network=https%3A%2F%2Fapi.zilliqa.com)
-    tokenAddress:         '0xa3eafd5021f6b9c36fd02ed58aa1d015f2238791', // STREAM Contract (https://devex.zilliqa.com/address/zil1504065pp76uuxm7s9m2c4gwszhez8pu3mp6r8c?network=https%3A%2F%2Fapi.zilliqa.com)
-    tokenAmount:                '24000000000000', //   240,000 STREAM (8 decimals)
-    targetZilAmount:       '2285710000000000000', // 2,285,700 ZIL    (~$240,000 @ $0.105)
-    targetZwapAmount:          '411430000000000', //   411.430 ZWAP   (~$102,857 @ $250)
-    minimumZilAmount:       '571430000000000000', //   571,430 ZIL    (~25% of target)
-    liquidityZilAmount:     '811430000000000000', //   811,430 ZIL    (~$85,200 @ $0.105)
-    liquidityTokenAmount:        '6000000000000', //    60,000 STREAM (8 decimals)
-    receiverAddress:      '0x341283d3fb53cf2e03e694be7534895c7bd6bc8f', // Project Address (https://devex.zilliqa.com/address/zil1xsfg85lm208juqlxjjl82dyft3aad0y0w4sytn?network=https%3A%2F%2Fapi.zilliqa.com)
-    liquidityAddress:     '0x1499856ca9a32e717e9e872923fd3f4740af99e7', // ZilSwap Treasury (https://devex.zilliqa.com/address/zil1zjvc2m9f5vh8zl57su5j8lflgaq2lx08kcwdvy?network=https%3A%2F%2Fapi.zilliqa.com)
-    startBlock:          (bNum + 1800).toString(), // 24hrs = 1800 blocks
-    endBlock:     (bNum + 1800 + 1800).toString(), // 24hrs = 1800 blocks
+  const receiverAddress = '0x410ac524959c3b49d366f206b5d21353e8dd01bc' // https://devex.zilliqa.com/address/zil1gy9v2fy4nsa5n5mx7grtt5sn205d6qduxkl84t?network=https%3A%2F%2Fapi.zilliqa.com
+  const tokenAddress = '0x4268c34da6ad41a4cdeaa25cdef6531ed0c9a1a2' // https://devex.zilliqa.com/address/zil1gf5vxndx44q6fn025fwdaajnrmgvngdzel0jzp?network=https%3A%2F%2Fapi.zilliqa.com
+  const zwapAddress = '0x0d21c1901a06abee40d8177f95171c8c63abdc31' // https://devex.zilliqa.com/address/zil1p5suryq6q647usxczale29cu3336hhp376c627?network=https%3A%2F%2Fapi.zilliqa.com
+
+  // deploy seed lp
+  const [lp, stateLP] = await deploySeedLP(owner.key, {
+    tokenAddress,
+    zilswapAddress: '0xba11eb7bcc0a02e947acf03cc651bfaf19c9ec00', // https://devex.zilliqa.com/address/zil1hgg7k77vpgpwj3av7q7vv5dl4uvunmqqjzpv2w?network=https%3A%2F%2Fapi.zilliqa.com
   })
 
-  console.log('Deployed contract:')
-  console.log(JSON.stringify(contract, null, 2))
+  console.log('Deployed seed lp contract:')
+  console.log(JSON.stringify(lp, null, 2))
+  console.log('State:')
+  console.log(JSON.stringify(stateLP, null, 2))
+
+  // deploy zilo
+  const zilDecimals = '000000000000'
+  const tknDecimals = '00'
+  const [zilo, state] = await deployZILO(owner.key, {
+    zwapAddress,
+    tokenAddress,
+    tokenAmount:               '2250000' + tknDecimals, // BLOX 2.25m
+    targetZilAmount:           '3891000' + zilDecimals, // ZIL 3.891m (~$385k @ $0.09893)
+    targetZwapAmount:             '1250' + zilDecimals, // ZWAP 1.25k (~$165k @ $132.01)
+    minimumZilAmount:           '972750' + zilDecimals, // ZIL 972.8k (25% of target)
+    liquidityZilAmount:        '1297000' + zilDecimals, // ZIL 1.297m (1/3 of target)
+    liquidityTokenAmount:       '750000' + tknDecimals, // BLOX 750k
+    receiverAddress:                   receiverAddress,
+    liquidityAddress:         lp.address.toLowerCase(),
+    startBlock:                 (bNum + 83).toString(), // 1 hrs, 100 blocks an hr
+    endBlock:                 (bNum + 2483).toString(), // 24 hrs, hopefully
+  })
+
+  console.log('Deployed zilo contract:')
+  console.log(JSON.stringify(zilo, null, 2))
   console.log('State:')
   console.log(JSON.stringify(state, null, 2))
+
+  // zwap TODO: approve burn of zwap on zilo
+
+  // project TODO: send tkns to zilo
 }
 
 deploy().then(() => console.log('Done.'))
