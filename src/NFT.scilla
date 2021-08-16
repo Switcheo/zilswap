@@ -52,6 +52,7 @@ type Error =
   | CodeNotApprovedForAll
   | CodeNotOwnerOrOperator
   | CodeNotApprovedSpenderOrOperator
+  | CodeTokenLocked
 
 let make_error =
   fun (result : Error) =>
@@ -67,6 +68,7 @@ let make_error =
       | CodeNotApprovedForAll            => Int32 -8
       | CodeNotOwnerOrOperator           => Int32 -9
       | CodeNotApprovedSpenderOrOperator => Int32 -10
+      | CodeTokenLocked                  => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -92,6 +94,9 @@ field minters: Map ByStr20 Dummy =
 
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
+
+(* Mapping between token_id to locked status *)
+field is_token_locked: Bool = True
 
 (* Mapping from owner to number of owned tokens *)
 field owned_token_count: Map ByStr20 Uint256 = Emp ByStr20 Uint256
@@ -143,6 +148,16 @@ procedure IsTokenExists(token_id: Uint256)
   | False =>
   | True =>
     err = CodeTokenExists;
+    ThrowError err
+  end
+end
+
+procedure IsTokenLocked()
+  token_locked <- is_token_locked;
+  match token_locked with
+  | False =>
+  | True =>
+    err = CodeTokenLocked;
     ThrowError err
   end
 end
@@ -466,6 +481,7 @@ end
 transition Transfer(to: ByStr20, token_id: Uint256)
   IsSelf to _sender;
   IsTokenOwner token_id _sender;
+  IsTokenLocked;
   (* Change token_owner for that token_id *)
   token_owners[token_id] := to;
   (* Delete tokenApproval entry for that token_id *)
@@ -488,6 +504,7 @@ end
 (* @param: to       - Recipient address for the NFT                                                                   *)
 (* @param: token_id - Unique ID of the NFT to be transferred                                                          *)
 transition TransferFrom(to: ByStr20, token_id: Uint256)
+  IsTokenLocked;
   some_token_owner <- token_owners[token_id];
   match some_token_owner with
   | None =>
