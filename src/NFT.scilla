@@ -95,7 +95,7 @@ field minters: Map ByStr20 Dummy =
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
-(* Mapping between token_id to locked status *)
+(* Flag to indicate if tokens are locked, disabling transfers *)
 field is_token_locked: Bool = True
 
 (* Mapping from owner to number of owned tokens *)
