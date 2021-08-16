@@ -17,6 +17,7 @@ type Operation =
 (* Global variables *)
 let zero = Uint256 0
 let one = Uint256 1
+let false = False
 let verdad = Dummy
 let add_operation = Add
 let sub_operation = Sub
@@ -53,6 +54,7 @@ type Error =
   | CodeNotOwnerOrOperator
   | CodeNotApprovedSpenderOrOperator
   | CodeTokenLocked
+  | CodeTokenAlreadyUnlocked
 
 let make_error =
   fun (result : Error) =>
@@ -69,6 +71,7 @@ let make_error =
       | CodeNotOwnerOrOperator           => Int32 -9
       | CodeNotApprovedSpenderOrOperator => Int32 -10
       | CodeTokenLocked                  => Int32 -11
+      | CodeTokenAlreadyUnlocked         => Int32 -12
       end
     in
     { _exception : "Error"; code : result_code }
@@ -473,6 +476,22 @@ transition SetApprovalForAll(to: ByStr20)
                     operator : to; status : new_status};
   msgs = one_msg msg_to_sender;
   send msgs
+end
+
+(* @dev: Unlocks tokens boolean flag or throws an error if already unlocked *)
+transition UnlockTokens()
+  IsContractOwner;
+  token_locked <- is_token_locked;
+  match token_locked with
+  | False =>
+    err = CodeTokenAlreadyUnlocked;
+    ThrowError err
+  | True =>
+    is_token_locked := false;
+    msg_to_sender = { _tag : "UnlockTokensSuccessCallBack"; _recipient : _sender; _amount : Uint128 0};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  end
 end
 
 (* @dev: Transfer the ownership of a given token_id to another address. token_owner only transition. *)
