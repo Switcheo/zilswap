@@ -58,6 +58,7 @@ type Error =
   | CodeTokenAlreadyUnlocked
   | CodeSaleNotActive
   | CodeExceedSupply
+  | CodeInsufficientAmount
 
 let make_error =
   fun (result : Error) =>
@@ -77,6 +78,7 @@ let make_error =
       | CodeTokenAlreadyUnlocked         => Int32 -12
       | CodeSaleNotActive                => Int32 -13
       | CodeExceedSupply                 => Int32 -14
+      | CodeInsufficientAmount           => Int32 -15
       end
     in
     { _exception : "Error"; code : result_code }
@@ -128,7 +130,9 @@ field starting_index_block: Uint256 = Uint256 0
 
 field starting_index: Uint256 = Uint256 0
 
-field bear_price: Uint256 = Uint256 80000000000000000
+field bear_price: Uint128 = Uint128 1
+
+field max_nft_purchase: Uint256 = Uint256 20
 
 field sale_is_active: Bool = False
 
@@ -266,6 +270,17 @@ procedure IsExceedingSupply()
   end
 end
 
+procedure IsAmountSufficient(amount: Uint128)
+bear_price <- bear_price;
+  is_sufficient = uint128_le bear_price amount;
+  match is_sufficient with
+    | True =>
+    | False =>
+      err = CodeInsufficientAmount;
+      ThrowError err
+  end
+end
+
 procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   match operation with
   | Add =>
@@ -399,6 +414,8 @@ transition Mint(to: ByStr20, token_uri: String)
   IsSaleActive;
   (* Require new mint to not exceed max supply *)
   IsExceedingSupply;
+  (* Require transfer amount to be equal to NFT price *)
+  IsAmountSufficient _amount;
   (* Add to owner count *)
   UpdateTokenCount add_operation to;
   (* Add to total_supply *)
