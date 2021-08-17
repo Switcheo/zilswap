@@ -533,6 +533,7 @@ transition UnlockTokens()
   end
 end
 
+(* @dev: Toggles the boolean flag for sale of tokens *)
 transition ToggleSaleActive()
   IsContractOwner;
   sale_active <- sale_is_active;
