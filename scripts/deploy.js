@@ -94,6 +94,58 @@ async function useFungibleToken(privateKey, params, approveContractAddress, useE
   return [contract, state]
 }
 
+async function deployNonFungibleToken(
+  privateKey, { name = 'NFT', symbol: _symbol = null, maxNftSupply = 10 }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+  const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/NFT.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+    {
+      vname: 'dex_address',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'max_nft_supply',
+      type: 'Uint256',
+      value: `${maxNftSupply}`,
+    }
+  ]
+
+  console.info(`Deploying non-fungible token...`)
+  return deployContract(privateKey, code, init)
+}
+
 async function deployZilswap(privateKey, { fee = null, owner = null }) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -141,7 +193,7 @@ async function deploySeedLP(privateKey, {
   tokenAddress,
   zilswapAddress,
 }) {
-  console.log({tokenAddress, zilswapAddress})
+  console.log({ tokenAddress, zilswapAddress })
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -193,7 +245,7 @@ async function deployZILO(privateKey, {
   liquidityAddress,
   startBlock,
   endBlock,
- }) {
+}) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -312,9 +364,9 @@ async function deployContract(privateKey, code, init) {
     const errors = deployTx.txParams.receipt.errors
     const errMsgs = errors
       ? Object.keys(errors).reduce((acc, depth) => {
-          const errorMsgList = errors[depth].map(num => TransactionError[num])
-          return { ...acc, [depth]: errorMsgList }
-        }, {})
+        const errorMsgList = errors[depth].map(num => TransactionError[num])
+        return { ...acc, [depth]: errorMsgList }
+      }, {})
       : 'Failed to deploy contract!'
     throw new Error(JSON.stringify(errMsgs, null, 2))
   }
@@ -346,6 +398,7 @@ async function getContract(privateKey, contractHash) {
 const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
 
 exports.deployFungibleToken = deployFungibleToken
+exports.deployNonFungibleToken = deployNonFungibleToken
 exports.useFungibleToken = useFungibleToken
 exports.deployZilswap = deployZilswap
 exports.useZilswap = useZilswap

@@ -1,5 +1,5 @@
 const { getDefaultAccount } = require('../scripts/account.js');
-const { deployZilswap } = require('../scripts/deploy.js');
+const { deployZilswap, deployNonFungibleToken } = require('../scripts/deploy.js');
 
 test('deploy Zilswap', async () => {
   const { key, address: owner } = getDefaultAccount()
@@ -14,4 +14,16 @@ test('deploy Zilswap', async () => {
     "pools": {},
     "total_contributions": {}
   })
+})
+
+test('deploy NFT', async () => {
+  const { key, address: owner } = getDefaultAccount()
+  const [contract, state] = await deployNonFungibleToken(key, { symbol: 'BEAR' })
+  expect(contract.address).toBeDefined()
+  expect(state._balance).toEqual('0')
+  expect(state.bear_price).toEqual('1')
+  expect(state.is_token_locked.constructor).toEqual('True')
+  expect(state.max_nft_purchase).toEqual('20')
+  expect(state.sale_is_active.constructor).toEqual('False')
+  expect(state.total_supply).toEqual('0')
 })

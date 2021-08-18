@@ -130,10 +130,13 @@ field starting_index_block: Uint256 = Uint256 0
 
 field starting_index: Uint256 = Uint256 0
 
+(* Price of NFT for sale *)
 field bear_price: Uint128 = Uint128 1
 
+(* Maximum number of tokens to mint in one transaction *)
 field max_nft_purchase: Uint256 = Uint256 20
 
+(* Flag to indicate if sale is active. Tokens wil be mintable during a sale only *)
 field sale_is_active: Bool = False
 
 (* Emit Errors *)
