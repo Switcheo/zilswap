@@ -146,6 +146,13 @@ async function deployNonFungibleToken(
   return deployContract(privateKey, code, init)
 }
 
+async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployNonFungibleToken(privateKey, params)
+}
+
 async function deployZilswap(privateKey, { fee = null, owner = null }) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -401,6 +408,7 @@ exports.deployFungibleToken = deployFungibleToken
 exports.deployNonFungibleToken = deployNonFungibleToken
 exports.useFungibleToken = useFungibleToken
 exports.deployZilswap = deployZilswap
+exports.useNonFungibleToken = useNonFungibleToken
 exports.useZilswap = useZilswap
 exports.deployZILO = deployZILO
 exports.deploySeedLP = deploySeedLP
