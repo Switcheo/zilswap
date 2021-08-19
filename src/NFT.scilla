@@ -22,6 +22,8 @@ let true = True
 let verdad = Dummy
 let add_operation = Add
 let sub_operation = Sub
+let token_uri_url = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
+let json = ".json"
 
 (* Library functions *)
 let one_msg = 
@@ -131,10 +133,6 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 (* Total token count *)
 field total_supply: Uint256 = Uint256 0
 
-field starting_index_block: Uint256 = Uint256 0
-
-field starting_index: Uint256 = Uint256 0
-
 (* Price of NFT for sale *)
 field bear_price: Uint128 = Uint128 1
 
@@ -143,6 +141,10 @@ field max_nft_purchase: Uint256 = Uint256 20
 
 (* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
 field sale_is_active: Bool = False
+
+field starting_index_block: Uint256 = Uint256 0
+
+field starting_index: Uint256 = Uint256 0
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -426,14 +428,19 @@ procedure MintHelper(input_pair: Pair ByStr20 String)
   IsExceedingSupply;
   (* Require transfer amount to be equal to NFT price *)
   IsAmountSufficient _amount;
+  accept;
   (* Add to owner count *)
   UpdateTokenCount add_operation to;
   (* Add to total_supply *)
   current_supply <- total_supply;
   new_supply = builtin add current_supply one;
   total_supply := new_supply;
-  (* Initiate token_id and check conditions *)
+  (* Append token_id*)
   token_id = new_supply;
+  token_id_string = builtin to_string new_supply;
+  uri_path = builtin concat token_id_string json;
+  token_uri = builtin concat token_uri_url uri_path;
+  (* Initiate token_id and check conditions *)  
   IsMinter _sender;
   IsTokenExists token_id;
   (* Mint new non-fungible token *)
