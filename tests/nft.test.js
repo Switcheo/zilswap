@@ -13,8 +13,6 @@ beforeAll(async () => {
 
     const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
     contract = nonFungibleToken[0]
-
-    let state = await contract.getState()
 })
 
 test('toggle sale active', async () => {
@@ -22,6 +20,7 @@ test('toggle sale active', async () => {
     console.info(txn)
 
     expect(txn.status).toEqual(2)
+    expect(state.sale_is_active.constructor).toEqual('True')
 })
 
 test('mint token', async () => {
@@ -33,19 +32,11 @@ test('mint token', async () => {
                 vname: 'to',
                 type: 'ByStr20',
                 value: owner,
-            },
-            {
-                vname: 'token_uri',
-                type: 'String',
-                value: '123',
             }
         ],
         1, false, false
     )
     expect(txn.status).toEqual(2)
-
-    state = await contract.getState()
-    expect(state.sale_is_active.constructor).toEqual('True')
 })
 
 test('transfer when locked', async () => {

@@ -95,7 +95,7 @@ async function useFungibleToken(privateKey, params, approveContractAddress, useE
 }
 
 async function deployNonFungibleToken(
-  privateKey, { name = 'NFT', symbol: _symbol = null, maxNftSupply = 10 }
+  privateKey, { name = 'NFT', symbol: _symbol = null, maxNftSupply = 100 }
 ) {
   // Check for key
   if (!privateKey || privateKey === '') {
