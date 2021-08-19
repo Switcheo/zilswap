@@ -3,7 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils
+import BoolUtils IntUtils ListUtils PairUtils
 library NonfungibleToken
 
 (* User-defined ADTs *)
@@ -41,6 +41,11 @@ let get_bal =
     | Some bal => bal
     | None => zero
     end
+
+let build_pair = 
+  fun (to_address: ByStr20) => 
+  fun (token_uri: String) =>
+    Pair {ByStr20 String} to_address token_uri
       
 (* Error exception *)
 type Error =
@@ -136,7 +141,7 @@ field bear_price: Uint128 = Uint128 1
 (* Maximum number of tokens to mint in one transaction *)
 field max_nft_purchase: Uint256 = Uint256 20
 
-(* Flag to indicate if sale is active. Tokens wil be mintable during a sale only *)
+(* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
 field sale_is_active: Bool = False
 
 (* Emit Errors *)
@@ -274,8 +279,8 @@ procedure IsExceedingSupply()
 end
 
 procedure IsAmountSufficient(amount: Uint128)
-bear_price <- bear_price;
-  is_sufficient = uint128_le bear_price amount;
+  price <- bear_price;
+  is_sufficient = uint128_le price amount;
   match is_sufficient with
     | True =>
     | False =>
@@ -409,10 +414,12 @@ transition ConfigureMinter(minter: ByStr20)
   end
 end
 
-(* @dev:    Mint new tokens. Only minters can mint.           *)
-(* @param:  to        - Address of the token recipient        *)
-(* @param:  token_uri - URI of the the new token to be minted *)
-transition Mint(to: ByStr20, token_uri: String)
+procedure MintHelper(input_pair: Pair ByStr20 String)
+  to = let fst_string_bystr20 = @fst ByStr20 String in
+  fst_string_bystr20 input_pair;
+  token_uri = let snd_string_bystr20 = @snd ByStr20 String in
+  snd_string_bystr20 input_pair;
+
   (* Require sale to be active to mint *)
   IsSaleActive;
   (* Require new mint to not exceed max supply *)
@@ -433,16 +440,39 @@ transition Mint(to: ByStr20, token_uri: String)
   token_owners[token_id] := to;
   (* Add token_uri for token_id *)
   token_uris[token_id] := token_uri;
-   token_approvals[token_id] := dex_address;
-        (* Emit event *)
-        e = {_eventname: "AddApprovalSuccess"; initiator: _sender; approved_addr: dex_address; token: token_id};
-        event e;
+  token_approvals[token_id] := dex_address;
+  (* Emit event *)
+  e = { _eventname: "AddApprovalSuccess"; initiator: _sender; approved_addr: dex_address; token: token_id };
+  event e;
   e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
         token_id: token_id; token_uri: token_uri};
-  event e;
+  event e
+end
+
+(* @dev:    Mint new tokens. Only minters can mint.           *)
+(* @param:  to        - Address of the token recipient        *)
+(* @param:  token_uri - URI of the the new token to be minted *)
+transition Mint(to: ByStr20, token_uri: String)
+  input_pair = build_pair to token_uri;
+  MintHelper input_pair;
+  token_id <- total_supply;
   msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
   msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
                     recipient : to; token_id : token_id; token_uri : token_uri };
+  msgs = two_msgs msg_to_recipient msg_to_sender;
+  send msgs
+end
+
+(* @dev:   Mint multiple new tokens. Only minters can mint.      *)
+(* @param: to        - Address of the token recipient            *)
+(* @param: token_uri_list - URIs of the new tokens to be minted  *)
+transition BatchMint(to: ByStr20, token_uri_list: List String)
+  pair_token_uri_list = @list_map String (Pair ByStr20 String);
+  tmp_fun = build_pair to;
+  input_list = pair_token_uri_list tmp_fun token_uri_list;
+  forall input_list MintHelper;
+  msg_to_recipient = { _tag : "RecipientAcceptBatchMint"; _recipient : to; _amount : Uint128 0 };
+  msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
   msgs = two_msgs msg_to_recipient msg_to_sender;
   send msgs
 end
