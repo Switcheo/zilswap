@@ -7,7 +7,7 @@ import BoolUtils IntUtils ListUtils PairUtils
 library Minter
 
 (* Global variables *)
-let zero = Uint256 0
+let zero = Uint128 0
 let one = Uint256 1
 let false = False
 let true = True
@@ -25,6 +25,13 @@ let two_msgs =
   fun (msg2 : Message) =>
     let msgs_tmp = one_msg msg2 in
     Cons {Message} msg1 msgs_tmp
+
+let get_qty =
+  fun (some_qty: Option Uint128) =>
+    match some_qty with
+      | Some qty => qty
+      | None => zero
+    end
 
 let build_pair = 
   fun (to_address: ByStr20) => 
@@ -124,6 +131,19 @@ procedure IsAmountSufficient(amount: Uint128)
   end
 end
 
+procedure IsBatchAmountSufficient(amount: Uint128, quantity: Option Uint128)
+  price <- bear_price;
+  qty = get_qty quantity;
+  expected_amount = builtin mul price qty;
+  is_sufficient = uint128_le expected_amount amount;
+  match is_sufficient with
+    | True =>
+    | False =>
+      err = CodeInsufficientAmount;
+      ThrowError err
+  end
+end
+
 procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Require sale to be active to mint *)
   IsSaleActive;
@@ -176,6 +196,10 @@ end
 (* @param: to        - Address of the token recipient            *)
 (* @param: token_uri_list - URIs of the new tokens to be minted  *)
 transition BatchMint(to: ByStr20, token_uri_list: List String)
+  list_length_string = @list_length String;
+  size = list_length_string token_uri_list;
+  size_uint128 = builtin to_uint128 size;
+  IsBatchAmountSufficient _amount size_uint128;
   pair_token_uri_list = @list_map String (Pair ByStr20 String);
   tmp_fun = build_pair to;
   input_list = pair_token_uri_list tmp_fun token_uri_list;
