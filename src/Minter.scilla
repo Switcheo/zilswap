@@ -43,6 +43,7 @@ type Error =
   | CodeNotContractOwner
   | CodeSaleNotActive
   | CodeExceedSupply
+  | CodeExceedMaxPurchaseLimit   
   | CodeInsufficientAmount
 
 let make_error =
@@ -52,7 +53,8 @@ let make_error =
       | CodeNotContractOwner             => Int32 -1
       | CodeSaleNotActive                => Int32 -2
       | CodeExceedSupply                 => Int32 -3
-      | CodeInsufficientAmount           => Int32 -4
+      | CodeExceedMaxPurchaseLimit       => Int32 -4
+      | CodeInsufficientAmount           => Int32 -5
       end
     in
     { _exception : "Error"; code : result_code }
@@ -77,7 +79,7 @@ field total_supply: Uint256 = Uint256 0
 field bear_price: Uint128 = Uint128 1
 
 (* Maximum number of tokens to mint in one transaction *)
-field max_nft_purchase: Uint256 = Uint256 20
+field max_nft_purchase: Uint32 = Uint32 20
 
 (* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
 field sale_is_active: Bool = False
@@ -108,7 +110,7 @@ procedure IsSaleActive()
   end
 end
 
-procedure IsExceedingSupply()
+procedure IsNotExceedingSupply()
   current_supply <- total_supply;
   new_count = builtin add current_supply one;
   is_not_exceeding = uint256_le new_count max_nft_supply;
@@ -119,6 +121,18 @@ procedure IsExceedingSupply()
       ThrowError err
   end
 end
+
+procedure IsBelowMaxPurchaseLimit(quantity: Uint32)
+  max_purchase_limit <- max_nft_purchase;
+  is_not_exceeding = uint32_le quantity max_purchase_limit;
+  match is_not_exceeding with
+    | True =>
+    | False =>
+      err = CodeExceedMaxPurchaseLimit;
+      ThrowError err
+  end
+end
+
 
 procedure IsAmountSufficient(amount: Uint128)
   price <- bear_price;
@@ -148,7 +162,7 @@ procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Require sale to be active to mint *)
   IsSaleActive;
   (* Require new mint to not exceed max supply *)
-  IsExceedingSupply;
+  IsNotExceedingSupply;
   (* Require transfer amount to be equal to NFT price *)
   IsAmountSufficient _amount;
   accept;
@@ -198,7 +212,10 @@ end
 transition BatchMint(to: ByStr20, token_uri_list: List String)
   list_length_string = @list_length String;
   size = list_length_string token_uri_list;
+  (* Require number of tokens to mint is below limit *)
+  IsBelowMaxPurchaseLimit size;
   size_uint128 = builtin to_uint128 size;
+  (* Require amount to be sufficient to mint tokens. *)
   IsBatchAmountSufficient _amount size_uint128;
   pair_token_uri_list = @list_map String (Pair ByStr20 String);
   tmp_fun = build_pair to;
