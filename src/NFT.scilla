@@ -44,17 +44,11 @@ let get_bal =
     | None => zero
     end
 
-let build_pair = 
-  fun (to_address: ByStr20) => 
-  fun (token_uri: String) =>
-    Pair {ByStr20 String} to_address token_uri
-      
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
   | CodeIsSelf
   | CodeTokenExists
-  | CodeIsNotMinter
   | CodeNotApproved
   | CodeNotTokenOwner
   | CodeNotFound
@@ -63,9 +57,6 @@ type Error =
   | CodeNotApprovedSpenderOrOperator
   | CodeTokenLocked
   | CodeTokenAlreadyUnlocked
-  | CodeSaleNotActive
-  | CodeExceedSupply
-  | CodeInsufficientAmount
 
 let make_error =
   fun (result : Error) =>
@@ -74,18 +65,14 @@ let make_error =
       | CodeNotContractOwner             => Int32 -1
       | CodeIsSelf                       => Int32 -2
       | CodeTokenExists                  => Int32 -3
-      | CodeIsNotMinter                  => Int32 -4
-      | CodeNotApproved                  => Int32 -5
-      | CodeNotTokenOwner                => Int32 -6
-      | CodeNotFound                     => Int32 -7
-      | CodeNotApprovedForAll            => Int32 -8
-      | CodeNotOwnerOrOperator           => Int32 -9
-      | CodeNotApprovedSpenderOrOperator => Int32 -10
-      | CodeTokenLocked                  => Int32 -11
-      | CodeTokenAlreadyUnlocked         => Int32 -12
-      | CodeSaleNotActive                => Int32 -13
-      | CodeExceedSupply                 => Int32 -14
-      | CodeInsufficientAmount           => Int32 -15
+      | CodeNotApproved                  => Int32 -4
+      | CodeNotTokenOwner                => Int32 -5
+      | CodeNotFound                     => Int32 -6
+      | CodeNotApprovedForAll            => Int32 -7
+      | CodeNotOwnerOrOperator           => Int32 -8
+      | CodeNotApprovedSpenderOrOperator => Int32 -9
+      | CodeTokenLocked                  => Int32 -10
+      | CodeTokenAlreadyUnlocked         => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -99,16 +86,10 @@ contract NonfungibleToken
   contract_owner: ByStr20,
   name : String,
   symbol: String,
-  dex_address: ByStr20,
-  max_nft_supply: Uint256
+  dex_address: ByStr20
 )
 
 (* Mutable fields *)
-
-(* Mapping of minters available *)
-field minters: Map ByStr20 Dummy =
-    let emp_map = Emp ByStr20 Dummy in
-    builtin put emp_map contract_owner verdad
 
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
@@ -130,21 +111,8 @@ field operator_approvals: Map ByStr20 (Map ByStr20 Dummy)
 (* Mapping from token_id to token_uri *)
 field token_uris: Map Uint256 String = Emp Uint256 String
 
-(* Total token count *)
+(* Total supply of tokens *)
 field total_supply: Uint256 = Uint256 0
-
-(* Price of NFT for sale *)
-field bear_price: Uint128 = Uint128 1
-
-(* Maximum number of tokens to mint in one transaction *)
-field max_nft_purchase: Uint256 = Uint256 20
-
-(* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
-field sale_is_active: Bool = False
-
-field starting_index_block: Uint256 = Uint256 0
-
-field starting_index: Uint256 = Uint256 0
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -172,32 +140,12 @@ procedure IsSelf(address_a: ByStr20, address_b: ByStr20)
   end
 end
 
-procedure IsTokenExists(token_id: Uint256)
-  token_exist <- exists token_owners[token_id];
-  match token_exist with
-  | False =>
-  | True =>
-    err = CodeTokenExists;
-    ThrowError err
-  end
-end
-
 procedure IsTokenLocked()
   token_locked <- is_token_locked;
   match token_locked with
   | False =>
   | True =>
     err = CodeTokenLocked;
-    ThrowError err
-  end
-end
-
-procedure IsMinter(address: ByStr20)
-  is_minter <- exists minters[_sender];
-  match is_minter with
-  | True =>
-  | False =>
-    err = CodeIsNotMinter;
     ThrowError err
   end
 end
@@ -258,39 +206,6 @@ procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
   end
 end
 
-procedure IsSaleActive()
-  is_sale_active <- sale_is_active;
-  match is_sale_active with
-    | True =>
-    | False =>
-      err = CodeSaleNotActive;
-      ThrowError err
-  end
-end
-
-procedure IsExceedingSupply()
-  current_supply <- total_supply;
-  new_count = builtin add current_supply one;
-  is_not_exceeding = uint256_le new_count max_nft_supply;
-  match is_not_exceeding with
-    | True =>
-    | False =>
-      err = CodeExceedSupply;
-      ThrowError err
-  end
-end
-
-procedure IsAmountSufficient(amount: Uint128)
-  price <- bear_price;
-  is_sufficient = uint128_le price amount;
-  match is_sufficient with
-    | True =>
-    | False =>
-      err = CodeInsufficientAmount;
-      ThrowError err
-  end
-end
-
 procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   match operation with
   | Add =>
@@ -298,7 +213,10 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
     new_to_count = 
       let current_count = get_bal some_to_count in
       builtin add current_count one;
-    owned_token_count[address] := new_to_count
+    owned_token_count[address] := new_to_count;
+    current_supply <- total_supply;
+    new_supply = builtin add current_supply one;
+    total_supply := new_supply
   | Sub =>
     some_from_count <- owned_token_count[address];
     new_from_count = 
@@ -308,8 +226,19 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
           | True => zero
           | False => builtin sub current_count one
           end;
-    owned_token_count[address] := new_from_count
+    owned_token_count[address] := new_from_count;
+    current_supply <- total_supply;
+    new_supply = builtin sub current_supply one;
+    total_supply := new_supply
   end
+end
+
+procedure SetTokenData(token_id: Uint256, to: ByStr20, token_uri: String)
+ (* Mint new non-fungible token *)
+  token_owners[token_id] := to;
+  (* Add token_uri for token_id *)
+  token_uris[token_id] := token_uri;
+  token_approvals[token_id] := dex_address
 end
 
 (* Getter transitions *)
@@ -397,91 +326,19 @@ end
 
 (* Interface transitions *)
 
-(* @dev:    Add or remove approved minters. Only contract_owner can approve minters. *)
-(* @param:  minter      - Address of the minter to be approved or removed            *)
-transition ConfigureMinter(minter: ByStr20)
-  IsContractOwner;
-  some_minter <- minters[minter];
-  match some_minter with
-  | Some Dummy => 
-    (* Remove minter *)
-    delete minters[minter];
-    e = {_eventname: "RemovedMinterSuccess"; minter: minter};
-    event e
-  | None =>
-    (* Add minter *)
-    minters[minter] := verdad;
-    e = {_eventname: "AddMinterSuccess"; minter: minter};
-    event e
+transition IsTokenExists(token_id: Uint256)
+  token_exist <- exists token_owners[token_id];
+  match token_exist with
+  | False =>
+  | True =>
+    err = CodeTokenExists;
+    ThrowError err
   end
 end
 
-procedure MintHelper(input_pair: Pair ByStr20 String)
-  to = let fst_string_bystr20 = @fst ByStr20 String in
-  fst_string_bystr20 input_pair;
-  token_uri = let snd_string_bystr20 = @snd ByStr20 String in
-  snd_string_bystr20 input_pair;
-
-  (* Require sale to be active to mint *)
-  IsSaleActive;
-  (* Require new mint to not exceed max supply *)
-  IsExceedingSupply;
-  (* Require transfer amount to be equal to NFT price *)
-  IsAmountSufficient _amount;
-  accept;
-  (* Add to owner count *)
-  UpdateTokenCount add_operation to;
-  (* Add to total_supply *)
-  current_supply <- total_supply;
-  new_supply = builtin add current_supply one;
-  total_supply := new_supply;
-  (* Append token_id*)
-  token_id = new_supply;
-  token_id_string = builtin to_string new_supply;
-  uri_path = builtin concat token_id_string json;
-  token_uri = builtin concat token_uri_url uri_path;
-  (* Initiate token_id and check conditions *)  
-  IsMinter _sender;
-  IsTokenExists token_id;
-  (* Mint new non-fungible token *)
-  token_owners[token_id] := to;
-  (* Add token_uri for token_id *)
-  token_uris[token_id] := token_uri;
-  token_approvals[token_id] := dex_address;
-  (* Emit event *)
-  e = { _eventname: "AddApprovalSuccess"; initiator: _sender; approved_addr: dex_address; token: token_id };
-  event e;
-  e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
-        token_id: token_id; token_uri: token_uri};
-  event e
-end
-
-(* @dev:    Mint new tokens. Only minters can mint.           *)
-(* @param:  to        - Address of the token recipient        *)
-(* @param:  token_uri - URI of the the new token to be minted *)
-transition Mint(to: ByStr20, token_uri: String)
-  input_pair = build_pair to token_uri;
-  MintHelper input_pair;
-  token_id <- total_supply;
-  msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
-  msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
-                    recipient : to; token_id : token_id; token_uri : token_uri };
-  msgs = two_msgs msg_to_recipient msg_to_sender;
-  send msgs
-end
-
-(* @dev:   Mint multiple new tokens. Only minters can mint.      *)
-(* @param: to        - Address of the token recipient            *)
-(* @param: token_uri_list - URIs of the new tokens to be minted  *)
-transition BatchMint(to: ByStr20, token_uri_list: List String)
-  pair_token_uri_list = @list_map String (Pair ByStr20 String);
-  tmp_fun = build_pair to;
-  input_list = pair_token_uri_list tmp_fun token_uri_list;
-  forall input_list MintHelper;
-  msg_to_recipient = { _tag : "RecipientAcceptBatchMint"; _recipient : to; _amount : Uint128 0 };
-  msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
-  msgs = two_msgs msg_to_recipient msg_to_sender;
-  send msgs
+transition AddAndSetToken(address: ByStr20, token_id: Uint256, to: ByStr20, token_uri: String)
+  UpdateTokenCount add_operation address;
+  SetTokenData token_id to token_uri
 end
 
 (* @dev:    Burn existing tokens. Only token_owner or an operator can burn a NFT. *)
@@ -501,10 +358,6 @@ transition Burn(token_id: Uint256)
     delete token_uris[token_id];
     (* Deduct from owned_token_count *)
     UpdateTokenCount sub_operation token_owner;
-    (* Deduct from total_supply *)
-    current_supply <- total_supply;
-    new_supply = builtin sub current_supply one;
-    total_supply := new_supply;
     e = {_eventname: "BurnSuccess"; initiator: _sender; burn_address: token_owner; token: token_id};
     event e;
     msg_to_sender = { _tag : "BurnCallBack"; _recipient : _sender; _amount : Uint128 0;
@@ -585,27 +438,6 @@ transition UnlockTokens()
   | True =>
     is_token_locked := false;
     msg_to_sender = { _tag : "UnlockTokensSuccessCallBack"; _recipient : _sender; _amount : Uint128 0};
-    msgs = one_msg msg_to_sender;
-    send msgs
-  end
-end
-
-(* @dev: Toggles the boolean flag for sale of tokens *)
-transition ToggleSaleActive()
-  IsContractOwner;
-  sale_active <- sale_is_active;
-  match sale_active with
-    | True =>
-      sale_is_active := false;
-      msg_to_sender = { _tag : "ToggleSaleActiveSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
-                        sale_status : false};
-    msgs = one_msg msg_to_sender;
-    msgs = one_msg msg_to_sender;
-    send msgs
-    | False =>
-      sale_is_active := true;
-      msg_to_sender = { _tag : "ToggleSaleActiveSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
-                        sale_status : true};
     msgs = one_msg msg_to_sender;
     send msgs
   end
