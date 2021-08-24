@@ -11,7 +11,6 @@ let zero = Uint128 0
 let one = Uint256 1
 let false = False
 let true = True
-let token_uri_url = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
 let json = ".json"
 
 (* Library functions *)
@@ -67,7 +66,8 @@ contract Minter
 (
   contract_owner: ByStr20,
   max_nft_supply: Uint256,
-  zrc_address: ByStr20
+  zrc_address: ByStr20,
+  token_uri_url: ByStr20
 )
 
 (* Mutable fields *)
