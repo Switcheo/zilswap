@@ -3,7 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils
+import BoolUtils IntUtils PairUtils ListUtils
 library NonfungibleToken
 
 (* User-defined ADTs *)
@@ -22,7 +22,6 @@ let true = True
 let verdad = Dummy
 let add_operation = Add
 let sub_operation = Sub
-let token_uri_url = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
 let json = ".json"
 
 (* Library functions *)
@@ -44,6 +43,11 @@ let get_bal =
     | None => zero
     end
 
+let build_pair = 
+  fun (to_address: ByStr20) => 
+  fun (token_uri: String) =>
+    Pair {ByStr20 String} to_address token_uri
+        
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
@@ -206,6 +210,16 @@ procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
   end
 end
 
+procedure IsTokenExists(token_id: Uint256)
+  token_exist <- exists token_owners[token_id];
+  match token_exist with
+  | False =>
+  | True =>
+    err = CodeTokenExists;
+    ThrowError err
+  end
+end
+
 procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   match operation with
   | Add =>
@@ -239,6 +253,23 @@ procedure SetTokenData(token_id: Uint256, to: ByStr20, token_uri: String)
   (* Add token_uri for token_id *)
   token_uris[token_id] := token_uri;
   token_approvals[token_id] := dex_address
+end
+
+procedure AddAndSetTokenHelper(input_pair: Pair ByStr20 String)
+  (* Add to total_supply *)
+  current_supply <- total_supply;
+  token_id = builtin add current_supply one;
+  (* Deconstruct input_pair *)
+  to = let fst_string_bystr20 = @fst ByStr20 String in
+  fst_string_bystr20 input_pair;
+  uri_url = let snd_string_bystr20 = @snd ByStr20 String in
+  snd_string_bystr20 input_pair;
+  token_id_string = builtin to_string token_id;
+  uri_path = builtin concat token_id_string json;
+  token_uri = builtin concat uri_url uri_path;
+  IsTokenExists token_id;
+  UpdateTokenCount add_operation to;
+  SetTokenData token_id to token_uri
 end
 
 (* Getter transitions *)
@@ -326,19 +357,18 @@ end
 
 (* Interface transitions *)
 
-transition IsTokenExists(token_id: Uint256)
-  token_exist <- exists token_owners[token_id];
-  match token_exist with
-  | False =>
-  | True =>
-    err = CodeTokenExists;
-    ThrowError err
-  end
+(* @dev:    Adds and sets token in relevant fields, called by Mint                 *)
+(* @param:  to - Address of owner of token minted                                  *)
+(* @param:  token_uri - URI of token, without unique id appended                   *)
+transition AddAndSetToken(to: ByStr20, token_uri: String)
+  input_pair = build_pair to token_uri;
+  AddAndSetTokenHelper input_pair
 end
 
-transition AddAndSetToken(address: ByStr20, token_id: Uint256, to: ByStr20, token_uri: String)
-  UpdateTokenCount add_operation address;
-  SetTokenData token_id to token_uri
+(* @dev:    Adds and sets multiple tokens in relevant fields, called by BatchMint  *)
+(* @param:  input_list - List of tokens to be added                                *)
+transition AddAndSetTokens(input_list: List (Pair ByStr20 String))
+  forall input_list AddAndSetTokenHelper
 end
 
 (* @dev:    Burn existing tokens. Only token_owner or an operator can burn a NFT. *)

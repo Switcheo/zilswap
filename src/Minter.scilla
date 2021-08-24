@@ -8,11 +8,11 @@ library Minter
 
 (* Global variables *)
 let zero = Uint128 0
+let zero_uint256 = Uint256 0
 let zero_uint32 = Uint32 0
 let one = Uint256 1
 let false = False
 let true = True
-let json = ".json"
 
 (* Library functions *)
 let one_msg = 
@@ -26,11 +26,18 @@ let two_msgs =
     let msgs_tmp = one_msg msg2 in
     Cons {Message} msg1 msgs_tmp
 
-let get_qty =
-  fun (some_qty: Option Uint128) =>
-    match some_qty with
-      | Some qty => qty
+let get_uint128 =
+  fun (some_uint128: Option Uint128) =>
+    match some_uint128 with
+      | Some num => num
       | None => zero
+    end
+
+let get_uint256 =
+  fun (some_uint256: Option Uint256) =>
+    match some_uint256 with
+      | Some num => num
+      | None => zero_uint256
     end
 
 let build_pair = 
@@ -131,9 +138,9 @@ procedure IsSaleActive()
   end
 end
 
-procedure IsNotExceedingSupply()
+procedure IsNotExceedingSupply(size: Uint256)
   current_supply <- total_supply;
-  new_count = builtin add current_supply one;
+  new_count = builtin add current_supply size;
   is_not_exceeding = uint256_le new_count max_nft_supply;
   match is_not_exceeding with
     | True =>
@@ -168,7 +175,7 @@ end
 
 procedure IsBatchAmountSufficient(amount: Uint128, quantity: Option Uint128)
   price <- bear_price;
-  qty = get_qty quantity;
+  qty = get_uint128 quantity;
   expected_amount = builtin mul price qty;
   is_sufficient = uint128_le expected_amount amount;
   match is_sufficient with
@@ -183,7 +190,7 @@ procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Require sale to be active to mint *)
   IsSaleActive;
   (* Require new mint to not exceed max supply *)
-  IsNotExceedingSupply;
+  IsNotExceedingSupply one;
   (* Require transfer amount to be equal to NFT price *)
   IsAmountSufficient _amount;
   accept;
@@ -194,26 +201,13 @@ procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Deconstruct input_pair *)
   to = let fst_string_bystr20 = @fst ByStr20 String in
   fst_string_bystr20 input_pair;
-  token_uri_url = let snd_string_bystr20 = @snd ByStr20 String in
+  uri_url = let snd_string_bystr20 = @snd ByStr20 String in
   snd_string_bystr20 input_pair;
-  token_id_string = builtin to_string new_supply;
-  uri_path = builtin concat token_id_string json;
-  token_uri = builtin concat token_uri_url uri_path;
-  (* Initiate token_id and check conditions *)  
-  token_id = new_supply;
-  msg1 = { _tag: "IsTokenExists"; _recipient: zrc_address; _amount: Uint128 0; 
-            token_id: token_id };
   (* Add to owner count *)
-  msg2 = { _tag: "AddAndSetToken"; _recipient: zrc_address; _amount: Uint128 0;
-            address: to; token_id: token_id; to: to; token_uri: token_uri };
-  msgs = two_msgs msg1 msg2;
-  send msgs;
-  (* Emit event *)
-  e = { _eventname: "AddApprovalSuccess"; initiator: _sender; token: token_id };
-  event e;
-  e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
-        token_id: token_id; token_uri: token_uri};
-  event e
+  msg1 = { _tag: "AddAndSetToken"; _recipient: zrc_address; _amount: Uint128 0;
+          to: to; token_uri: uri_url };
+  msg = one_msg msg1;
+  send msg
 end
 
 (* @dev:    Mint new tokens.                                  *)
@@ -227,7 +221,12 @@ transition Mint(to: ByStr20)
   msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
                     recipient : to; token_id : token_id };
   msgs = two_msgs msg_to_recipient msg_to_sender;
-  send msgs
+  send msgs;
+  e = { _eventname: "AddApprovalSuccess"; initiator: _sender; token: token_id };
+  event e;
+  e = { _eventname: "MintSuccess"; by: _sender; recipient: to;
+    token: token_id };
+  event e
 end
 
 (* @dev:   Mint multiple new tokens.                             *)
@@ -240,12 +239,29 @@ transition BatchMint(to: ByStr20, size: Uint32)
   size_uint128 = builtin to_uint128 size;
   IsBatchAmountSufficient _amount size_uint128;
   input_list = build_list token_uri_url to size;
-  forall input_list MintHelper;
+  (* Require sale to be active to mint *)
+  IsSaleActive;
+  (* Require new mint to not exceed max supply *)
+  size_uint256 = builtin to_uint256 size;
+  get_size = get_uint256 size_uint256;
+  IsNotExceedingSupply get_size;
+  accept;
+  (* Add to total_supply *)
+  current_supply <- total_supply;
+  new_supply = builtin add current_supply get_size;
+  starting_index = builtin add current_supply one;
+  total_supply := new_supply;
+  (* Add to owner count *)
+  msg1 = { _tag: "AddAndSetTokens"; _recipient: zrc_address; _amount: Uint128 0;
+            input_list: input_list };
   msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
-  msgs = one_msg msg_to_sender;
-  send msgs
+  msgs = two_msgs msg1 msg_to_sender;
+  send msgs;
+  e = { _eventname: "BacthAddApprovalSuccess"; initiator: _sender };
+  event e;
+  e = { _eventname: "BatchMintSuccess"; by: _sender; recipient: to };
+  event e
 end
-
 
 (* @dev: Toggles the boolean flag for sale of tokens. Only owner can toggle *)
 transition ToggleSaleActive()
@@ -256,7 +272,6 @@ transition ToggleSaleActive()
       sale_is_active := false;
       msg_to_sender = { _tag : "ToggleSaleActiveSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
                         sale_status : false};
-    msgs = one_msg msg_to_sender;
     msgs = one_msg msg_to_sender;
     send msgs
     | False =>
