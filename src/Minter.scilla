@@ -8,6 +8,7 @@ library Minter
 
 (* Global variables *)
 let zero = Uint128 0
+let zero_uint32 = Uint32 0
 let one = Uint256 1
 let false = False
 let true = True
@@ -37,6 +38,25 @@ let build_pair =
   fun (token_uri: String) =>
     Pair {ByStr20 String} to_address token_uri
 
+let build_list : String -> ByStr20 -> Uint32 -> List (Pair ByStr20 String) =
+  fun (token_uri_url: String) => fun (to: ByStr20) => fun (m: Uint32) =>
+    let zero_lt_m = builtin lt zero_uint32 m in
+    match zero_lt_m with
+    | True =>
+        (* m is the nat to recurse on *)
+        let nil = Nil {(Pair ByStr20 String)} in
+        let list_init = nil in
+        let step = fun (list :  List (Pair ByStr20 String)) => fun (ignore : Nat) =>
+          let new_pair = build_pair to token_uri_url in
+          let new_list = Cons {(Pair ByStr20 String)} new_pair list in
+          new_list
+        in
+        let fold = @nat_fold (List (Pair ByStr20 String)) in
+        let xs_m = fold step list_init m_nat in
+        xs_m
+    | False => Nil {(Pair ByStr20 String)}
+    end
+    
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
@@ -67,7 +87,7 @@ contract Minter
   contract_owner: ByStr20,
   max_nft_supply: Uint256,
   zrc_address: ByStr20,
-  token_uri_url: ByStr20
+  token_uri_url: String
 )
 
 (* Mutable fields *)
@@ -173,8 +193,11 @@ procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Deconstruct input_pair *)
   to = let fst_string_bystr20 = @fst ByStr20 String in
   fst_string_bystr20 input_pair;
-  token_uri = let snd_string_bystr20 = @snd ByStr20 String in
+  token_uri_url = let snd_string_bystr20 = @snd ByStr20 String in
   snd_string_bystr20 input_pair;
+  token_id_string = builtin to_string new_supply;
+  uri_path = builtin concat token_id_string json;
+  token_uri = builtin concat token_uri_url uri_path;
   (* Initiate token_id and check conditions *)  
   token_id = new_supply;
   msg1 = { _tag: "IsTokenExists"; _recipient: zrc_address; _amount: Uint128 0; 
@@ -195,13 +218,13 @@ end
 (* @dev:    Mint new tokens.                                  *)
 (* @param:  to        - Address of the token recipient        *)
 (* @param:  token_uri - URI of the the new token to be minted *)
-transition Mint(to: ByStr20, token_uri: String)
-  input_pair = build_pair to token_uri;
+transition Mint(to: ByStr20)
+  input_pair = build_pair to token_uri_url;
   MintHelper input_pair;
   token_id <- total_supply;
   msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
   msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
-                    recipient : to; token_id : token_id; token_uri : token_uri };
+                    recipient : to; token_id : token_id };
   msgs = two_msgs msg_to_recipient msg_to_sender;
   send msgs
 end
@@ -209,17 +232,13 @@ end
 (* @dev:   Mint multiple new tokens.                             *)
 (* @param: to        - Address of the token recipient            *)
 (* @param: token_uri_list - URIs of the new tokens to be minted  *)
-transition BatchMint(to: ByStr20, token_uri_list: List String)
-  list_length_string = @list_length String;
-  size = list_length_string token_uri_list;
+transition BatchMint(to: ByStr20, size: Uint32)
   (* Require number of tokens to mint is below limit *)
   IsBelowMaxPurchaseLimit size;
-  size_uint128 = builtin to_uint128 size;
   (* Require amount to be sufficient to mint tokens. *)
+  size_uint128 = builtin to_uint128 size;
   IsBatchAmountSufficient _amount size_uint128;
-  pair_token_uri_list = @list_map String (Pair ByStr20 String);
-  tmp_fun = build_pair to;
-  input_list = pair_token_uri_list tmp_fun token_uri_list;
+  input_list = build_list token_uri_url to size;
   forall input_list MintHelper;
   msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
   msgs = one_msg msg_to_sender;
