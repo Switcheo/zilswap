@@ -44,6 +44,7 @@ let build_list : String -> ByStr20 -> Uint32 -> List (Pair ByStr20 String) =
     match zero_lt_m with
     | True =>
         (* m is the nat to recurse on *)
+        let m_nat = builtin to_nat m in
         let nil = Nil {(Pair ByStr20 String)} in
         let list_init = nil in
         let step = fun (list :  List (Pair ByStr20 String)) => fun (ignore : Nat) =>
