@@ -17,12 +17,13 @@ type Operation =
 (* Global variables *)
 let zero = Uint256 0
 let one = Uint256 1
+let eight = Uint32 8
+let starting_index = Uint32 58
 let false = False
 let true = True
 let verdad = Dummy
 let add_operation = Add
 let sub_operation = Sub
-let json = ".json"
 
 (* Library functions *)
 let one_msg = 
@@ -47,6 +48,13 @@ let build_pair =
   fun (to_address: ByStr20) => 
   fun (token_uri: String) =>
     Pair {ByStr20 String} to_address token_uri
+
+let generate_hash =
+  fun (num: Uint256) => fun (starting_index: Uint32) => fun (size: Uint32) =>
+    let hash_num = builtin sha256hash num in
+    let hash_num_string = builtin to_string hash_num in
+    let res = builtin substr hash_num_string starting_index size in
+    res
         
 (* Error exception *)
 type Error =
@@ -259,14 +267,13 @@ procedure AddAndSetTokenHelper(input_pair: Pair ByStr20 String)
   (* Add to total_supply *)
   current_supply <- total_supply;
   token_id = builtin add current_supply one;
+  token_id_hash = generate_hash token_id starting_index eight;
   (* Deconstruct input_pair *)
   to = let fst_string_bystr20 = @fst ByStr20 String in
   fst_string_bystr20 input_pair;
   uri_url = let snd_string_bystr20 = @snd ByStr20 String in
   snd_string_bystr20 input_pair;
-  token_id_string = builtin to_string token_id;
-  uri_path = builtin concat token_id_string json;
-  token_uri = builtin concat uri_url uri_path;
+  token_uri = builtin concat uri_url token_id_hash;
   IsTokenExists token_id;
   UpdateTokenCount add_operation to;
   SetTokenData token_id to token_uri

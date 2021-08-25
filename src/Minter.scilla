@@ -46,7 +46,7 @@ let build_pair =
     Pair {ByStr20 String} to_address token_uri
 
 let build_list : String -> ByStr20 -> Uint32 -> List (Pair ByStr20 String) =
-  fun (token_uri_url: String) => fun (to: ByStr20) => fun (m: Uint32) =>
+  fun (base_uri: String) => fun (to: ByStr20) => fun (m: Uint32) =>
     let zero_lt_m = builtin lt zero_uint32 m in
     match zero_lt_m with
     | True =>
@@ -55,7 +55,7 @@ let build_list : String -> ByStr20 -> Uint32 -> List (Pair ByStr20 String) =
         let nil = Nil {(Pair ByStr20 String)} in
         let list_init = nil in
         let step = fun (list :  List (Pair ByStr20 String)) => fun (ignore : Nat) =>
-          let new_pair = build_pair to token_uri_url in
+          let new_pair = build_pair to base_uri in
           let new_list = Cons {(Pair ByStr20 String)} new_pair list in
           new_list
         in
@@ -72,6 +72,7 @@ type Error =
   | CodeExceedSupply
   | CodeExceedMaxPurchaseLimit   
   | CodeInsufficientAmount
+  | CodeHashNotMatching
 
 let make_error =
   fun (result : Error) =>
@@ -82,6 +83,7 @@ let make_error =
       | CodeExceedSupply                 => Int32 -3
       | CodeExceedMaxPurchaseLimit       => Int32 -4
       | CodeInsufficientAmount           => Int32 -5
+      | CodeHashNotMatching              => Int32 -6
       end
     in
     { _exception : "Error"; code : result_code }
@@ -95,7 +97,7 @@ contract Minter
   contract_owner: ByStr20,
   max_nft_supply: Uint256,
   zrc_address: ByStr20,
-  token_uri_url: String
+  provenance_hash: ByStr32
 )
 
 (* Mutable fields *)
@@ -111,6 +113,9 @@ field max_nft_purchase: Uint32 = Uint32 20
 
 (* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
 field sale_is_active: Bool = False
+
+(* Base URI that will be updated once upon reveal *)
+field base_uri: String = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -186,6 +191,17 @@ procedure IsBatchAmountSufficient(amount: Uint128, quantity: Option Uint128)
   end
 end
 
+procedure IsMatchingProvenanceHash (new_uri: String)
+  new_hash = builtin sha256hash new_uri;
+  is_matching = builtin eq new_hash provenance_hash;
+  match is_matching with
+    | True =>
+    | False =>
+      err = CodeHashNotMatching;
+      ThrowError err
+  end
+end
+
 procedure MintHelper(input_pair: Pair ByStr20 String)
   (* Require sale to be active to mint *)
   IsSaleActive;
@@ -214,7 +230,8 @@ end
 (* @param:  to        - Address of the token recipient        *)
 (* @param:  token_uri - URI of the the new token to be minted *)
 transition Mint(to: ByStr20)
-  input_pair = build_pair to token_uri_url;
+  base_uri_url <- base_uri;
+  input_pair = build_pair to base_uri_url;
   MintHelper input_pair;
   token_id <- total_supply;
   msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
@@ -238,7 +255,8 @@ transition BatchMint(to: ByStr20, size: Uint32)
   (* Require amount to be sufficient to mint tokens. *)
   size_uint128 = builtin to_uint128 size;
   IsBatchAmountSufficient _amount size_uint128;
-  input_list = build_list token_uri_url to size;
+  base_uri_url <- base_uri;
+  input_list = build_list base_uri_url to size;
   (* Require sale to be active to mint *)
   IsSaleActive;
   (* Require new mint to not exceed max supply *)
@@ -257,10 +275,15 @@ transition BatchMint(to: ByStr20, size: Uint32)
   msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
   msgs = two_msgs msg1 msg_to_sender;
   send msgs;
-  e = { _eventname: "BacthAddApprovalSuccess"; initiator: _sender };
+  e = { _eventname: "BatchAddApprovalSuccess"; initiator: _sender };
   event e;
   e = { _eventname: "BatchMintSuccess"; by: _sender; recipient: to };
   event e
+end
+
+transition UpdateBaseURI(new_uri: String)
+  IsMatchingProvenanceHash new_uri;
+  base_uri := new_uri
 end
 
 (* @dev: Toggles the boolean flag for sale of tokens. Only owner can toggle *)
