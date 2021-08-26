@@ -17,8 +17,6 @@ type Operation =
 (* Global variables *)
 let zero = Uint256 0
 let one = Uint256 1
-let eight = Uint32 8
-let starting_index = Uint32 58
 let false = False
 let true = True
 let verdad = Dummy
@@ -44,18 +42,6 @@ let get_bal =
     | None => zero
     end
 
-let build_pair = 
-  fun (to_address: ByStr20) => 
-  fun (token_uri: String) =>
-    Pair {ByStr20 String} to_address token_uri
-
-let generate_hash =
-  fun (num: Uint256) => fun (starting_index: Uint32) => fun (size: Uint32) =>
-    let hash_num = builtin sha256hash num in
-    let hash_num_string = builtin to_string hash_num in
-    let res = builtin substr hash_num_string starting_index size in
-    res
-
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
@@ -70,6 +56,8 @@ type Error =
   | CodeTokenLocked
   | CodeTokenAlreadyUnlocked
   | CodeHashNotMatching
+  | CodeNotMatchingMintingAddress
+  | CodeNoMintingAddressFound
 
 let make_error =
   fun (result : Error) =>
@@ -87,6 +75,8 @@ let make_error =
       | CodeTokenLocked                  => Int32 -10
       | CodeTokenAlreadyUnlocked         => Int32 -11
       | CodeHashNotMatching              => Int32 -12
+      | CodeNotMatchingMintingAddress    => Int32 -13
+      | CodeNoMintingAddressFound        => Int32 -14
       end
     in
     { _exception : "Error"; code : result_code }
@@ -131,6 +121,9 @@ field total_supply: Uint256 = Uint256 0
 
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
+
+(* Address of the minting contract *)
+field minting_address: Option ByStr20 = None {ByStr20}
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -221,6 +214,23 @@ procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
   | False =>
     err = CodeNotApprovedSpenderOrOperator;
     ThrowError err
+  end
+end
+
+procedure IsMintingContractAddress(address: ByStr20)
+  contract_address <- minting_address;
+  match contract_address with
+    | None => 
+      err = CodeNoMintingAddressFound;
+      ThrowError err
+    | Some minting_contract =>
+      is_minting_contract = builtin eq minting_contract address;
+      match is_minting_contract with
+        | True =>
+        | False =>
+          err = CodeNotMatchingMintingAddress;
+          ThrowError err
+      end
   end
 end
 
@@ -389,20 +399,60 @@ transition CheckApprovedForAll(token_owner: ByStr20, operator: ByStr20)
   send msgs
 end
 
-(* Interface transitions *)
+(* Contract owner specific transitions *)
+
+(* @dev: Sets the address of the minting contract to ensure contraints on AddAndSetToken/s           *)
+(* @param: address       - ByStr20 value to be stored as an Option in minting_address                *)
+transition SetMintingAddress(address: ByStr20)
+  IsContractOwner;
+  option_address = Some {ByStr20} address;
+  minting_address := option_address
+end
+
+(* @dev: Unlocks tokens boolean flag or throws an error if already unlocked        *)
+transition UnlockTokens()
+  IsContractOwner;
+  token_locked <- is_token_locked;
+  match token_locked with
+  | False =>
+    err = CodeTokenAlreadyUnlocked;
+    ThrowError err
+  | True =>
+    is_token_locked := false;
+    msg_to_sender = { _tag : "UnlockTokensSuccessCallBack"; _recipient : _sender; _amount : Uint128 0};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  end
+end
+
+(* @dev: Updates the base_uri for reveal. Hash of new_uri must match provenance                      *)
+(* @param: new_uri       - Updated base_uri                                                          *)
+transition UpdateBaseURI(new_uri: String)
+  IsContractOwner;
+  IsMatchingProvenanceHash new_uri;
+  base_uri := new_uri
+end
+
+(* Minting contract specific transitions *)
 
 (* @dev:    Adds and sets token in relevant fields, called by Mint                 *)
 (* @param:  to - Address of owner of token minted                                  *)
 (* @param:  token_uri - URI of token, without unique id appended                   *)
 transition AddAndSetToken(to: ByStr20)
+  (* Ensure called by minting contract *)
+  IsMintingContractAddress _sender;
   AddAndSetTokenHelper to
 end
 
 (* @dev:    Adds and sets multiple tokens in relevant fields, called by BatchMint  *)
 (* @param:  input_list - List of tokens to be added                                *)
 transition AddAndSetTokens(input_list: List (ByStr20))
+  (* Ensure called by minting contract *)
+  IsMintingContractAddress _sender;
   forall input_list AddAndSetTokenHelper
 end
+
+(* Interface transitions *)
 
 (* @dev:    Burn existing tokens. Only token_owner or an operator can burn a NFT. *)
 (* @param:  token_id - Unique ID of the NFT to be destroyed                       *)
@@ -428,6 +478,12 @@ transition Burn(token_id: Uint256)
     msgs = one_msg msg_to_sender;
     send msgs
   end
+end
+
+(* @dev: Updates single or multiple token URIs in the URI map                                        *)
+(* @param: token_ids - List of token IDs to be updated                                               *)
+transition UpdateTokenURIs(token_ids: List (Uint256))
+  forall token_ids UpdateTokenURI
 end
 
 (* @dev: Approves OR remove an address ability to transfer a given token_id *)
@@ -488,36 +544,6 @@ transition SetApprovalForAll(to: ByStr20)
                     operator : to; status : new_status};
   msgs = one_msg msg_to_sender;
   send msgs
-end
-
-(* @dev: Unlocks tokens boolean flag or throws an error if already unlocked *)
-transition UnlockTokens()
-  IsContractOwner;
-  token_locked <- is_token_locked;
-  match token_locked with
-  | False =>
-    err = CodeTokenAlreadyUnlocked;
-    ThrowError err
-  | True =>
-    is_token_locked := false;
-    msg_to_sender = { _tag : "UnlockTokensSuccessCallBack"; _recipient : _sender; _amount : Uint128 0};
-    msgs = one_msg msg_to_sender;
-    send msgs
-  end
-end
-
-(* @dev: Updates the base_uri for reveal. Hash of new_uri must match provenance                      *)
-(* @param: new_uri       - Updated base_uri                                                          *)
-transition UpdateBaseURI(new_uri: String)
-  IsContractOwner;
-  IsMatchingProvenanceHash new_uri;
-  base_uri := new_uri
-end
-
-(* @dev: Updates single or multiple token URIs in the URI map                                        *)
-(* @param: token_ids - List of token IDs to be updated                                               *)
-transition UpdateTokenURIs(token_ids: List (Uint256))
-  forall token_ids UpdateTokenURI
 end
 
 (* @dev: Transfer the ownership of a given token_id to another address. token_owner only transition. *)
