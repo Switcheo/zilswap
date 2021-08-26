@@ -284,27 +284,26 @@ procedure AddAndSetTokenHelper(to: ByStr20)
   (* Add to total_supply *)
   current_supply <- total_supply;
   token_id = builtin add current_supply one;
-  token_id_hash = generate_hash token_id starting_index eight;
+  token_id_string = builtin to_string token_id;
   (* Generate token_uri *)
   uri_url <- base_uri;
-  token_uri = builtin concat uri_url token_id_hash;
+  token_uri = builtin concat uri_url token_id_string;
   (* Add and set token data *)
   IsTokenExists token_id;
   UpdateTokenCount add_operation to;
   SetTokenData token_id to token_uri
 end
 
-procedure UpdateTokenURI(input_pair: Pair Uint256 String)
-  new_uri <- base_uri;
-  (* Deconstruct input_pair *)
-  token_id = let fst_string_uint256 = @fst Uint256 String in
-  fst_string_uint256 input_pair;
-  token_uri = let snd_string_uint256 = @snd Uint256 String in
-  snd_string_uint256 input_pair;
-  (* TODO: Shift by starting index and generate hash *)
-  token_id_hash = generate_hash token_id starting_index eight;
-  new_token_uri = builtin concat new_uri token_id_hash;
-  token_uris[token_id] := new_token_uri
+procedure UpdateTokenURI(token_id: Uint256)
+  token_exist <- exists token_uris[token_id];
+  match token_exist with
+  | False =>
+  | True =>
+    new_uri <- base_uri;
+    token_id_string = builtin to_string token_id;
+    new_token_uri = builtin concat new_uri token_id_string;
+    token_uris[token_id] := new_token_uri
+  end
 end
 
 (* Getter transitions *)
@@ -512,10 +511,13 @@ end
 transition UpdateBaseURI(new_uri: String)
   IsContractOwner;
   IsMatchingProvenanceHash new_uri;
-  base_uri := new_uri;
-  current_token_uris <- token_uris;
-  token_uri_list = builtin to_list current_token_uris;
-  forall token_uri_list UpdateTokenURI
+  base_uri := new_uri
+end
+
+(* @dev: Updates single or multiple token URIs in the URI map                                        *)
+(* @param: token_ids - List of token IDs to be updated                                               *)
+transition UpdateTokenURIs(token_ids: List (Uint256))
+  forall token_ids UpdateTokenURI
 end
 
 (* @dev: Transfer the ownership of a given token_id to another address. token_owner only transition. *)
