@@ -55,7 +55,7 @@ let generate_hash =
     let hash_num_string = builtin to_string hash_num in
     let res = builtin substr hash_num_string starting_index size in
     res
-        
+
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
@@ -69,6 +69,7 @@ type Error =
   | CodeNotApprovedSpenderOrOperator
   | CodeTokenLocked
   | CodeTokenAlreadyUnlocked
+  | CodeHashNotMatching
 
 let make_error =
   fun (result : Error) =>
@@ -85,6 +86,7 @@ let make_error =
       | CodeNotApprovedSpenderOrOperator => Int32 -9
       | CodeTokenLocked                  => Int32 -10
       | CodeTokenAlreadyUnlocked         => Int32 -11
+      | CodeHashNotMatching              => Int32 -12
       end
     in
     { _exception : "Error"; code : result_code }
@@ -98,7 +100,8 @@ contract NonfungibleToken
   contract_owner: ByStr20,
   name : String,
   symbol: String,
-  dex_address: ByStr20
+  dex_address: ByStr20,
+  provenance_hash: ByStr32
 )
 
 (* Mutable fields *)
@@ -125,6 +128,9 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 
 (* Total supply of tokens *)
 field total_supply: Uint256 = Uint256 0
+
+(* Base URI that will be updated once upon reveal *)
+field base_uri: String = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -228,6 +234,17 @@ procedure IsTokenExists(token_id: Uint256)
   end
 end
 
+procedure IsMatchingProvenanceHash (new_uri: String)
+  new_hash = builtin sha256hash new_uri;
+  is_matching = builtin eq new_hash provenance_hash;
+  match is_matching with
+    | True =>
+    | False =>
+      err = CodeHashNotMatching;
+      ThrowError err
+  end
+end
+
 procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   match operation with
   | Add =>
@@ -263,20 +280,31 @@ procedure SetTokenData(token_id: Uint256, to: ByStr20, token_uri: String)
   token_approvals[token_id] := dex_address
 end
 
-procedure AddAndSetTokenHelper(input_pair: Pair ByStr20 String)
+procedure AddAndSetTokenHelper(to: ByStr20)
   (* Add to total_supply *)
   current_supply <- total_supply;
   token_id = builtin add current_supply one;
   token_id_hash = generate_hash token_id starting_index eight;
-  (* Deconstruct input_pair *)
-  to = let fst_string_bystr20 = @fst ByStr20 String in
-  fst_string_bystr20 input_pair;
-  uri_url = let snd_string_bystr20 = @snd ByStr20 String in
-  snd_string_bystr20 input_pair;
+  (* Generate token_uri *)
+  uri_url <- base_uri;
   token_uri = builtin concat uri_url token_id_hash;
+  (* Add and set token data *)
   IsTokenExists token_id;
   UpdateTokenCount add_operation to;
   SetTokenData token_id to token_uri
+end
+
+procedure UpdateTokenURI(input_pair: Pair Uint256 String)
+  new_uri <- base_uri;
+  (* Deconstruct input_pair *)
+  token_id = let fst_string_uint256 = @fst Uint256 String in
+  fst_string_uint256 input_pair;
+  token_uri = let snd_string_uint256 = @snd Uint256 String in
+  snd_string_uint256 input_pair;
+  (* TODO: Shift by starting index and generate hash *)
+  token_id_hash = generate_hash token_id starting_index eight;
+  new_token_uri = builtin concat new_uri token_id_hash;
+  token_uris[token_id] := new_token_uri
 end
 
 (* Getter transitions *)
@@ -367,14 +395,13 @@ end
 (* @dev:    Adds and sets token in relevant fields, called by Mint                 *)
 (* @param:  to - Address of owner of token minted                                  *)
 (* @param:  token_uri - URI of token, without unique id appended                   *)
-transition AddAndSetToken(to: ByStr20, token_uri: String)
-  input_pair = build_pair to token_uri;
-  AddAndSetTokenHelper input_pair
+transition AddAndSetToken(to: ByStr20)
+  AddAndSetTokenHelper to
 end
 
 (* @dev:    Adds and sets multiple tokens in relevant fields, called by BatchMint  *)
 (* @param:  input_list - List of tokens to be added                                *)
-transition AddAndSetTokens(input_list: List (Pair ByStr20 String))
+transition AddAndSetTokens(input_list: List (ByStr20))
   forall input_list AddAndSetTokenHelper
 end
 
@@ -478,6 +505,17 @@ transition UnlockTokens()
     msgs = one_msg msg_to_sender;
     send msgs
   end
+end
+
+(* @dev: Updates the base_uri for reveal. Hash of new_uri must match provenance                      *)
+(* @param: new_uri       - Updated base_uri                                                          *)
+transition UpdateBaseURI(new_uri: String)
+  IsContractOwner;
+  IsMatchingProvenanceHash new_uri;
+  base_uri := new_uri;
+  current_token_uris <- token_uris;
+  token_uri_list = builtin to_list current_token_uris;
+  forall token_uri_list UpdateTokenURI
 end
 
 (* @dev: Transfer the ownership of a given token_id to another address. token_owner only transition. *)
