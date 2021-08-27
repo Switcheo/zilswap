@@ -3,7 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils PairUtils ListUtils
+import BoolUtils
 library NonfungibleToken
 
 (* User-defined ADTs *)
@@ -90,7 +90,6 @@ contract NonfungibleToken
   contract_owner: ByStr20,
   name : String,
   symbol: String,
-  dex_address: ByStr20,
   provenance_hash: ByStr32
 )
 
@@ -283,11 +282,10 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
 end
 
 procedure SetTokenData(token_id: Uint256, to: ByStr20, token_uri: String)
- (* Mint new non-fungible token *)
+  (* Mint new non-fungible token *)
   token_owners[token_id] := to;
   (* Add token_uri for token_id *)
-  token_uris[token_id] := token_uri;
-  token_approvals[token_id] := dex_address
+  token_uris[token_id] := token_uri
 end
 
 procedure AddAndSetTokenHelper(to: ByStr20)

@@ -3,7 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils ListUtils PairUtils
+import IntUtils ListUtils
 library Minter
 
 (* Global variables *)
