@@ -3,8 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import IntUtils ListUtils
-library Minter
+library PrivateMinter
 
 (* Global variables *)
 let zero = Uint128 0
@@ -25,13 +24,6 @@ let two_msgs =
   fun (msg2 : Message) =>
     let msgs_tmp = one_msg msg2 in
     Cons {Message} msg1 msgs_tmp
-
-let get_uint128 =
-  fun (some_uint128: Option Uint128) =>
-    match some_uint128 with
-    | Some num => num
-    | None => zero
-    end
 
 let get_uint256 =
   fun (some_uint256: Option Uint256) =>
@@ -58,22 +50,16 @@ let build_list : ByStr20 -> Uint32 -> List (ByStr20) =
         xs_m
     | False => Nil {ByStr20}
     end
-    
+
 (* Error exception *)
 type Error =
-  | CodeNotContractOwner
-  | CodeSaleNotActive
-  | CodeExceedMaxPurchaseLimit   
-  | CodeInsufficientAmount
+  | CodeNotContractOwner 
 
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
       | CodeNotContractOwner             => Int32 -1
-      | CodeSaleNotActive                => Int32 -2
-      | CodeExceedMaxPurchaseLimit       => Int32 -3
-      | CodeInsufficientAmount           => Int32 -4
       end
     in
     { _exception : "Error"; code : result_code }
@@ -87,17 +73,6 @@ contract Minter
   contract_owner: ByStr20,
   zrc_address: ByStr20
 )
-
-(* Mutable fields *)
-
-(* Price of NFT for sale *)
-field bear_price: Uint128 = Uint128 1
-
-(* Maximum number of tokens to mint in one transaction *)
-field max_nft_purchase: Uint32 = Uint32 20
-
-(* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
-field sale_is_active: Bool = False
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -115,66 +90,17 @@ procedure IsContractOwner()
   end
 end
 
-procedure IsSaleActive()
-  is_sale_active <- sale_is_active;
-  match is_sale_active with
-  | True =>
-  | False =>
-    err = CodeSaleNotActive;
-    ThrowError err
-  end
-end
-
-procedure IsBelowMaxPurchaseLimit(quantity: Uint32)
-  max_purchase_limit <- max_nft_purchase;
-  is_not_exceeding = uint32_le quantity max_purchase_limit;
-  match is_not_exceeding with
-  | True =>
-  | False =>
-    err = CodeExceedMaxPurchaseLimit;
-    ThrowError err
-  end
-end
-
-procedure IsAmountSufficient(amount: Uint128)
-  price <- bear_price;
-  is_sufficient = uint128_le price amount;
-  match is_sufficient with
-  | True =>
-  | False =>
-    err = CodeInsufficientAmount;
-    ThrowError err
-  end
-end
-
-procedure IsBatchAmountSufficient(amount: Uint128, quantity: Option Uint128)
-  price <- bear_price;
-  qty = get_uint128 quantity;
-  expected_amount = builtin mul price qty;
-  is_sufficient = uint128_le expected_amount amount;
-  match is_sufficient with
-  | True =>
-  | False =>
-    err = CodeInsufficientAmount;
-    ThrowError err
-  end
-end
-
 procedure MintHelper(to: ByStr20)
-  (* Require sale to be active to mint *)
-  IsSaleActive;
-  (* Require amount to be sufficient to mint token. *)
-  IsAmountSufficient _amount;
   msg1 = { _tag: "AddAndSetToken"; _recipient: zrc_address; _amount: Uint128 0;
           to: to };
   msg = one_msg msg1;
-  send msg;
-  accept
+  send msg
 end
 
-(* @dev:    Mint new tokens.                                  *)
+(* @dev:    Mint new tokens privately.                        *)
 (* @param:  to        - Address of the token recipient        *)
-transition Mint(to: ByStr20)
+transition PrivateMint(to: ByStr20)
+  IsContractOwner;
   MintHelper to;
   msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
   msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
@@ -187,48 +113,23 @@ transition Mint(to: ByStr20)
   event e
 end
 
-(* @dev:   Mint multiple new tokens.                             *)
+(* @dev:   BatchMint multiple new tokens privately.              *)
 (* @param: to        - Address of the token recipient            *)
 (* @param: size      - Number of tokens to mint                  *)
-transition BatchMint(to: ByStr20, size: Uint32)
-  (* Require sale to be active to mint *)
-  IsSaleActive;
-  (* Require number of tokens to mint is below limit *)
-  IsBelowMaxPurchaseLimit size;
-  (* Require amount to be sufficient to mint tokens. *)
+transition PrivateBatchMint(to: ByStr20, size: Uint32)
+  IsContractOwner;
   size_uint128 = builtin to_uint128 size;
-  IsBatchAmountSufficient _amount size_uint128;
   input_list = build_list to size;
   size_uint256 = builtin to_uint256 size;
   get_size = get_uint256 size_uint256;
+  (* Add to owner count *)
   msg1 = { _tag: "AddAndSetTokens"; _recipient: zrc_address; _amount: Uint128 0;
             input_list: input_list; size: get_size };
   msg_to_sender = { _tag : "BatchMintCallBack"; _recipient : _sender; _amount : Uint128 0 };
   msgs = two_msgs msg1 msg_to_sender;
   send msgs;
-  accept;
   e = { _eventname: "BatchAddApprovalSuccess"; initiator: _sender };
   event e;
   e = { _eventname: "BatchMintSuccess"; by: _sender; recipient: to };
   event e
-end
-
-(* @dev: Toggles the boolean flag for sale of tokens. Only owner can toggle *)
-transition ToggleSaleActive()
-  IsContractOwner;
-  sale_active <- sale_is_active;
-  match sale_active with
-  | True =>
-    sale_is_active := false;
-    msg_to_sender = { _tag : "ToggleSaleActiveSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
-                      sale_status : false};
-    msgs = one_msg msg_to_sender;
-    send msgs
-  | False =>
-    sale_is_active := true;
-    msg_to_sender = { _tag : "ToggleSaleActiveSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
-                      sale_status : true};
-    msgs = one_msg msg_to_sender;
-    send msgs
-  end
 end

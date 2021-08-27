@@ -3,7 +3,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils
+import BoolUtils IntUtils
 library NonfungibleToken
 
 (* User-defined ADTs *)
@@ -58,6 +58,7 @@ type Error =
   | CodeHashNotMatching
   | CodeNotMatchingMintingAddress
   | CodeNoMintingAddressFound
+  | CodeExceedSupply
 
 let make_error =
   fun (result : Error) =>
@@ -77,6 +78,7 @@ let make_error =
       | CodeHashNotMatching              => Int32 -12
       | CodeNotMatchingMintingAddress    => Int32 -13
       | CodeNoMintingAddressFound        => Int32 -14
+      | CodeExceedSupply                 => Int32 -15
       end
     in
     { _exception : "Error"; code : result_code }
@@ -90,6 +92,7 @@ contract NonfungibleToken
   contract_owner: ByStr20,
   name : String,
   symbol: String,
+  max_nft_supply: Uint256,
   provenance_hash: ByStr32
 )
 
@@ -123,6 +126,9 @@ field base_uri: String = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4
 
 (* Address of the minting contract *)
 field minting_address: Option ByStr20 = None {ByStr20}
+
+(* Address of the private minting contract *)
+field private_minting_address: Option ByStr20 = None {ByStr20}
 
 (* Emit Errors *)
 procedure ThrowError(err : Error)
@@ -218,18 +224,53 @@ end
 
 procedure IsMintingContractAddress(address: ByStr20)
   contract_address <- minting_address;
+  private_contract_address <- private_minting_address;
   match contract_address with
-    | None => 
+  | None => 
+    match private_contract_address with
+    | None =>
       err = CodeNoMintingAddressFound;
       ThrowError err
-    | Some minting_contract =>
-      is_minting_contract = builtin eq minting_contract address;
-      match is_minting_contract with
+    | Some private_minting_contract =>
+      is_minting_private = builtin eq private_minting_contract address;
+      match is_minting_private with
+      | True =>
+      | False =>
+        err = CodeNotMatchingMintingAddress;
+        ThrowError err
+      end
+    end
+  | Some minting_contract =>
+    is_minting_contract = builtin eq minting_contract address;
+    match is_minting_contract with
+    | True =>
+    | False =>
+      match private_contract_address with
+      | None =>
+        err = CodeNotMatchingMintingAddress;
+        ThrowError err
+      | Some private_minting_contract =>
+        is_minting_private = builtin eq private_minting_contract address;
+        match is_minting_private with
         | True =>
         | False =>
           err = CodeNotMatchingMintingAddress;
           ThrowError err
+        end
       end
+    end
+  end
+end
+
+procedure IsNotExceedingSupply(size: Uint256)
+  current_supply <- total_supply;
+  new_count = builtin add current_supply size;
+  is_not_exceeding = uint256_le new_count max_nft_supply;
+  match is_not_exceeding with
+    | True =>
+    | False =>
+      err = CodeExceedSupply;
+      ThrowError err
   end
 end
 
@@ -247,10 +288,10 @@ procedure IsMatchingProvenanceHash (new_uri: String)
   new_hash = builtin sha256hash new_uri;
   is_matching = builtin eq new_hash provenance_hash;
   match is_matching with
-    | True =>
-    | False =>
-      err = CodeHashNotMatching;
-      ThrowError err
+  | True =>
+  | False =>
+    err = CodeHashNotMatching;
+    ThrowError err
   end
 end
 
@@ -407,6 +448,14 @@ transition SetMintingAddress(address: ByStr20)
   minting_address := option_address
 end
 
+(* @dev: Sets the address of the private minting contract to ensure contraints on AddAndSetToken/s           *)
+(* @param: address       - ByStr20 value to be stored as an Option in minting_address                *)
+transition SetPrivateMintingAddress(address: ByStr20)
+  IsContractOwner;
+  option_address = Some {ByStr20} address;
+  private_minting_address := option_address
+end
+
 (* @dev: Unlocks tokens boolean flag or throws an error if already unlocked        *)
 transition UnlockTokens()
   IsContractOwner;
@@ -439,14 +488,18 @@ end
 transition AddAndSetToken(to: ByStr20)
   (* Ensure called by minting contract *)
   IsMintingContractAddress _sender;
+  (* Ensure new token count does not exceed supply *)
+  IsNotExceedingSupply one;
   AddAndSetTokenHelper to
 end
 
 (* @dev:    Adds and sets multiple tokens in relevant fields, called by BatchMint  *)
 (* @param:  input_list - List of tokens to be added                                *)
-transition AddAndSetTokens(input_list: List (ByStr20))
+transition AddAndSetTokens(input_list: List (ByStr20), size: Uint256)
   (* Ensure called by minting contract *)
   IsMintingContractAddress _sender;
+  (* Ensure new token count does not exceed supply *)
+  IsNotExceedingSupply size;
   forall input_list AddAndSetTokenHelper
 end
 
