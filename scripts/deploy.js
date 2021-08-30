@@ -107,7 +107,7 @@ async function deployNonFungibleToken(
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/NFT.scilla')).toString()
+  const code = (await readFile('./src/tbm/NFT.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -131,12 +131,12 @@ async function deployNonFungibleToken(
       value: `${symbol}`,
     },
     {
-      vname: 'dex_address',
-      type: 'ByStr20',
-      value: `${address}`,
+      vname: 'provenance_hash',
+      type: 'ByStr32',
+      value: `0x${String(0).padStart(32, '0')}`,
     },
     {
-      vname: 'max_nft_supply',
+      vname: 'max_supply',
       type: 'Uint256',
       value: `${maxNftSupply}`,
     }

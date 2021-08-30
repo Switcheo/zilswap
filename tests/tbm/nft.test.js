@@ -1,6 +1,6 @@
-const { createRandomAccount, getDefaultAccount } = require('../scripts/account.js')
-const { callContract } = require('../scripts/call.js')
-const { useNonFungibleToken } = require('../scripts/deploy.js')
+const { createRandomAccount, getDefaultAccount } = require('../../scripts/account.js')
+const { callContract } = require('../../scripts/call.js')
+const { useNonFungibleToken } = require('../../scripts/deploy.js')
 
 let contract, key, owner, newOwner
 beforeAll(async () => {
@@ -16,9 +16,7 @@ beforeAll(async () => {
 })
 
 test('toggle sale active', async () => {
-    const txn = await callContract(key, contract, 'ToggleSaleActive', [], 0, false, false)
-    console.info(txn)
-
+    const txn = await callContract(key, contract, 'EnableSale', [], 0, false, false)
     expect(txn.status).toEqual(2)
     expect(state.sale_is_active.constructor).toEqual('True')
 })
@@ -62,6 +60,7 @@ test('transfer when locked', async () => {
 
 test('transfer when unlocked', async () => {
     const txn1 = await callContract(key, contract, 'UnlockTokens', [], 0, false, false)
+    expect(txn1.status).toEqual(2)
 
     const txn2 = await callContract(
         key, contract,
