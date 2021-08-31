@@ -12,6 +12,7 @@ let zero = Uint128 0
 let none = None {ByStr20}
 let false = False
 let true = True
+let empty = ""
 
 (* Library functions *)
 let one_msg =
@@ -37,7 +38,7 @@ let build_mint_msgs : ByStr20 -> ByStr20 -> Uint32 -> List (Message) =
         let m_nat = builtin to_nat m in
         let nil = Nil {Message} in
         let list_init = nil in
-        let msg = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to } in
+        let msg = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
         let step = fun (list :  List (Message)) => fun (ignore : Nat) =>
           let new_list = Cons {Message} msg list in
           new_list
