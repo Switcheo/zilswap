@@ -472,18 +472,22 @@ transition Mint(to: ByStr20, token_uri: String)
   UpdateTokenCount add_operation to;
   UpdateTokenURI token_id;
   actual_token_uri <- token_uris[token_id];
-
-  (* Emit event *)
-  e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
-  token_id: token_id; token_uri: actual_token_uri};
-  event e;
-
-  (* Emit callbacks *)
-  msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
-  msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
-                    recipient : _sender; token_id : token_id; token_uri : actual_token_uri };
-  msgs = two_msgs msg_to_recipient msg_to_sender;
-  send msgs
+  match actual_token_uri with
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  | Some uri =>
+    (* Emit event *)
+    e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
+    token_id: token_id; token_uri: uri};
+    event e;
+    (* Emit callbacks *)
+    msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
+    msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
+                      recipient : to; token_id : token_id; token_uri : uri };
+    msgs = two_msgs msg_to_recipient msg_to_sender;
+    send msgs
+  end
 end
 
 (* @dev:    Burn existing tokens. Only token_owner or an operator can burn a NFT. *)
@@ -699,3 +703,4 @@ transition UpdateTokenURIs(token_ids: List (Uint256))
   e = {_eventname: "TokenURIsUpdated"; token_ids: token_ids};
   event e
 end
+
