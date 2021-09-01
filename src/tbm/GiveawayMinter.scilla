@@ -153,10 +153,10 @@ end
 
 (* @dev:    Mint new tokens to the sender.      *)
 (* @param:  quantity - Number of tokens to mint *)
-transition MintForCommunity(quantity: Uint32)
+transition MintForCommunity(to: ByStr20, quantity: Uint32)
   IsWithinMintLimit quantity;
 
-  msgs = build_mint_msgs nft_address _sender quantity;
+  msgs = build_mint_msgs nft_address to quantity;
   send msgs
 end
 

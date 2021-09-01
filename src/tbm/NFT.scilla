@@ -134,7 +134,7 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 field total_supply: Uint256 = Uint256 0
 
 (* Base URI that will be updated once upon reveal *)
-field base_uri: String = "https://ipfs.io/ipfs/QmUKgFcQuHHkQVCVwaC41VARB9EvDnnK4Jm3PyAhsbxNBd/"
+field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
