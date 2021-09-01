@@ -61,6 +61,7 @@ type Error =
   | CodeTokenAlreadyUnlocked
   | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
+  | CodeMaxReserveSupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -82,6 +83,7 @@ let make_error =
       | CodeTokenAlreadyUnlocked         => Int32 -14
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
+      | CodeMaxReserveSupplyExceeded     => Int32 -17
       end
     in
     { _exception : "Error"; code : result_code }
@@ -110,6 +112,8 @@ field pending_owner : Option ByStr20 = none
 (* Mapping of minters available *)
 field minters: Map ByStr20 Dummy = Emp ByStr20 Dummy
 
+field giveaway_minter: Option ByStr20 = none
+
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
@@ -133,6 +137,9 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 (* Total supply of tokens *)
 field total_supply: Uint256 = Uint256 0
 
+(* Total number of reserved tokens left *)
+field reserved_supply: Uint256 = Uint256 200
+
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
 
@@ -154,13 +161,36 @@ procedure IsNotSelf(address_a: ByStr20, address_b: ByStr20)
   end
 end
 
-procedure IsMinter(address: ByStr20)
-  is_minter <- exists minters[address];
+procedure IsMinter(sender: ByStr20)
+  is_minter <- exists minters[sender];
   match is_minter with
   | True =>
   | False =>
     err = CodeNotMinter;
     ThrowError err
+  end
+end
+
+procedure IsGiveawayMinter(sender: ByStr20)
+  giveaway_minter_address <- giveaway_minter;
+  match giveaway_minter_address with
+  | None =>
+  | Some address =>
+    is_giveaway_minter = builtin eq address sender;
+    match is_giveaway_minter with
+    | True =>
+        current_reserved <- reserved_supply;
+        is_available = uint256_gt current_reserved zero;
+        match is_available with
+        | True =>
+          new_reserved = builtin sub current_reserved one;
+          reserved_supply := new_reserved
+        | False =>
+          err = CodeMaxReserveSupplyExceeded;
+          ThrowError err
+        end
+    | False =>
+    end
   end
 end
 
@@ -267,7 +297,9 @@ end
 
 procedure IsNotExceedingMaxSupply()
   current_supply <- total_supply;
-  is_not_exceeding = uint256_le current_supply max_supply;
+  current_reserved <- reserved_supply;
+  current_total = builtin add current_supply current_reserved;
+  is_not_exceeding = uint256_le current_total max_supply;
   match is_not_exceeding with
     | True =>
     | False =>
@@ -461,6 +493,9 @@ end
 transition Mint(to: ByStr20, token_uri: String)
   (* Ensure called by minting contract *)
   IsMinter _sender;
+
+  (* Check if caller is giveaway minting contract *)
+  IsGiveawayMinter _sender;
 
   (* Get token_id *)
   current_supply <- total_supply;
@@ -665,7 +700,14 @@ transition RevokeOwnership()
   event e
 end
 
-(** Minting process tarnsitions **)
+(** Minting process transitions **)
+
+(* @dev: Sets the address of giveaway minter contract to mint reserved tokens      *)
+transition SetGiveawayMinter(address: ByStr20)
+  IsContractOwner;
+  gm = Some {ByStr20} address;
+  giveaway_minter := gm
+end
 
 (* @dev: Unlocks tokens boolean flag or throws an error if already unlocked        *)
 transition UnlockTokens()
