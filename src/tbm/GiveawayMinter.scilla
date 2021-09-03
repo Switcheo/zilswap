@@ -172,6 +172,7 @@ end
 (* @dev:    Mint new tokens to the sender.      *)
 (* @param:  quantity - Number of tokens to mint *)
 transition MintForCommunity(to: ByStr20, quantity: Uint32)
+  IsOwner _sender;
   IsWithinMintLimit quantity;
   IsNotExceedingMaxCommunitySupply quantity;
 
