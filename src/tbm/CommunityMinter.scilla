@@ -58,6 +58,7 @@ type Error =
   | CodeSaleNotInactive
   | CodeExceedMaxMintQuantity
   | CodeIncorrectAmount
+  | CodeMaxCommunitySupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -70,6 +71,7 @@ let make_error =
       | CodeSaleNotInactive             => Int32 -5
       | CodeExceedMaxMintQuantity       => Int32 -6
       | CodeIncorrectAmount             => Int32 -7
+      | CodeMaxCommunitySupplyExceeded  => Int32 -8
       end
     in
     { _exception : "Error"; code : result_code }
@@ -82,13 +84,17 @@ contract CommunityMinter
 (
   contract_owner: ByStr20,
   nft_address: ByStr20,
-  nft_price: Uint128
+  nft_price: Uint128,
+  max_community_supply: Uint32
 )
 
 (* Mutable fields *)
 
 field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
 field pending_owner : Option ByStr20 = none
+
+(* Total supply of tokens minted by CommunityMinter *)
+field total_community_supply: Uint32 = Uint32 0
 
 (* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
 field sale_active: Bool = False
@@ -176,6 +182,19 @@ procedure IsWithinMintLimit(quantity: Uint32)
   end
 end
 
+procedure IsNotExceedingMaxCommunitySupply(quantity: Uint32)
+  current_supply <- total_community_supply;
+  new_supply = builtin add current_supply quantity;
+  is_not_exceeding = uint32_le new_supply max_community_supply;
+  match is_not_exceeding with
+    | True =>
+      total_community_supply := new_supply
+    | False =>
+      err = CodeMaxCommunitySupplyExceeded;
+      ThrowError err
+  end
+end
+
 procedure CheckAndReceiveProceeds(quantity: Uint32)
   accept;
   qty = grow quantity;
@@ -198,6 +217,7 @@ end
 transition MintForCommunity(quantity: Uint32)
   IsSaleActive;
   IsWithinMintLimit quantity;
+  IsNotExceedingMaxCommunitySupply quantity;
   CheckAndReceiveProceeds quantity;
 
   msgs = build_mint_msgs nft_address _sender quantity;

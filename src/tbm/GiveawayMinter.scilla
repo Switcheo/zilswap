@@ -55,6 +55,7 @@ type Error =
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
   | CodeExceedMaxMintQuantity
+  | CodeMaxGiveawaySupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -64,6 +65,7 @@ let make_error =
       | CodeNotPendingOwner             => Int32 -2
       | CodePendingOwnerNotEmpty        => Int32 -3
       | CodeExceedMaxMintQuantity       => Int32 -4
+      | CodeMaxGiveawaySupplyExceeded   => Int32 -5
       end
     in
     { _exception : "Error"; code : result_code }
@@ -75,7 +77,8 @@ let make_error =
 contract GiveawayMinter
 (
   contract_owner: ByStr20,
-  nft_address: ByStr20
+  nft_address: ByStr20,
+  max_giveaway_supply: Uint32
 )
 
 (* Mutable fields *)
@@ -83,6 +86,8 @@ contract GiveawayMinter
 field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
 field pending_owner : Option ByStr20 = none
 
+(* Total supply of tokens minted by GiveawayMinter *)
+field total_giveaway_supply: Uint32 = Uint32 0
 
 (**************************************)
 (*             Procedures             *)
@@ -147,6 +152,19 @@ procedure IsWithinMintLimit(quantity: Uint32)
   end
 end
 
+procedure IsNotExceedingMaxCommunitySupply(quantity: Uint32)
+  current_supply <- total_giveaway_supply;
+  new_supply = builtin add current_supply quantity;
+  is_not_exceeding = uint32_le new_supply max_giveaway_supply;
+  match is_not_exceeding with
+    | True =>
+      total_giveaway_supply := new_supply
+    | False =>
+      err = CodeMaxGiveawaySupplyExceeded;
+      ThrowError err
+  end
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -155,6 +173,7 @@ end
 (* @param:  quantity - Number of tokens to mint *)
 transition MintForCommunity(to: ByStr20, quantity: Uint32)
   IsWithinMintLimit quantity;
+  IsNotExceedingMaxCommunitySupply quantity;
 
   msgs = build_mint_msgs nft_address to quantity;
   send msgs
