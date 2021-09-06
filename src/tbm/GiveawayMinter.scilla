@@ -152,7 +152,7 @@ procedure IsWithinMintLimit(quantity: Uint32)
   end
 end
 
-procedure IsNotExceedingMaxCommunitySupply(quantity: Uint32)
+procedure SetAndValidateTotalSupply(quantity: Uint32)
   current_supply <- total_giveaway_supply;
   new_supply = builtin add current_supply quantity;
   is_not_exceeding = uint32_le new_supply max_giveaway_supply;
@@ -174,7 +174,7 @@ end
 transition MintForCommunity(to: ByStr20, quantity: Uint32)
   IsOwner _sender;
   IsWithinMintLimit quantity;
-  IsNotExceedingMaxCommunitySupply quantity;
+  SetAndValidateTotalSupply quantity;
 
   msgs = build_mint_msgs nft_address to quantity;
   send msgs
