@@ -171,19 +171,29 @@ end
 
 (* @dev:    Mint new tokens to the sender.      *)
 (* @param:  quantity - Number of tokens to mint *)
-transition MintForCommunity(to: ByStr20, quantity: Uint32)
+transition MintForCommunity(quantity: Uint32)
   IsOwner _sender;
   IsWithinMintLimit quantity;
   SetAndValidateTotalSupply quantity;
 
-  msgs = build_mint_msgs nft_address to quantity;
+  msgs = build_mint_msgs nft_address _sender quantity;
+  send msgs
+end
+
+(* @dev:   Allows for distribution of giveaway tokens to destination address                  *)
+(* @param: to       - Recipient address for the giveaway token                                *)
+(* @param: token_id - Unique ID of NFT token to be distributed                                *)
+transition DistributeToken(to: ByStr20, token_id: Uint256)
+  IsOwner _sender;
+  msg = { _tag: "Transfer"; _recipient: nft_address; _amount: zero; to: to; token_id: token_id };
+  msgs = one_msg msg;
   send msgs
 end
 
 (** Ownership lifecycle transitions *)
 
 (* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
-(* @param new_owner: Address of the new current_owner.                                                                                    *)
+(* @param new_owner: Address of the new current_owner.                                                                                     *)
 transition TransferOwnership(new_owner: ByStr20)
   IsOwner _sender;
   o = Some {ByStr20} new_owner;
@@ -223,5 +233,14 @@ transition MintCallBack(recipient: ByStr20, token_id: Uint256, token_uri: String
     recipient : recipient; token_id : token_id; token_uri : token_uri
   };
   msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+transition TransferSuccessCallBack(from: ByStr20, recipient: ByStr20, token_id: Uint256)
+msg_to_sender = {
+  _tag : "TransferSuccessCallBack"; _recipient : recipient; _amount : zero;
+  from : from; recipient : recipient; token_id : token_id 
+};
+ msgs = one_msg msg_to_sender;
   send msgs
 end

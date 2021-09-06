@@ -83,7 +83,7 @@ let make_error =
       | CodeTokenAlreadyUnlocked         => Int32 -14
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
-      | CodeMaxReservedSupplyExceeded     => Int32 -17
+      | CodeMaxReservedSupplyExceeded    => Int32 -17
       end
     in
     { _exception : "Error"; code : result_code }
@@ -263,13 +263,25 @@ procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
   end
 end
 
-procedure IsTokenUnlocked()
+procedure IsTransferable(sender: ByStr20)
   token_locked <- is_token_locked;
   match token_locked with
   | False =>
   | True =>
-    err = CodeTokenLocked;
-    ThrowError err
+    gm <- giveaway_minter;
+    match gm with
+    | Some address =>
+      is_giveaway_minter = builtin eq address sender;
+      match is_giveaway_minter with
+      | True =>
+      | False =>
+        err = CodeTokenLocked;
+        ThrowError err
+      end
+    | None =>
+      err = CodeTokenLocked;
+      ThrowError err
+    end
   end
 end
 
@@ -614,15 +626,15 @@ end
 (* @param: to       - Recipient address for the token                                                *)
 (* @param: token_id - Unique ID of the NFT to be transferred                                         *)
 transition Transfer(to: ByStr20, token_id: Uint256)
-  IsNotSelf to _sender;
-  IsTokenOwner token_id _sender;
-  IsTokenUnlocked;
+  IsNotSelf to _origin;
+  IsTokenOwner token_id _origin;
+  IsTransferable _sender;
   (* Change token_owner for that token_id *)
   token_owners[token_id] := to;
   (* Delete tokenApproval entry for that token_id *)
   delete token_approvals[token_id];
   (* Subtract one from previous token owner count *)
-  UpdateTokenCount sub_operation _sender;
+  UpdateTokenCount sub_operation _origin;
   (* Add one to the new token owner count *)
   UpdateTokenCount add_operation to;
   e = {_eventname: "TransferSuccess"; from: _sender; recipient: to; token: token_id};
@@ -630,7 +642,7 @@ transition Transfer(to: ByStr20, token_id: Uint256)
   msg_to_recipient = { _tag : "RecipientAcceptTransfer"; _recipient : to; _amount : Uint128 0;
                       from : _sender; recipient : to; token_id : token_id };
   msg_to_sender = { _tag : "TransferSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
-                    from : _sender; recipient : to; token_id : token_id };
+                    from : _sender; recipient : _origin; token_id : token_id };
   msgs = two_msgs msg_to_recipient msg_to_sender;
   send msgs
 end
@@ -639,7 +651,7 @@ end
 (* @param: to       - Recipient address for the NFT                                                                   *)
 (* @param: token_id - Unique ID of the NFT to be transferred                                                          *)
 transition TransferFrom(to: ByStr20, token_id: Uint256)
-  IsTokenUnlocked;
+  IsTransferable _sender;
   some_token_owner <- token_owners[token_id];
   match some_token_owner with
   | None =>
