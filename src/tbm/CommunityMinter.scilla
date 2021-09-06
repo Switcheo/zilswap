@@ -59,6 +59,7 @@ type Error =
   | CodeExceedMaxMintQuantity
   | CodeIncorrectAmount
   | CodeMaxCommunitySupplyExceeded
+  | CodeInsufficientWithdrawBalance
 
 let make_error =
   fun (result : Error) =>
@@ -72,6 +73,7 @@ let make_error =
       | CodeExceedMaxMintQuantity       => Int32 -6
       | CodeIncorrectAmount             => Int32 -7
       | CodeMaxCommunitySupplyExceeded  => Int32 -8
+      | CodeInsufficientWithdrawBalance => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -274,6 +276,25 @@ transition RevokeOwnership()
   current_owner := none;
   e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
   event e
+end
+
+(* @dev: Withdraws ZIL from the contract to the owner.              *)
+(* Can be used to collect funds or to rescue                        *)
+(* funds that is wrongly sent to contract.                          *)
+(* @param amount: The amount of ZIL (in Qa units) to withdraw.      *)
+transition Withdraw(amount : Uint128)
+  IsOwner _sender;
+  bal <- _balance;
+  is_sufficient_balance = uint128_le amount bal;
+  match is_sufficient_balance with
+  | True =>
+    msg_to_sender  = {_tag : "WithdrawSuccess"; _recipient : _sender; _amount : amount};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  | False =>
+    err = CodeInsufficientWithdrawBalance;
+    ThrowError err
+  end
 end
 
 (*************************************)
