@@ -3,12 +3,14 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import IntUtils ListUtils
+import IntUtils ListUtils BoolUtils
 library GiveawayMinter
 
 (* Global variables *)
 let max_mint_quantity = Uint32 10
 let zero = Uint128 0
+let one = Uint256 1
+let two_hundred = Uint256 200
 let none = None {ByStr20}
 let false = False
 let true = True
@@ -56,6 +58,7 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodeExceedMaxMintQuantity
   | CodeMaxGiveawaySupplyExceeded
+  | CodeNotGiveawayToken
 
 let make_error =
   fun (result : Error) =>
@@ -66,6 +69,7 @@ let make_error =
       | CodePendingOwnerNotEmpty        => Int32 -3
       | CodeExceedMaxMintQuantity       => Int32 -4
       | CodeMaxGiveawaySupplyExceeded   => Int32 -5
+      | CodeNotGiveawayToken            => Int32 -6
       end
     in
     { _exception : "Error"; code : result_code }
@@ -152,6 +156,18 @@ procedure IsWithinMintLimit(quantity: Uint32)
   end
 end
 
+procedure IsGiveawayToken(token_id: Uint256)
+  is_below_upper_limit = uint256_le token_id two_hundred;
+  is_above_lower_limit = uint256_ge token_id one;
+  is_within_range = andb is_below_upper_limit is_above_lower_limit;
+  match is_within_range with
+  | True =>
+  | False =>
+    err = CodeNotGiveawayToken;
+    ThrowError err
+  end
+end
+
 procedure SetAndValidateTotalSupply(quantity: Uint32)
   current_supply <- total_giveaway_supply;
   new_supply = builtin add current_supply quantity;
@@ -169,7 +185,7 @@ end
 (*             Transitions             *)
 (***************************************)
 
-(* @dev:    Mint new tokens to the sender.      *)
+(* @dev:    Mint new tokens to contract owner   *)
 (* @param:  quantity - Number of tokens to mint *)
 transition MintForCommunity(quantity: Uint32)
   IsOwner _sender;
@@ -185,6 +201,7 @@ end
 (* @param: token_id - Unique ID of NFT token to be distributed                                *)
 transition DistributeToken(to: ByStr20, token_id: Uint256)
   IsOwner _sender;
+  IsGiveawayToken token_id;
   msg = { _tag: "Transfer"; _recipient: nft_address; _amount: zero; to: to; token_id: token_id };
   msgs = one_msg msg;
   send msgs
@@ -233,14 +250,5 @@ transition MintCallBack(recipient: ByStr20, token_id: Uint256, token_uri: String
     recipient : recipient; token_id : token_id; token_uri : token_uri
   };
   msgs = one_msg msg_to_sender;
-  send msgs
-end
-
-transition TransferSuccessCallBack(from: ByStr20, recipient: ByStr20, token_id: Uint256)
-msg_to_sender = {
-  _tag : "TransferSuccessCallBack"; _recipient : recipient; _amount : zero;
-  from : from; recipient : recipient; token_id : token_id 
-};
- msgs = one_msg msg_to_sender;
   send msgs
 end
