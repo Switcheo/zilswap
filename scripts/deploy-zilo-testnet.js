@@ -5,7 +5,7 @@ const { deployZILO, deploySeedLP } = require('./deploy')
 const deploy = async () => {
   const owner = getDefaultAccount()
   const bNum = await getBlockNum()
-  const tokenAddress = '0x34f6e882a08a152dc36a380ac71fb1fa895b884e'
+  const tokenAddress = '0x2fc7167c3baff89e2805aef72636ccd98ee6bbb2'
   const zwapAddress = '0xb2b119e2496f24590eff419f15aa1b6e82aa7074'
 
   // deploy seed lp
@@ -20,21 +20,21 @@ const deploy = async () => {
   console.log(JSON.stringify(stateLP, null, 2))
 
   // deploy zilo
-  const zilDecimals = '000000000000'
-  const tknDecimals = '00'
+  const zilDecimals = '0000000000' // shifted -2 for easier completion **NOTE**
+  const tknDecimals = '000000000000000000'
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:                 '22500' + tknDecimals, // BLOX 22.5k
-    targetZilAmount:             '45000' + zilDecimals, // ZIL 45k (~$38.5k @ $0.08385)
-    targetZwapAmount:               '16' + zilDecimals, // ZWAP 16 (~$16.5k @ $105.9)
-    minimumZilAmount:            '11500' + zilDecimals, // ZIL 11.5k (~25%)
-    liquidityZilAmount:          '15000' + zilDecimals, // ZIL 15k (1/3 of target)
-    liquidityTokenAmount:         '7500' + tknDecimals, // BLOX 7.5k
+    tokenAmount:               '1666666' + tknDecimals, // DMZ 1,666,666
+    targetZilAmount:           '7095790' + zilDecimals, // ZIL 7.095m (~$840k @ $0.11834)
+    targetZwapAmount:             '3777' + zilDecimals, // ZWAP 3.77k (~$360k @$95.3)
+    minimumZilAmount:          '1773947' + zilDecimals, // ZIL 1.773m (25% of target)
+    liquidityZilAmount:       '6082106' + zilDecimals,  // ZIL 6.082m ($0.72*Liquidity/ZIL Price)
+    liquidityTokenAmount:       '999999' + tknDecimals, // DMZ 999,999
     receiverAddress:                     owner.address,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:                 (bNum + 15).toString(),
-    endBlock:               (bNum + (4*60)).toString(), // 4 hrs, hopefully
+    startBlock:                (bNum + 30).toString(), // .5 hrs, 100 blocks an hr
+    endBlock:                 (bNum + 600).toString(), // 6 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
@@ -74,7 +74,7 @@ const deploy = async () => {
       {
         vname: 'amount',
         type: 'Uint128',
-        value: '30000' + tknDecimals, // 300k (225 + 75)
+        value: '2666665' + tknDecimals, // 300k (1,666,666 + 999,999)
       },
     ],
     0, false, false
