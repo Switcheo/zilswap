@@ -61,6 +61,7 @@ type Error =
   | CodeTokenAlreadyUnlocked
   | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
+  | CodeMaxReservedSupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -82,6 +83,7 @@ let make_error =
       | CodeTokenAlreadyUnlocked         => Int32 -14
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
+      | CodeMaxReservedSupplyExceeded     => Int32 -17
       end
     in
     { _exception : "Error"; code : result_code }
@@ -110,6 +112,9 @@ field pending_owner : Option ByStr20 = none
 (* Mapping of minters available *)
 field minters: Map ByStr20 Dummy = Emp ByStr20 Dummy
 
+(* Giveaway minter address to be set *)
+field giveaway_minter: Option ByStr20 = none
+
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
@@ -135,6 +140,9 @@ field total_supply: Uint256 = Uint256 0
 
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
+
+(* Tokens reserved to be minted by GiveawayMinter *)
+field reserved_supply: Uint256 = Uint256 200
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
@@ -351,6 +359,29 @@ procedure UpdateTokenURI(token_id: Uint256)
   end
 end
 
+procedure CheckAndSetReservedSupply(sender: ByStr20)
+  gm <- giveaway_minter;
+  match gm with
+  | Some address =>
+    is_giveaway_minter = builtin eq address _sender;
+    match is_giveaway_minter with
+    | True =>
+      current_reserved_supply <- reserved_supply;
+      sufficient_reserved_supply = uint256_gt current_reserved_supply zero;
+      match sufficient_reserved_supply with
+      | True =>
+        new_reserved_supply = builtin sub current_reserved_supply one;
+        reserved_supply := new_reserved_supply
+      | False =>
+        err = CodeMaxReservedSupplyExceeded;
+        ThrowError err
+      end
+    | False =>
+    end
+  | None =>
+  end
+end
+  
 (** ZRC-1 Getters **)
 
 (* @dev: Get number of NFTs assigned to a token_owner *)
@@ -467,6 +498,9 @@ transition Mint(to: ByStr20, token_uri: String)
   token_id = builtin add current_supply one;
   IsTokenNotExist token_id;
   token_owners[token_id] := to;
+
+  (* Decreases reserved supply if giveaway minter mints *)
+  CheckAndSetReservedSupply _sender;
 
   (* Set counts and uri *)
   UpdateTokenCount add_operation to;
@@ -704,3 +738,10 @@ transition UpdateTokenURIs(token_ids: List (Uint256))
   event e
 end
 
+(* @dev: Sets the giveaway minter field to current giveaway minter's address                         *)
+(* @param: address - Address of giveaway minter                                                      *)
+transition SetGiveawayMinter(address: ByStr20)
+  IsContractOwner;
+  gm = Some {ByStr20} address;
+  giveaway_minter := gm
+end
