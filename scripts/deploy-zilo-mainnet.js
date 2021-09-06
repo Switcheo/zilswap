@@ -34,8 +34,8 @@ const deploy = async () => {
     liquidityTokenAmount:       '833333' + tknDecimals, // DMZ  833,333
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:                 (bNum + 83).toString(), // 1 hrs, 100 blocks an hr
-    endBlock:                 (bNum + 2483).toString(), // 24 hrs, hopefully
+    startBlock:                (bNum + 200).toString(), // 2 hrs, 100 blocks an hr
+    endBlock:                 (bNum + 2600).toString(), // 24 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
