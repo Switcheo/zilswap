@@ -43,6 +43,28 @@ let get_bal =
     | None => zero
     end
 
+  let generate_new_id = 
+    fun (token_id: Uint256) =>
+    fun (offset: Uint256) =>
+    fun (max_supply: Uint256) =>
+    fun (reserved_supply: Uint256) =>
+      let is_offset_required = uint256_gt token_id reserved_supply in
+      match is_offset_required with
+      | True =>
+        let index = builtin add token_id offset in
+        let exceed_max_index = uint256_gt index max_supply in
+        match exceed_max_index with
+        | True =>
+          let mod_index = builtin rem index max_supply in
+          let wraparound_index = builtin add mod_index reserved_supply in
+          wraparound_index
+        | False =>
+          index
+        end
+      | False =>
+        token_id
+      end
+
 (* Error exception *)
 type Error =
   | CodeNotContractOwner
@@ -62,6 +84,7 @@ type Error =
   | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
   | CodeMaxReservedSupplyExceeded
+  | CodeOffsetAlreadySet
 
 let make_error =
   fun (result : Error) =>
@@ -84,6 +107,7 @@ let make_error =
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
       | CodeMaxReservedSupplyExceeded    => Int32 -17
+      | CodeOffsetAlreadySet             => Int32 -18
       end
     in
     { _exception : "Error"; code : result_code }
@@ -98,6 +122,7 @@ contract NonFungibleToken
   name : String,
   symbol: String,
   max_supply: Uint256,
+  reserved_supply: Uint256,
   provenance_hash: ByStr32
 )
 
@@ -138,11 +163,17 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 (* Total supply of tokens *)
 field total_supply: Uint256 = Uint256 0
 
+(* Tokens reserved to be minted by GiveawayMinter *)
+field total_reserved: Uint256 = Uint256 0
+
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
 
-(* Tokens reserved to be minted by GiveawayMinter *)
-field reserved_supply: Uint256 = Uint256 200
+(* Offset index after sale ends *)
+field offset_index: Uint256 = Uint256 0
+
+(* One-time flag to ensure offset applied only once *)
+field is_offset_applied: Bool = False
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
@@ -365,7 +396,9 @@ procedure UpdateTokenURI(token_id: Uint256)
     ThrowError err
   | True =>
     base <- base_uri;
-    token_id_string = builtin to_string token_id;
+    offset <- offset_index;
+    id_with_offset = generate_new_id token_id offset max_supply reserved_supply;
+    token_id_string = builtin to_string id_with_offset;
     token_uri = builtin concat base token_id_string;
     token_uris[token_id] := token_uri
   end
@@ -378,12 +411,12 @@ procedure CheckAndSetReservedSupply(sender: ByStr20)
     is_giveaway_minter = builtin eq address _sender;
     match is_giveaway_minter with
     | True =>
-      current_reserved_supply <- reserved_supply;
-      sufficient_reserved_supply = uint256_gt current_reserved_supply zero;
+      current_total_reserved <- total_reserved;
+      sufficient_reserved_supply = uint256_lt current_total_reserved reserved_supply;
       match sufficient_reserved_supply with
       | True =>
-        new_reserved_supply = builtin sub current_reserved_supply one;
-        reserved_supply := new_reserved_supply
+        new_total_reserved = builtin add current_total_reserved one;
+        total_reserved := new_total_reserved
       | False =>
         err = CodeMaxReservedSupplyExceeded;
         ThrowError err
@@ -756,4 +789,19 @@ transition SetGiveawayMinter(address: ByStr20)
   IsContractOwner;
   gm = Some {ByStr20} address;
   giveaway_minter := gm
+end
+
+(* @dev: Offsets token id of tokens minted by community minter by a fixed offset                     *)
+(* @param: offset - Amount to offset by                                                              *)
+transition SetOffsetIndex(offset: Uint256)
+  IsContractOwner;
+  offset_applied <- is_offset_applied;
+  match offset_applied with
+  | False =>
+    is_offset_applied := true;
+    offset_index := offset 
+  | True =>
+    err = CodeOffsetAlreadySet;
+    ThrowError err
+  end
 end
