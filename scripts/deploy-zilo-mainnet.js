@@ -26,12 +26,12 @@ const deploy = async () => {
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:               '1666666' + tknDecimals, // DMZ 1,666,666
-    targetZilAmount:           '7095790' + zilDecimals, // ZIL 7.095m (~$840k @ $0.11834)
-    targetZwapAmount:             '3777' + zilDecimals, // ZWAP 3.77k (~$360k @$95.3)
-    minimumZilAmount:          '1773947' + zilDecimals, // ZIL 1.773m (25% of target)
-    liquidityZilAmount:        '6082106' + zilDecimals, // ZIL 6.082m ($0.72*Liquidity/ZIL Price)
-    liquidityTokenAmount:       '833333' + tknDecimals, // DMZ 833,333
+    tokenAmount:               '1666666' + tknDecimals, // DMZ  1,666,666
+    targetZilAmount:           '6384919' + zilDecimals, // ZIL  6.38m  (~$840k  @ $0.13156)
+    targetZwapAmount:             '3168' + zilDecimals, // ZWAP 3.168k (~$360k @ $113.62)
+    minimumZilAmount:          '1596229' + zilDecimals, // ZIL  1.59m  (25% of target)
+    liquidityZilAmount:        '4560656' + zilDecimals, // ZIL  4.56m  ((targetZilAmount / 7 * 10) / tokenAmount * liquidityTokenAmount)
+    liquidityTokenAmount:       '833333' + tknDecimals, // DMZ  833,333
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
     startBlock:                 (bNum + 83).toString(), // 1 hrs, 100 blocks an hr
