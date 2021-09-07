@@ -67,30 +67,8 @@ let get_id =
       let token_id = builtin add current_reserved one in
       token_id
     | False =>
-      let current_id = builtin add reserved_supply current_public in
+      let current_id = builtin add reserved_supply public_supply in
       let token_id = builtin add current_id one in
-      token_id
-    end
-
-let generate_new_id = 
-  fun (token_id: Uint256) =>
-  fun (offset: Uint256) =>
-  fun (max_supply: Uint256) =>
-  fun (reserved_supply: Uint256) =>
-    let is_offset_required = uint256_gt token_id reserved_supply in
-    match is_offset_required with
-    | True =>
-      let index = builtin add token_id offset in
-      let exceed_max_index = uint256_gt index max_supply in
-      match exceed_max_index with
-      | True =>
-        let mod_index = builtin rem index max_supply in
-        let wraparound_index = builtin add mod_index reserved_supply in
-        wraparound_index
-      | False =>
-        index
-      end
-    | False =>
       token_id
     end
 
@@ -114,7 +92,6 @@ type Error =
   | CodeMaxSupplyExceeded
   | CodeMaxReservedSupplyExceeded
   | CodeMaxPublicSupplyExceeded
-  | CodeOffsetAlreadySet
 
 let make_error =
   fun (result : Error) =>
@@ -138,7 +115,6 @@ let make_error =
       | CodeMaxSupplyExceeded            => Int32 -16
       | CodeMaxReservedSupplyExceeded    => Int32 -17
       | CodeMaxPublicSupplyExceeded      => Int32 -18
-      | CodeOffsetAlreadySet             => Int32 -19
       end
     in
     { _exception : "Error"; code : result_code }
@@ -203,9 +179,6 @@ field total_public: Uint256 = Uint256 0
 
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
-
-(* Offset index after sale ends *)
-field offset_index: Option Uint256 = None {Uint256}
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
@@ -421,10 +394,7 @@ procedure UpdateTokenURI(token_id: Uint256)
     ThrowError err
   | True =>
     base <- base_uri;
-    option_offset <- offset_index;
-    offset = get_uint256 option_offset;
-    id_with_offset = generate_new_id token_id offset max_supply reserved_supply;
-    token_id_string = builtin to_string id_with_offset;
+    token_id_string = builtin to_string token_id;
     token_uri = builtin concat base token_id_string;
     token_uris[token_id] := token_uri
   end
@@ -570,10 +540,12 @@ transition Mint(to: ByStr20, token_uri: String)
 
   (* Get token_id *)
   gm <- giveaway_minter;
-  is_giveaway = is_giveaway_minter _sender gm;
   current_reserved <- total_reserved;
   current_public <- total_public;
+  is_giveaway = is_giveaway_minter _sender gm;
   token_id = get_id is_giveaway current_reserved current_public reserved_supply public_supply;
+
+  (* Check and increment relevant supply count *)
   CheckAndSetSupply is_giveaway;
   IsTokenNotExist token_id;
   token_owners[token_id] := to;
@@ -820,19 +792,4 @@ transition SetGiveawayMinter(address: ByStr20)
   IsContractOwner;
   gm = Some {ByStr20} address;
   giveaway_minter := gm
-end
-
-(* @dev: Offsets token id of tokens minted by community minter by a fixed offset                     *)
-(* @param: offset - Amount to offset by                                                              *)
-transition SetOffsetIndex(offset: Uint256)
-  IsContractOwner;
-  index <- offset_index;
-  match index with
-  | None =>
-    o = Some {Uint256} offset;
-    offset_index := o
-  | Some val =>
-    err = CodeOffsetAlreadySet;
-    ThrowError err
-  end
 end
