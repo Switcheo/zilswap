@@ -130,7 +130,6 @@ contract NonFungibleToken
   symbol: String,
   max_supply: Uint256,
   reserved_supply: Uint256,
-  public_supply: Uint256,
   provenance_hash: ByStr32
 )
 
@@ -415,6 +414,7 @@ procedure CheckAndSetSupply(is_reserved_token: Bool)
       end
   | False =>
     current_total_public <- total_public;
+    public_supply = builtin sub max_supply reserved_supply;
     sufficient_public_supply = uint256_lt current_total_public public_supply;
     match sufficient_public_supply with
       | True =>
@@ -543,6 +543,7 @@ transition Mint(to: ByStr20, token_uri: String)
   current_reserved <- total_reserved;
   current_public <- total_public;
   is_giveaway = is_giveaway_minter _sender gm;
+  public_supply = builtin sub max_supply reserved_supply;
   token_id = get_id is_giveaway current_reserved current_public reserved_supply public_supply;
 
   (* Check and increment relevant supply count *)
