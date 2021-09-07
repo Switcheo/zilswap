@@ -61,13 +61,12 @@ let get_id =
   fun (current_reserved: Uint256) =>
   fun (current_public: Uint256) =>
   fun (reserved_supply: Uint256) =>
-  fun (public_supply: Uint256) =>
     match is_giveaway with
     | True =>
       let token_id = builtin add current_reserved one in
       token_id
     | False =>
-      let current_id = builtin add reserved_supply public_supply in
+      let current_id = builtin add reserved_supply current_public in
       let token_id = builtin add current_id one in
       token_id
     end
@@ -175,6 +174,8 @@ field total_reserved: Uint256 = Uint256 0
 
 (* Tokens minted by CommunityMinter *)
 field total_public: Uint256 = Uint256 0
+
+field public_supply: Uint256 = builtin sub max_supply reserved_supply
 
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
@@ -414,8 +415,8 @@ procedure CheckAndSetSupply(is_reserved_token: Bool)
       end
   | False =>
     current_total_public <- total_public;
-    public_supply = builtin sub max_supply reserved_supply;
-    sufficient_public_supply = uint256_lt current_total_public public_supply;
+    max_public_supply <- public_supply;
+    sufficient_public_supply = uint256_lt current_total_public max_public_supply;
     match sufficient_public_supply with
       | True =>
         new_total_public = builtin add current_total_public one;
@@ -543,8 +544,7 @@ transition Mint(to: ByStr20, token_uri: String)
   current_reserved <- total_reserved;
   current_public <- total_public;
   is_giveaway = is_giveaway_minter _sender gm;
-  public_supply = builtin sub max_supply reserved_supply;
-  token_id = get_id is_giveaway current_reserved current_public reserved_supply public_supply;
+  token_id = get_id is_giveaway current_reserved current_public reserved_supply;
 
   (* Check and increment relevant supply count *)
   CheckAndSetSupply is_giveaway;
