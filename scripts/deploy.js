@@ -95,7 +95,7 @@ async function useFungibleToken(privateKey, params, approveContractAddress, useE
 }
 
 async function deployNonFungibleToken(
-  privateKey, { name = 'NFT', symbol: _symbol = null, maxNftSupply = 100 }
+  privateKey, { name = 'NFT', symbol: _symbol = null, maxNftSupply = 100, reservedNftSupply = 0, provHash = `0x${String(0).padStart(64, '0')}` }
 ) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -131,14 +131,19 @@ async function deployNonFungibleToken(
       value: `${symbol}`,
     },
     {
-      vname: 'provenance_hash',
-      type: 'ByStr32',
-      value: `0x${String(0).padStart(32, '0')}`,
-    },
-    {
       vname: 'max_supply',
       type: 'Uint256',
       value: `${maxNftSupply}`,
+    },
+    {
+      vname: 'reserved_supply',
+      type: 'Uint256',
+      value: `${reservedNftSupply}`,
+    },
+    {
+      vname: 'provenance_hash',
+      type: 'ByStr32',
+      value: `${provHash}`,
     }
   ]
 
@@ -407,6 +412,7 @@ const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 
 exports.deployFungibleToken = deployFungibleToken
 exports.deployNonFungibleToken = deployNonFungibleToken
 exports.useFungibleToken = useFungibleToken
+exports.deployContract = deployContract
 exports.deployZilswap = deployZilswap
 exports.useNonFungibleToken = useNonFungibleToken
 exports.useZilswap = useZilswap
