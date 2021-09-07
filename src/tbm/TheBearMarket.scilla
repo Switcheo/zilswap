@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 import BoolUtils IntUtils
-library NonFungibleToken
+library TheBearMarket
 
 (* User-defined ADTs *)
 type Dummy =
@@ -56,7 +56,7 @@ let is_giveaway_minter =
     | None => False
     end
 
-let get_id = 
+let get_id =
   fun (is_giveaway: Bool) =>
   fun (current_reserved: Uint256) =>
   fun (current_public: Uint256) =>
@@ -122,7 +122,7 @@ let make_error =
 (*             The contract definition             *)
 (***************************************************)
 
-contract NonFungibleToken
+contract TheBearMarket
 (
   contract_owner: ByStr20,
   name : String,
@@ -428,7 +428,7 @@ procedure CheckAndSetSupply(is_reserved_token: Bool)
       end
   end
 end
-  
+
 (** ZRC-1 Getters **)
 
 (* @dev: Get number of NFTs assigned to a token_owner *)
