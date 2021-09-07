@@ -175,10 +175,11 @@ field total_reserved: Uint256 = Uint256 0
 (* Tokens minted by CommunityMinter *)
 field total_public: Uint256 = Uint256 0
 
+(* Maximum supply of tokens minted by CommunityMinter *)
 field public_supply: Uint256 = builtin sub max_supply reserved_supply
 
 (* Base URI that will be updated once upon reveal *)
-field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
+field base_uri: String = "https://api.thebear.market/metadata/"
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)

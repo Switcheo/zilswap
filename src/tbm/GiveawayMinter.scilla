@@ -153,8 +153,9 @@ end
 (*             Transitions             *)
 (***************************************)
 
-(* @dev:    Mint new tokens to contract owner   *)
-(* @param:  quantity - Number of tokens to mint *)
+(* @dev:    Mint new tokens to contract owner                             *)
+(* @param:  to       - Recipient address of token                         *)
+(* @param:  quantity - Number of tokens to mint                           *)
 transition MintForCommunity(to: ByStr20, quantity: Uint32)
   IsOwner _sender;
   IsWithinMintLimit quantity;
