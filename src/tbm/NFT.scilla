@@ -36,11 +36,39 @@ let two_msgs =
     let msgs_tmp = one_msg msg2 in
     Cons {Message} msg1 msgs_tmp
 
-let get_bal =
-  fun (some_bal: Option Uint256) =>
-    match some_bal with
-    | Some bal => bal
+let get_uint256 =
+  fun (option_uint256: Option Uint256) =>
+    match option_uint256 with
+    | Some val => val
     | None => zero
+    end
+
+let is_giveaway_minter =
+  fun (address: ByStr20) =>
+  fun (giveaway_address: Option ByStr20) =>
+    match giveaway_address with
+    | Some val =>
+      let is_giveaway = builtin eq address val in
+      match is_giveaway with
+      | True => True
+      | False => False
+      end
+    | None => False
+    end
+
+let get_id = 
+  fun (is_giveaway: Bool) =>
+  fun (current_reserved: Uint256) =>
+  fun (current_public: Uint256) =>
+  fun (reserved_supply: Uint256) =>
+    match is_giveaway with
+    | True =>
+      let token_id = builtin add current_reserved one in
+      token_id
+    | False =>
+      let current_id = builtin add reserved_supply current_public in
+      let token_id = builtin add current_id one in
+      token_id
     end
 
 (* Error exception *)
@@ -61,6 +89,8 @@ type Error =
   | CodeTokenAlreadyUnlocked
   | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
+  | CodeMaxReservedSupplyExceeded
+  | CodeMaxPublicSupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -82,6 +112,8 @@ let make_error =
       | CodeTokenAlreadyUnlocked         => Int32 -14
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
+      | CodeMaxReservedSupplyExceeded    => Int32 -17
+      | CodeMaxPublicSupplyExceeded      => Int32 -18
       end
     in
     { _exception : "Error"; code : result_code }
@@ -96,6 +128,7 @@ contract NonFungibleToken
   name : String,
   symbol: String,
   max_supply: Uint256,
+  reserved_supply: Uint256,
   provenance_hash: ByStr32
 )
 
@@ -109,6 +142,9 @@ field pending_owner : Option ByStr20 = none
 
 (* Mapping of minters available *)
 field minters: Map ByStr20 Dummy = Emp ByStr20 Dummy
+
+(* Giveaway minter address to be set *)
+field giveaway_minter: Option ByStr20 = none
 
 (* Mapping between token_id to token_owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
@@ -133,8 +169,17 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 (* Total supply of tokens *)
 field total_supply: Uint256 = Uint256 0
 
+(* Tokens reserved to be minted by GiveawayMinter *)
+field total_reserved: Uint256 = Uint256 0
+
+(* Tokens minted by CommunityMinter *)
+field total_public: Uint256 = Uint256 0
+
+(* Maximum supply of tokens minted by CommunityMinter *)
+field public_supply: Uint256 = builtin sub max_supply reserved_supply
+
 (* Base URI that will be updated once upon reveal *)
-field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
+field base_uri: String = "https://api.thebear.market/metadata/"
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
@@ -255,13 +300,18 @@ procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
   end
 end
 
-procedure IsTokenUnlocked()
+procedure IsTransferable(sender: ByStr20)
   token_locked <- is_token_locked;
   match token_locked with
   | False =>
   | True =>
-    err = CodeTokenLocked;
-    ThrowError err
+    is_owner = builtin eq sender contract_owner;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeTokenLocked;
+      ThrowError err
+    end
   end
 end
 
@@ -314,7 +364,7 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   | Add =>
     some_to_count <- owned_token_count[address];
     new_to_count =
-      let current_count = get_bal some_to_count in
+      let current_count = get_uint256 some_to_count in
       builtin add current_count one;
     owned_token_count[address] := new_to_count;
     current_supply <- total_supply;
@@ -324,7 +374,7 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   | Sub =>
     some_from_count <- owned_token_count[address];
     new_from_count =
-      let current_count = get_bal some_from_count in
+      let current_count = get_uint256 some_from_count in
         let is_zero = builtin eq current_count zero in
           match is_zero with
           | True => zero
@@ -351,12 +401,40 @@ procedure UpdateTokenURI(token_id: Uint256)
   end
 end
 
+procedure CheckAndSetSupply(is_reserved_token: Bool)
+  match is_reserved_token with
+  | True =>
+    current_total_reserved <- total_reserved;
+    sufficient_reserved_supply = uint256_lt current_total_reserved reserved_supply;
+    match sufficient_reserved_supply with
+      | True =>
+        new_total_reserved = builtin add current_total_reserved one;
+        total_reserved := new_total_reserved
+      | False =>
+        err = CodeMaxReservedSupplyExceeded;
+        ThrowError err
+      end
+  | False =>
+    current_total_public <- total_public;
+    max_public_supply <- public_supply;
+    sufficient_public_supply = uint256_lt current_total_public max_public_supply;
+    match sufficient_public_supply with
+      | True =>
+        new_total_public = builtin add current_total_public one;
+        total_public := new_total_public
+      | False =>
+        err = CodeMaxPublicSupplyExceeded;
+        ThrowError err
+      end
+  end
+end
+  
 (** ZRC-1 Getters **)
 
 (* @dev: Get number of NFTs assigned to a token_owner *)
 transition BalanceOf(address: ByStr20)
   some_bal <- owned_token_count[address];
-  balance = get_bal some_bal;
+  balance = get_uint256 some_bal;
   msg_to_sender = { _tag : "BalanceOfCallBack"; _recipient : _sender; _amount : Uint128 0;
                    balance : balance};
   msgs = one_msg msg_to_sender;
@@ -463,8 +541,14 @@ transition Mint(to: ByStr20, token_uri: String)
   IsMinter _sender;
 
   (* Get token_id *)
-  current_supply <- total_supply;
-  token_id = builtin add current_supply one;
+  gm <- giveaway_minter;
+  current_reserved <- total_reserved;
+  current_public <- total_public;
+  is_giveaway = is_giveaway_minter _sender gm;
+  token_id = get_id is_giveaway current_reserved current_public reserved_supply;
+
+  (* Check and increment relevant supply count *)
+  CheckAndSetSupply is_giveaway;
   IsTokenNotExist token_id;
   token_owners[token_id] := to;
 
@@ -582,7 +666,7 @@ end
 transition Transfer(to: ByStr20, token_id: Uint256)
   IsNotSelf to _sender;
   IsTokenOwner token_id _sender;
-  IsTokenUnlocked;
+  IsTransferable _sender;
   (* Change token_owner for that token_id *)
   token_owners[token_id] := to;
   (* Delete tokenApproval entry for that token_id *)
@@ -605,7 +689,7 @@ end
 (* @param: to       - Recipient address for the NFT                                                                   *)
 (* @param: token_id - Unique ID of the NFT to be transferred                                                          *)
 transition TransferFrom(to: ByStr20, token_id: Uint256)
-  IsTokenUnlocked;
+  IsTransferable _sender;
   some_token_owner <- token_owners[token_id];
   match some_token_owner with
   | None =>
@@ -704,3 +788,10 @@ transition UpdateTokenURIs(token_ids: List (Uint256))
   event e
 end
 
+(* @dev: Sets the giveaway minter field to current giveaway minter's address                         *)
+(* @param: address - Address of giveaway minter                                                      *)
+transition SetGiveawayMinter(address: ByStr20)
+  IsContractOwner;
+  gm = Some {ByStr20} address;
+  giveaway_minter := gm
+end

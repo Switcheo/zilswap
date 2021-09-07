@@ -3,12 +3,13 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import IntUtils ListUtils
+import IntUtils ListUtils BoolUtils
 library GiveawayMinter
 
 (* Global variables *)
 let max_mint_quantity = Uint32 10
 let zero = Uint128 0
+let one = Uint256 1
 let none = None {ByStr20}
 let false = False
 let true = True
@@ -55,6 +56,7 @@ type Error =
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
   | CodeExceedMaxMintQuantity
+  | CodeNotReservedToken
 
 let make_error =
   fun (result : Error) =>
@@ -64,6 +66,7 @@ let make_error =
       | CodeNotPendingOwner             => Int32 -2
       | CodePendingOwnerNotEmpty        => Int32 -3
       | CodeExceedMaxMintQuantity       => Int32 -4
+      | CodeNotReservedToken            => Int32 -5
       end
     in
     { _exception : "Error"; code : result_code }
@@ -82,7 +85,6 @@ contract GiveawayMinter
 
 field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
 field pending_owner : Option ByStr20 = none
-
 
 (**************************************)
 (*             Procedures             *)
@@ -151,11 +153,12 @@ end
 (*             Transitions             *)
 (***************************************)
 
-(* @dev:    Mint new tokens to the sender.      *)
-(* @param:  quantity - Number of tokens to mint *)
+(* @dev:    Mint new tokens to contract owner                             *)
+(* @param:  to       - Recipient address of token                         *)
+(* @param:  quantity - Number of tokens to mint                           *)
 transition MintForCommunity(to: ByStr20, quantity: Uint32)
+  IsOwner _sender;
   IsWithinMintLimit quantity;
-
   msgs = build_mint_msgs nft_address to quantity;
   send msgs
 end
@@ -163,7 +166,7 @@ end
 (** Ownership lifecycle transitions *)
 
 (* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
-(* @param new_owner: Address of the new current_owner.                                                                                    *)
+(* @param new_owner: Address of the new current_owner.                                                                                     *)
 transition TransferOwnership(new_owner: ByStr20)
   IsOwner _sender;
   o = Some {ByStr20} new_owner;
