@@ -11,11 +11,11 @@ const deploy = async () => {
 
   const owner = getDefaultAccount()
   const [nftContract, state] = await deployNonFungibleToken(owner.key, {
-    name: "The Bear Market", 
-    symbol: "BEAR", 
+    name: "The Bear Market",
+    symbol: "BEAR",
     maxNftSupply: 10,
     reservedNftSupply: 2,
-    // provHash: "",
+    provHash: "0x663a71ad604ebddb736d870b758326cfe910bc0fc989d5166ebc07d794973017",
   })
 
   console.log("deploying giveaway minter")

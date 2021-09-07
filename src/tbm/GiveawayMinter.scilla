@@ -78,8 +78,7 @@ let make_error =
 contract GiveawayMinter
 (
   contract_owner: ByStr20,
-  nft_address: ByStr20,
-  reserved_supply: Uint256
+  nft_address: ByStr20
 )
 
 (* Mutable fields *)
@@ -150,39 +149,16 @@ procedure IsWithinMintLimit(quantity: Uint32)
   end
 end
 
-procedure IsReservedToken(token_id: Uint256)
-  is_below_upper_limit = uint256_le token_id reserved_supply;
-  is_above_lower_limit = uint256_ge token_id one;
-  is_within_range = andb is_below_upper_limit is_above_lower_limit;
-  match is_within_range with
-  | True =>
-  | False =>
-    err = CodeNotReservedToken;
-    ThrowError err
-  end
-end
-
 (***************************************)
 (*             Transitions             *)
 (***************************************)
 
 (* @dev:    Mint new tokens to contract owner   *)
 (* @param:  quantity - Number of tokens to mint *)
-transition MintForCommunity(quantity: Uint32)
+transition MintForCommunity(to: ByStr20, quantity: Uint32)
   IsOwner _sender;
   IsWithinMintLimit quantity;
-  msgs = build_mint_msgs nft_address _sender quantity;
-  send msgs
-end
-
-(* @dev:   Allows for distribution of giveaway tokens to destination address                  *)
-(* @param: to       - Recipient address for the giveaway token                                *)
-(* @param: token_id - Unique ID of NFT token to be distributed                                *)
-transition DistributeToken(to: ByStr20, token_id: Uint256)
-  IsOwner _sender;
-  IsReservedToken token_id;
-  msg = { _tag: "Transfer"; _recipient: nft_address; _amount: zero; to: to; token_id: token_id };
-  msgs = one_msg msg;
+  msgs = build_mint_msgs nft_address to quantity;
   send msgs
 end
 

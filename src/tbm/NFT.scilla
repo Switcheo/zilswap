@@ -36,34 +36,63 @@ let two_msgs =
     let msgs_tmp = one_msg msg2 in
     Cons {Message} msg1 msgs_tmp
 
-let get_bal =
-  fun (some_bal: Option Uint256) =>
-    match some_bal with
-    | Some bal => bal
+let get_uint256 =
+  fun (option_uint256: Option Uint256) =>
+    match option_uint256 with
+    | Some val => val
     | None => zero
     end
 
-  let generate_new_id = 
-    fun (token_id: Uint256) =>
-    fun (offset: Uint256) =>
-    fun (max_supply: Uint256) =>
-    fun (reserved_supply: Uint256) =>
-      let is_offset_required = uint256_gt token_id reserved_supply in
-      match is_offset_required with
-      | True =>
-        let index = builtin add token_id offset in
-        let exceed_max_index = uint256_gt index max_supply in
-        match exceed_max_index with
-        | True =>
-          let mod_index = builtin rem index max_supply in
-          let wraparound_index = builtin add mod_index reserved_supply in
-          wraparound_index
-        | False =>
-          index
-        end
-      | False =>
-        token_id
+let is_giveaway_minter =
+  fun (address: ByStr20) =>
+  fun (giveaway_address: Option ByStr20) =>
+    match giveaway_address with
+    | Some val =>
+      let is_giveaway = builtin eq address val in
+      match is_giveaway with
+      | True => True
+      | False => False
       end
+    | None => False
+    end
+
+let get_id = 
+  fun (is_giveaway: Bool) =>
+  fun (current_reserved: Uint256) =>
+  fun (current_public: Uint256) =>
+  fun (reserved_supply: Uint256) =>
+  fun (public_supply: Uint256) =>
+    match is_giveaway with
+    | True =>
+      let token_id = builtin add current_reserved one in
+      token_id
+    | False =>
+      let current_id = builtin add reserved_supply current_public in
+      let token_id = builtin add current_id one in
+      token_id
+    end
+
+let generate_new_id = 
+  fun (token_id: Uint256) =>
+  fun (offset: Uint256) =>
+  fun (max_supply: Uint256) =>
+  fun (reserved_supply: Uint256) =>
+    let is_offset_required = uint256_gt token_id reserved_supply in
+    match is_offset_required with
+    | True =>
+      let index = builtin add token_id offset in
+      let exceed_max_index = uint256_gt index max_supply in
+      match exceed_max_index with
+      | True =>
+        let mod_index = builtin rem index max_supply in
+        let wraparound_index = builtin add mod_index reserved_supply in
+        wraparound_index
+      | False =>
+        index
+      end
+    | False =>
+      token_id
+    end
 
 (* Error exception *)
 type Error =
@@ -84,6 +113,7 @@ type Error =
   | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
   | CodeMaxReservedSupplyExceeded
+  | CodeMaxPublicSupplyExceeded
   | CodeOffsetAlreadySet
 
 let make_error =
@@ -107,7 +137,8 @@ let make_error =
       | CodeProvenanceHashMismatch       => Int32 -15
       | CodeMaxSupplyExceeded            => Int32 -16
       | CodeMaxReservedSupplyExceeded    => Int32 -17
-      | CodeOffsetAlreadySet             => Int32 -18
+      | CodeMaxPublicSupplyExceeded      => Int32 -18
+      | CodeOffsetAlreadySet             => Int32 -19
       end
     in
     { _exception : "Error"; code : result_code }
@@ -123,6 +154,7 @@ contract NonFungibleToken
   symbol: String,
   max_supply: Uint256,
   reserved_supply: Uint256,
+  public_supply: Uint256,
   provenance_hash: ByStr32
 )
 
@@ -166,14 +198,14 @@ field total_supply: Uint256 = Uint256 0
 (* Tokens reserved to be minted by GiveawayMinter *)
 field total_reserved: Uint256 = Uint256 0
 
+(* Tokens minted by CommunityMinter *)
+field total_public: Uint256 = Uint256 0
+
 (* Base URI that will be updated once upon reveal *)
 field base_uri: String = "https://d5gozuhfenzxt.cloudfront.net/metadata/"
 
 (* Offset index after sale ends *)
-field offset_index: Uint256 = Uint256 0
-
-(* One-time flag to ensure offset applied only once *)
-field is_offset_applied: Bool = False
+field offset_index: Option Uint256 = None {Uint256}
 
 (** Emit Errors **)
 procedure ThrowError(err : Error)
@@ -299,17 +331,10 @@ procedure IsTransferable(sender: ByStr20)
   match token_locked with
   | False =>
   | True =>
-    gm <- giveaway_minter;
-    match gm with
-    | Some address =>
-      is_giveaway_minter = builtin eq address sender;
-      match is_giveaway_minter with
-      | True =>
-      | False =>
-        err = CodeTokenLocked;
-        ThrowError err
-      end
-    | None =>
+    is_owner = builtin eq sender contract_owner;
+    match is_owner with
+    | True =>
+    | False =>
       err = CodeTokenLocked;
       ThrowError err
     end
@@ -365,7 +390,7 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   | Add =>
     some_to_count <- owned_token_count[address];
     new_to_count =
-      let current_count = get_bal some_to_count in
+      let current_count = get_uint256 some_to_count in
       builtin add current_count one;
     owned_token_count[address] := new_to_count;
     current_supply <- total_supply;
@@ -375,7 +400,7 @@ procedure UpdateTokenCount(operation: Operation, address: ByStr20)
   | Sub =>
     some_from_count <- owned_token_count[address];
     new_from_count =
-      let current_count = get_bal some_from_count in
+      let current_count = get_uint256 some_from_count in
         let is_zero = builtin eq current_count zero in
           match is_zero with
           | True => zero
@@ -396,7 +421,8 @@ procedure UpdateTokenURI(token_id: Uint256)
     ThrowError err
   | True =>
     base <- base_uri;
-    offset <- offset_index;
+    option_offset <- offset_index;
+    offset = get_uint256 option_offset;
     id_with_offset = generate_new_id token_id offset max_supply reserved_supply;
     token_id_string = builtin to_string id_with_offset;
     token_uri = builtin concat base token_id_string;
@@ -404,16 +430,12 @@ procedure UpdateTokenURI(token_id: Uint256)
   end
 end
 
-procedure CheckAndSetReservedSupply(sender: ByStr20)
-  gm <- giveaway_minter;
-  match gm with
-  | Some address =>
-    is_giveaway_minter = builtin eq address _sender;
-    match is_giveaway_minter with
-    | True =>
-      current_total_reserved <- total_reserved;
-      sufficient_reserved_supply = uint256_lt current_total_reserved reserved_supply;
-      match sufficient_reserved_supply with
+procedure CheckAndSetSupply(is_reserved_token: Bool)
+  match is_reserved_token with
+  | True =>
+    current_total_reserved <- total_reserved;
+    sufficient_reserved_supply = uint256_lt current_total_reserved reserved_supply;
+    match sufficient_reserved_supply with
       | True =>
         new_total_reserved = builtin add current_total_reserved one;
         total_reserved := new_total_reserved
@@ -421,9 +443,17 @@ procedure CheckAndSetReservedSupply(sender: ByStr20)
         err = CodeMaxReservedSupplyExceeded;
         ThrowError err
       end
-    | False =>
-    end
-  | None =>
+  | False =>
+    current_total_public <- total_public;
+    sufficient_public_supply = uint256_lt current_total_public public_supply;
+    match sufficient_public_supply with
+      | True =>
+        new_total_public = builtin add current_total_public one;
+        total_public := new_total_public
+      | False =>
+        err = CodeMaxPublicSupplyExceeded;
+        ThrowError err
+      end
   end
 end
   
@@ -432,7 +462,7 @@ end
 (* @dev: Get number of NFTs assigned to a token_owner *)
 transition BalanceOf(address: ByStr20)
   some_bal <- owned_token_count[address];
-  balance = get_bal some_bal;
+  balance = get_uint256 some_bal;
   msg_to_sender = { _tag : "BalanceOfCallBack"; _recipient : _sender; _amount : Uint128 0;
                    balance : balance};
   msgs = one_msg msg_to_sender;
@@ -539,13 +569,14 @@ transition Mint(to: ByStr20, token_uri: String)
   IsMinter _sender;
 
   (* Get token_id *)
-  current_supply <- total_supply;
-  token_id = builtin add current_supply one;
+  gm <- giveaway_minter;
+  is_giveaway = is_giveaway_minter _sender gm;
+  current_reserved <- total_reserved;
+  current_public <- total_public;
+  token_id = get_id is_giveaway current_reserved current_public reserved_supply public_supply;
+  CheckAndSetSupply is_giveaway;
   IsTokenNotExist token_id;
   token_owners[token_id] := to;
-
-  (* Decreases reserved supply if giveaway minter mints *)
-  CheckAndSetReservedSupply _sender;
 
   (* Set counts and uri *)
   UpdateTokenCount add_operation to;
@@ -659,23 +690,23 @@ end
 (* @param: to       - Recipient address for the token                                                *)
 (* @param: token_id - Unique ID of the NFT to be transferred                                         *)
 transition Transfer(to: ByStr20, token_id: Uint256)
-  IsNotSelf to _origin;
-  IsTokenOwner token_id _origin;
+  IsNotSelf to _sender;
+  IsTokenOwner token_id _sender;
   IsTransferable _sender;
   (* Change token_owner for that token_id *)
   token_owners[token_id] := to;
   (* Delete tokenApproval entry for that token_id *)
   delete token_approvals[token_id];
   (* Subtract one from previous token owner count *)
-  UpdateTokenCount sub_operation _origin;
+  UpdateTokenCount sub_operation _sender;
   (* Add one to the new token owner count *)
   UpdateTokenCount add_operation to;
-  e = {_eventname: "TransferSuccess"; from: _origin; recipient: to; token: token_id};
+  e = {_eventname: "TransferSuccess"; from: _sender; recipient: to; token: token_id};
   event e;
   msg_to_recipient = { _tag : "RecipientAcceptTransfer"; _recipient : to; _amount : Uint128 0;
-                      from : _origin; recipient : to; token_id : token_id };
-  msg_to_sender = { _tag : "TransferSuccessCallBack"; _recipient : _origin; _amount : Uint128 0;
-                    from : _origin; recipient : to; token_id : token_id };
+                      from : _sender; recipient : to; token_id : token_id };
+  msg_to_sender = { _tag : "TransferSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                    from : _sender; recipient : to; token_id : token_id };
   msgs = two_msgs msg_to_recipient msg_to_sender;
   send msgs
 end
@@ -795,12 +826,12 @@ end
 (* @param: offset - Amount to offset by                                                              *)
 transition SetOffsetIndex(offset: Uint256)
   IsContractOwner;
-  offset_applied <- is_offset_applied;
-  match offset_applied with
-  | False =>
-    is_offset_applied := true;
-    offset_index := offset 
-  | True =>
+  index <- offset_index;
+  match index with
+  | None =>
+    o = Some {Uint256} offset;
+    offset_index := o
+  | Some val =>
     err = CodeOffsetAlreadySet;
     ThrowError err
   end
