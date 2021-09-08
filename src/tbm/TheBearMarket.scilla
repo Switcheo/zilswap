@@ -63,12 +63,10 @@ let get_id =
   fun (reserved_supply: Uint256) =>
     match is_giveaway with
     | True =>
-      let token_id = builtin add current_reserved one in
-      token_id
+      builtin add current_reserved one
     | False =>
       let current_id = builtin add reserved_supply current_public in
-      let token_id = builtin add current_id one in
-      token_id
+      builtin add current_id one
     end
 
 (* Error exception *)
@@ -87,7 +85,6 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodeTokenLocked
   | CodeTokenAlreadyUnlocked
-  | CodeProvenanceHashMismatch
   | CodeMaxSupplyExceeded
   | CodeMaxReservedSupplyExceeded
   | CodeMaxPublicSupplyExceeded
@@ -110,10 +107,9 @@ let make_error =
       | CodePendingOwnerNotEmpty         => Int32 -12
       | CodeTokenLocked                  => Int32 -13
       | CodeTokenAlreadyUnlocked         => Int32 -14
-      | CodeProvenanceHashMismatch       => Int32 -15
-      | CodeMaxSupplyExceeded            => Int32 -16
-      | CodeMaxReservedSupplyExceeded    => Int32 -17
-      | CodeMaxPublicSupplyExceeded      => Int32 -18
+      | CodeMaxSupplyExceeded            => Int32 -15
+      | CodeMaxReservedSupplyExceeded    => Int32 -16
+      | CodeMaxPublicSupplyExceeded      => Int32 -17
       end
     in
     { _exception : "Error"; code : result_code }
@@ -332,17 +328,6 @@ procedure IsTokenNotExist(token_id: Uint256)
   | False =>
   | True =>
     err = CodeTokenExists;
-    ThrowError err
-  end
-end
-
-procedure IsMatchingProvenanceHash(new_uri: String)
-  hash = builtin sha256hash new_uri;
-  is_matching = builtin eq hash provenance_hash;
-  match is_matching with
-  | True =>
-  | False =>
-    err = CodeProvenanceHashMismatch;
     ThrowError err
   end
 end
@@ -773,7 +758,6 @@ end
 (* @param: new_uri       - Updated base_uri                                                          *)
 transition UpdateBaseURI(new_base_uri: String)
   IsContractOwner;
-  IsMatchingProvenanceHash new_base_uri;
   base_uri := new_base_uri;
   e = {_eventname: "BaseURIUpdated"; base_uri: new_base_uri};
   event e
