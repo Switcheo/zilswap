@@ -268,7 +268,7 @@ transition Withdraw(amount : Uint128)
   is_sufficient_balance = uint128_le amount bal;
   match is_sufficient_balance with
   | True =>
-    msg_to_sender  = {_tag : "AddFunds"; _recipient : recipient; _amount : amount};
+    msg_to_sender  = {_tag : "AddFunds"; _recipient : _sender; _amount : amount};
     msgs = one_msg msg_to_sender;
     send msgs
   | False =>
