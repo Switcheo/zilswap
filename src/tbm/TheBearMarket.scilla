@@ -1,0 +1,781 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+library TheBearMarket
+
+(* User-defined ADTs *)
+type Dummy =
+| Dummy
+
+type Operation =
+| Add
+| Sub
+
+(* Global variables *)
+let none = None {ByStr20}
+let zero = Uint256 0
+let one = Uint256 1
+let false = False
+let true = True
+let verdad = Dummy
+let add_operation = Add
+let sub_operation = Sub
+
+(* Library functions *)
+let one_msg =
+  fun (msg : Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let msgs_tmp = one_msg msg2 in
+    Cons {Message} msg1 msgs_tmp
+
+let get_uint256 =
+  fun (option_uint256: Option Uint256) =>
+    match option_uint256 with
+    | Some val => val
+    | None => zero
+    end
+
+let is_giveaway_minter =
+  fun (address: ByStr20) =>
+  fun (giveaway_address: Option ByStr20) =>
+    match giveaway_address with
+    | Some val =>
+      let is_giveaway = builtin eq address val in
+      match is_giveaway with
+      | True => True
+      | False => False
+      end
+    | None => False
+    end
+
+let get_id =
+  fun (is_giveaway: Bool) =>
+  fun (current_reserved: Uint256) =>
+  fun (current_public: Uint256) =>
+  fun (reserved_supply: Uint256) =>
+    match is_giveaway with
+    | True =>
+      builtin add current_reserved one
+    | False =>
+      let current_id = builtin add reserved_supply current_public in
+      builtin add current_id one
+    end
+
+(* Error exception *)
+type Error =
+  | CodeNotContractOwner
+  | CodeIsSelf
+  | CodeTokenExists
+  | CodeNotMinter
+  | CodeNotApproved
+  | CodeNotTokenOwner
+  | CodeNotFound
+  | CodeNotOperator
+  | CodeNotOwnerOrOperator
+  | CodeNotApprovedSpenderOrOperator
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeTokenLocked
+  | CodeTokenAlreadyUnlocked
+  | CodeMaxSupplyExceeded
+  | CodeMaxReservedSupplyExceeded
+  | CodeMaxPublicSupplyExceeded
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotContractOwner             => Int32 -1
+      | CodeIsSelf                       => Int32 -2
+      | CodeTokenExists                  => Int32 -3
+      | CodeNotMinter                    => Int32 -4
+      | CodeNotApproved                  => Int32 -5
+      | CodeNotTokenOwner                => Int32 -6
+      | CodeNotFound                     => Int32 -7
+      | CodeNotOperator                  => Int32 -8
+      | CodeNotOwnerOrOperator           => Int32 -9
+      | CodeNotApprovedSpenderOrOperator => Int32 -10
+      | CodeNotPendingOwner              => Int32 -11
+      | CodePendingOwnerNotEmpty         => Int32 -12
+      | CodeTokenLocked                  => Int32 -13
+      | CodeTokenAlreadyUnlocked         => Int32 -14
+      | CodeMaxSupplyExceeded            => Int32 -15
+      | CodeMaxReservedSupplyExceeded    => Int32 -16
+      | CodeMaxPublicSupplyExceeded      => Int32 -17
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract TheBearMarket
+(
+  contract_owner: ByStr20,
+  name : String,
+  symbol: String,
+  max_supply: Uint256,
+  reserved_supply: Uint256,
+  provenance_hash: ByStr32
+)
+
+(** Mutable fields **)
+
+(* Current contract owner *)
+field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
+
+(* Pending contract owner *)
+field pending_owner : Option ByStr20 = none
+
+(* Mapping of minters available *)
+field minters: Map ByStr20 Dummy = Emp ByStr20 Dummy
+
+(* Giveaway minter address to be set *)
+field giveaway_minter: Option ByStr20 = none
+
+(* Mapping between token_id to token_owner *)
+field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
+
+(* Flag to indicate if tokens are locked, disabling transfers *)
+field is_token_locked: Bool = True
+
+(* Mapping from owner to number of owned tokens *)
+field owned_token_count: Map ByStr20 Uint256 = Emp ByStr20 Uint256
+
+(* Mapping between token_id to approved address                              *)
+(* @dev: There can only be one approved address per token at any given time. *)
+field token_approvals: Map Uint256 ByStr20 = Emp Uint256 ByStr20
+
+(* Mapping of token_owner to operator  *)
+field operator_approvals: Map ByStr20 (Map ByStr20 Dummy)
+                            = Emp ByStr20 (Map ByStr20 Dummy)
+
+(* Mapping from token_id to token_uri *)
+field token_uris: Map Uint256 String = Emp Uint256 String
+
+(* Total supply of tokens *)
+field total_supply: Uint256 = Uint256 0
+
+(* Tokens reserved to be minted by GiveawayMinter *)
+field total_reserved: Uint256 = Uint256 0
+
+(* Tokens minted by CommunityMinter *)
+field total_public: Uint256 = Uint256 0
+
+(* Maximum supply of tokens minted by CommunityMinter *)
+field public_supply: Uint256 = builtin sub max_supply reserved_supply
+
+(* Base URI that will be updated once upon reveal *)
+field base_uri: String = "https://api.thebear.market/metadata/"
+
+(** Emit Errors **)
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+(** Guards **)
+
+procedure IsNotSelf(address_a: ByStr20, address_b: ByStr20)
+  is_self = builtin eq address_a address_b;
+  match is_self with
+  | False =>
+  | True =>
+    err = CodeIsSelf;
+    ThrowError err
+  end
+end
+
+procedure IsMinter(address: ByStr20)
+  is_minter <- exists minters[address];
+  match is_minter with
+  | True =>
+  | False =>
+    err = CodeNotMinter;
+    ThrowError err
+  end
+end
+
+procedure IsContractOwner()
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some current_contract_owner =>
+    is_owner = builtin eq current_contract_owner _sender;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotContractOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotContractOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsTokenOwner(token_id: Uint256, address: ByStr20)
+  some_token_owner <- token_owners[token_id];
+  match some_token_owner with
+  | Some addr =>
+    is_token_owner = builtin eq addr address;
+    match is_token_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  end
+end
+
+(* @dev: i.e. IsOperator *)
+procedure IsApprovedForAll(token_owner: ByStr20, operator: ByStr20)
+  is_operator_approved <- exists operator_approvals[token_owner][operator];
+  match is_operator_approved with
+  | True =>
+  | False =>
+    err = CodeNotOperator;
+    ThrowError err
+  end
+end
+
+procedure IsOwnerOrOperator(token_owner: ByStr20)
+  is_token_owner = builtin eq _sender token_owner;
+  is_approved_for_all <- exists operator_approvals[token_owner][_sender];
+  is_authorized = orb is_token_owner is_approved_for_all;
+  match is_authorized with
+  | True =>
+  | False =>
+    err = CodeNotOwnerOrOperator;
+    ThrowError err
+  end
+end
+
+procedure IsApprovedSpenderOrOperator(token_id: Uint256, token_owner: ByStr20)
+  some_token_approval <- token_approvals[token_id];
+  is_approved = match some_token_approval with
+    | None => False
+    | Some approved_address =>
+      builtin eq _sender approved_address
+    end;
+  is_operator <- exists operator_approvals[token_owner][_sender];
+  is_authorized = orb is_approved is_operator;
+  match is_authorized with
+  | True =>
+  | False =>
+    err = CodeNotApprovedSpenderOrOperator;
+    ThrowError err
+  end
+end
+
+procedure IsTransferable(sender: ByStr20)
+  token_locked <- is_token_locked;
+  match token_locked with
+  | False =>
+  | True =>
+    is_owner = builtin eq sender contract_owner;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeTokenLocked;
+      ThrowError err
+    end
+  end
+end
+
+procedure IsNotExceedingMaxSupply()
+  current_supply <- total_supply;
+  is_not_exceeding = uint256_le current_supply max_supply;
+  match is_not_exceeding with
+    | True =>
+    | False =>
+      err = CodeMaxSupplyExceeded;
+      ThrowError err
+  end
+end
+
+procedure IsTokenNotExist(token_id: Uint256)
+  token_exist <- exists token_owners[token_id];
+  match token_exist with
+  | False =>
+  | True =>
+    err = CodeTokenExists;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  | None =>
+  end
+end
+
+(** Setters **)
+
+procedure UpdateTokenCount(operation: Operation, address: ByStr20)
+  match operation with
+  | Add =>
+    some_to_count <- owned_token_count[address];
+    new_to_count =
+      let current_count = get_uint256 some_to_count in
+      builtin add current_count one;
+    owned_token_count[address] := new_to_count;
+    current_supply <- total_supply;
+    new_supply = builtin add current_supply one;
+    total_supply := new_supply;
+    IsNotExceedingMaxSupply
+  | Sub =>
+    some_from_count <- owned_token_count[address];
+    new_from_count =
+      let current_count = get_uint256 some_from_count in
+        let is_zero = builtin eq current_count zero in
+          match is_zero with
+          | True => zero
+          | False => builtin sub current_count one
+          end;
+    owned_token_count[address] := new_from_count;
+    current_supply <- total_supply;
+    new_supply = builtin sub current_supply one;
+    total_supply := new_supply
+  end
+end
+
+procedure UpdateTokenURI(token_id: Uint256)
+  token_exist <- exists token_owners[token_id];
+  match token_exist with
+  | False =>
+    err = CodeNotFound;
+    ThrowError err
+  | True =>
+    base <- base_uri;
+    token_id_string = builtin to_string token_id;
+    token_uri = builtin concat base token_id_string;
+    token_uris[token_id] := token_uri
+  end
+end
+
+procedure CheckAndSetSupply(is_reserved_token: Bool)
+  match is_reserved_token with
+  | True =>
+    current_total_reserved <- total_reserved;
+    sufficient_reserved_supply = uint256_lt current_total_reserved reserved_supply;
+    match sufficient_reserved_supply with
+      | True =>
+        new_total_reserved = builtin add current_total_reserved one;
+        total_reserved := new_total_reserved
+      | False =>
+        err = CodeMaxReservedSupplyExceeded;
+        ThrowError err
+      end
+  | False =>
+    current_total_public <- total_public;
+    max_public_supply <- public_supply;
+    sufficient_public_supply = uint256_lt current_total_public max_public_supply;
+    match sufficient_public_supply with
+      | True =>
+        new_total_public = builtin add current_total_public one;
+        total_public := new_total_public
+      | False =>
+        err = CodeMaxPublicSupplyExceeded;
+        ThrowError err
+      end
+  end
+end
+
+(** ZRC-1 Getters **)
+
+(* @dev: Get number of NFTs assigned to a token_owner *)
+transition BalanceOf(address: ByStr20)
+  some_bal <- owned_token_count[address];
+  balance = get_uint256 some_bal;
+  msg_to_sender = { _tag : "BalanceOfCallBack"; _recipient : _sender; _amount : Uint128 0;
+                   balance : balance};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Get total supply of NFTs minted *)
+transition TotalSupply()
+  current_supply <- total_supply;
+  msg_to_sender = { _tag : "TotalSupplyCallBack"; _recipient : _sender; _amount : Uint128 0;
+                   total_supply : current_supply};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Get name of the NFTs *)
+transition Name()
+  msg_to_sender = { _tag : "NameCallBack"; _recipient : _sender; _amount : Uint128 0;
+                   name : name};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Get name of the NFTs *)
+transition Symbol()
+  msg_to_sender = { _tag : "SymbolCallBack"; _recipient : _sender; _amount : Uint128 0;
+                   symbol : symbol};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Get approved_addr for token_id *)
+transition GetApproved(token_id: Uint256)
+  some_token_approval <- token_approvals[token_id];
+  match some_token_approval with
+  | Some addr =>
+    msg_to_sender = { _tag : "GetApprovedCallBack"; _recipient : _sender; _amount : Uint128 0;
+                      approved_addr : addr; token_id : token_id};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  | None =>
+    err = CodeNotApproved;
+    ThrowError err
+  end
+end
+
+(* @dev: Get the token_uri of a certain token_id *)
+transition GetTokenURI(token_id: Uint256)
+  some_token_uri <- token_uris[token_id];
+  match some_token_uri with
+  | Some token_uri =>
+    msg_to_sender = { _tag : "GetTokenURICallBack"; _recipient : _sender; _amount : Uint128 0;
+                      token_uri : token_uri};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  end
+end
+
+(* @dev: Check if a token_id is owned by a token_owner *)
+transition CheckTokenOwner(token_id: Uint256, address: ByStr20)
+  IsTokenOwner token_id address;
+  msg_to_sender = { _tag : "IsOwnerCallBack"; _recipient : _sender; _amount : Uint128 0};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Check if address is operator for token_owner *)
+transition CheckApprovedForAll(token_owner: ByStr20, operator: ByStr20)
+  IsApprovedForAll token_owner operator;
+  msg_to_sender = { _tag : "IsApprovedForAllCallBack"; _recipient : _sender; _amount : Uint128 0};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(** ZRC-1 transitions **)
+
+(* @dev:    Add or remove approved minters. Only contract_owner can approve minters. *)
+(* @param:  minter      - Address of the minter to be approved or removed            *)
+transition ConfigureMinter(minter: ByStr20)
+  IsContractOwner;
+  some_minter <- minters[minter];
+  match some_minter with
+  | Some Dummy =>
+    (* Remove minter *)
+    delete minters[minter];
+    e = {_eventname: "RemovedMinterSuccess"; minter: minter};
+    event e
+  | None =>
+    (* Add minter *)
+    minters[minter] := verdad;
+    e = {_eventname: "AddMinterSuccess"; minter: minter};
+    event e
+  end
+end
+
+(* @dev:    Mints a token to an address                                            *)
+(* @param:  to - Address of owner of token minted                                  *)
+(* @param:  token_uri - Unused, but left including to conform with ZRC-1 interface *)
+transition Mint(to: ByStr20, token_uri: String)
+  (* Ensure called by minting contract *)
+  IsMinter _sender;
+
+  (* Get token_id *)
+  gm <- giveaway_minter;
+  current_reserved <- total_reserved;
+  current_public <- total_public;
+  is_giveaway = is_giveaway_minter _sender gm;
+  token_id = get_id is_giveaway current_reserved current_public reserved_supply;
+
+  (* Check and increment relevant supply count *)
+  CheckAndSetSupply is_giveaway;
+  IsTokenNotExist token_id;
+  token_owners[token_id] := to;
+
+  (* Set counts and uri *)
+  UpdateTokenCount add_operation to;
+  UpdateTokenURI token_id;
+  actual_token_uri <- token_uris[token_id];
+  match actual_token_uri with
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  | Some uri =>
+    (* Emit event *)
+    e = {_eventname: "MintSuccess"; by: _sender; recipient: to;
+    token_id: token_id; token_uri: uri};
+    event e;
+    (* Emit callbacks *)
+    msg_to_recipient = { _tag : "RecipientAcceptMint"; _recipient : to; _amount : Uint128 0 };
+    msg_to_sender = { _tag : "MintCallBack"; _recipient : _sender; _amount : Uint128 0;
+                      recipient : to; token_id : token_id; token_uri : uri };
+    msgs = two_msgs msg_to_recipient msg_to_sender;
+    send msgs
+  end
+end
+
+(* @dev:    Burn existing tokens. Only token_owner or an operator can burn a NFT. *)
+(* @param:  token_id - Unique ID of the NFT to be destroyed                       *)
+transition Burn(token_id: Uint256)
+  (* Check if token exists *)
+  some_token_owner <- token_owners[token_id];
+  match some_token_owner with
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  | Some token_owner =>
+    IsOwnerOrOperator token_owner;
+    (* Destroy existing token *)
+    delete token_owners[token_id];
+    delete token_approvals[token_id];
+    delete token_uris[token_id];
+    (* Deduct from owned_token_count *)
+    UpdateTokenCount sub_operation token_owner;
+    e = {_eventname: "BurnSuccess"; initiator: _sender; burn_address: token_owner; token: token_id};
+    event e;
+    msg_to_sender = { _tag : "BurnCallBack"; _recipient : _sender; _amount : Uint128 0;
+                      initiator : _sender; burn_address : token_owner; token_id : token_id };
+    msgs = one_msg msg_to_sender;
+    send msgs
+  end
+end
+
+(* @dev: Approves OR remove an address ability to transfer a given token_id *)
+(* There can only be one approved_spender per token at any given time       *)
+(* param: to       - Address to be approved for the given token_id          *)
+(* param: token_id - Unique ID of the NFT to be approved                    *)
+transition SetApprove(to: ByStr20, token_id: Uint256)
+  some_token_owner <- token_owners[token_id];
+  match some_token_owner with
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  | Some token_owner =>
+    IsOwnerOrOperator token_owner;
+    is_approved <- exists token_approvals[token_id];
+    match is_approved with
+    | True =>
+      (* Remove approved_spender *)
+      delete token_approvals[token_id];
+      e = {_eventname: "RemoveApprovalSuccess"; initiator: _sender; removed_spender: to; token_id: token_id};
+      event e;
+      msg_to_sender = { _tag : "RemoveApprovalSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                        removed_spender : to; token_id : token_id };
+      msgs = one_msg msg_to_sender;
+      send msgs
+    | False =>
+      (* Add approved_spender *)
+      token_approvals[token_id] := to;
+      e = {_eventname: "AddApprovalSuccess"; initiator: _sender; approved_addr: to; token: token_id};
+      event e;
+      msg_to_sender = { _tag : "AddApprovalSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                        approved_spender : to; token_id : token_id };
+      msgs = one_msg msg_to_sender;
+      send msgs
+    end
+  end
+end
+
+(* @dev: Sets or unsets an operator for the _sender                *)
+(* @param: to       - Address to be set or unset as an operator    *)
+transition SetApprovalForAll(to: ByStr20)
+  IsNotSelf to _sender;
+  is_operator <- exists operator_approvals[_sender][to];
+  match is_operator with
+  | False =>
+    (* Add operator *)
+    operator_approvals[_sender][to] := verdad;
+    e = {_eventname: "AddApprovalForAllSuccess"; initiator: _sender; operator: to};
+    event e
+  | True =>
+    (* Remove operator *)
+    delete operator_approvals[_sender][to];
+    e = {_eventname: "RemoveApprovalForAllSuccess"; initiator: _sender; operator: to};
+    event e
+  end;
+  new_status = negb is_operator;
+  msg_to_sender = { _tag : "SetApprovalForAllSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                    operator : to; status : new_status};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Transfer the ownership of a given token_id to another address. token_owner only transition. *)
+(* @param: to       - Recipient address for the token                                                *)
+(* @param: token_id - Unique ID of the NFT to be transferred                                         *)
+transition Transfer(to: ByStr20, token_id: Uint256)
+  IsNotSelf to _sender;
+  IsTokenOwner token_id _sender;
+  IsTransferable _sender;
+  (* Change token_owner for that token_id *)
+  token_owners[token_id] := to;
+  (* Delete tokenApproval entry for that token_id *)
+  delete token_approvals[token_id];
+  (* Subtract one from previous token owner count *)
+  UpdateTokenCount sub_operation _sender;
+  (* Add one to the new token owner count *)
+  UpdateTokenCount add_operation to;
+  e = {_eventname: "TransferSuccess"; from: _sender; recipient: to; token: token_id};
+  event e;
+  msg_to_recipient = { _tag : "RecipientAcceptTransfer"; _recipient : to; _amount : Uint128 0;
+                      from : _sender; recipient : to; token_id : token_id };
+  msg_to_sender = { _tag : "TransferSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                    from : _sender; recipient : to; token_id : token_id };
+  msgs = two_msgs msg_to_recipient msg_to_sender;
+  send msgs
+end
+
+(* @dev: Transfer the ownership of a given token_id to another address. approved_spender or operator only transition. *)
+(* @param: to       - Recipient address for the NFT                                                                   *)
+(* @param: token_id - Unique ID of the NFT to be transferred                                                          *)
+transition TransferFrom(to: ByStr20, token_id: Uint256)
+  IsTransferable _sender;
+  some_token_owner <- token_owners[token_id];
+  match some_token_owner with
+  | None =>
+    err = CodeNotFound;
+    ThrowError err
+  | Some token_owner =>
+    IsNotSelf to token_owner;
+    IsApprovedSpenderOrOperator token_id token_owner;
+    (* Change token_owner for that token_id *)
+    token_owners[token_id] := to;
+    (* Delete tokenApproval entry for that token_id *)
+    delete token_approvals[token_id];
+    (* Subtract one from previous token owner count *)
+    UpdateTokenCount sub_operation token_owner;
+    (* Add one to the new token owner count *)
+    UpdateTokenCount add_operation to;
+    e = {_eventname: "TransferFromSuccess"; from: token_owner; recipient: to; token: token_id};
+    event e;
+    msg_to_recipient = { _tag : "RecipientAcceptTransferFrom"; _recipient : to; _amount : Uint128 0;
+                        from : token_owner; recipient : to; token_id : token_id };
+    msg_to_sender = { _tag : "TransferFromSuccessCallBack"; _recipient : _sender; _amount : Uint128 0;
+                      from : token_owner; recipient : to; token_id : token_id };
+    msgs = two_msgs msg_to_recipient msg_to_sender;
+    send msgs
+  end
+end
+
+(** Ownership lifecycle transitions *)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsContractOwner;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsContractOwner;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(** Minting process tarnsitions **)
+
+(* @dev: Unlocks tokens boolean flag or throws an error if already unlocked        *)
+transition UnlockTokens()
+  IsContractOwner;
+  token_locked <- is_token_locked;
+  match token_locked with
+  | False =>
+    err = CodeTokenAlreadyUnlocked;
+    ThrowError err
+  | True =>
+    is_token_locked := false;
+    e = {_eventname: "TokensUnlocked"};
+    event e;
+    msg_to_sender = { _tag : "UnlockTokensSuccessCallBack"; _recipient : _sender; _amount : Uint128 0};
+    msgs = one_msg msg_to_sender;
+    send msgs
+  end
+end
+
+(* @dev: Updates the base_uri for reveal. Hash of new_uri must match provenance                      *)
+(* @param: new_uri       - Updated base_uri                                                          *)
+transition UpdateBaseURI(new_base_uri: String)
+  IsContractOwner;
+  base_uri := new_base_uri;
+  e = {_eventname: "BaseURIUpdated"; base_uri: new_base_uri};
+  event e
+end
+
+(* @dev: Updates single or multiple token URIs in the URI map                                        *)
+(* @param: token_ids - List of token IDs to be updated                                               *)
+transition UpdateTokenURIs(token_ids: List (Uint256))
+  IsContractOwner;
+  forall token_ids UpdateTokenURI;
+  e = {_eventname: "TokenURIsUpdated"; token_ids: token_ids};
+  event e
+end
+
+(* @dev: Sets the giveaway minter field to current giveaway minter's address                         *)
+(* @param: address - Address of giveaway minter                                                      *)
+transition SetGiveawayMinter(address: ByStr20)
+  IsContractOwner;
+  gm = Some {ByStr20} address;
+  giveaway_minter := gm
+end

@@ -20,7 +20,7 @@ async function transfer(privateKey, toAddr, amount) {
         toAddr,
         amount: new BN(units.toQa(amount, units.Units.Zil)),
         gasPrice: new BN(minGasPrice.result),
-        gasLimit: Long.fromNumber(200000),
+        gasLimit: Long.fromNumber(80000),
       },
       false,
     ),

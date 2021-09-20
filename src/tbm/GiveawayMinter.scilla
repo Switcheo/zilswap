@@ -1,0 +1,210 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import IntUtils ListUtils BoolUtils
+library GiveawayMinter
+
+(* Global variables *)
+let max_mint_quantity = Uint32 10
+let zero = Uint128 0
+let one = Uint256 1
+let none = None {ByStr20}
+let false = False
+let true = True
+let empty = ""
+
+(* Library functions *)
+let one_msg =
+  fun (msg : Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let grow : Uint32 -> Uint128 =
+  fun (var : Uint32) =>
+    let maybe_big = builtin to_uint128 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint128 0 (* should never happen *)
+    end
+
+let build_mint_msgs : ByStr20 -> ByStr20 -> Uint32 -> List (Message) =
+  fun (nft_address : ByStr20) => fun (to: ByStr20) => fun (m: Uint32) =>
+    let z = Uint32 0 in
+    let zero_lt_m = builtin lt z m in
+    match zero_lt_m with
+    | True =>
+        (* m is the nat to recurse on *)
+        let m_nat = builtin to_nat m in
+        let nil = Nil {Message} in
+        let list_init = nil in
+        let msg = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
+        let step = fun (list :  List (Message)) => fun (ignore : Nat) =>
+          let new_list = Cons {Message} msg list in
+          new_list
+        in
+        let fold = @nat_fold (List (Message)) in
+        let xs_m = fold step list_init m_nat in
+        xs_m
+    | False => Nil {Message}
+    end
+
+(* Error exception *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeExceedMaxMintQuantity
+  | CodeNotReservedToken
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                    => Int32 -1
+      | CodeNotPendingOwner             => Int32 -2
+      | CodePendingOwnerNotEmpty        => Int32 -3
+      | CodeExceedMaxMintQuantity       => Int32 -4
+      | CodeNotReservedToken            => Int32 -5
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract GiveawayMinter
+(
+  contract_owner: ByStr20,
+  nft_address: ByStr20
+)
+
+(* Mutable fields *)
+
+field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
+field pending_owner : Option ByStr20 = none
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some current_contract_owner =>
+    is_owner = builtin eq current_contract_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsWithinMintLimit(quantity: Uint32)
+  is_not_exceeding = uint32_le quantity max_mint_quantity;
+  match is_not_exceeding with
+  | True =>
+  | False =>
+    err = CodeExceedMaxMintQuantity;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev:    Mint new tokens to contract owner                             *)
+(* @param:  to       - Recipient address of token                         *)
+(* @param:  quantity - Number of tokens to mint                           *)
+transition MintForCommunity(to: ByStr20, quantity: Uint32)
+  IsOwner _sender;
+  IsWithinMintLimit quantity;
+  msgs = build_mint_msgs nft_address to quantity;
+  send msgs
+end
+
+(** Ownership lifecycle transitions *)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                     *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(*************************************)
+(*             Callbacks             *)
+(*************************************)
+
+transition MintCallBack(recipient: ByStr20, token_id: Uint256, token_uri: String)
+  (* proxy callback to the recipient, who is always the minter *)
+  msg_to_sender = {
+    _tag : "MintCallBack"; _recipient : recipient; _amount : zero;
+    recipient : recipient; token_id : token_id; token_uri : token_uri
+  };
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
