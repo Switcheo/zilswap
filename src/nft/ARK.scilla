@@ -1,0 +1,474 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import IntUtils ListUtils
+library ARK
+
+type Denom =
+  | Zil
+  | Token of ByStr20 (* token address / hash *)
+
+type Coins =
+  | Coins of Denom Uint128 (* denom, amount *)
+
+type NFT =
+  | NFT of
+      ByStr20 with contract (* token address*)
+        field token_owners: Map Uint256 ByStr20
+      end
+      Uint256 (* token id *)
+
+type Side = (* buying or selling the NFT *)
+  | Buy
+  | Sell
+
+type Cheque =
+  | Cheque of Side BNum ByStr33 Uint128 ByStr64 (* trade direction, expiry, pubkey, nonce, signature *)
+
+(* Global variables *)
+let zero = Uint128 0
+let none = None {ByStr20}
+let true = True
+let buy = Buy
+let sell = Sell
+let zil = Zil
+
+(* Library functions *)
+let one_msg =
+  fun (msg : Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+(* Error exception *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeSignatureInvalid
+  | CodeChequeAlreadyVoided
+  | CodeChequeExpired
+  | CodeInvalidPrice
+  | CodeInvalidFee
+  | CodeInvalidSide
+  | CodeInvalidOwner
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                    => Int32 -1
+      | CodeNotPendingOwner             => Int32 -2
+      | CodePendingOwnerNotEmpty        => Int32 -3
+      | CodeSignatureInvalid            => Int32 -4
+      | CodeChequeAlreadyVoided         => Int32 -5
+      | CodeChequeExpired               => Int32 -6
+      | CodeInvalidPrice                => Int32 -7
+      | CodeInvalidFee                  => Int32 -8
+      | CodeInvalidSide                 => Int32 -9
+      | CodeInvalidOwner                => Int32 -10
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let get_account =
+  fun (cheque: Cheque) =>
+  match cheque with
+  | Cheque direction expiry pubkey nonce signature =>
+    builtin schnorr_get_address pubkey
+  end
+
+let get_amount =
+  fun (price : Coins) =>
+    match price with
+    | Coins denom amount =>
+      amount
+    end
+
+let get_token_hash =
+  fun (token : NFT) =>
+    match token with
+    | NFT token_address token_id =>
+      let address_hash = builtin sha256hash token_address in
+      let id_hash = builtin sha256hash token_id in
+      builtin concat address_hash id_hash
+    end
+
+let get_price_hash =
+  fun (price : Coins) =>
+    match price with
+    | Coins denom amount =>
+      let denom_hash = builtin sha256hash denom in
+      let amount_hash = builtin sha256hash amount in
+      builtin concat denom_hash amount_hash
+    end
+
+let get_cheque_hash =
+  fun (contract_hash : ByStr32) =>
+  fun (token_hash : ByStr64) =>
+  fun (price_hash : ByStr64) =>
+  fun (fee_hash : ByStr32) =>
+  fun (expiry_hash : ByStr32) =>
+  fun (nonce_hash : ByStr32) =>
+    let p0_hash = builtin concat contract_hash token_hash in
+    let p1_hash = builtin concat p0_hash price_hash in
+    let p2_hash = builtin concat p1_hash fee_hash in
+    let p3_hash = builtin concat p2_hash expiry_hash in
+    let p4_hash = builtin concat p3_hash nonce_hash in
+    builtin sha256hash p4_hash
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ARK
+(
+  contract_owner: ByStr20,
+  initial_fee_address: ByStr20
+)
+
+(* Mutable fields *)
+
+field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
+field pending_owner : Option ByStr20 = none
+
+field fee_address : ByStr20 = initial_fee_address
+field voided_cheques : Map ByStr32 Bool = Emp ByStr32 Bool
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some current_contract_owner =>
+    is_owner = builtin eq current_contract_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | None =>
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  end
+end
+
+procedure IsNotExpired(expiry : BNum)
+  current_block <- & BLOCKNUMBER;
+  is_not_expired = builtin blt current_block expiry;
+  match is_not_expired with
+  | True =>
+  | False =>
+    e = { _exception : "TransactionExpired" };
+    throw e
+  end
+end
+
+procedure IsValidPrice(price: Coins)
+  amount = get_amount price;
+  (* price should be > 0 *)
+  is_zero = builtin eq zero amount;
+  match is_zero with
+  | False =>
+  | True =>
+    err = CodeInvalidPrice;
+    ThrowError err
+  end
+end
+
+procedure IsValidFee(price: Coins, fee: Uint128)
+  amount = get_amount price;
+  (* fee should be < price *)
+  is_valid = builtin lt fee amount;
+  match is_valid with
+  | True =>
+  | False =>
+    err = CodeInvalidFee;
+    ThrowError err
+  end
+end
+
+procedure IsValidSide(s1: Side, s2: Side)
+  match s1 with
+  | Buy =>
+    match s2 with
+    | Buy =>
+    | Sell =>
+      err = CodeInvalidSide;
+      ThrowError err
+    end
+  | Sell =>
+    match s2 with
+    | Sell =>
+    | Buy =>
+      err = CodeInvalidSide;
+      ThrowError err
+    end
+  end
+end
+
+procedure IsNotVoided(cheque_hash: ByStr32)
+  cheque_voided <- exists voided_cheques[cheque_hash];
+  match cheque_voided with
+  | False =>
+  | True =>
+    err = CodeChequeAlreadyVoided;
+    ThrowError err
+  end
+end
+
+procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128, valid_direction: Side, cheque: Cheque)
+  match cheque with
+  | Cheque direction expiry pubkey nonce signature =>
+    IsValidPrice price;
+    IsValidSide valid_direction direction;
+    IsNotExpired expiry;
+
+    from = builtin schnorr_get_address pubkey;
+    contract_hash = builtin sha256hash _this_address;
+    token_hash = get_token_hash token;
+    price_hash = get_price_hash price;
+    fee_hash = builtin sha256hash fee_amount;
+    expiry_hash = builtin sha256hash expiry;
+    nonce_hash = builtin sha256hash nonce;
+
+    cheque_hash = get_cheque_hash contract_hash token_hash price_hash fee_hash expiry_hash nonce_hash;
+    IsNotVoided cheque_hash;
+
+    hash = builtin to_bystr cheque_hash;
+    valid_sig = builtin schnorr_verify pubkey hash signature;
+    match valid_sig with
+    | True =>
+    | False =>
+      err = CodeSignatureInvalid;
+      ThrowError err
+    end;
+
+    (* consume cheque by voiding it *)
+    voided_cheques[cheque_hash] := true
+  end
+end
+
+procedure Send(coins : Coins, to_address : ByStr20)
+  match coins with
+  | Coins denom amount =>
+    match denom with
+    | Zil =>
+      msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
+      msgs = one_msg msg;
+      send msgs
+    | Token token =>
+      msg_to_token =  {
+        _tag : "Transfer"; _recipient: token; _amount: zero;
+        to: to_address; amount: amount
+      };
+      msgs = one_msg msg_to_token;
+      send msgs
+    end
+  end
+end
+
+procedure Receive(coins : Coins, from_address : ByStr20)
+  match coins with
+  | Coins denom amount =>
+    match denom with
+    | Zil =>
+      receiving_from_sender = builtin eq from_address _sender;
+      match receiving_from_sender with
+      | True =>
+      | False =>
+        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
+        (* this means that bidders that do not immediately match should always offer in wZIL *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      accept;
+      needs_refund = uint128_gt _amount amount;
+      match needs_refund with
+      | True =>
+        refund =
+          let refund_amount = builtin sub _amount amount in
+          Coins zil refund_amount;
+        Send refund from_address
+      | False => (* do nothing *)
+      end
+    | Token token =>
+      msg_to_token = {
+        _tag : "TransferFrom"; _recipient: token; _amount: zero;
+        from: from_address; to: _this_address; amount: amount
+      };
+      msgs = one_msg msg_to_token;
+      send msgs
+    end
+  end
+end
+
+procedure Transfer(token: NFT, from: ByStr20, to: ByStr20)
+  match token with
+  | NFT token_address token_id =>
+    (* check the from address so that a cheque can't be reused once the token is transferred *)
+    maybe_token_owner <- & token_address.token_owners[token_id];
+    match maybe_token_owner with
+    | Some token_owner =>
+      is_valid_owner = builtin eq token_owner from;
+      match is_valid_owner with
+      | True =>
+      | False =>
+        err = CodeInvalidOwner;
+        ThrowError err
+      end
+    | None =>
+      err = CodeInvalidOwner;
+      ThrowError err
+    end;
+    msg_to_token = {
+      _tag : "TransferFrom"; _recipient: token_address; _amount: zero;
+      to: to; token_id: token_id
+    };
+    msgs = one_msg msg_to_token;
+    send msgs
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheque: Cheque, buy_cheque: Cheque)
+  ValidateAndConsumeCheque token price fee_amount sell sell_cheque;
+  ValidateAndConsumeCheque token price zero buy buy_cheque;
+  IsValidFee price fee_amount;
+
+  match price with
+  | Coins denom amount =>
+    fee_receiver <- fee_address;
+    seller = get_account sell_cheque;
+    buyer = get_account buy_cheque;
+
+    seller_receive_amount = builtin sub amount fee_amount;
+    seller_receive_coins = Coins denom seller_receive_amount;
+    fee_receive_coins = Coins denom fee_amount;
+
+    Receive price buyer;
+    Send seller_receive_coins seller;
+    Send fee_receive_coins fee_receiver;
+    Transfer token seller buyer;
+
+    e = {
+      _eventname : "ExecuteTradeSuccess";
+      initiator : _sender;
+      token : token;
+      seller : seller;
+      buyer : buyer;
+      proceeds : seller_receive_coins;
+      fees : fee_receive_coins
+    };
+    event e
+  end
+end
+
+transition VoidCheque(pubkey: ByStr33, cheque_hash: ByStr32, signature: ByStr64)
+  IsNotVoided cheque_hash;
+
+  from = builtin schnorr_get_address pubkey;
+  (* use a hash of the cheque hash so that a trade signature cannot be used to void the cheque *)
+  double_hash = builtin sha256hash cheque_hash;
+  hash = builtin to_bystr double_hash;
+  valid_sig = builtin schnorr_verify pubkey hash signature;
+  match valid_sig with
+  | True =>
+    voided_cheques[cheque_hash] := true;
+    e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash };
+    event e
+  | False =>
+    err = CodeSignatureInvalid;
+    ThrowError err
+  end
+end
+
+(** Ownership lifecycle transitions *)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(*************************************)
+(*             Callbacks             *)
+(*************************************)
+
+(* @dev: Handle callback after sending ZRC-1 tokens via TransferFrom *)
+transition TransferFromSuccessCallBack(initiator : ByStr20, sender : ByStr20, recipient : ByStr20, amount : Uint128)
+  (* no-op *)
+end
+
+(* @dev: Handle callback after sending ZRC-2 tokens via Transfer *)
+transition TransferSuccessCallBack(from: ByStr20, recipient: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* @dev: Handle callback after receiving ZRC-2 tokens via TransferFrom *)
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender : ByStr20, recipient: ByStr20, amount : Uint128)
+  (* no-op *)
+end
