@@ -24,8 +24,15 @@ type Side = (* buying or selling the NFT *)
   | Buy
   | Sell
 
+(* a partial trade instruction that can be executed later.
+  price, token & fee is provided separately and must be combined
+  to produce a valid full cheque (and cheque hash) *)
 type Cheque =
-  | Cheque of Side BNum ByStr33 Uint128 ByStr64 (* trade direction, expiry, pubkey, nonce, signature *)
+  | Cheque of Side BNum Uint128 ByStr33 ByStr ByStr64 (* trade direction, expiry, nonce, pubkey, signed data, signature *)
+
+type Action = (* executing or voiding a cheque *)
+  | Execute
+  | Void
 
 (* Global variables *)
 let zero = Uint128 0
@@ -34,6 +41,11 @@ let true = True
 let buy = Buy
 let sell = Sell
 let zil = Zil
+let signed_message_prefix = "Zilliqa Signed Message:\n"
+let execute_prefix = "Execute ARK Cheque "
+let void_prefix = "Void ARK Cheque "
+let execute = Execute
+let void = Void
 
 (* Library functions *)
 let one_msg =
@@ -46,6 +58,7 @@ type Error =
   | CodeNotOwner
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
+  | CodeDataInvalid
   | CodeSignatureInvalid
   | CodeChequeAlreadyVoided
   | CodeChequeExpired
@@ -61,23 +74,31 @@ let make_error =
       | CodeNotOwner                    => Int32 -1
       | CodeNotPendingOwner             => Int32 -2
       | CodePendingOwnerNotEmpty        => Int32 -3
-      | CodeSignatureInvalid            => Int32 -4
-      | CodeChequeAlreadyVoided         => Int32 -5
-      | CodeChequeExpired               => Int32 -6
-      | CodeInvalidPrice                => Int32 -7
-      | CodeInvalidFee                  => Int32 -8
-      | CodeInvalidSide                 => Int32 -9
-      | CodeInvalidOwner                => Int32 -10
+      | CodeDataInvalid                 => Int32 -4
+      | CodeSignatureInvalid            => Int32 -5
+      | CodeChequeAlreadyVoided         => Int32 -6
+      | CodeChequeExpired               => Int32 -7
+      | CodeInvalidPrice                => Int32 -8
+      | CodeInvalidFee                  => Int32 -9
+      | CodeInvalidSide                 => Int32 -10
+      | CodeInvalidOwner                => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
 
+let get_action_prefix =
+  fun (action: Action) =>
+    match action with
+    | Execute => execute_prefix
+    | Void => void_prefix
+    end
+
 let get_account =
   fun (cheque: Cheque) =>
-  match cheque with
-  | Cheque direction expiry pubkey nonce signature =>
-    builtin schnorr_get_address pubkey
-  end
+    match cheque with
+    | Cheque direction expiry nonce pubkey data signature =>
+      builtin schnorr_get_address pubkey
+    end
 
 let get_amount =
   fun (price : Coins) =>
@@ -86,25 +107,7 @@ let get_amount =
       amount
     end
 
-let get_token_hash =
-  fun (token : NFT) =>
-    match token with
-    | NFT token_address token_id =>
-      let address_hash = builtin sha256hash token_address in
-      let id_hash = builtin sha256hash token_id in
-      builtin concat address_hash id_hash
-    end
-
-let get_price_hash =
-  fun (price : Coins) =>
-    match price with
-    | Coins denom amount =>
-      let denom_hash = builtin sha256hash denom in
-      let amount_hash = builtin sha256hash amount in
-      builtin concat denom_hash amount_hash
-    end
-
-let get_cheque_hash =
+(* let get_cheque_hash =
   fun (contract_hash : ByStr32) =>
   fun (token_hash : ByStr64) =>
   fun (price_hash : ByStr64) =>
@@ -116,7 +119,29 @@ let get_cheque_hash =
     let p2_hash = builtin concat p1_hash fee_hash in
     let p3_hash = builtin concat p2_hash expiry_hash in
     let p4_hash = builtin concat p3_hash nonce_hash in
-    builtin sha256hash p4_hash
+    builtin sha256hash p4_hash *)
+
+let get_cheque_hash =
+  fun (contract_address : ByStr20) =>
+  fun (direction : Side) =>
+  fun (token : NFT) =>
+  fun (price : Coins) =>
+  fun (fee_amount : Uint128) =>
+  fun (expiry : BNum) =>
+  fun (nonce : Uint128) =>
+    let dir_hash = builtin sha256hash direction in
+    let token_hash = builtin sha256hash token in
+    let price_hash = builtin sha256hash price in
+    let fee_hash = builtin sha256hash fee_amount in
+    let expiry_hash = builtin sha256hash expiry in
+    let nonce_hash = builtin sha256hash nonce in
+    let p0 = builtin concat contract_address dir_hash in
+    let p1 = builtin concat p0 token_hash in
+    let p2 = builtin concat p1 price_hash in
+    let p3 = builtin concat p2 fee_hash in
+    let p4 = builtin concat p3 expiry_hash in
+    let p5 = builtin concat p3 nonce_hash in
+    builtin sha256hash p5
 
 (***************************************************)
 (*             The contract definition             *)
@@ -253,32 +278,45 @@ procedure IsNotVoided(cheque_hash: ByStr32)
   end
 end
 
+procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33, signed_data: ByStr, signature: ByStr64)
+  (* reinteprete the cheque hash bytes as a hex string *)
+  hex_hash = builtin to_string cheque_hash;
+  (* prefix it with action text to disambiguate message type *)
+  action_prefix = get_action_prefix action;
+  action_string = builtin concat action_prefix hex_hash;
+  (* prefix with generic zilliqa signed message header *)
+  message_string = builtin concat signed_message_prefix action_string;
+
+  (* ensure the signed data matches the message string *)
+  signed_string = builtin to_ascii signed_data;
+  valid_data = builtin eq signed_string message_string;
+  match valid_data with
+  | True =>
+  | False =>
+    err = CodeDataInvalid;
+    ThrowError err
+  end;
+
+  (* validate the signature *)
+  valid_sig = builtin schnorr_verify pubkey signed_data signature;
+  match valid_sig with
+  | True =>
+  | False =>
+    err = CodeSignatureInvalid;
+    ThrowError err
+  end
+end
+
 procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128, valid_direction: Side, cheque: Cheque)
   match cheque with
-  | Cheque direction expiry pubkey nonce signature =>
+  | Cheque direction expiry nonce pubkey signed_data signature =>
     IsValidPrice price;
     IsValidSide valid_direction direction;
     IsNotExpired expiry;
 
-    from = builtin schnorr_get_address pubkey;
-    contract_hash = builtin sha256hash _this_address;
-    token_hash = get_token_hash token;
-    price_hash = get_price_hash price;
-    fee_hash = builtin sha256hash fee_amount;
-    expiry_hash = builtin sha256hash expiry;
-    nonce_hash = builtin sha256hash nonce;
-
-    cheque_hash = get_cheque_hash contract_hash token_hash price_hash fee_hash expiry_hash nonce_hash;
+    cheque_hash = get_cheque_hash _this_address direction token price fee_amount expiry nonce;
     IsNotVoided cheque_hash;
-
-    hash = builtin to_bystr cheque_hash;
-    valid_sig = builtin schnorr_verify pubkey hash signature;
-    match valid_sig with
-    | True =>
-    | False =>
-      err = CodeSignatureInvalid;
-      ThrowError err
-    end;
+    IsValidSignature execute cheque_hash pubkey signed_data signature;
 
     (* consume cheque by voiding it *)
     voided_cheques[cheque_hash] := true
@@ -403,23 +441,13 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
   end
 end
 
-transition VoidCheque(pubkey: ByStr33, cheque_hash: ByStr32, signature: ByStr64)
+transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signed_data: ByStr, signature: ByStr64)
   IsNotVoided cheque_hash;
+  IsValidSignature void cheque_hash pubkey signed_data signature;
 
+  voided_cheques[cheque_hash] := true;
   from = builtin schnorr_get_address pubkey;
-  (* use a hash of the cheque hash so that a trade signature cannot be used to void the cheque *)
-  double_hash = builtin sha256hash cheque_hash;
-  hash = builtin to_bystr double_hash;
-  valid_sig = builtin schnorr_verify pubkey hash signature;
-  match valid_sig with
-  | True =>
-    voided_cheques[cheque_hash] := true;
-    e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash };
-    event e
-  | False =>
-    err = CodeSignatureInvalid;
-    ThrowError err
-  end
+  e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash }
 end
 
 (** Ownership lifecycle transitions *)
