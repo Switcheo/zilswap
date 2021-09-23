@@ -1,6 +1,7 @@
 
 const { VERSION, network, zilliqa, useKey } = require('./zilliqa')
 const { BN, Long, units } = require('@zilliqa-js/util')
+const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
 
@@ -77,6 +78,17 @@ async function callContract(privateKey, contract, transition, args,
       gasLimit: Long.fromNumber(80000),
     }, 33, 1000, true
   )
+
+  if (tx.receipt && !tx.receipt.success) {
+    const errors = tx.receipt.errors
+    if (errors) {
+      const errMsgs = Object.keys(errors).reduce((acc, depth) => {
+        const errorMsgList = errors[depth].map(num => TransactionError[num])
+        return { ...acc, [depth]: errorMsgList }
+      }, {})
+      console.info(`Contract call failed:\n${JSON.stringify(errMsgs, null, 2)}`)
+    }
+  }
 
   await nextBlock()
 

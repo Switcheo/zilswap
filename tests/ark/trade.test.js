@@ -1,25 +1,40 @@
-// test success zrc-2
-// success
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { callContract } = require('../../scripts/call.js');
+const { callContract, getBlockNum } = require('../../scripts/call.js');
 const { deployARK, useFungibleToken, useNonFungibleToken } = require('../../scripts/deploy.js');
-const { randomBytes, sign } = require('@zilliqa-js/crypto')
+const { sign } = require('@zilliqa-js/crypto')
+const { BN } = require('@zilliqa-js/util')
+const crypto = require('crypto');
 
-let owner, contract, buyer, seller, price, token_id, fee_amount, expiry, nonce
+let owner, buyer, seller, price, token, feeAmount, expiry, nonce, arkAddr
+let ark, tokenProxy, zrc1, zrc2
 beforeAll(async () => {
   owner = getDefaultAccount()
-  const { key } = owner
-  buyer = await createRandomAccount(key)
-  seller = await createRandomAccount(key)
-  ark = (await deployARK(key))[0]
-  zrc1 = useNonFungibleToken(key)
-  zrc2 = useFungibleToken(buyer.key, null, ark.address) // give buyer supply
+  buyer = await createRandomAccount(owner.key)
+  seller = await createRandomAccount(owner.key)
+  const a = await deployARK(owner.key)
+  ark = a[0]
+  tokenProxy = a[2]
+  arkAddr = `${ark.address.toLowerCase()}`
+  zrc1 = (await useNonFungibleToken(owner.key))[0]
+  zrc2 = (await useFungibleToken(buyer.key, undefined, tokenProxy.address))[0]
   expiry = (await getBlockNum() + 100).toString()
 
   // defaults
-  token_id = '201'
-  nonce = '0'
-  fee_amount = '8000000000000' // 8
+  nonce = '1'
+  feeAmount = '8000000000000' // 8
+
+  // default token
+  token = {
+    argtypes: [],
+    arguments: [
+      zrc1.address,
+      '' // token_id
+    ],
+    constructor: `${arkAddr}.NFT`,
+    _serialization: {
+      numByteSize: { 1: 32 }
+    },
+  }
 
   // default price = 42zrc2s
   price = {
@@ -28,14 +43,14 @@ beforeAll(async () => {
       {
         argtypes: [],
         arguments: [zrc2.address],
-        constructor: Token,
+        constructor: `${arkAddr}.Token`,
       },
-      42000000000000, // 42
+      '42000000000000', // 42
     ],
-    constructor: Coins,
+    constructor: `${arkAddr}.Coins`,
   }
 
-  // give seller an nft token
+  // give seller an NFT token
   // add minter
   await callContract(
     owner.key, zrc1,
@@ -49,6 +64,30 @@ beforeAll(async () => {
     ],
     0, false, false
   )
+  // approve ark as operator for seller
+  await callContract(
+    seller.key, zrc1,
+    'SetApprovalForAll',
+    [
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: ark.address,
+      },
+    ],
+    0, false, false
+  )
+  // unlock nft (tbm specific)
+  await callContract(
+    owner.key, zrc1,
+    'UnlockTokens',
+    [],
+    0, false, false
+  )
+})
+
+let tokenID = 0
+const mintNFT = async () => {
   // mint token to seller
   await callContract(
     owner.key, zrc1,
@@ -67,157 +106,181 @@ beforeAll(async () => {
     ],
     0, false, false
   )
-  // approve ark for seller
-  await callContract(
-    owner.key, ark,
-    'SetApprovalForAll',
-    [
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: ark.address,
-      },
-    ],
-    0, false, false
-  )
-})
+  token.arguments[1] = (++tokenID).toString()
+}
 
-const signCheque = () => {
-  // sha256(contract_hash + sha256(direction) sha256(token) + sha256(price) + sha256(fee) + sha256(expiry) + sha256(nonce))
-  // sha256 of ADT? (direction, token, price)
-  // assuming uint and bnum = sha256(big endian bytes)
-  chequeHash = `0x${randomBytes(32)}`
-  message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
+const serializeValue = (val, numByteSize = 16) => {
+  if (val.arguments) {
+    return serializeADT(val)
+  } else if (val.startsWith('0x')) {
+    return val.replace('0x', '').toLowerCase()
+  } else if (!isNaN(val)) {
+    return new BN(val).toBuffer('be', numByteSize).toString('hex')
+  } else {
+    return strToHex(val)
+  }
+}
+
+const serializeADT = (adt) => {
+  let buffer = strToHex(adt.constructor)
+  adt.arguments.forEach((arg, i) => {
+    const numByteSize = adt._serialization?.numByteSize?.[i]
+    buffer += serializeValue(arg, numByteSize)
+  })
+  return buffer
+}
+
+const strToHex = (str) => {
+  return Array.from(
+    new TextEncoder().encode(str),
+    byte => byte.toString(16).padStart(2, "0")
+  ).join("");
+}
+
+const getChequeHash = (isBuyer) => {
+  let buffer = serializeValue(ark.address)
+  buffer += crypto.createHash('sha256').update(strToHex(`${arkAddr}.${isBuyer ? 'Buy' : 'Sell'}`), 'hex').digest('hex')
+  buffer += crypto.createHash('sha256').update(serializeValue(token), 'hex').digest('hex')
+  buffer += crypto.createHash('sha256').update(serializeValue(price), 'hex').digest('hex')
+  buffer += crypto.createHash('sha256').update(serializeValue(isBuyer ? '0' : feeAmount), 'hex').digest('hex')
+  buffer += crypto.createHash('sha256').update(strToHex(expiry), 'hex').digest('hex') // BNum is serialized as a String
+  buffer += crypto.createHash('sha256').update(serializeValue(nonce), 'hex').digest('hex')
+  return crypto.createHash('sha256').update(buffer, 'hex').digest('hex')
+}
+
+let sellerChequeHash, buyerChequeHash
+const signCheque = (isBuyer) => {
+  const user = isBuyer ? buyer : seller
+  const chequeHash = `0x${getChequeHash(isBuyer)}`
+  const message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
   const buffer = Buffer.from(message, 'utf8')
-  signedData = buffer.toString('hex')
-  signature = sign(buffer, user.key, user.pubKey)
-  // console.log({ message, chequeHash, pubKey, signedData, signature })
+  const signedData = `0x${buffer.toString('hex')}`
+  const signature = `0x${sign(buffer, user.key, user.pubKey)}`
+  if (isBuyer) buyerChequeHash = chequeHash
+  else sellerChequeHash = chequeHash
+  console.log({ message })
+  return { signedData, signature }
+}
+
+let sellerSignedData, buyerSignedData, sellerSignature, buyerSignature
+const signCheques = () => {
+  const s = signCheque(false)
+  sellerSignedData = s.signedData
+  sellerSignature = s.signature
+  const b = signCheque(true)
+  buyerSignedData = b.signedData
+  buyerSignature = b.signature
 }
 
 describe('ExecuteTrade', () => {
-  beforeEach(() => {
-    message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
-    const buffer = Buffer.from(message, 'utf8')
-    signedData = buffer.toString('hex')
-    signature = sign(buffer, user.key, user.pubKey)
-
+  beforeEach(async () => {
+    await mintNFT()
+    signCheques()
   })
-  // test success zrc-2
-  test('should trade a zrc-2 token with nft successfully', async () => {
+
+  // test buyer success with zrc-2
+  test.only('buyer should be able to trade a zrc-2 with NFT successfully', async () => {
     const tx = await callContract(
-      user.key, contract,
+      buyer.key, ark,
       'ExecuteTrade',
       [
         {
           vname: 'token',
-          type: 'NFT',
-          value: {
-            argtypes: [],
-            arguments: [
-              zrc1.address,
-              token_id
-            ],
-            constructor: 'NFT',
-          },
+          type: `${arkAddr}.NFT`,
+          value: token,
         },
         {
           vname: 'price',
-          type: 'Coins',
+          type: `${arkAddr}.Coins`,
           value: price,
         },
         {
+          vname: 'fee_amount',
+          type: 'Uint128',
+          value: feeAmount,
+        },
+        {
           vname: 'sell_cheque',
-          type: 'Cheque',
+          type: `${arkAddr}.Cheque`,
           value: {
             argtypes: [],
             arguments: [
               {
                 argtypes: [],
                 arguments: [],
-                constructor: ['Sell']
+                constructor: `${arkAddr}.Sell`,
               },
               expiry,
-              '0', // nonce
+              nonce,
               `0x${seller.pubKey}`,
               sellerSignedData,
               sellerSignature,
             ],
-            constructor: 'Cheque',
+            constructor: `${arkAddr}.Cheque`,
           },
         },
         {
           vname: 'buy_cheque',
-          type: 'Cheque',
+          type: `${arkAddr}.Cheque`,
           value: {
             argtypes: [],
             arguments: [
               {
                 argtypes: [],
                 arguments: [],
-                constructor: ['Buy']
+                constructor: `${arkAddr}.Buy`,
               },
               expiry,
-              '0', // nonce
+              nonce,
               `0x${buyer.pubKey}`,
               buyerSignedData,
               buyerSignature,
             ],
-            constructor: 'Cheque',
+            constructor: `${arkAddr}.Cheque`,
           },
         }
       ],
       0, false, false
     )
+    console.log(JSON.stringify(tx, null, 2))
     expect(tx.status).toEqual(2)
-    const state = await contract.getState()
+    const state = await ark.getState()
     expect(state).toEqual(expect.objectContaining({
       voided_cheques: {
-        [chequeHash]: {
+        [sellerChequeHash]: {
           argtypes: [],
           arguments: [],
-          constructor: True,
+          constructor: 'True',
+        },
+        [buyerChequeHash]: {
+          argtypes: [],
+          arguments: [],
+          constructor: 'True',
         }
       },
     }))
+    // check nft transferred
+    // check zrc-2 transferred
   })
 
-  // test CodeDataInvalid
-  test('wrong signed data results in error', async () => {
-    const tx = await callContract(
-      user.key, contract,
-      'VoidCheque',
-      [
-        {
-          vname: 'cheque_hash',
-          type: 'ByStr32',
-          value: chequeHash,
-        },
-        {
-          vname: 'pubkey',
-          type: 'ByStr33',
-          value: `0x${pubKey}`,
-        },
-        {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}61`, // append 'a'
-        },
-        {
-          vname: 'signature',
-          type: 'ByStr64',
-          value: `0x${signature}`,
-        }
-      ],
-      0, false, false
-    )
-    expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain(code : (Int32 -4)) // CodeDataInvalid
-  })
-
-  // test success zil
+  // test buyer success with zil
+  // test seller success with zrc-2
+  // test seller fail zil (not allowed, wZIL required)
   // test insufficient zrc-2
   // test insufficient zil
   // test token not available
+  // test CodeDataInvalid
+  test('wrong signed data results in error', async () => {
+    // const tx = await callContract(
+    //   user.key, contract,
+    //   'ExecuteTrade',
+    //   [
+    //   ],
+    //   0, false, false
+    // )
+    // expect(tx.status).toEqual(3)
+    // expect(JSON.stringify(tx.receipt.exceptions)).toContain('code : (Int32 -4)') // CodeDataInvalid
+  })
   // test CodeSignatureInvalid seller
   // test CodeSignatureInvalid buyer
   // test CodeChequeAlreadyVoided seller

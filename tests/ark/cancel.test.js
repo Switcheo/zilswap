@@ -94,7 +94,7 @@ describe('VoidCheque', () => {
       0, false, false
     )
     expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -4)") // CodeDataInvalid
+    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeDataInvalid
   })
 
   // test CodeSignatureInvalid
@@ -127,7 +127,7 @@ describe('VoidCheque', () => {
       0, false, false
     )
     expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -5)") // CodeSignatureInvalid
+    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeSignatureInvalid
   })
 
   // test CodeChequeAlreadyVoided
@@ -188,6 +188,6 @@ describe('VoidCheque', () => {
       0, false, false
     )
     expect(tx2.status).toEqual(3) // void twice fails
-    expect(JSON.stringify(tx2.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeChequeAlreadyVoided
+    expect(JSON.stringify(tx2.receipt.exceptions)).toContain("code : (Int32 -8)") // CodeChequeAlreadyVoided
   })
 })

@@ -58,6 +58,8 @@ type Error =
   | CodeNotOwner
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
+  | CodeTokenProxyNotSet
+  | CodeTokenProxyAlreadySet
   | CodeDataInvalid
   | CodeSignatureInvalid
   | CodeChequeAlreadyVoided
@@ -74,14 +76,16 @@ let make_error =
       | CodeNotOwner                    => Int32 -1
       | CodeNotPendingOwner             => Int32 -2
       | CodePendingOwnerNotEmpty        => Int32 -3
-      | CodeDataInvalid                 => Int32 -4
-      | CodeSignatureInvalid            => Int32 -5
-      | CodeChequeAlreadyVoided         => Int32 -6
-      | CodeChequeExpired               => Int32 -7
-      | CodeInvalidPrice                => Int32 -8
-      | CodeInvalidFee                  => Int32 -9
-      | CodeInvalidSide                 => Int32 -10
-      | CodeInvalidOwner                => Int32 -11
+      | CodeTokenProxyNotSet            => Int32 -4
+      | CodeTokenProxyAlreadySet        => Int32 -5
+      | CodeDataInvalid                 => Int32 -6
+      | CodeSignatureInvalid            => Int32 -7
+      | CodeChequeAlreadyVoided         => Int32 -8
+      | CodeChequeExpired               => Int32 -9
+      | CodeInvalidPrice                => Int32 -10
+      | CodeInvalidFee                  => Int32 -11
+      | CodeInvalidSide                 => Int32 -12
+      | CodeInvalidOwner                => Int32 -13
       end
     in
     { _exception : "Error"; code : result_code }
@@ -107,20 +111,6 @@ let get_amount =
       amount
     end
 
-(* let get_cheque_hash =
-  fun (contract_hash : ByStr32) =>
-  fun (token_hash : ByStr64) =>
-  fun (price_hash : ByStr64) =>
-  fun (fee_hash : ByStr32) =>
-  fun (expiry_hash : ByStr32) =>
-  fun (nonce_hash : ByStr32) =>
-    let p0_hash = builtin concat contract_hash token_hash in
-    let p1_hash = builtin concat p0_hash price_hash in
-    let p2_hash = builtin concat p1_hash fee_hash in
-    let p3_hash = builtin concat p2_hash expiry_hash in
-    let p4_hash = builtin concat p3_hash nonce_hash in
-    builtin sha256hash p4_hash *)
-
 let get_cheque_hash =
   fun (contract_address : ByStr20) =>
   fun (direction : Side) =>
@@ -140,7 +130,7 @@ let get_cheque_hash =
     let p2 = builtin concat p1 price_hash in
     let p3 = builtin concat p2 fee_hash in
     let p4 = builtin concat p3 expiry_hash in
-    let p5 = builtin concat p3 nonce_hash in
+    let p5 = builtin concat p4 nonce_hash in
     builtin sha256hash p5
 
 (***************************************************)
@@ -158,6 +148,7 @@ contract ARK
 field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
 field pending_owner : Option ByStr20 = none
 
+field token_proxy : Option ByStr20 = none
 field fee_address : ByStr20 = initial_fee_address
 field voided_cheques : Map ByStr32 Bool = Emp ByStr32 Bool
 
@@ -323,61 +314,33 @@ procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128
   end
 end
 
-procedure Send(coins : Coins, to_address : ByStr20)
+procedure TransferCoins(coins: Coins, from: ByStr20, to: ByStr20)
   match coins with
   | Coins denom amount =>
     match denom with
     | Zil =>
-      msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
+      msg = { _tag : "AddFunds"; _recipient: to; _amount: amount };
       msgs = one_msg msg;
       send msgs
     | Token token =>
-      msg_to_token =  {
-        _tag : "Transfer"; _recipient: token; _amount: zero;
-        to: to_address; amount: amount
-      };
-      msgs = one_msg msg_to_token;
-      send msgs
-    end
-  end
-end
-
-procedure Receive(coins : Coins, from_address : ByStr20)
-  match coins with
-  | Coins denom amount =>
-    match denom with
-    | Zil =>
-      receiving_from_sender = builtin eq from_address _sender;
-      match receiving_from_sender with
-      | True =>
-      | False =>
-        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
-        (* this means that bidders that do not immediately match should always offer in wZIL *)
-        err = CodeInvalidPrice;
+      maybe_token_proxy <- token_proxy;
+      match maybe_token_proxy with
+      | None =>
+        err = CodeTokenProxyNotSet;
         ThrowError err
-      end;
-      accept;
-      needs_refund = uint128_gt _amount amount;
-      match needs_refund with
-      | True =>
-        refund =
-          let refund_amount = builtin sub _amount amount in
-          Coins zil refund_amount;
-        Send refund from_address
-      | False => (* do nothing *)
+      | Some t =>
+        msg_to_token_proxy = {
+          _tag : "TransferFrom"; _recipient: t; _amount: zero;
+          token: token; from: from; to: to; amount: amount
+        };
+        msgs = one_msg msg_to_token_proxy;
+        send msgs
       end
-    | Token token =>
-      msg_to_token = {
-        _tag : "TransferFrom"; _recipient: token; _amount: zero;
-        from: from_address; to: _this_address; amount: amount
-      };
-      msgs = one_msg msg_to_token;
-      send msgs
     end
   end
 end
 
-procedure Transfer(token: NFT, from: ByStr20, to: ByStr20)
+procedure TransferNFT(token: NFT, from: ByStr20, to: ByStr20)
   match token with
   | NFT token_address token_id =>
     (* check the from address so that a cheque can't be reused once the token is transferred *)
@@ -423,10 +386,34 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
     seller_receive_coins = Coins denom seller_receive_amount;
     fee_receive_coins = Coins denom fee_amount;
 
-    Receive price buyer;
-    Send seller_receive_coins seller;
-    Send fee_receive_coins fee_receiver;
-    Transfer token seller buyer;
+    (* if zil (non-zrc2), do additional validation and accept amount first *)
+    match denom with
+    | Zil =>
+      receiving_from_buyer = builtin eq buyer _sender;
+      match receiving_from_buyer with
+      | True =>
+      | False =>
+        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
+        (* this means that bidders that do not immediately match should always offer in wZIL *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      correct_amount = builtin eq _amount amount;
+      match correct_amount with
+      | True =>
+      | False =>
+        (* the amount of zils need to match the required amount as specified in the price exactly *)
+        (* otherwise, funds may be stuck and lost forever *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      accept
+    | _ =>
+    end;
+
+    TransferCoins seller_receive_coins buyer seller;
+    TransferCoins fee_receive_coins buyer fee_receiver;
+    TransferNFT token seller buyer;
 
     e = {
       _eventname : "ExecuteTradeSuccess";
@@ -448,6 +435,22 @@ transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signed_data: ByStr,
   voided_cheques[cheque_hash] := true;
   from = builtin schnorr_get_address pubkey;
   e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash }
+end
+
+(* @dev: Sets the token proxy which calls TransferFrom on ZRC-2 tokens to faciliate transfers. Can only be set once by the owner, and is then immutable. *)
+transition SetTokenProxy(address: ByStr20)
+  IsOwner _sender;
+  t <- token_proxy;
+  match t with
+  | Some _ =>
+    err = CodeTokenProxyAlreadySet;
+    ThrowError err
+  | None =>
+    new_token_proxy = Some {ByStr20} address;
+    token_proxy := new_token_proxy;
+    e = {_eventname : "SetTokenProxySuccess"; token_proxy: address};
+    event e
+  end
 end
 
 (** Ownership lifecycle transitions *)
@@ -487,16 +490,6 @@ end
 (*************************************)
 
 (* @dev: Handle callback after sending ZRC-1 tokens via TransferFrom *)
-transition TransferFromSuccessCallBack(initiator : ByStr20, sender : ByStr20, recipient : ByStr20, amount : Uint128)
-  (* no-op *)
-end
-
-(* @dev: Handle callback after sending ZRC-2 tokens via Transfer *)
-transition TransferSuccessCallBack(from: ByStr20, recipient: ByStr20, token_id: Uint256)
-  (* no-op *)
-end
-
-(* @dev: Handle callback after receiving ZRC-2 tokens via TransferFrom *)
-transition RecipientAcceptTransferFrom(initiator: ByStr20, sender : ByStr20, recipient: ByStr20, amount : Uint128)
+transition TransferFromSuccessCallBack(from: ByStr20, recipient: ByStr20, token_id: Uint256)
   (* no-op *)
 end

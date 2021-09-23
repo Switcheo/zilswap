@@ -11,7 +11,7 @@ beforeAll(async () => {
 
 // test success
 test('deploy ARK successfully', async () => {
-  const [contract, _] = await deployARK(key)
+  const [contract, _, tokenProxy] = await deployARK(key)
 
   await nextBlock()
   expect(contract.address).toBeDefined()
@@ -21,7 +21,7 @@ test('deploy ARK successfully', async () => {
     "_balance": "0",
     "current_owner": {
       "argtypes": ["ByStr20"],
-      "arguments": ["0xd90f2e538ce0df89c8273cad3b63ec44a3c4ed82"],
+      "arguments": [owner],
       "constructor": "Some",
     },
     "fee_address": owner,
@@ -29,6 +29,11 @@ test('deploy ARK successfully', async () => {
       "argtypes": ["ByStr20"],
       "arguments": [],
       "constructor": "None",
+    },
+    "token_proxy": {
+      "argtypes": ["ByStr20"],
+      "arguments": [tokenProxy.address.toLowerCase()],
+      "constructor": "Some",
     },
     "voided_cheques": {},
   })
