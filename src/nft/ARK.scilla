@@ -28,7 +28,7 @@ type Side = (* buying or selling the NFT *)
   price, token & fee is provided separately and must be combined
   to produce a valid full cheque (and cheque hash) *)
 type Cheque =
-  | Cheque of Side BNum Uint128 ByStr33 ByStr ByStr64 (* trade direction, expiry, nonce, pubkey, signed data, signature *)
+  | Cheque of Side BNum Uint128 ByStr33 ByStr64 (* trade direction, expiry, nonce, pubkey, signature *)
 
 type Action = (* executing or voiding a cheque *)
   | Execute
@@ -60,7 +60,6 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodeTokenProxyNotSet
   | CodeTokenProxyAlreadySet
-  | CodeDataInvalid
   | CodeSignatureInvalid
   | CodeChequeAlreadyVoided
   | CodeChequeExpired
@@ -78,14 +77,13 @@ let make_error =
       | CodePendingOwnerNotEmpty        => Int32 -3
       | CodeTokenProxyNotSet            => Int32 -4
       | CodeTokenProxyAlreadySet        => Int32 -5
-      | CodeDataInvalid                 => Int32 -6
-      | CodeSignatureInvalid            => Int32 -7
-      | CodeChequeAlreadyVoided         => Int32 -8
-      | CodeChequeExpired               => Int32 -9
-      | CodeInvalidPrice                => Int32 -10
-      | CodeInvalidFee                  => Int32 -11
-      | CodeInvalidSide                 => Int32 -12
-      | CodeInvalidOwner                => Int32 -13
+      | CodeSignatureInvalid            => Int32 -6
+      | CodeChequeAlreadyVoided         => Int32 -7
+      | CodeChequeExpired               => Int32 -8
+      | CodeInvalidPrice                => Int32 -9
+      | CodeInvalidFee                  => Int32 -10
+      | CodeInvalidSide                 => Int32 -11
+      | CodeInvalidOwner                => Int32 -12
       end
     in
     { _exception : "Error"; code : result_code }
@@ -100,7 +98,7 @@ let get_action_prefix =
 let get_account =
   fun (cheque: Cheque) =>
     match cheque with
-    | Cheque direction expiry nonce pubkey data signature =>
+    | Cheque direction expiry nonce pubkey signature =>
       builtin schnorr_get_address pubkey
     end
 
@@ -269,7 +267,7 @@ procedure IsNotVoided(cheque_hash: ByStr32)
   end
 end
 
-procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33, signed_data: ByStr, signature: ByStr64)
+procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
   (* reinteprete the cheque hash bytes as a hex string *)
   hex_hash = builtin to_string cheque_hash;
   (* prefix it with action text to disambiguate message type *)
@@ -277,16 +275,9 @@ procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33
   action_string = builtin concat action_prefix hex_hash;
   (* prefix with generic zilliqa signed message header *)
   message_string = builtin concat signed_message_prefix action_string;
-
-  (* ensure the signed data matches the message string *)
-  signed_string = builtin to_ascii signed_data;
-  valid_data = builtin eq signed_string message_string;
-  match valid_data with
-  | True =>
-  | False =>
-    err = CodeDataInvalid;
-    ThrowError err
-  end;
+  (* hash the message to the signed data *)
+  signed_hash = builtin sha256hash message_string;
+  signed_data = builtin to_bystr signed_hash;
 
   (* validate the signature *)
   valid_sig = builtin schnorr_verify pubkey signed_data signature;
@@ -300,14 +291,14 @@ end
 
 procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128, valid_direction: Side, cheque: Cheque)
   match cheque with
-  | Cheque direction expiry nonce pubkey signed_data signature =>
+  | Cheque direction expiry nonce pubkey signature =>
     IsValidPrice price;
     IsValidSide valid_direction direction;
     IsNotExpired expiry;
 
     cheque_hash = get_cheque_hash _this_address direction token price fee_amount expiry nonce;
     IsNotVoided cheque_hash;
-    IsValidSignature execute cheque_hash pubkey signed_data signature;
+    IsValidSignature execute cheque_hash pubkey signature;
 
     (* consume cheque by voiding it *)
     voided_cheques[cheque_hash] := true
@@ -428,9 +419,9 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
   end
 end
 
-transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signed_data: ByStr, signature: ByStr64)
+transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
   IsNotVoided cheque_hash;
-  IsValidSignature void cheque_hash pubkey signed_data signature;
+  IsValidSignature void cheque_hash pubkey signature;
 
   voided_cheques[cheque_hash] := true;
   from = builtin schnorr_get_address pubkey;

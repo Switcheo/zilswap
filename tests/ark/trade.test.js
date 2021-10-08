@@ -1,9 +1,11 @@
-const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { callContract, getBlockNum } = require('../../scripts/call.js');
-const { deployARK, useFungibleToken, useNonFungibleToken } = require('../../scripts/deploy.js');
+
+const crypto = require('crypto')
 const { sign } = require('@zilliqa-js/crypto')
 const { BN } = require('@zilliqa-js/util')
-const crypto = require('crypto');
+const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
+const { callContract, getBlockNum } = require('../../scripts/call.js')
+const { deployARK, useFungibleToken, useNonFungibleToken } = require('../../scripts/deploy.js')
+
 
 let owner, buyer, seller, price, token, feeAmount, expiry, nonce, arkAddr
 let ark, tokenProxy, zrc1, zrc2
@@ -153,26 +155,22 @@ const signCheque = (isBuyer) => {
   const user = isBuyer ? buyer : seller
   const chequeHash = `0x${getChequeHash(isBuyer)}`
   const message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
-  const buffer = Buffer.from(message, 'utf8')
-  const signedData = `0x${buffer.toString('hex')}`
+  const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
+  const buffer = Buffer.from(messageHash, 'hex')
   const signature = `0x${sign(buffer, user.key, user.pubKey)}`
   if (isBuyer) buyerChequeHash = chequeHash
   else sellerChequeHash = chequeHash
   console.log({ message })
-  return { signedData, signature }
+  return signature
 }
 
-let sellerSignedData, buyerSignedData, sellerSignature, buyerSignature
+let sellerSignature, buyerSignature
 const signCheques = () => {
-  const s = signCheque(false)
-  sellerSignedData = s.signedData
-  sellerSignature = s.signature
-  const b = signCheque(true)
-  buyerSignedData = b.signedData
-  buyerSignature = b.signature
+  sellerSignature = signCheque(false)
+  buyerSignature = signCheque(true)
 }
 
-describe('ExecuteTrade', () => {
+describe('ARK ExecuteTrade', () => {
   beforeEach(async () => {
     await mintNFT()
     signCheques()
@@ -213,7 +211,6 @@ describe('ExecuteTrade', () => {
               expiry,
               nonce,
               `0x${seller.pubKey}`,
-              sellerSignedData,
               sellerSignature,
             ],
             constructor: `${arkAddr}.Cheque`,
@@ -233,7 +230,6 @@ describe('ExecuteTrade', () => {
               expiry,
               nonce,
               `0x${buyer.pubKey}`,
-              buyerSignedData,
               buyerSignature,
             ],
             constructor: `${arkAddr}.Cheque`,
@@ -269,8 +265,9 @@ describe('ExecuteTrade', () => {
   // test insufficient zrc-2
   // test insufficient zil
   // test token not available
-  // test CodeDataInvalid
-  test('wrong signed data results in error', async () => {
+  // test CodeSignatureInvalid seller
+  // test CodeSignatureInvalid buyer
+  test('wrong signature results in error', async () => {
     // const tx = await callContract(
     //   user.key, contract,
     //   'ExecuteTrade',
@@ -279,10 +276,8 @@ describe('ExecuteTrade', () => {
     //   0, false, false
     // )
     // expect(tx.status).toEqual(3)
-    // expect(JSON.stringify(tx.receipt.exceptions)).toContain('code : (Int32 -4)') // CodeDataInvalid
+    // expect(JSON.stringify(tx.receipt.exceptions)).toContain('code : (Int32 -6)') // CodeSignatureInvalid
   })
-  // test CodeSignatureInvalid seller
-  // test CodeSignatureInvalid buyer
   // test CodeChequeAlreadyVoided seller
   // test CodeChequeAlreadyVoided buyer
   // test CodeChequeExpired seller

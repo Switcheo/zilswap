@@ -1,8 +1,8 @@
-// success
+const crypto = require('crypto')
+const { randomBytes, sign } = require('@zilliqa-js/crypto')
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { callContract } = require('../../scripts/call.js');
 const { deployARK } = require('../../scripts/deploy.js');
-const { randomBytes, sign } = require('@zilliqa-js/crypto')
 
 let owner, contract, user
 beforeAll(async () => {
@@ -11,15 +11,15 @@ beforeAll(async () => {
   contract = (await deployARK(owner.key))[0]
 })
 
-describe('VoidCheque', () => {
-  let chequeHash, signedData, signature
+describe('ARK VoidCheque', () => {
+  let chequeHash, signature
   beforeEach(() => {
     chequeHash = `0x${randomBytes(32)}`
     message = `Zilliqa Signed Message:\nVoid ARK Cheque ${chequeHash}`
-    const buffer = Buffer.from(message, 'utf8')
-    signedData = buffer.toString('hex')
+    const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
+    const buffer = Buffer.from(messageHash, 'hex')
     signature = sign(buffer, user.key, user.pubKey)
-    // console.log({ message, chequeHash, pubKey, signedData, signature })
+    // console.log({ message, chequeHash, pubKey, messageHash, signature })
   })
 
   // test success
@@ -37,11 +37,6 @@ describe('VoidCheque', () => {
           vname: 'pubkey',
           type: 'ByStr33',
           value: `0x${user.pubKey}`,
-        },
-        {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}`,
         },
         {
           vname: 'signature',
@@ -64,39 +59,6 @@ describe('VoidCheque', () => {
     }))
   })
 
-  // test CodeDataInvalid
-  test('wrong signed data results in error', async () => {
-    const tx = await callContract(
-      user.key, contract,
-      'VoidCheque',
-      [
-        {
-          vname: 'cheque_hash',
-          type: 'ByStr32',
-          value: chequeHash,
-        },
-        {
-          vname: 'pubkey',
-          type: 'ByStr33',
-          value: `0x${pubKey}`,
-        },
-        {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}61`, // append 'a'
-        },
-        {
-          vname: 'signature',
-          type: 'ByStr64',
-          value: `0x${signature}`,
-        }
-      ],
-      0, false, false
-    )
-    expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeDataInvalid
-  })
-
   // test CodeSignatureInvalid
   test('wrong signature results in error', async () => {
     const tx = await callContract(
@@ -114,11 +76,6 @@ describe('VoidCheque', () => {
           value: `0x${user.pubKey}`,
         },
         {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}`,
-        },
-        {
           vname: 'signature',
           type: 'ByStr64',
           value: `0x${signature.replace('1', '0')}`, // flip 1 to 0
@@ -127,7 +84,7 @@ describe('VoidCheque', () => {
       0, false, false
     )
     expect(tx.status).toEqual(3)
-    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeSignatureInvalid
+    expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeSignatureInvalid
   })
 
   // test CodeChequeAlreadyVoided
@@ -145,11 +102,6 @@ describe('VoidCheque', () => {
           vname: 'pubkey',
           type: 'ByStr33',
           value: `0x${user.pubKey}`,
-        },
-        {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}`,
         },
         {
           vname: 'signature',
@@ -175,11 +127,6 @@ describe('VoidCheque', () => {
           value: `0x${user.pubKey}`,
         },
         {
-          vname: 'signed_data',
-          type: 'ByStr',
-          value: `0x${signedData}`,
-        },
-        {
           vname: 'signature',
           type: 'ByStr64',
           value: `0x${signature}`,
@@ -188,6 +135,6 @@ describe('VoidCheque', () => {
       0, false, false
     )
     expect(tx2.status).toEqual(3) // void twice fails
-    expect(JSON.stringify(tx2.receipt.exceptions)).toContain("code : (Int32 -8)") // CodeChequeAlreadyVoided
+    expect(JSON.stringify(tx2.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeChequeAlreadyVoided
   })
 })
