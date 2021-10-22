@@ -425,7 +425,8 @@ transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
 
   voided_cheques[cheque_hash] := true;
   from = builtin schnorr_get_address pubkey;
-  e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash }
+  e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash };
+  event e
 end
 
 (* @dev: Sets the token proxy which calls TransferFrom on ZRC-2 tokens to faciliate transfers. Can only be set once by the owner, and is then immutable. *)
