@@ -362,7 +362,7 @@ end
 (*             Transitions             *)
 (***************************************)
 
-transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheque: Cheque, buy_cheque: Cheque)
+transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheque: Cheque, buy_cheque: Cheque, matched_cheque_hash: ByStr32)
   ValidateAndConsumeCheque token price fee_amount sell sell_cheque;
   ValidateAndConsumeCheque token price zero buy buy_cheque;
   IsValidFee price fee_amount;
@@ -413,7 +413,8 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
       seller : seller;
       buyer : buyer;
       proceeds : seller_receive_coins;
-      fees : fee_receive_coins
+      fees : fee_receive_coins;
+      matched_cheque_hash : matched_cheque_hash
     };
     event e
   end
