@@ -15,7 +15,7 @@ async function createRandomAccount(privateKey) {
   const address = getAddressFromPrivateKey(key)
   const pubKey = getPubKeyFromPrivateKey(key)
 
-  await transfer(privateKey, address, '100000')
+  await transfer(privateKey, address, '1')
 
   return { key, pubKey, address: address.toLowerCase() }
 }
