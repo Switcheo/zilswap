@@ -11,7 +11,7 @@ const { VERSION, zilliqa, useKey } = require('./zilliqa')
 const readFile = util.promisify(fs.readFile)
 
 async function deployFungibleToken(
-  privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('1000000000000000000000') }
+  privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('1000000000000000000000') } = {}
 ) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -62,7 +62,7 @@ async function deployFungibleToken(
   return deployContract(privateKey, code, init)
 }
 
-async function useFungibleToken(privateKey, params, approveContractAddress, useExisting = process.env.TOKEN_HASH) {
+async function useFungibleToken(privateKey, params = undefined, approveContractAddress = null, useExisting = process.env.TOKEN_HASH) {
   const [contract, state] = await (useExisting ?
     getContract(privateKey, useExisting) : deployFungibleToken(privateKey, params))
 
@@ -107,7 +107,7 @@ async function deployNonFungibleToken(
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm/NFT.scilla')).toString()
+  const code = (await readFile('./src/tbm/TheBearMarket.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -338,6 +338,79 @@ async function deployZILO(privateKey, {
   return deployContract(privateKey, code, init)
 }
 
+async function deployARK(privateKey, {
+  owner = null,
+  feeReceiver = null,
+} = {}) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!feeReceiver) feeReceiver = getAddressFromPrivateKey(privateKey).toLowerCase()
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/nft/ARK.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'initial_fee_address',
+      type: 'ByStr20',
+      value: feeReceiver,
+    },
+  ];
+
+  console.info(`Deploying ARK...`)
+  const ark = (await deployContract(privateKey, code, init))[0]
+
+  // ARK requires a token proxy
+  const code2 = (await readFile('./src/nft/TokenProxy.scilla')).toString()
+  const init2 = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'ark_address',
+      type: 'ByStr20',
+      value: ark.address,
+    },
+  ];
+
+  console.info(`Deploying and setting ARK ZRC-2 Token Proxy...`)
+  const tokenProxy = (await deployContract(privateKey, code2, init2))[0]
+
+  // Set ARK's token proxy
+  await callContract(
+    privateKey, ark,
+    'SetTokenProxy',
+    [
+      {
+        vname: 'address',
+        type: 'ByStr20',
+        value: tokenProxy.address,
+      },
+    ],
+    0, false, false
+  )
+
+  return [ark, await ark.getState(), tokenProxy, await tokenProxy.getState()]
+}
+
 async function deployContract(privateKey, code, init) {
   useKey(privateKey)
 
@@ -409,12 +482,13 @@ async function getContract(privateKey, contractHash) {
 
 const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
 
+exports.deployContract = deployContract
 exports.deployFungibleToken = deployFungibleToken
 exports.deployNonFungibleToken = deployNonFungibleToken
-exports.useFungibleToken = useFungibleToken
-exports.deployContract = deployContract
 exports.deployZilswap = deployZilswap
-exports.useNonFungibleToken = useNonFungibleToken
-exports.useZilswap = useZilswap
 exports.deployZILO = deployZILO
 exports.deploySeedLP = deploySeedLP
+exports.deployARK = deployARK
+exports.useFungibleToken = useFungibleToken
+exports.useNonFungibleToken = useNonFungibleToken
+exports.useZilswap = useZilswap

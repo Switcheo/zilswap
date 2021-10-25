@@ -1,0 +1,81 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import IntUtils ListUtils
+library TokenProxy
+
+(* Global variables *)
+let zero = Uint128 0
+
+(* Library functions *)
+let one_msg =
+  fun (msg : Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+(* Error exception *)
+type Error =
+  | CodeNotARK
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotARK                      => Int32 -1
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+(* This token proxy contract just allows ARK to receive a different TransferFromSuccessCallBack from ZRC-2 tokens *)
+contract TokenProxy
+(
+  ark_address: ByStr20 (* only trust the ARK contract *)
+)
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsARK()
+  is_ark = builtin eq _sender ark_address;
+  match is_ark with
+  | True =>
+  | False =>
+    err = CodeNotARK;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition TransferFrom(token: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  IsARK;
+  msg_to_token = {
+    _tag : "TransferFrom"; _recipient: token; _amount: zero;
+    from: from; to: to; amount: amount
+  };
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+(*************************************)
+(*             Callbacks             *)
+(*************************************)
+
+(* @dev: Handle callback after sending ZRC-2 tokens via TransferFrom *)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
