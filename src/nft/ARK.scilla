@@ -413,7 +413,9 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
       seller : seller;
       buyer : buyer;
       proceeds : seller_receive_coins;
-      fees : fee_receive_coins
+      fees : fee_receive_coins;
+      sell_cheque: sell_cheque;
+      buy_cheque: buy_cheque
     };
     event e
   end
