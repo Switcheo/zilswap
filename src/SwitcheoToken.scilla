@@ -1,0 +1,468 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import IntUtils
+library LPL
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+fun (msg1 : Message) =>
+fun (msg2 : Message) =>
+  let msgs_tmp = one_msg msg2 in
+  Cons {Message} msg1 msgs_tmp
+
+(* Error events *)
+type Error =
+| CodeIsSender
+| CodeInsufficientFunds
+| CodeInsufficientAllowance
+| CodeNotInitialized
+| CodeAlreadyInitialized
+| CodeNotOwner
+| CodeNotPendingOwner
+| CodeNotMinter
+| CodePendingOwnerNotEmpty
+| CodeInvalidSender
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeIsSender              => Int32 -1
+      | CodeInsufficientFunds     => Int32 -2
+      | CodeInsufficientAllowance => Int32 -3
+      | CodeNotInitialized        => Int32 -4
+      | CodeAlreadyInitialized    => Int32 -5
+      | CodeNotOwner              => Int32 -6
+      | CodeNotPendingOwner       => Int32 -7
+      | CodeNotMinter             => Int32 -8
+      | CodePendingOwnerNotEmpty  => Int32 -9
+      | CodeInvalidSender         => Int32 -10
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let zero = Uint128 0
+let yes = True
+let none = None {ByStr20}
+
+(* Dummy user-defined ADT *)
+type Unit =
+| Unit
+
+let get_val =
+  fun (some_val: Option Uint128) =>
+  match some_val with
+  | Some val => val
+  | None => zero
+  end
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract LPL
+(
+  name : String,
+  symbol: String,
+  decimals: Uint32,
+  init_supply : Uint128,
+  contract_owner: ByStr20
+)
+
+(* Mutable fields *)
+
+field current_owner : Option ByStr20 = Some {ByStr20} contract_owner
+field pending_owner : Option ByStr20 = none
+
+field lockproxy : Option ByStr20 = none
+
+field minters: Map ByStr20 Bool
+  = Emp ByStr20 Bool
+
+field total_supply : Uint128 = init_supply
+
+field balances: Map ByStr20 Uint128
+  = let emp_map = Emp ByStr20 Uint128 in
+    builtin put emp_map contract_owner init_supply
+
+field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  = Emp ByStr20 (Map ByStr20 Uint128)
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsInitialized()
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some val =>
+  | None =>
+    err = CodeNotInitialized;
+    ThrowError err
+  end
+end
+
+procedure IsNotInitialized()
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some val =>
+    err = CodeAlreadyInitialized;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsMinter(address: ByStr20)
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some val =>
+  | None =>
+    maybe_minter <- minters[address];
+    match maybe_minter with
+    | Some minter =>
+    | None => 
+      err = CodeNotMinter;
+      ThrowError err
+    end
+  end
+end
+
+procedure IsNotSender(address: ByStr20)
+  is_sender = builtin eq _sender address;
+  match is_sender with
+  | True =>
+    err = CodeIsSender;
+    ThrowError err
+  | False =>
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsNotLockProxy()
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some val =>
+  | None =>
+    err = CodeInvalidSender;
+    ThrowError err
+  end
+end
+
+
+procedure AuthorizedMint(recipient: ByStr20, amount: Uint128)
+  o_recipient_bal <- balances[recipient];
+  bal = get_val o_recipient_bal;
+  new_balance = builtin add amount bal;
+  balances[recipient] := new_balance;
+  current_total_supply <- total_supply;
+  new_total_supply = builtin add current_total_supply amount;
+  total_supply := new_total_supply;
+  e = {_eventname: "MintSuccess"; minter: _sender; recipient: recipient; amount: amount};
+  event e
+end
+
+procedure AuthorizedBurnIfSufficientBalance(from: ByStr20, amount: Uint128)
+  o_get_bal <- balances[from];
+  bal = get_val o_get_bal;
+  can_burn = uint128_le amount bal;
+  match can_burn with
+  | True =>
+    (* Subtract amount from from *)
+    new_balance = builtin sub bal amount;
+    balances[from] := new_balance;
+    current_total_supply <- total_supply;
+    new_total_supply = builtin sub current_total_supply amount;
+    total_supply := new_total_supply;
+    e = {_eventname: "BurnSuccess"; burner: _sender; burn_account: from; amount: amount};
+    event e
+  | False =>
+    err = CodeInsufficientFunds;
+    ThrowError err
+  end
+end
+
+procedure AuthorizedMoveIfSufficientBalance(from: ByStr20, to: ByStr20, amount: Uint128)
+  o_from_bal <- balances[from];
+  bal = get_val o_from_bal;
+  can_do = uint128_le amount bal;
+  match can_do with
+  | True =>
+    (* Subtract amount from from and add it to to address *)
+    new_from_bal = builtin sub bal amount;
+    balances[from] := new_from_bal;
+    (* Adds amount to to address *)
+    get_to_bal <- balances[to];
+    new_to_bal = match get_to_bal with
+    | Some bal => builtin add bal amount
+    | None => amount
+    end;
+    balances[to] := new_to_bal
+  | False =>
+    (* Balance not sufficient *)
+    err = CodeInsufficientFunds;
+    ThrowError err
+  end
+end
+
+procedure MintIfLockProxy(address: ByStr20, amount: Uint128)
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some lp_address =>
+    is_lockproxy = builtin eq address lp_address;
+    match is_lockproxy with
+    | True =>
+      AuthorizedMint address amount
+    | False =>
+    end
+  | None =>
+  end
+end
+
+procedure BurnIfLockProxy(address: ByStr20, amount: Uint128)
+  maybe_lockproxy <- lockproxy;
+  match maybe_lockproxy with
+  | Some lp_address =>
+    is_lockproxy = builtin eq address lp_address;
+    match is_lockproxy with
+    | True =>
+      AuthorizedBurnIfSufficientBalance address amount
+    | False =>
+    end
+  | None =>
+  end
+end
+
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Initializes token with lock proxy address                          *)
+(* @param new_lockproxy: Address of the Lock Proxy.                         *)
+transition Initialize(new_lockproxy: ByStr20)
+  IsOwner _sender;
+  IsNotInitialized;
+  
+  o = Some {ByStr20} new_lockproxy;
+  lockproxy := o;
+  
+  e = {_eventname : "Initialized"; lockproxy : new_lockproxy};
+  event e
+end
+
+(* @dev: Mint new tokens. Only minters can mint.                             *)
+(* @param recipient: Address of the recipient whose balance is to increase.  *)
+(* @param amount:    Number of tokens to be minted.                          *)
+transition Mint(recipient: ByStr20, amount: Uint128)
+  IsMinter _sender;
+  AuthorizedMint recipient amount;
+  (* Prevent sending to a contract address that does not support transfers of token *)
+  msg_to_recipient = {_tag : "RecipientAcceptMint"; _recipient : recipient; _amount : zero;
+                      minter : _sender; recipient : recipient; amount : amount};
+  msg_to_sender = {_tag : "MintSuccessCallBack"; _recipient : _sender; _amount : zero;
+                      minter : _sender; recipient : recipient; amount : amount};
+  msgs = two_msgs msg_to_recipient msg_to_sender;
+  send msgs
+end
+
+(* @dev: Burn existing tokens. Only minters can burn.                             *)
+(* @param burn_account: Address of the token_owner whose balance is to decrease.  *)
+(* @param amount:       Number of tokens to be burned.                            *)
+transition Burn(burn_account: ByStr20, amount: Uint128)
+  IsMinter _sender;
+  AuthorizedBurnIfSufficientBalance burn_account amount;
+  msg_to_sender = {_tag : "BurnSuccessCallBack"; _recipient : _sender; _amount : zero;
+                    burner : _sender; burn_account : burn_account; amount : amount};
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+(* @dev: Allows the minter to mint tokens. Only the current_owner can call this. *)
+(* @param minter: Address of the new minter.                                      *)
+transition AddMinter(minter: ByStr20)
+  IsOwner _sender;
+  is_minter <- minters[minter];
+  match is_minter with
+  | Some val => (* already minter - noop *)
+  | None =>
+    minters[minter] := yes;
+    e = {_eventname : "MinterAdded"; minter : minter};
+    event e
+  end
+end
+
+(* @dev: Removes permission for the minter to mint tokens. Only the current_owner can call this. *)
+(* @param minter: Address of the minter to remove.                                                *)
+transition RemoveMinter(minter: ByStr20)
+  IsOwner _sender;
+  IsMinter minter;
+  delete minters[minter];
+  e = {_eventname : "MinterRemoved"; minter : minter};
+  event e
+end
+
+(* @dev: Increase the allowance of an approved_spender over the caller tokens. Only token_owner allowed to invoke.   *)
+(* param spender:      Address of the designated approved_spender.                                                   *)
+(* param amount:       Number of tokens to be increased as allowance for the approved_spender.                       *)
+transition IncreaseAllowance(spender: ByStr20, amount: Uint128)
+  IsNotSender spender;
+  some_current_allowance <- allowances[_sender][spender];
+  current_allowance = get_val some_current_allowance;
+  new_allowance = builtin add current_allowance amount;
+  allowances[_sender][spender] := new_allowance;
+  e = {_eventname : "IncreasedAllowance"; token_owner : _sender; spender: spender; new_allowance : new_allowance};
+  event e
+end
+
+(* @dev: Decrease the allowance of an approved_spender over the caller tokens. Only token_owner allowed to invoke. *)
+(* param spender:      Address of the designated approved_spender.                                                 *)
+(* param amount:       Number of tokens to be decreased as allowance for the approved_spender.                     *)
+transition DecreaseAllowance(spender: ByStr20, amount: Uint128)
+  IsNotSender spender;
+  some_current_allowance <- allowances[_sender][spender];
+  current_allowance = get_val some_current_allowance;
+  new_allowance =
+    let amount_le_allowance = uint128_le amount current_allowance in
+      match amount_le_allowance with
+      | True => builtin sub current_allowance amount
+      | False => zero
+      end;
+  allowances[_sender][spender] := new_allowance;
+  e = {_eventname : "DecreasedAllowance"; token_owner : _sender; spender: spender; new_allowance : new_allowance};
+  event e
+end
+
+(* @dev: Moves an amount tokens from _sender to the recipient. Used by token_owner. *)
+(* @dev: Balance of recipient will increase. Balance of _sender will decrease.      *)
+(* @param to:  Address of the recipient whose balance is increased.                 *)
+(* @param amount:     Amount of tokens to be sent.                                  *)
+transition Transfer(to: ByStr20, amount: Uint128)
+  IsNotLockProxy;
+  AuthorizedMoveIfSufficientBalance _sender to amount;
+  e = {_eventname : "TransferSuccess"; sender : _sender; recipient : to; amount : amount};
+  event e;
+  (* Prevent sending to a contract address that does not support transfers of token *)
+  msg_to_recipient = {_tag : "RecipientAcceptTransfer"; _recipient : to; _amount : zero;
+                      sender : _sender; recipient : to; amount : amount};
+  msg_to_sender = {_tag : "TransferSuccessCallBack"; _recipient : _sender; _amount : zero;
+                  sender : _sender; recipient : to; amount : amount};
+  msgs = two_msgs msg_to_recipient msg_to_sender;
+  send msgs
+end
+
+(* @dev: Move a given amount of tokens from one address to another using the allowance mechanism. The caller must be an approved_spender. *)
+(* @dev: Balance of recipient will increase. Balance of token_owner will decrease.                                                        *)
+(* @param from:    Address of the token_owner whose balance is decreased.                                                                 *)
+(* @param to:      Address of the recipient whose balance is increased.                                                                   *)
+(* @param amount:  Amount of tokens to be transferred.                                                                                    *)
+transition TransferFrom(from: ByStr20, to: ByStr20, amount: Uint128)
+  o_spender_allowed <- allowances[from][_sender];
+  allowed = get_val o_spender_allowed;
+  can_do = uint128_le amount allowed;
+  match can_do with
+  | True =>
+    MintIfLockProxy from amount;
+    
+    AuthorizedMoveIfSufficientBalance from to amount;
+    e = {_eventname : "TransferFromSuccess"; initiator : _sender; sender : from; recipient : to; amount : amount};
+    event e;
+    new_allowed = builtin sub allowed amount;
+    allowances[from][_sender] := new_allowed;
+    (* Prevent sending to a contract address that does not support transfers of token *)
+    msg_to_recipient = {_tag: "RecipientAcceptTransferFrom"; _recipient : to; _amount: zero;
+                        initiator: _sender; sender : from; recipient: to; amount: amount};
+    msg_to_sender = {_tag: "TransferFromSuccessCallBack"; _recipient: _sender; _amount: zero;
+                    initiator: _sender; sender: from; recipient: to; amount: amount};
+    msgs = two_msgs msg_to_recipient msg_to_sender;
+    send msgs;
+    BurnIfLockProxy from amount
+  | False =>
+    err = CodeInsufficientAllowance;
+    ThrowError err
+  end
+end
