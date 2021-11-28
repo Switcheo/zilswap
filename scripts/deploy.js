@@ -169,7 +169,7 @@ async function deployZilswap(privateKey, { fee = null, owner = null }) {
   if (!fee) fee = '30'
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/ZilSwap.scilla')).toString()
+  const code = (await readFile('./src/ZilSwapV1.1.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -190,7 +190,11 @@ async function deployZilswap(privateKey, { fee = null, owner = null }) {
   ];
 
   console.info(`Deploying zilswap...`)
-  return deployContract(privateKey, code, init)
+  const result = await deployContract(privateKey, code, init)
+
+  await callContract(privateKey, result[0], 'Initialize', [], 0, false, false)
+
+  return result
 }
 
 async function useZilswap(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
@@ -205,7 +209,6 @@ async function deploySeedLP(privateKey, {
   tokenAddress,
   zilswapAddress,
 }) {
-  console.log({ tokenAddress, zilswapAddress })
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')

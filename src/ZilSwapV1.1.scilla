@@ -12,6 +12,7 @@ type Pool = | Pool of Uint128 Uint128 (* x, y = zil reserve, token reserve *)
 type SwapDirection = | ZilToToken | TokenToZil
 type ExactSide = | ExactInput | ExactOutput
 type Swap = | Swap of (Option Pool) SwapDirection ExactSide Uint128 (Option Uint128) Uint256 (* exact amt, limit amt, after fee amt *)
+
 type ResultOrError =
  | Result of Pool Uint128 (* unwrapped pool, calculated amount *)
  | Error of String
@@ -22,11 +23,19 @@ let min_liquidity = Uint128 1000000000000000 (* 1000 ZIL *)
 let fee_denom = Uint256 10000 (* fee denominated in basis points (1 b.p. = 0.01%) *)
 let zil_address = 0x0000000000000000000000000000000000000000
 let zil = Zil
+let true = True
 
 let oneMsg : Message -> List Message =
   fun (msg : Message) =>
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
+
+let unwrapOrZero : Option Uint128 -> Uint128 =
+  fun (wrapped : Option Uint128) =>
+    match wrapped with
+    | None => zero
+    | Some x => x
+    end
 
 let grow : Uint128 -> Uint256 =
   fun (var : Uint128) =>
@@ -37,7 +46,7 @@ let grow : Uint128 -> Uint256 =
     end
 
 (* computes the amount of the fraction x / d that is in y *)
-let frac : Uint128 -> Uint128 -> Uint128 -> Option Uint128  =
+let frac : Uint128 -> Uint128 -> Uint128 -> Uint128  =
   fun (d : Uint128) =>
   fun (x : Uint128) =>
   fun (y : Uint128) =>
@@ -46,11 +55,15 @@ let frac : Uint128 -> Uint128 -> Uint128 -> Option Uint128  =
     let big_d = grow d in
     let d_times_y = builtin mul big_d big_y in
     let d_times_y_over_x = builtin div d_times_y big_x in
-    builtin to_uint128 d_times_y_over_x
+    let maybe = builtin to_uint128 d_times_y_over_x in
+    match maybe with
+    | None => builtin sub zero one (* throw on overflow by computing -1 in uint *)
+    | Some r => r
+    end
 
 (* computes the output that should be taken from the output reserve
    when the given input amount is added to the input reserve *)
-let outputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
+let outputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Uint128 =
   fun (input_amount_u128 : Uint128) =>
   fun (input_reserve_u128 : Uint128) =>
   fun (output_reserve_u128 : Uint128) =>
@@ -64,11 +77,15 @@ let outputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
       let d1 = builtin mul input_reserve fee_denom in
       builtin add d1 input_amount_after_fee in
     let result = builtin div numerator denominator in
-    builtin to_uint128 result
+    let maybe = builtin to_uint128 result in
+    match maybe with
+    | None => builtin sub zero one (* throw on overflow by computing -1 in uint *)
+    | Some r => r
+    end
 
 (* computes the input that should be given to the input reserve
    when the given output amount is removed from the output reserve *)
-let inputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
+let inputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Uint128 =
   fun (output_amount_u128 : Uint128) =>
   fun (input_reserve_u128 : Uint128) =>
   fun (output_reserve_u128 : Uint128) =>
@@ -83,11 +100,15 @@ let inputFor : Uint128 -> Uint128 -> Uint128 -> Uint256 -> Option Uint128 =
       let d1 = builtin sub output_reserve output_amount in
       builtin mul d1 after_fee in
     let result = builtin div numerator denominator in
-    builtin to_uint128 result
+    let maybe = builtin to_uint128 result in
+    match maybe with
+    | None => builtin sub zero one (* throw on overflow by computing -1 in uint *)
+    | Some r => r
+    end
 
 (* computes the corresponding input or output amount for
    the given exact output or input amount, pool, and direction *)
-let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Uint256 -> Option Uint128 =
+let amountFor : Pool -> SwapDirection -> ExactSide -> Uint128 -> Uint256 -> Uint128 =
   fun (pool : Pool) =>
   fun (direction : SwapDirection) =>
   fun (exact_side : ExactSide) =>
@@ -134,21 +155,13 @@ let resultFor : Swap -> ResultOrError =
     match swap with
     | Swap maybe_pool direction exact_side exact_amount maybe_limit_amount after_fee =>
       match maybe_pool with
-      | None =>
-        let e = "MissingPool" in Error e
+      | None => let e = "MissingPool" in Error e
       | Some pool =>
-        let maybe_amount = amountFor pool direction exact_side exact_amount after_fee in
-        match maybe_amount with
-        | None =>
-          let e = "IntegerOverflow" in Error e
-        | Some amount =>
-          let within_limits = withinLimits amount maybe_limit_amount exact_side in
-          match within_limits with
-          | False =>
-            let e = "RequestedRatesCannotBeFulfilled" in Error e
-          | True =>
-            Result pool amount
-          end
+        let amount = amountFor pool direction exact_side exact_amount after_fee in
+        let within_limits = withinLimits amount maybe_limit_amount exact_side in
+        match within_limits with
+        | False => let e = "RequestedRatesCannotBeFulfilled" in Error e
+        | True => Result pool amount
         end
       end
     end
@@ -180,15 +193,14 @@ field total_contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field output_after_fee : Uint256 = builtin sub fee_denom initial_fee
 field owner : ByStr20 = initial_owner
 field pending_owner : ByStr20 = zil_address
+field initialized : Bool = False
 
 procedure ThrowIfExpired(deadline_block: BNum)
   current_block <- & BLOCKNUMBER;
   is_not_expired = builtin blt current_block deadline_block;
   match is_not_expired with
   | True =>
-  | False =>
-    e = { _exception : "TransactionExpired" };
-    throw e
+  | False => e = { _exception : "TransactionExpired" }; throw e
   end
 end
 
@@ -196,9 +208,15 @@ procedure ThrowIfZero(number: Uint128)
   gt_zero = uint128_gt number zero;
   match gt_zero with
   | True =>
-  | False =>
-    e = { _exception : "InvalidParameter" };
-    throw e
+  | False => e = { _exception : "InvalidParameter" }; throw e
+  end
+end
+
+procedure ThrowIfNone(number: Uint128)
+  gt_zero = uint128_gt number zero;
+  match gt_zero with
+  | True =>
+  | False => e = { _exception : "InvalidAmount" }; throw e
   end
 end
 
@@ -206,9 +224,7 @@ procedure ThrowIfZil(address : ByStr20)
   is_zil = builtin eq address zil_address;
   match is_zil with
   | False =>
-  | True =>
-    e = { _exception : "InvalidParameter" };
-    throw e
+  | True => e = { _exception : "InvalidParameter" }; throw e
   end
 end
 
@@ -217,9 +233,59 @@ procedure ThrowUnlessSenderIsOwner()
   is_owner = builtin eq _sender current_owner;
   match is_owner with
   | True =>
+  | False => e = { _exception : "InvalidSender" }; throw e
+  end
+end
+
+procedure ThrowIfInitialized()
+  inited <- initialized;
+  match inited with
   | False =>
-    e = { _exception : "InvalidSender" };
-    throw e
+  | True => e = { _exception : "AlreadyInitialized" }; throw e
+  end
+end
+
+procedure ThrowUnlessInitialized()
+  inited <- initialized;
+  match inited with
+  | True =>
+  | False => e = { _exception : "NotYetInitialized" }; throw e
+  end
+end
+
+procedure InitializePool(pool : Pair ByStr20 Pool)
+  match pool with
+  | Pair key value =>
+    is_migrated <- exists pools[key];
+    match is_migrated with
+    | True => e = { _exception : "KeyAlreadyMigrated" }; throw e
+    | False => pools[key] := value
+    end
+  end
+end
+
+procedure InitializeBalance(balance : Pair (ByStr20) (Pair ByStr20 Uint128))
+  match balance with
+  | Pair token p =>
+    match p with
+    | Pair address value =>
+      is_migrated <- exists balances[token][address];
+      match is_migrated with
+      | True => e = { _exception : "KeyAlreadyMigrated" }; throw e
+      | False => balances[token][address] := value
+      end
+    end
+  end
+end
+
+procedure InitializeTotalContribution(total_contribution : Pair ByStr20 Uint128)
+  match total_contribution with
+  | Pair key value =>
+    is_migrated <- exists total_contributions[key];
+    match is_migrated with
+    | True => e = { _exception : "KeyAlreadyMigrated" }; throw e
+    | False => total_contributions[key] := value
+    end
   end
 end
 
@@ -368,6 +434,7 @@ procedure SwapUsingZIL(
   deadline_block : BNum,
   recipient_address : ByStr20
 )
+  ThrowUnlessInitialized;
   ThrowIfExpired deadline_block;
   ThrowIfZero exact_amount;
   ThrowIfZero limit_amount;
@@ -380,9 +447,7 @@ procedure SwapUsingZIL(
     resultFor swap;
 
   match result with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
+  | Error msg => e = { _exception : msg }; throw e
   | Result pool calculated_amount =>
     token = Token token_address;
     match exact_side with
@@ -424,9 +489,7 @@ transition RecipientAcceptTransferFrom(
     andb self_triggered is_transfer_to_self;
 
   match is_valid_transfer_to_self with
-  | False =>
-    e = { _exception : "InvalidInvocation" };
-    throw e
+  | False => e = { _exception : "InvalidInvocation" }; throw e
   | True => (* noop *)
   end
 end
@@ -446,15 +509,47 @@ transition TransferSuccessCallBack(
 )
 end
 
+transition InitializePools(
+  init_pools : List (Pair ByStr20 Pool)
+)
+  ThrowIfInitialized;
+  ThrowUnlessSenderIsOwner;
+  forall init_pools InitializePool
+end
+
+transition InitializeBalances(
+  init_balances : List (Pair ByStr20 (Pair ByStr20 Uint128))
+)
+  ThrowIfInitialized;
+  ThrowUnlessSenderIsOwner;
+  forall init_balances InitializeBalance
+end
+
+transition InitializeTotalContributions(
+  init_total_contributions : List (Pair ByStr20 Uint128)
+)
+  ThrowIfInitialized;
+  ThrowUnlessSenderIsOwner;
+  forall init_total_contributions InitializeTotalContribution
+end
+
+transition AddFunds()
+  accept
+end
+
+transition Initialize()
+  ThrowIfInitialized;
+  ThrowUnlessSenderIsOwner;
+  initialized := true
+end
+
 transition SetFee(
   new_fee : Uint256
 )
   ThrowUnlessSenderIsOwner;
   is_valid_fee = uint256_le new_fee fee_denom;
   match is_valid_fee with
-  | False =>
-    e = { _exception : "InvalidParameter" };
-    throw e
+  | False => e = { _exception : "InvalidParameter" }; throw e
   | True =>
     new_output_after_fee = builtin sub fee_denom new_fee;
     output_after_fee := new_output_after_fee;
@@ -470,11 +565,8 @@ transition TransferOwnership(
   existing_owner <- owner;
   new_owner_is_existing_owner = builtin eq new_owner existing_owner;
   match new_owner_is_existing_owner with
-  | True =>
-    e = { _exception : "InvalidParameter" };
-    throw e
-  | False =>
-    pending_owner := new_owner
+  | True => e = { _exception : "InvalidParameter" }; throw e
+  | False => pending_owner := new_owner
   end
 end
 
@@ -482,9 +574,7 @@ transition AcceptPendingOwnership()
   new_owner <- pending_owner;
   sender_is_pending_owner = builtin eq _sender new_owner;
   match sender_is_pending_owner with
-  | False =>
-    e = { _exception : "InvalidSender" };
-    throw e
+  | False => e = { _exception : "InvalidSender" }; throw e
   | True =>
     owner := new_owner;
     pending_owner := zil_address;
@@ -499,6 +589,7 @@ transition AddLiquidity(
   max_token_amount : Uint128,
   deadline_block : BNum
 )
+  ThrowUnlessInitialized;
   ThrowIfExpired deadline_block;
   ThrowIfZil token_address;
   ThrowIfZero _amount;
@@ -515,84 +606,66 @@ transition AddLiquidity(
   | None =>
     min_zil_contributed = uint128_ge _amount min_liquidity;
     match min_zil_contributed with
-    | False =>
-      e = { _exception : "InvalidParameter" };
-      throw e
     | True =>
-      tokens_in = Coins token max_token_amount;
-      Receive tokens_in;
+    | False => e = { _exception : "InvalidParameter" }; throw e
+    end;
 
-      new_pool = Pool _amount max_token_amount;
-      pools[token_address] := new_pool;
-      e1 = { _eventname: "PoolCreated"; pool: token_address };
-      event e1;
+    tokens_in = Coins token max_token_amount;
+    Receive tokens_in;
 
-      balances[token_address][_sender] := _amount;
-      total_contributions[token_address] := _amount;
-      e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
-      event e2
-    end
+    new_pool = Pool _amount max_token_amount;
+    pools[token_address] := new_pool;
+    e1 = { _eventname: "PoolCreated"; pool: token_address };
+    event e1;
+
+    balances[token_address][_sender] := _amount;
+    total_contributions[token_address] := _amount;
+    e2 = { _eventname: "Mint"; pool: token_address; address: _sender; amount: _amount };
+    event e2
   | Some pool =>
     match pool with
     | Pool x y => (* zil reserve, token reserve *)
 
       (* dY = dX * Y / X + 1 *)
       (* dX is always the QA transferred *)
-      maybe_result = frac _amount x y;
-      match maybe_result with
+      result = frac _amount x y;
+      delta_y = builtin add result one;
+      maybe_total_contribution <- total_contributions[token_address];
+      total_contribution = unwrapOrZero maybe_total_contribution;
+      ThrowIfNone total_contribution;
+
+      new_contribution = frac _amount x total_contribution;
+      within_limits =
+        let token_lte_max = uint128_le delta_y max_token_amount in
+        let contribution_gte_max = uint128_ge new_contribution min_contribution_amount in
+        andb token_lte_max contribution_gte_max;
+      match within_limits with
+      | True => | False => e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y }; throw e
+      end;
+
+      tokens_in = Coins token delta_y;
+      Receive tokens_in;
+
+      new_pool =
+        let new_x = builtin add x _amount in
+        let new_y = builtin add y delta_y in
+        Pool new_x new_y;
+      pools[token_address] := new_pool;
+
+      existing_balance <- balances[token_address][_sender];
+      match existing_balance with
+      | Some b =>
+        new_balance = builtin add b new_contribution;
+        balances[token_address][_sender] := new_balance
       | None =>
-        e = { _exception : "IntegerOverflow" };
-        throw e
-      | Some result =>
-        delta_y = builtin add result one;
-        maybe_total_contribution <- total_contributions[token_address];
-        match maybe_total_contribution with
-        | None =>
-          e = { _exception : "MissingContributions" };
-          throw e
-        | Some total_contribution =>
-          maybe_new_contribution = frac _amount x total_contribution;
-          match maybe_new_contribution with
-          | None =>
-            e = { _exception : "IntegerOverflow" };
-            throw e
-          | Some new_contribution =>
-            within_limits =
-              let token_lte_max = uint128_le delta_y max_token_amount in
-              let contribution_gte_max = uint128_ge new_contribution min_contribution_amount in
-              andb token_lte_max contribution_gte_max;
-            match within_limits with
-            | False =>
-              e = { _exception : "RequestedRatesCannotBeFulfilled" ; delta_y: delta_y };
-              throw e
-            | True =>
-              tokens_in = Coins token delta_y;
-              Receive tokens_in;
+        balances[token_address][_sender] := new_contribution
+      end;
 
-              new_pool =
-                let new_x = builtin add x _amount in
-                let new_y = builtin add y delta_y in
-                Pool new_x new_y;
-              pools[token_address] := new_pool;
+      new_total_contribution = builtin add total_contribution new_contribution;
+      total_contributions[token_address] := new_total_contribution;
 
-              existing_balance <- balances[token_address][_sender];
-              match existing_balance with
-              | Some b =>
-                new_balance = builtin add b new_contribution;
-                balances[token_address][_sender] := new_balance
-              | None =>
-                balances[token_address][_sender] := new_contribution
-              end;
-
-              new_total_contribution = builtin add total_contribution new_contribution;
-              total_contributions[token_address] := new_total_contribution;
-
-              e = { _eventname: "Mint"; pool: token_address; address: _sender; amount: new_contribution };
-              event e
-            end
-          end
-        end
-      end
+      e = { _eventname: "Mint"; pool: token_address; address: _sender; amount: new_contribution };
+      event e
     end
   end
 end
@@ -604,6 +677,7 @@ transition RemoveLiquidity(
   min_token_amount : Uint128,
   deadline_block : BNum
 )
+  ThrowUnlessInitialized;
   ThrowIfExpired deadline_block;
   ThrowIfZero contribution_amount;
   ThrowIfZero min_zil_amount;
@@ -611,80 +685,55 @@ transition RemoveLiquidity(
 
   token = Token token_address;
 
-  maybe_total_contribution <- total_contributions[token_address];
-  match maybe_total_contribution with
-  | None =>
-    e = { _exception : "MissingPool" };
-    throw e
-  | Some total_contribution =>
-    ThrowIfZero total_contribution;
-    maybe_pool <- pools[token_address];
-    match maybe_pool with
-    | None =>
-      e = { _exception : "MissingPool" };
-      throw e
-    | Some pool =>
-      match pool with
-      | Pool x y => (* zil reserve, token reserve *)
-        maybe_zil_amount = frac contribution_amount total_contribution x;
-        maybe_token_amount = frac contribution_amount total_contribution y;
-        match maybe_zil_amount with
-        | None =>
-          e = { _exception : "IntegerOverflow" };
-          throw e
-        | Some zil_amount =>
-          match maybe_token_amount with
-          | None =>
-            e = { _exception : "IntegerOverflow" };
-            throw e
-          | Some token_amount =>
-            within_limits =
-              let zil_ok = uint128_ge zil_amount min_zil_amount in
-              let token_ok = uint128_ge token_amount min_token_amount in
-              andb zil_ok token_ok;
-            match within_limits with
-            | False =>
-              e = { _exception : "RequestedRatesCannotBeFulfilled" };
-              throw e
-            | True =>
-              existing_balance <- balances[token_address][_sender];
-              match existing_balance with
-              | None =>
-                e = { _exception : "MissingBalance" };
-                throw e
-              | Some b =>
-                new_balance = builtin sub b contribution_amount;
-                new_pool =
-                  let new_x = builtin sub x zil_amount in
-                  let new_y = builtin sub y token_amount in
-                  Pool new_x new_y;
+  maybe_pool <- pools[token_address];
+  match maybe_pool with
+  | None => e = { _exception : "MissingPool" }; throw e
+  | Some pool =>
+    match pool with
+    | Pool x y => (* zil reserve, token reserve *)
+      maybe_total_contribution <- total_contributions[token_address];
+      total_contribution = unwrapOrZero maybe_total_contribution;
+      ThrowIfNone total_contribution;
 
-                is_pool_now_empty = poolEmpty new_pool;
-                match is_pool_now_empty with
-                | True =>
-                  (* clear pool entries when there is no more liquidity *)
-                  delete pools[token_address];
-                  delete balances[token_address];
-                  delete total_contributions[token_address]
-                | False =>
-                  pools[token_address] := new_pool;
-                  balances[token_address][_sender] := new_balance;
-                  new_total_contribution = builtin sub total_contribution contribution_amount;
-                  total_contributions[token_address] := new_total_contribution
-                end;
+      zil_amount = frac contribution_amount total_contribution x;
+      token_amount = frac contribution_amount total_contribution y;
+      within_limits =
+        let zil_ok = uint128_ge zil_amount min_zil_amount in
+        let token_ok = uint128_ge token_amount min_token_amount in
+        andb zil_ok token_ok;
+      match within_limits with
+      | True => | False => e = { _exception : "RequestedRatesCannotBeFulfilled" }; throw e
+      end;
 
-                zils_out = Coins zil zil_amount;
-                tokens_out = Coins token token_amount;
-                Send zils_out _sender;
-                Send tokens_out _sender;
+      existing_balance <- balances[token_address][_sender];
+      b = unwrapOrZero existing_balance;
+      new_balance = builtin sub b contribution_amount;
+      new_total_contribution = builtin sub total_contribution contribution_amount;
+      new_pool =
+        let new_x = builtin sub x zil_amount in
+        let new_y = builtin sub y token_amount in
+        Pool new_x new_y;
 
-                e = { _eventname: "Burnt"; pool: token_address; address: _sender; amount: contribution_amount };
-                event e
-              end
-            end
-          end
-        end
-      end
+      is_pool_now_empty = poolEmpty new_pool;
+      match is_pool_now_empty with
+      | True =>
+        (* clear pool entries when there is no more liquidity *)
+        delete pools[token_address];
+        delete balances[token_address];
+        delete total_contributions[token_address]
+      | False =>
+        pools[token_address] := new_pool;
+        balances[token_address][_sender] := new_balance;
+        total_contributions[token_address] := new_total_contribution
+      end;
+
+      zils_out = Coins zil zil_amount;
+      tokens_out = Coins token token_amount;
+      Send zils_out _sender;
+      Send tokens_out _sender;
+
+      e = { _eventname: "Burnt"; pool: token_address; address: _sender; amount: contribution_amount };
+      event e
     end
   end
 end
@@ -785,6 +834,7 @@ transition SwapExactTokensForTokens(
   deadline_block : BNum,
   recipient_address : ByStr20
 )
+  ThrowUnlessInitialized;
   ThrowIfExpired deadline_block;
   ThrowIfZero token0_amount;
   ThrowIfZero min_token1_amount;
@@ -800,9 +850,7 @@ transition SwapExactTokensForTokens(
       resultFor swap;
 
   match result0 with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
+  | Error msg => e = { _exception : msg }; throw e
   | Result pool0 zil_intermediate_amount =>
     maybe_pool1 <- pools[token1_address];
 
@@ -814,9 +862,7 @@ transition SwapExactTokensForTokens(
         resultFor swap;
 
     match result1 with
-    | Error msg =>
-      e = { _exception : msg };
-      throw e
+    | Error msg => e = { _exception : msg }; throw e
     | Result pool1 output_amount =>
       DoSwapTwice
         pool0
@@ -839,6 +885,7 @@ transition SwapTokensForExactTokens(
   deadline_block : BNum,
   recipient_address : ByStr20
 )
+  ThrowUnlessInitialized;
   ThrowIfExpired deadline_block;
   ThrowIfZero max_token0_amount;
   ThrowIfZero token1_amount;
@@ -854,9 +901,7 @@ transition SwapTokensForExactTokens(
       resultFor swap;
 
   match result1 with
-  | Error msg =>
-    e = { _exception : msg };
-    throw e
+  | Error msg => e = { _exception : msg }; throw e
   | Result pool1 zil_intermediate_amount =>
     maybe_pool0 <- pools[token0_address];
 
@@ -868,9 +913,7 @@ transition SwapTokensForExactTokens(
         resultFor swap;
 
     match result0 with
-    | Error msg =>
-      e = { _exception : msg };
-      throw e
+    | Error msg => e = { _exception : msg }; throw e
     | Result pool0 input_amount =>
       DoSwapTwice
         pool0
