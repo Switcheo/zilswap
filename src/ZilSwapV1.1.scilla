@@ -541,14 +541,30 @@ transition InitializeTotalContributions(
   forall init_total_contributions InitializeTotalContribution
 end
 
-transition AddFunds()
-  accept
-end
-
 transition Initialize()
   ThrowIfInitialized;
   ThrowUnlessSenderIsOwner;
   initialized := true
+end
+
+(* initialize zil balance *)
+transition AddFunds()
+  ThrowUnlessSenderIsOwner;
+  accept
+end
+
+(* initialize token balance *)
+transition RecipientAcceptTransfer(
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+  current_owner <- owner;
+  is_owner = builtin eq sender current_owner;
+  match is_owner with
+  | True =>
+  | False => e = { _exception : "InvalidSender" }; throw e
+  end
 end
 
 transition SetFee(

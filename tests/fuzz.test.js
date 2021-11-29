@@ -4,8 +4,8 @@ const { callContract, getBalance } = require('../scripts/call.js')
 const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
 
 // initial ratios
-const NUM_ACTIONS = 100 // 5000
-const NUM_ACCOUNTS = 5 // 20
+const NUM_ACTIONS = 10 // 5000
+const NUM_ACCOUNTS = 2 // 20
 
 const RESERVE_FEES = '100000000000000'
 const TOKEN_1_DECIMALS = 12
@@ -209,7 +209,7 @@ const swap = async (accountNum) => {
   // choose output
   const outputType = getRandomInt([1, input === 'zil' ? 2 : 3])
   let output = token1
-  if (outputType === 2) {
+  if (outputType === 2 && inputType !== 2) {
     output = token2
   }
   if (outputType === 3) {
@@ -451,8 +451,8 @@ const tryRemoveLiquidity = async (accountNum) => {
 
   const ratio = getRandomInt(REM_LIQ_RANGE)
   const contributionAmt = balance.times(ratio).div(100).integerValue()
-  const zilAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[0]).times(ratio).times(0.99).dividedToIntegerBy(100) // 1% slippage
-  const tknAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[1]).times(ratio).times(0.99).dividedToIntegerBy(100) // 1% slippage
+  const zilAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[0]).times(ratio).times(0.5).dividedToIntegerBy(100)
+  const tknAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[1]).times(ratio).times(0.5).dividedToIntegerBy(100)
 
   const args = [
     "RemoveLiquidity",

@@ -84,7 +84,7 @@ beforeEach(async () => {
   prevState = await getState(key, contract, token)
 })
 
-describe('zil <> zrc2 swaps', () => {
+describe('zilswap zil <> zrc2 swaps', () => {
   test('swap exact zrc2 for zil', async () => {
     const amount = new BigNumber(tokenAmount).times('0.0002').toString() // 0.02% = 0.1
     const minZils = units.toQa(zilAmount * 0.00018, units.Units.Zil).toString(10) // 0.02% - 10% slippage allowance ~= 20 +- 2
@@ -306,7 +306,7 @@ describe('zil <> zrc2 swaps', () => {
   })
 })
 
-describe('zrc2 <> zrc2 swaps', () => {
+describe('zilswap zrc2 <> zrc2 swaps', () => {
   beforeAll(async () => {
     const ft = await useFungibleToken(key, { decimals: 18 }, contract.address, null)
     token2 = ft[0]

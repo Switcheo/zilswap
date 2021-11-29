@@ -10,7 +10,7 @@ beforeAll(async () => {
   contract = zilswap[0]
 })
 
-test('configurable protocol fees by owner', async () => {
+test('zilswap configurable protocol fees by owner', async () => {
   const txn1 = await callContract(
     key, contract,
     'SetFee',
@@ -46,7 +46,7 @@ test('configurable protocol fees by owner', async () => {
   expect(state.output_after_fee).toEqual("9970")
 })
 
-test('non-owner cannot configure fees', async () => {
+test('zilswap non-owner cannot configure fees', async () => {
   const { key: randomKey } = await createRandomAccount(key)
 
   const txn = await callContract(

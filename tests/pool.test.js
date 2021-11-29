@@ -2,7 +2,7 @@ const { getDefaultAccount } = require('../scripts/account.js')
 const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
 const { callContract } = require('../scripts/call.js')
 
-test('addLiquidity and removeLiquidity', async () => {
+test('zilswap addLiquidity and removeLiquidity', async () => {
   const { key, address: owner } = getDefaultAccount()
   const [contract, _cs] = await useZilswap(key)
   expect(contract.address).toBeDefined()

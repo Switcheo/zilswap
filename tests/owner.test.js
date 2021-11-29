@@ -17,7 +17,7 @@ beforeEach(async () => {
   contract = zilswap[0]
 })
 
-test('transferrable owner', async () => {
+test('zilswap transferrable owner', async () => {
   let state = await contract.getState()
   expect(state.owner).toEqual(origOwner)
   expect(state.pending_owner).toEqual('0x0000000000000000000000000000000000000000')
@@ -52,7 +52,7 @@ test('transferrable owner', async () => {
   expect(state.pending_owner).toEqual('0x0000000000000000000000000000000000000000')
 })
 
-test('non-owner cannot change owner', async () => {
+test('zilswap non-owner cannot change owner', async () => {
   let state = await contract.getState()
   expect(state.owner).toEqual(origOwner)
   expect(state.pending_owner).toEqual('0x0000000000000000000000000000000000000000')
