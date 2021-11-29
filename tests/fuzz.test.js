@@ -451,8 +451,9 @@ const tryRemoveLiquidity = async (accountNum) => {
 
   const ratio = getRandomInt(REM_LIQ_RANGE)
   const contributionAmt = balance.times(ratio).div(100).integerValue()
-  const zilAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[0]).times(ratio).times(0.5).dividedToIntegerBy(100)
-  const tknAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[1]).times(ratio).times(0.5).dividedToIntegerBy(100)
+  const percentOfPool = new BigNumber(contributionAmt).dividedBy(state.total_contributions[token.address.toLowerCase()])
+  const zilAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[0]).times(percentOfPool).times(0.99).dividedToIntegerBy(100)
+  const tknAmt = new BigNumber(state.pools[token.address.toLowerCase()].arguments[1]).times(percentOfPool).times(0.99).dividedToIntegerBy(100)
 
   const args = [
     "RemoveLiquidity",
