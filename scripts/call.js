@@ -90,7 +90,7 @@ async function callContract(privateKey, contract, transition, args,
         const errorMsgList = errors[depth].map(num => TransactionError[num])
         return { ...acc, [depth]: errorMsgList }
       }, {})
-      console.info(`Contract call failed:\n${JSON.stringify(errMsgs, null, 2)}`)
+      console.info(`Contract call failed:\n${JSON.stringify(errMsgs, null, 2)} + ${tx.receipt.exceptions ? `\nExceptions:\n${JSON.stringify(tx.receipt.exceptions, null, 2)}` : ''}`)
     }
   }
 
@@ -128,7 +128,7 @@ async function getBlockNum() {
 
 async function nextBlock(n = 1) {
   if (network === 'localhost') {
-    console.log('Advancing block...')
+    // console.log('Advancing block...')
     const response = await zilliqa.provider.send('IncreaseBlocknum', n)
     if (!response.result) {
       throw new Error(`Failed to advanced block! Error: ${JSON.stringify(response.error)}`)

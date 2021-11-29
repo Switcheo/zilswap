@@ -465,7 +465,7 @@ async function deployContract(privateKey, code, init) {
 
   // Refetch contract
   console.info(`The contract address is: ${token.address}`)
-  console.log('Refetching contract state...')
+  // console.log('Refetching contract state...')
   const deployedContract = zilliqa.contracts.at(token.address)
   const state = await deployedContract.getState()
 
