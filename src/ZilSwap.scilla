@@ -202,6 +202,14 @@ procedure ThrowIfZero(number: Uint128)
   end
 end
 
+procedure ThrowIfSameAddress(address1 : ByStr20, address2 : ByStr20)
+  is_same = builtin eq address1 address2;
+  match is_same with
+  | False =>
+  | True => e = { _exception : "InvalidParameter" }; throw e
+  end
+end
+
 procedure ThrowIfZil(address : ByStr20)
   is_zil = builtin eq address zil_address;
   match is_zil with
@@ -788,6 +796,7 @@ transition SwapExactTokensForTokens(
   ThrowIfExpired deadline_block;
   ThrowIfZero token0_amount;
   ThrowIfZero min_token1_amount;
+  ThrowIfSameAddress token0_address token1_address;
 
   after_fee <- output_after_fee;
   maybe_pool0 <- pools[token0_address];
@@ -842,6 +851,7 @@ transition SwapTokensForExactTokens(
   ThrowIfExpired deadline_block;
   ThrowIfZero max_token0_amount;
   ThrowIfZero token1_amount;
+  ThrowIfSameAddress token0_address token1_address;
 
   after_fee <- output_after_fee;
   maybe_pool1 <- pools[token1_address];
