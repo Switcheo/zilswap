@@ -32,6 +32,10 @@ async function transfer(privateKey, toAddr, amount) {
   return tx
 }
 
+async function getBalance(address) {
+  return new BigNumber((await zilliqa.blockchain.getBalance(address)).result.balance)
+}
+
 function getContract(contractAddress) {
   return zilliqa.contracts.at(contractAddress)
 }
@@ -133,6 +137,7 @@ async function nextBlock(n = 1) {
 }
 
 exports.transfer = transfer
+exports.getBalance = getBalance
 exports.getContract = getContract
 exports.callContract = callContract
 exports.getState = getState

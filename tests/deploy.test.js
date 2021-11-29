@@ -8,6 +8,11 @@ test('deploy Zilswap', async () => {
   expect(state).toEqual({
     "_balance": "0",
     "balances": {},
+    "initialized": {
+      "argtypes": [],
+      "arguments": [],
+      "constructor": "False",
+    },
     "output_after_fee": "9970",
     "owner": owner,
     "pending_owner": "0x0000000000000000000000000000000000000000",
@@ -16,14 +21,10 @@ test('deploy Zilswap', async () => {
   })
 })
 
-test('deploy NFT', async () => {
+test('deploy TBM', async () => {
   const { key, address: owner } = getDefaultAccount()
   const [contract, state] = await deployNonFungibleToken(key, { symbol: 'BEAR' })
   expect(contract.address).toBeDefined()
-  expect(state._balance).toEqual('0')
-  expect(state.bear_price).toEqual('1')
   expect(state.is_token_locked.constructor).toEqual('True')
-  expect(state.max_nft_purchase).toEqual('20')
-  expect(state.sale_is_active.constructor).toEqual('False')
   expect(state.total_supply).toEqual('0')
 })

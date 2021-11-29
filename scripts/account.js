@@ -10,12 +10,12 @@ function getDefaultAccount() {
   return { key, pubKey, address }
 }
 
-async function createRandomAccount(privateKey) {
+async function createRandomAccount(privateKey, initAmount = '10000') {
   const key = schnorr.generatePrivateKey()
   const address = getAddressFromPrivateKey(key)
   const pubKey = getPubKeyFromPrivateKey(key)
 
-  await transfer(privateKey, address, '1')
+  if (initAmount != '0') await transfer(privateKey, address, initAmount)
 
   return { key, pubKey, address: address.toLowerCase() }
 }

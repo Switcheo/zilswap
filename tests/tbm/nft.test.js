@@ -8,7 +8,7 @@ beforeAll(async () => {
     key = defaultAccount.key
     owner = defaultAccount.address
 
-    const newAccount = await createRandomAccount(key)
+    const newAccount = await createRandomAccount(key, '1')
     newOwner = newAccount.address
 
     const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
@@ -16,9 +16,8 @@ beforeAll(async () => {
 })
 
 test('toggle sale active', async () => {
-    const txn = await callContract(key, contract, 'EnableSale', [], 0, false, false)
+    const txn = await callContract(key, contract, 'ConfigureMinters', [owner.toLowerCase()], 0, false, false)
     expect(txn.status).toEqual(2)
-    expect(state.sale_is_active.constructor).toEqual('True')
 })
 
 test('mint token', async () => {

@@ -19,7 +19,6 @@ describe('ARK VoidCheque', () => {
     const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
     const buffer = Buffer.from(messageHash, 'hex')
     signature = sign(buffer, user.key, user.pubKey)
-    // console.log({ message, chequeHash, pubKey, messageHash, signature })
   })
 
   // test success

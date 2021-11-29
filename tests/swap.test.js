@@ -118,6 +118,8 @@ describe('zil <> zrc2 swaps', () => {
     expectTokenTransfer(prevState, newState, 'toContract', amount, true)
     // check contract gave > min zil
     expectZilTransfer(prevState, newState, 'fromContract', minZils, getGas(swapTxn), false)
+    // check contract balances
+    validateBalances(token)
   })
 
   test('swap exact zil for zrc2', async () => {
@@ -149,6 +151,8 @@ describe('zil <> zrc2 swaps', () => {
     expectZilTransfer(prevState, newState, 'toContract', units.toQa(amount, units.Units.Zil).toString(10), getGas(swapTxn), true)
     // check contract gave > min token
     expectTokenTransfer(prevState, newState, 'fromContract', minTokens, false)
+    // check contract balances
+    validateBalances(token)
   })
 
   test('swap zrc2 for exact zil', async () => {
@@ -185,6 +189,8 @@ describe('zil <> zrc2 swaps', () => {
     expectZilTransfer(prevState, newState, 'fromContract', amount, getGas(swapTxn), true)
     // check sent < max token to contract
     expectTokenTransfer(prevState, newState, 'toContract', maxTokens, false)
+    // check contract balances
+    validateBalances(token)
   })
 
   test('swap zil for exact zrc2', async () => {
@@ -216,6 +222,8 @@ describe('zil <> zrc2 swaps', () => {
     expectTokenTransfer(prevState, newState, 'fromContract', amount, true)
     // check sent < max token to contract
     expectZilTransfer(prevState, newState, 'toContract', units.toQa(maxZils, units.Units.Zil).toString(10), getGas(swapTxn), false)
+    // check contract balances
+    validateBalances(token)
   })
 
   test('swap zrc2 to exact zil to non-sender receive address', async () => {
@@ -260,6 +268,8 @@ describe('zil <> zrc2 swaps', () => {
     // check contract sent exact amt of zil to receipient
     const recipientState = await getState(recipient.key, contract, token)
     expectZilTransfer(prevRecipientState, recipientState, 'fromContract', amount, '0', true)
+    // check contract balances
+    validateBalances(token)
   })
 
   test('reverts if swap rates cannot be fulfilled', async () => {
@@ -291,6 +301,8 @@ describe('zil <> zrc2 swaps', () => {
     expectTokenTransfer(prevState, newState, 'toContract', '0', true)
     // check no zils sent
     expectZilTransfer(prevState, newState, 'fromContract', '0', getGas(swapTxn), true)
+    // check contract balances
+    validateBalances(token)
   })
 })
 
@@ -411,6 +423,8 @@ describe('zrc2 <> zrc2 swaps', () => {
     const gas = getGas(swapTxn)
     expectZilTransfer(prevState, newState0, 'toContract', '0', gas, true)
     expectZilTransfer(prevState, newState0, 'fromContract', '0', gas, true)
+    // check contract balances
+    validateBalances(token, token2)
   })
 
   test('swap zrc2 for exact zrc2', async () => {
@@ -459,6 +473,8 @@ describe('zrc2 <> zrc2 swaps', () => {
     const gas = getGas(swapTxn)
     expectZilTransfer(prevState, newState0, 'toContract', '0', gas, true)
     expectZilTransfer(prevState, newState0, 'fromContract', '0', gas, true)
+    // check contract balances
+    validateBalances(token, token2)
   })
 })
 
@@ -519,5 +535,20 @@ expectZilTransfer = (prevState, newState, direction, amount, fees, exact = true)
       break
     }
     default: throw new Error('invalid direction!')
+  }
+
+  validateBalances = async (...tokens) => {
+    const cs = await contract.getState()
+
+    const cZil = new BigNumber(cs._balance)
+    const iZil = Object.values(cs.pools).reduce((acc, v) => acc.plus(v.arguments[0]), new BigNumber(0))
+    expect(cZil.toString()).toEqual(iZil.toString())
+
+    for (const token of tokens) {
+      const ts = await token.getState()
+      const cTkn = ts.balances[contract.address.toLowerCase()]
+      const iTkn = cs.pools[token.address.toLowerCase()].arguments[1]
+      expect(cTkn).toEqual(iTkn)
+    }
   }
 }

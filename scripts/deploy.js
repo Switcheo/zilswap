@@ -158,7 +158,7 @@ async function useNonFungibleToken(privateKey, params = {}, useExisting = proces
   return deployNonFungibleToken(privateKey, params)
 }
 
-async function deployZilswap(privateKey, { fee = null, owner = null }) {
+async function deployZilswap(privateKey, { fee = null, owner = null }, version = 'V1.1') {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -169,7 +169,7 @@ async function deployZilswap(privateKey, { fee = null, owner = null }) {
   if (!fee) fee = '30'
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/ZilSwapV1.1.scilla')).toString()
+  const code = (await readFile(`./src/ZilSwap${version}.scilla`)).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -192,7 +192,7 @@ async function deployZilswap(privateKey, { fee = null, owner = null }) {
   console.info(`Deploying zilswap...`)
   const result = await deployContract(privateKey, code, init)
 
-  await callContract(privateKey, result[0], 'Initialize', [], 0, false, false)
+  if (version === 'V1.1') await callContract(privateKey, result[0], 'Initialize', [], 0, false, false)
 
   return result
 }

@@ -131,7 +131,6 @@ describe('contribute to ZILO', () => {
           [],
           1, false, false
         )
-        console.log(JSON.stringify(tx, null, 2))
         expect(tx.status).toEqual(2)
       })
 

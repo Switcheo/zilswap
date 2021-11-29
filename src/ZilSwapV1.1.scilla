@@ -392,7 +392,7 @@ end
 
 (* helper procedure to do swap twice, first to internally
    swap to an intermediate zil amount with pool0 and then
-   to swap that zil with pool1 to the _sender *)
+   to swap that zil with pool1 to the recipient_address *)
 procedure DoSwapTwice(
   pool0 : Pool,
   token0_address : ByStr20,

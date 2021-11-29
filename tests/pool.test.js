@@ -83,6 +83,11 @@ test('addLiquidity and removeLiquidity', async () => {
   expect(state).toEqual({
     "_balance": "0",
     "balances": {},
+    "initialized": {
+      "argtypes": [],
+      "arguments": [],
+      "constructor": "True",
+    },
     "output_after_fee": "9970",
     "owner": owner,
     "pending_owner": "0x0000000000000000000000000000000000000000",

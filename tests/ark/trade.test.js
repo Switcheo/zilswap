@@ -160,7 +160,6 @@ const signCheque = (isBuyer) => {
   const signature = `0x${sign(buffer, user.key, user.pubKey)}`
   if (isBuyer) buyerChequeHash = chequeHash
   else sellerChequeHash = chequeHash
-  console.log({ message })
   return signature
 }
 
@@ -238,7 +237,6 @@ describe('ARK ExecuteTrade', () => {
       ],
       0, false, false
     )
-    console.log(JSON.stringify(tx, null, 2))
     expect(tx.status).toEqual(2)
     const state = await ark.getState()
     expect(state).toEqual(expect.objectContaining({
