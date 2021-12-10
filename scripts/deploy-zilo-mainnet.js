@@ -5,13 +5,13 @@ const { deployZILO, deploySeedLP } = require('./deploy')
 const deploy = async () => {
   const owner = getDefaultAccount()
   const bNum = await getBlockNum()
-  const tokenAddress = '0x2fc7167c3baff89e2805aef72636ccd98ee6bbb2' // https://devex.zilliqa.com/address/zil19lr3vlpm4lufu2q94mmjvdkvmx8wdwajuntzx2?network=https%3A%2F%2Fapi.zilliqa.com
+  const tokenAddress = '0xacd35e75e004f9d79a45dfa3a35ef9563c811671' // https://devex.zilliqa.com/address/zil14nf4ua0qqnua0xj9m736xhhe2c7gz9n3ayjtc7?network=https%3A%2F%2Fapi.zilliqa.com
   const zwapAddress = '0x0d21c1901a06abee40d8177f95171c8c63abdc31' // https://devex.zilliqa.com/address/zil1p5suryq6q647usxczale29cu3336hhp376c627?network=https%3A%2F%2Fapi.zilliqa.com
 
   // deploy seed lp
   const [lp, stateLP] = await deploySeedLP(owner.key, {
     tokenAddress,
-    zilswapAddress: '0xba11eb7bcc0a02e947acf03cc651bfaf19c9ec00', // https://devex.zilliqa.com/address/zil1hgg7k77vpgpwj3av7q7vv5dl4uvunmqqjzpv2w?network=https%3A%2F%2Fapi.zilliqa.com
+    zilswapAddress: '0x459cb2d3baf7e61cfbd5fe362f289ae92b2babb0', // https://devex.zilliqa.com/address/zil1gkwt95a67lnpe774lcmz72y6ay4jh2asmmjw6u?network=https%3A%2F%2Fapi.zilliqa.com
   })
 
   console.log('Deployed seed lp contract:')
@@ -22,16 +22,16 @@ const deploy = async () => {
   // deploy zilo
   const zilDecimals = '000000000000'
   const tknDecimals = '000000000000000000'
-  const receiverAddress = '0x2170482b10663df895e9aa7d64260dbe1bf35c95' // https://devex.zilliqa.com/address/zil1y9cys2csvc7l390f4f7kgfsdhcdlxhy42e2g08?network=https%3A%2F%2Fapi.zilliqa.com
+  const receiverAddress = '0x5a1ab69fec1d0c9e1c1e702ea398fd8a333a50b9' // https://devex.zilliqa.com/address/zil1tgdtd8lvr5xfu8q7wqh28x8a3gen559el8qtwp?network=https%3A%2F%2Fapi.zilliqa.com
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:               '1666666' + tknDecimals, // DMZ  1,666,666
-    targetZilAmount:           '6384919' + zilDecimals, // ZIL  6.38m  (~$840k  @ $0.13156)
-    targetZwapAmount:             '3168' + zilDecimals, // ZWAP 3.168k (~$360k @ $113.62)
-    minimumZilAmount:          '1596229' + zilDecimals, // ZIL  1.59m  (25% of target)
-    liquidityZilAmount:        '4560656' + zilDecimals, // ZIL  4.56m  ((targetZilAmount / 7 * 10) / tokenAmount * liquidityTokenAmount)
-    liquidityTokenAmount:       '833333' + tknDecimals, // DMZ  833,333
+    tokenAmount:             '300000000' + tknDecimals, // PLAY 300m
+    targetZilAmount:          '21000000' + zilDecimals, // ZIL 21m (~$1.47m @ $0.07)
+    targetZwapAmount:            '28545' + zilDecimals, // ZWAP 28.5k (~$630k @$22.07)
+    minimumZilAmount:          '5250000' + zilDecimals, // ZIL 5.25m (25% of target)
+    liquidityZilAmount:       '15000000' + zilDecimals, // ZIL 15m ($0.007*Liquidity/ZIL Price)
+    liquidityTokenAmount:    '150000000' + tknDecimals, // PLAY 150m
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
     startBlock:                (bNum + 200).toString(), // 2 hrs, 100 blocks an hr
@@ -43,7 +43,23 @@ const deploy = async () => {
   console.log('State:')
   console.log(JSON.stringify(state, null, 2))
 
-  // zwap TODO: approve burn of zwap on zilo
+  // approve burn of zwap on zilo
+  const zwap = getContract(zwapAddress)
+  const result = await callContract(
+    owner.key, zwap,
+    'AddMinter',
+    [
+      {
+        vname: 'minter',
+        type: 'ByStr20',
+        value: zilo.address.toLowerCase(),
+      },
+    ],
+    0, false, false
+  )
+
+  console.log('Approved burn of zwap:')
+  console.log(JSON.stringify(result, null, 2))
 
   // project TODO: send tkns to zilo
 }
