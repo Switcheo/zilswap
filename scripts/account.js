@@ -2,6 +2,8 @@
 const { getAddressFromPrivateKey, getPubKeyFromPrivateKey, schnorr } = require('@zilliqa-js/crypto')
 const { transfer } = require('./call.js')
 
+require('dotenv').config()
+
 function getDefaultAccount() {
   const key = process.env.PRIVATE_KEY
   const address = getAddressFromPrivateKey(key).toLowerCase()

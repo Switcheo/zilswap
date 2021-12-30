@@ -2,21 +2,26 @@ const { createRandomAccount, getDefaultAccount } = require('../../scripts/accoun
 const { callContract } = require('../../scripts/call.js')
 const { useNonFungibleToken } = require('../../scripts/deploy.js')
 
-let contract, key, owner, newOwner
+let contract, key, owner, newOwner, newOwnerKey
 beforeAll(async () => {
     const defaultAccount = getDefaultAccount()
     key = defaultAccount.key
     owner = defaultAccount.address
 
-    const newAccount = await createRandomAccount(key, '1')
+    const newAccount = await createRandomAccount(key, '500')
     newOwner = newAccount.address
+    newOwnerKey = newAccount.key
 
     const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
     contract = nonFungibleToken[0]
 })
 
 test('toggle sale active', async () => {
-    const txn = await callContract(key, contract, 'ConfigureMinters', [owner.toLowerCase()], 0, false, false)
+    const txn = await callContract(key, contract, 'ConfigureMinter', [{
+        vname: 'minter',
+        type: 'ByStr20',
+        value: owner,
+    }], 0, false, false)
     expect(txn.status).toEqual(2)
 })
 
@@ -29,7 +34,12 @@ test('mint token', async () => {
                 vname: 'to',
                 type: 'ByStr20',
                 value: owner,
-            }
+            },
+            {
+                vname: 'token_uri',
+                type: 'String',
+                value: "",
+            },
         ],
         1, false, false
     )
@@ -54,7 +64,25 @@ test('transfer when locked', async () => {
         ],
         0, false, false
     )
-    expect(txn.status).toEqual(3)
+    expect(txn.status).toEqual(2)
+    const txn2 = await callContract(
+        newOwnerKey, contract,
+        'Transfer',
+        [
+            {
+                vname: 'to',
+                type: 'ByStr20',
+                value: owner,
+            },
+            {
+                vname: 'token_id',
+                type: 'Uint256',
+                value: '1',
+            }
+        ],
+        0, false, false
+    )
+    expect(txn2.status).toEqual(3)
 })
 
 test('transfer when unlocked', async () => {
@@ -62,13 +90,13 @@ test('transfer when unlocked', async () => {
     expect(txn1.status).toEqual(2)
 
     const txn2 = await callContract(
-        key, contract,
+        newOwnerKey, contract,
         'Transfer',
         [
             {
                 vname: 'to',
                 type: 'ByStr20',
-                value: newOwner,
+                value: owner,
             },
             {
                 vname: 'token_id',
