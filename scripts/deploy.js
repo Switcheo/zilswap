@@ -158,6 +158,120 @@ async function useNonFungibleToken(privateKey, params = {}, useExisting = proces
   return deployNonFungibleToken(privateKey, params)
 }
 
+async function deployBearV2(
+  privateKey, { name = 'NFT', symbol: _symbol = null, initialBaseUri = `` }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+  console.log('address', address)
+  const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/BearV2.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'initial_base_uri',
+      type: 'String',
+      value: `${initialBaseUri}`,
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+  ]
+
+  console.info(`Deploying Bear V2 NFT...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useBearV2(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployBearV2(privateKey, params)
+}
+
+async function deployHuny(
+  privateKey, { name = 'Huny Token', symbol: _symbol = null, decimals = 12, initSupply = 0 }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+  const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+    {
+      vname: 'decimals',
+      type: 'Uint32',
+      value: `${decimals}`,
+    },
+    {
+      vname: 'init_supply',
+      type: 'Uint128',
+      value: `${initSupply}`,
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+  ]
+
+  console.info(`Deploying Huny Token...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useHuny(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployHuny(privateKey, params)
+}
+
 async function deployZilswap(privateKey, { fee = null, owner = null }, version = 'V1.1') {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -495,3 +609,7 @@ exports.deployARK = deployARK
 exports.useFungibleToken = useFungibleToken
 exports.useNonFungibleToken = useNonFungibleToken
 exports.useZilswap = useZilswap
+exports.deployBearV2 = deployBearV2
+exports.useBearV2 = useBearV2
+exports.deployHuny = deployHuny
+exports.useHuny = useHuny

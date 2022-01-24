@@ -1,19 +1,18 @@
-const { createRandomAccount, getDefaultAccount } = require('../../scripts/account.js')
+const { createRandomAccount, getDefaultAccount, getUserAccount } = require('../../scripts/account.js')
 const { callContract } = require('../../scripts/call.js')
-const { useNonFungibleToken } = require('../../scripts/deploy.js')
+const { useBearV2 } = require('../../scripts/deploy.js')
 
-let contract, key, owner, newOwner, newOwnerKey
+let contract, key, owner, user1Key, user1
 beforeAll(async () => {
     const defaultAccount = getDefaultAccount()
     key = defaultAccount.key
     owner = defaultAccount.address
 
-    const newAccount = await createRandomAccount(key, '500')
-    newOwner = newAccount.address
-    newOwnerKey = newAccount.key
+    const user = getUserAccount()
+    user1Key = user.key
+    user1 = user.address
 
-    const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
-    console.log('nonFungibleToken', nonFungibleToken)
+    const nonFungibleToken = await useBearV2(key, { owner: owner }, null)
     contract = nonFungibleToken[0]
 })
 

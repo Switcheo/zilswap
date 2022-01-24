@@ -5,7 +5,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 import BoolUtils ListUtils IntUtils
-library NonfungibleToken
+library BearV2
 
 type Operation =
 | Add
@@ -94,7 +94,7 @@ let make_error =
 (*             The contract definition             *)
 (***************************************************)
 
-contract NonfungibleToken
+contract BearV2
 (
   initial_contract_owner: ByStr20,
   (* Initial Base URI. e.g. `https://creatures-api.zilliqa.com/api/creature/` *)

@@ -12,6 +12,14 @@ function getDefaultAccount() {
   return { key, pubKey, address }
 }
 
+function getUserAccount() {
+  const key = process.env.USER_1_KEY
+  const address = getAddressFromPrivateKey(key).toLowerCase()
+  const pubKey = getPubKeyFromPrivateKey(key)
+
+  return { key, pubKey, address }
+}
+
 async function createRandomAccount(privateKey, initAmount = '10000') {
   const key = schnorr.generatePrivateKey()
   const address = getAddressFromPrivateKey(key)
@@ -24,3 +32,4 @@ async function createRandomAccount(privateKey, initAmount = '10000') {
 
 exports.getDefaultAccount = getDefaultAccount
 exports.createRandomAccount = createRandomAccount
+exports.getUserAccount = getUserAccount
