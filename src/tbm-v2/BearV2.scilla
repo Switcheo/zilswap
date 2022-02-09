@@ -795,6 +795,7 @@ transition SetSpender(spender: ByStr20, token_id: Uint256)
 
     e = {
       _eventname: "SetSpender";
+      token_owner: token_owner;
       spender: spender;
       token_id: token_id
     };
@@ -840,6 +841,7 @@ transition AddOperator(operator: ByStr20)
     end;
     e = {
       _eventname: "AddOperator";
+      token_owner: _sender;
       operator: operator
     };
     event e;
@@ -869,6 +871,7 @@ transition RemoveOperator(operator: ByStr20)
   end;
   e = {
     _eventname: "RemoveOperator";
+    token_owner: _sender;
     operator: operator
   };
   event e;
