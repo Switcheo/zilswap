@@ -30,6 +30,12 @@ let grow : Uint32 -> Uint128 =
     | None => Uint128 0 (* should never happen *)
     end
 
+(* @dev:    Builds a pair of messages for each token_id provided.                                *)
+(* @dev:    The first message is an instruction to burn from v1 NFT with a given token_id        *)
+(* @dev:    The second message is an instruction to mint from v2 NFT                             *)
+(* @param:  nft_address - NFT v2 contract                                                        *)
+(* @param:  to - Recipient of the NFT to be minted to                                            *)
+(* @param:  token_ids - List of token ids to be burnt from the v1 contract                       *)
 let build_burn_mint_msgs : ByStr20 -> ByStr20 -> List (Uint256) -> List (Message) =
   fun (nft_address : ByStr20) => fun (to: ByStr20) => fun (token_ids: List (Uint256)) =>
     let z = Uint32 0 in
@@ -41,8 +47,8 @@ let build_burn_mint_msgs : ByStr20 -> ByStr20 -> List (Uint256) -> List (Message
         let nil = Nil {Message} in
         let list_init = nil in
         (* store an accumulator in order to access token_id in List tokens_ids that will be used in the construsting of the Burn Message *)
-        let msg1 = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
-        let msg2 = { _tag: "Burn"; _recipient: tbm_address; _amount: zero; token_id: token_id } in 
+        let msg1 = { _tag: "Burn"; _recipient: tbm_address; _amount: zero; token_id: token_id } in 
+        let msg2 = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
         let step = fun (list :  List (Message)) => fun (ignore : Nat) =>
           let new_list = Cons {Message} msg1 list in
           let new_new_list = Cons {Message} msg2 list in
