@@ -3,11 +3,13 @@ const { randomBytes, sign } = require('@zilliqa-js/crypto')
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { callContract } = require('../../scripts/call.js');
 const { deployARK } = require('../../scripts/deploy.js');
+const { chainId } = require('../../scripts/zilliqa.js');
 
 let owner, contract, user
 beforeAll(async () => {
   owner = getDefaultAccount()
-  user = await createRandomAccount(owner.key)
+  console.log("address", owner.address)
+  user = await createRandomAccount(owner.key, '500')
   contract = (await deployARK(owner.key))[0]
 })
 
@@ -15,7 +17,7 @@ describe('ARK VoidCheque', () => {
   let chequeHash, signature
   beforeEach(() => {
     chequeHash = `0x${randomBytes(32)}`
-    message = `Zilliqa Signed Message:\nVoid ARK Cheque ${chequeHash}`
+    message = `Zilliqa Signed Message (${chainId}):\nVoid ARK Cheque ${chequeHash}`
     const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
     const buffer = Buffer.from(messageHash, 'hex')
     signature = sign(buffer, user.key, user.pubKey)
@@ -49,11 +51,13 @@ describe('ARK VoidCheque', () => {
     const state = await contract.getState()
     expect(state).toEqual(expect.objectContaining({
       "voided_cheques": {
-        [chequeHash]: {
-          "argtypes": [],
-          "arguments": [],
-          "constructor": "True",
-        }
+        [`0x${user.pubKey}`]: {
+          [chequeHash]: {
+            "argtypes": [],
+            "arguments": [],
+            "constructor": "True",
+          },
+        },
       },
     }))
   })

@@ -6,7 +6,7 @@ const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long } = require('@zilliqa-js/util')
 const { callContract, nextBlock } = require('./call.js')
 const { compress } = require('./compile')
-const { VERSION, zilliqa, useKey } = require('./zilliqa')
+const { VERSION, zilliqa, useKey, chainId, network } = require('./zilliqa')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -355,7 +355,8 @@ async function deployARK(privateKey, {
   if (!feeReceiver) feeReceiver = getAddressFromPrivateKey(privateKey).toLowerCase()
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/nft/ARK.scilla')).toString()
+  const code = (await readFile('./src/nft/ARKv2.scilla')).toString()
+  console.log("network", network, chainId)
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -372,6 +373,11 @@ async function deployARK(privateKey, {
       vname: 'initial_fee_address',
       type: 'ByStr20',
       value: feeReceiver,
+    },
+    {
+      vname: 'chain_id',
+      type: 'Uint32',
+      value: chainId.toString(),
     },
   ];
 

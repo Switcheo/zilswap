@@ -51,6 +51,7 @@ const rpc = getRPC(network)
 const VERSION = bytes.pack(getChainID(network), 1)
 const zilliqa = new Zilliqa(rpc)
 
+exports.chainId = getChainID(network)
 exports.useKey = useKey
 exports.network = network
 exports.zilliqa = zilliqa

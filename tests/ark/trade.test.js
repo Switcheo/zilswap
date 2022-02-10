@@ -5,6 +5,7 @@ const { BN } = require('@zilliqa-js/util')
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
 const { callContract, getBlockNum } = require('../../scripts/call.js')
 const { deployARK, useFungibleToken, useNonFungibleToken } = require('../../scripts/deploy.js')
+const { chainId } = require('../../scripts/zilliqa.js')
 
 
 let owner, buyer, seller, price, token, feeAmount, expiry, nonce, arkAddr
@@ -12,7 +13,7 @@ let ark, tokenProxy, zrc1, zrc2
 beforeAll(async () => {
   owner = getDefaultAccount()
   buyer = await createRandomAccount(owner.key)
-  seller = await createRandomAccount(owner.key)
+  seller = await createRandomAccount(owner.key, '1000')
   const a = await deployARK(owner.key)
   ark = a[0]
   tokenProxy = a[2]
@@ -154,7 +155,7 @@ let sellerChequeHash, buyerChequeHash
 const signCheque = (isBuyer) => {
   const user = isBuyer ? buyer : seller
   const chequeHash = `0x${getChequeHash(isBuyer)}`
-  const message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
+  const message = `Zilliqa Signed Message (${chainId}):\nExecute ARK Cheque ${chequeHash}`
   const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
   const buffer = Buffer.from(messageHash, 'hex')
   const signature = `0x${sign(buffer, user.key, user.pubKey)}`
@@ -241,16 +242,20 @@ describe('ARK ExecuteTrade', () => {
     const state = await ark.getState()
     expect(state).toEqual(expect.objectContaining({
       voided_cheques: {
-        [sellerChequeHash]: {
-          argtypes: [],
-          arguments: [],
-          constructor: 'True',
+        [`0x${seller.pubKey}`]: {
+          [sellerChequeHash]: {
+            argtypes: [],
+            arguments: [],
+            constructor: 'True',
+          },
         },
-        [buyerChequeHash]: {
-          argtypes: [],
-          arguments: [],
-          constructor: 'True',
-        }
+        [`0x${buyer.pubKey}`]: {
+          [buyerChequeHash]: {
+            argtypes: [],
+            arguments: [],
+            constructor: 'True',
+          },
+        },
       },
     }))
     // check nft transferred
