@@ -22,6 +22,12 @@ let one_msg =
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
+let two_msgs : Message -> Message -> List Message =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let first = one_msg msg1 in
+    Cons { Message } msg2 first
+
 let grow : Uint32 -> Uint128 =
   fun (var : Uint32) =>
     let maybe_big = builtin to_uint128 var in
@@ -34,31 +40,23 @@ let grow : Uint32 -> Uint128 =
 (* @dev:    The first message is an instruction to burn from v1 NFT with a given token_id        *)
 (* @dev:    The second message is an instruction to mint from v2 NFT                             *)
 (* @param:  nft_address - NFT v2 contract                                                        *)
+(* @param:  tbm_address - NFT v1 contract                                                        *)
 (* @param:  to - Recipient of the NFT to be minted to                                            *)
 (* @param:  token_ids - List of token ids to be burnt from the v1 contract                       *)
-let build_burn_mint_msgs : ByStr20 -> ByStr20 -> List (Uint256) -> List (Message) =
-  fun (nft_address : ByStr20) => fun (to: ByStr20) => fun (token_ids: List (Uint256)) =>
-    let z = Uint32 0 in
-    let zero_lt_m = builtin lt z m in
-    match zero_lt_m with
-    | True =>
-        (* m is the nat to recurse on *)
-        let m_nat = builtin to_nat m in
-        let nil = Nil {Message} in
-        let list_init = nil in
-        (* store an accumulator in order to access token_id in List tokens_ids that will be used in the construsting of the Burn Message *)
-        let msg1 = { _tag: "Burn"; _recipient: tbm_address; _amount: zero; token_id: token_id } in 
-        let msg2 = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
-        let step = fun (list :  List (Message)) => fun (ignore : Nat) =>
-          let new_list = Cons {Message} msg1 list in
-          let new_new_list = Cons {Message} msg2 list in
-          new_list
-        in
-        let fold = @nat_fold (List (Message)) in
-        let xs_m = fold step list_init m_nat in
-        xs_m
-    | False => Nil {Message}
-    end
+let build_burn_mint_msgs : ByStr20 -> ByStr20 -> ByStr20 -> List (Uint256) -> List (Message) =
+  fun (nft_address : ByStr20) =>
+  fun (tbm_address: ByStr20) =>
+  fun (to: ByStr20) =>
+  fun (token_ids: List (Uint256)) =>
+    let f = fun (token_id: Uint256) =>
+      let msg1 = { _tag: "Burn"; _recipient: tbm_address; _amount: zero; token_id: token_id } in 
+      let msg2 = { _tag: "Mint"; _recipient: nft_address; _amount: zero; to: to; token_uri: empty } in
+      two_msgs msg1 msg2
+    in
+    let mapper = @list_map Uint256 (List (Message)) in
+    let messages = mapper f token_ids in
+    let flatten = @list_flatten (Message) in
+    flatten messages
 
 (* Error exception *)
 type Error =
@@ -93,10 +91,8 @@ contract BurnTBMMinter
 (
   contract_owner: ByStr20,
   nft_address: ByStr20,
-  total_minted: Uint128,
-  tbm_address: ByStr20 with contract
-    field operator_approvals: Map ByStr20 (Map ByStr20 Bool)
-  end
+  max_supply: Uint128,
+  tbm_address: ByStr20
 )
 
 (* Mutable fields *)
@@ -173,23 +169,11 @@ procedure CheckTotalMinted(quantity: Uint32)
   current_supply <- total_supply;
   new_supply = builtin add current_supply qty;
   total_supply := new_supply;
-  is_not_exceeding = uint128_le new_supply total_minted;
+  is_not_exceeding = uint128_le new_supply max_supply;
   match is_not_exceeding with
   | True =>
   | False =>
     err = CodeExceedMaxMintQuantity;
-    ThrowError err
-  end
-end
-
-procedure CheckApprovedForAll(
-    token_owner: ByStr20
-  )
-  get_operator_approved <- & tbm_address.operator_approvals[token_owner][_this_address];
-  match get_operator_approved with
-  | Some b => 
-  | None =>
-    err = CodeNotApproved;
     ThrowError err
   end
 end
@@ -205,10 +189,9 @@ transition BurnAndMint(
     to: ByStr20,
     token_ids: List Uint256
   )
-  CheckApprovedForAll _sender;
   quantity = let my_list_length = @list_length Uint256 in my_list_length token_ids;
   CheckTotalMinted quantity;
-  msgs = build_burn_mint_msgs nft_address to token_ids;
+  msgs = build_burn_mint_msgs nft_address tbm_address to token_ids;
   send msgs
 end
 
@@ -253,6 +236,16 @@ transition ZRC6_MintCallback(to: ByStr20, token_id: Uint256, token_uri: String)
   msg_to_sender = {
     _tag : "ZRC6_MintCallback"; _recipient : to; _amount : zero;
     to : to; token_id : token_id; token_uri : token_uri
+  };
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+transition BurnCallBack(initiator: ByStr20, burn_address: ByStr20, token_id: Uint256)
+  (* proxy callback to the sender, who is always the burner *)
+  msg_to_sender = {
+    _tag : "BurnCallBack"; _recipient : initiator; _amount : zero;
+    initiator : initiator; burn_address : burn_address; token_id : token_id
   };
   msgs = one_msg msg_to_sender;
   send msgs
