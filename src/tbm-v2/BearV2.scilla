@@ -182,6 +182,10 @@ field spenders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 (* Mapping from token owner to operators authorized by the token owner *)
 field operators: Map ByStr20 (Map ByStr20 Bool) = Emp ByStr20 (Map ByStr20 Bool)
 
+(* Generic on-chain traits *)
+(* field traits: Map Uint256 (Map ByStr20 ByStr20) = Emp Uint256 (Map ByStr20 ByStr20) *)
+field traits: Map Uint256 (List (Pair String String)) = Emp Uint256 (List (Pair String String))
+
 (* Emit Errors *)
 procedure Throw(error: Error)
   e = make_error error;
@@ -1002,5 +1006,23 @@ transition AcceptContractOwnership()
     };
     msgs = one_msg msg_to_sender;
     send msgs
+  end
+end
+
+(* @dev: Update the traits of a given token_id     *)
+(* param: token_id - Unique ID of the NFT          *)
+(* param: proposed_traits   - A map of the traits  *)
+transition SetTokenTraits(
+    token_id: Uint256,
+    proposed_traits: List (Pair String String)
+  )
+  maybe_token_owner <- token_owners[token_id];
+  match maybe_token_owner with
+  | None =>
+    error = TokenNotFoundError;
+    Throw error
+  | Some token_owner =>
+    RequireContractOwner;
+    traits[token_id] := proposed_traits
   end
 end

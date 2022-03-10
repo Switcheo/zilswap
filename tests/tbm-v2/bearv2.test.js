@@ -56,6 +56,25 @@ test('mint', async () => {
     const txn5 = await callContract(key, contract, 'Unpause', [], 0, false, false)
     expect(txn5.status).toEqual(2)
 
+    const traits = [["isRevealed", "true"], ["isBull", "false"]]
+    const txn6 = await callContract(key, contract, 'SetTokenTraits', [
+        {
+            vname: 'token_id',
+            type: 'Uint256',
+            value: '1',
+        },
+        {
+            vname: 'proposed_traits',
+            type: 'List (Pair String String)',
+            value: traits.map((pair) => ({
+                constructor: 'Pair',
+                argtypes: ['String', 'String'],
+                arguments: [pair[0], pair[1]],
+              })),
+        },
+    ], 0, false, false)
+    expect(txn6.status).toEqual(2)
+
 })
 
 test('add giveaway minter', async () => {
@@ -159,7 +178,8 @@ test('add TBM minter', async () => {
     )
     expect(txn.status).toEqual(2)
 
-    // let state = await contract.getState()
+    // let state = await v1Contract.getState()
+    // console.log('v1Contract State', state)
 
     const burnCode = await fs.readFileSync('./src/tbm-v2/BurnTBMMinter.scilla')
     const [burnContract, burnState] = await deployContract(key, burnCode.toString("utf8"), [
@@ -221,89 +241,69 @@ test('add TBM minter', async () => {
         
     // const txn0 = await callContract(key, smContract, 'EnableSale', [], 0, false, false)
     // expect(txn0.status).toEqual(2)
-
-    // const txn3 = await callContract(key, smContract, 'MintForCommunity', [
-    //     {
-    //         vname: 'quantity',
-    //         type: 'Uint32',
-    //         value: '1',
-    //     },
-    // ], 0, false, false)
-    // expect(txn3.status).toEqual(2)
-
-
-    // // should fail due to max supply 
-    // const txn4 = await callContract(key, smContract, 'MintForCommunity', [
-    //     {
-    //         vname: 'quantity',
-    //         type: 'Uint32',
-    //         value: '2',
-    //     },
-    // ], 0, false, false)
-    // expect(txn4.status).toEqual(3)
 })
 
-// test('add sale minter', async () => {
-//     const smCode = await fs.readFileSync('./src/tbm-v2/V2Minter.scilla')
-//     const [smContract, smState] = await deployContract(key, smCode.toString("utf8"), [
-//         {
-//           vname: '_scilla_version',
-//           type: 'Uint32',
-//           value: '0',
-//         },
-//         {
-//           vname: 'contract_owner',
-//           type: 'ByStr20',
-//           value: owner,
-//         },
-//         {
-//           vname: 'nft_address',
-//           type: 'ByStr20',
-//           value: contract.address,
-//         },
-//         {
-//             vname: 'nft_price',
-//             type: 'Uint128',
-//             value: ZIL_ZEROS,
-//         },
-//         {
-//           vname: 'max_supply',
-//           type: 'Uint128',
-//           value: "2",
-//         },
-//       ])
+test('add sale minter', async () => {
+    const smCode = await fs.readFileSync('./src/tbm-v2/V2Minter.scilla')
+    const [smContract, smState] = await deployContract(key, smCode.toString("utf8"), [
+        {
+          vname: '_scilla_version',
+          type: 'Uint32',
+          value: '0',
+        },
+        {
+          vname: 'contract_owner',
+          type: 'ByStr20',
+          value: owner,
+        },
+        {
+          vname: 'nft_address',
+          type: 'ByStr20',
+          value: contract.address,
+        },
+        {
+            vname: 'nft_price',
+            type: 'Uint128',
+            value: ZIL_ZEROS,
+        },
+        {
+          vname: 'max_supply',
+          type: 'Uint128',
+          value: "2",
+        },
+      ])
 
       
-//       const txn1 = await callContract(key, contract, 'AddMinter', [{
-//           vname: 'minter',
-//           type: 'ByStr20',
-//           value: smContract.address.toLowerCase(),
-//         }], 0, false, false)
-//         expect(txn1.status).toEqual(2)
+      const txn1 = await callContract(key, contract, 'AddMinter', [{
+          vname: 'minter',
+          type: 'ByStr20',
+          value: smContract.address.toLowerCase(),
+        }], 0, false, false)
+        expect(txn1.status).toEqual(2)
         
-//     const txn0 = await callContract(key, smContract, 'EnableSale', [], 0, false, false)
-//     expect(txn0.status).toEqual(2)
+    const txn0 = await callContract(key, smContract, 'EnableSale', [], 0, false, false)
+    expect(txn0.status).toEqual(2)
 
-//     const txn3 = await callContract(key, smContract, 'MintForCommunity', [
-//         {
-//             vname: 'quantity',
-//             type: 'Uint32',
-//             value: '1',
-//         },
-//     ], 0, false, false)
-//     expect(txn3.status).toEqual(2)
+    const txn3 = await callContract(key, smContract, 'MintForCommunity', [
+        {
+            vname: 'quantity',
+            type: 'Uint32',
+            value: '1',
+        },
+    ], 0, false, false)
+    expect(txn3.status).toEqual(2)
 
 
-//     // should fail due to max supply 
-//     const txn4 = await callContract(key, smContract, 'MintForCommunity', [
-//         {
-//             vname: 'quantity',
-//             type: 'Uint32',
-//             value: '2',
-//         },
-//     ], 0, false, false)
-//     expect(txn4.status).toEqual(3)
-// })
+    // should fail due to max supply 
+    const txn4 = await callContract(key, smContract, 'MintForCommunity', [
+        {
+            vname: 'quantity',
+            type: 'Uint32',
+            value: '2',
+        },
+    ], 0, false, false)
+    expect(txn4.status).toEqual(3)
+})
 
 // test('mint token', async () => {
 //     const txn = await callContract(

@@ -41,3 +41,6 @@ Ensure your isolated server is running without the `-t` flag (or disable it via 
 For docker builds, this can be modified by running `sed -i 's/-t 5000 //' run.sh` within the container and then restarting the docker process.
 
 Find the private key of a genesis account and set `PRIVATE_KEY=xxx` in a `.env` file in the root of the project or run inline via `PRIVATE_KEY=xxx yarn test`.
+
+### Test
+npm test -- bearv2.test.js

@@ -12,41 +12,53 @@ const deploy = async () => {
 
   const owner = getDefaultAccount()
 
-  console.log("deploying bear v2")
-  const [nftContract, state] = await deployBearV2(owner.key, {
-      name: "Bear V2",
-      symbol: "TBMV2",
+  console.log("mock bear v2")
+  const [mockNFT, mockState] = await deployBearV2(owner.key, {
+      name: "Mock OG",
+      symbol: "MockBurn",
     })
+
+//   console.log("deploying bear v2")
+//   const [nftContract, state] = await deployBearV2(owner.key, {
+//       name: "Bear V2",
+//       symbol: "TBMV2",
+//     })
     
-  console.log("deploying giveaway")
-  const gmCode = await fs.readFileSync('./src/tbm-v2/GiveawayMinterV2.scilla')
-  const [gmContract, gmState] = await deployContract(owner.key, gmCode.toString("utf8"), [
-      {
-        vname: '_scilla_version',
-        type: 'Uint32',
-        value: '0',
-      },
-      {
-        vname: 'contract_owner',
-        type: 'ByStr20',
-        value: owner.address,
-      },
-      {
-        vname: 'nft_address',
-        type: 'ByStr20',
-        value: nftContract.address,
-      },
-      {
-        vname: 'max_supply',
-        type: 'Uint128',
-        value: "200",
-      },
-    ])
+//   console.log("deploying giveaway")
+//   const gmCode = await fs.readFileSync('./src/tbm-v2/GiveawayMinterV2.scilla')
+//   const [gmContract, gmState] = await deployContract(owner.key, gmCode.toString("utf8"), [
+//       {
+//         vname: '_scilla_version',
+//         type: 'Uint32',
+//         value: '0',
+//       },
+//       {
+//         vname: 'contract_owner',
+//         type: 'ByStr20',
+//         value: owner.address,
+//       },
+//       {
+//         vname: 'nft_address',
+//         type: 'ByStr20',
+//         value: nftContract.address,
+//       },
+//       {
+//         vname: 'max_supply',
+//         type: 'Uint128',
+//         value: "200",
+//       },
+//     ])
 
  
 
-  console.log(nftContract.address, "NFT");
-  console.log(gmContract.address, "Giveaway");
+  console.log(mockNFT.address, "mockNFT");
+//   console.log(gmContract.address, "Giveaway");
+
+  const txn1 = await callContract(owner.key, mockNFT, 'AddMinter', [{
+        vname: 'minter',
+        type: 'ByStr20',
+        value: owner.address.toLowerCase(),
+    }], 0, false, false)
 }
 
 deploy().then(() => console.log('Done.'))

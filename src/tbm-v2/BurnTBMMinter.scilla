@@ -242,12 +242,6 @@ transition ZRC6_MintCallback(to: ByStr20, token_id: Uint256, token_uri: String)
 end
 
 transition BurnCallBack(initiator: ByStr20, burn_address: ByStr20, token_id: Uint256)
-  (* proxy callback to the sender, who is always the burner *)
-  msg_to_sender = {
-    _tag : "BurnCallBack"; _recipient : initiator; _amount : zero;
-    initiator : initiator; burn_address : burn_address; token_id : token_id
-  };
-  msgs = one_msg msg_to_sender;
-  send msgs
+  (*  noop *)
 end
 
