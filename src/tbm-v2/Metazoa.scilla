@@ -1023,6 +1023,12 @@ transition SetTokenTraits(
     Throw error
   | Some token_owner =>
     RequireContractOwner;
-    traits[token_id] := proposed_traits
+    traits[token_id] := proposed_traits;
+    e = {
+      _eventname: "SetTokenTraits";
+      token_id: token_id;
+      traits: proposed_traits
+    };
+    event e
   end
 end

@@ -21,22 +21,22 @@ const mintMock = async () => {
     console.log(owner)
 
     // configure minter
-    await callContract(
-        owner.key, contract,
-        'ConfigureMinter',
-        [
-            {
-                vname: 'proposed_traits',
-                type: 'List (Pair String String)',
-                value: traits.map((pair) => ({
-                  constructor: 'Pair',
-                  argtypes: ['String', 'String'],
-                  arguments: [pair[0], pair[1]],
-                })),
-            }
-        ],
-        0, false, false
-      )
+    // await callContract(
+    //     owner.key, contract,
+    //     'ConfigureMinter',
+    //     [
+    //         {
+    //             vname: 'proposed_traits',
+    //             type: 'List (Pair String String)',
+    //             value: traits.map((pair) => ({
+    //               constructor: 'Pair',
+    //               argtypes: ['String', 'String'],
+    //               arguments: [pair[0], pair[1]],
+    //             })),
+    //         }
+    //     ],
+    //     0, false, false
+    //   )
 
     // add mint
     // await callContract(
@@ -56,60 +56,42 @@ const mintMock = async () => {
     //     ],
     //     0, false, false
     //   )
-    // for (let i = 0; i < 3; i++) {
-    //     await callContract(
-    //         owner.key, contract,
-    //         'Mint',
-    //         [
-    //             {
-    //                 vname: 'to',
-    //                 type: 'ByStr20',
-    //                 value: fromBech32Address("zil1r7szwmta4dlkka7qt2ledcmep56474gej3psj6"),
-    //             },
-    //             {
-    //                 vname: 'token_uri',
-    //                 type: 'String',
-    //                 value: '',
-    //             },
-    //         ],
-    //         0, false, false
-    //       )
-    //     await callContract(
-    //         owner.key, contract,
-    //         'Mint',
-    //         [
-    //             {
-    //                 vname: 'to',
-    //                 type: 'ByStr20',
-    //                 value: fromBech32Address("zil1nq8c5zp78lgtf6axvun6pd36ggjx48vzprpy4r"),
-    //             },
-    //             {
-    //                 vname: 'token_uri',
-    //                 type: 'String',
-    //                 value: '',
-    //             },
-    //         ],
-    //         0, false, false
-    //       )
-    //     await callContract(
-    //         owner.key, contract,
-    //         'Mint',
-    //         [
-    //             {
-    //                 vname: 'to',
-    //                 type: 'ByStr20',
-    //                 value: fromBech32Address("zil1gtk045960q0p5akectarewvt4eec3ws73mkn26"),
-    //             },
-    //             {
-    //                 vname: 'token_uri',
-    //                 type: 'String',
-    //                 value: '',
-    //             },
-    //         ],
-    //         0, false, false
-    //       )
-    // }
-
+    for (let i = 0; i < 5; i++) {
+        await callContract(
+            owner.key, contract,
+            'Mint',
+            [
+                {
+                    vname: 'to',
+                    type: 'ByStr20',
+                    value: fromBech32Address("zil1vykts6fmx2q2r3nrxzwselesrp5rl8rnfvnkh0"),
+                },
+                {
+                    vname: 'token_uri',
+                    type: 'String',
+                    value: '',
+                },
+            ],
+            0, false, false
+          )
+          await callContract(
+              owner.key, contract,
+              'Mint',
+              [
+                  {
+                      vname: 'to',
+                      type: 'ByStr20',
+                      value: fromBech32Address("zil1gtk045960q0p5akectarewvt4eec3ws73mkn26"),
+                  },
+                  {
+                      vname: 'token_uri',
+                      type: 'String',
+                      value: '',
+                  },
+              ],
+              0, false, false
+            )
+    }
 }
 
 const burnAndMint = async () => {
