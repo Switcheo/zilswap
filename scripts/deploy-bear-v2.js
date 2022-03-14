@@ -1,9 +1,7 @@
 const { getDefaultAccount } = require('./account')
 const fs = require("fs");
-const { callContract } = require('./call.js')
 const { deployNonFungibleToken, deployContract, deployBearV2 } = require('./deploy');
 
-const ZIL_ZEROS = "000000000000"
 
 const deploy = async () => {
   const owner = getDefaultAccount()

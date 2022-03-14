@@ -80,7 +80,7 @@ let make_error =
       match result with
       | CodeNotOwner                    => Int32 -1
       | CodeNotPendingOwner             => Int32 -2
-      | CodeNotTokenOwner               => Int32 -34
+      | CodeNotTokenOwner               => Int32 -3
       | CodePendingOwnerNotEmpty        => Int32 -4
       | CodeExceededMaximumSupply       => Int32 -5
       | CodeExceededWhitelistedQuantity => Int32 -6

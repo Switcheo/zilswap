@@ -543,7 +543,7 @@ async function deployContract(privateKey, code, init) {
   // Deploy contract
   const compressedCode = compress(code)
   const contract = zilliqa.contracts.new(compressedCode, init)
-  const [deployTx, token] = await contract.deploy(
+  const [deployTx, s] = await contract.deploy(
     {
       version: VERSION,
       amount: new BN(0),
@@ -557,7 +557,7 @@ async function deployContract(privateKey, code, init) {
 
   // Check for txn acceptance
   if (!deployTx.id) {
-    throw new Error(JSON.stringify(token.error || 'Failed to get tx id!', null, 2))
+    throw new Error(JSON.stringify(s.error || 'Failed to get tx id!', null, 2))
   }
   console.info(`Deployment transaction id: ${deployTx.id}`)
 
@@ -578,9 +578,9 @@ async function deployContract(privateKey, code, init) {
   await nextBlock()
 
   // Refetch contract
-  console.info(`The contract address is: ${token.address}`)
+  console.info(`The contract address is: ${s.address}`)
   // console.log('Refetching contract state...')
-  const deployedContract = zilliqa.contracts.at(token.address)
+  const deployedContract = zilliqa.contracts.at(s.address)
   const state = await deployedContract.getState()
 
   // Print contract state
