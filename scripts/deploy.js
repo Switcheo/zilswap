@@ -172,7 +172,7 @@ async function deployBearV2(
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/BearV2.scilla')).toString()
+  const code = (await readFile('./src/tbm-v2/Metazoa.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {

@@ -6,10 +6,6 @@ const { deployNonFungibleToken, deployContract, deployBearV2 } = require('./depl
 const ZIL_ZEROS = "000000000000"
 
 const deploy = async () => {
-  // const v2Code = (await fs.readFileSync('./src/tbm-v2/BearV2.scilla')).toString("utf8")
-  // const gmCode = (await fs.readFileSync('./src/tbm/GiveawayMinter.scilla')).toString("utf8")
-  // const cmCode = (await fs.readFileSync('./src/tbm/CommunityMinter.scilla')).toString("utf8")
-
   const owner = getDefaultAccount()
 
   console.log("deploying mock nft")
@@ -23,9 +19,9 @@ const deploy = async () => {
       symbol: "TBMV2",
     })
   console.log(nftContract.address, "nftContract");
-    
-  console.log("deploying BurnTBMMinter")
-  const burnCode = await fs.readFileSync('./src/tbm-v2/BurnTBMMinter.scilla')
+
+  console.log("deploying TranscendenceMinter")
+  const burnCode = await fs.readFileSync('./src/tbm-v2/TranscendenceMinter.scilla')
   const [burnContract, burnState] = await deployContract(owner.key, burnCode.toString("utf8"), [
     {
       vname: '_scilla_version',
@@ -57,7 +53,7 @@ const deploy = async () => {
   ])
   console.log(burnContract.address, "burnContract");
 
- 
+
 
 
 //   console.log(gmContract.address, "Giveaway");
