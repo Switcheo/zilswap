@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 import IntUtils ListUtils BoolUtils
-library BurnTBMMinter
+library TranscendenceMinter
 
 (* Global variables *)
 let max_mint_quantity = Uint32 10

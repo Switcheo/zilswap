@@ -1,6 +1,6 @@
-const { createRandomAccount, getDefaultAccount, getUserAccount } = require('../../scripts/account.js')
+const { getDefaultAccount, getUserAccount } = require('../../scripts/account.js')
 const { callContract } = require('../../scripts/call.js')
-const { useBearV2, deployContract, useNonFungibleToken } = require('../../scripts/deploy.js')
+const { useBearV2, useNonFungibleToken, deployContract } = require('../../scripts/deploy.js')
 const fs = require("fs")
 const { zilliqa } = require('../../scripts/zilliqa')
 
@@ -16,8 +16,8 @@ beforeAll(async () => {
   user1Key = user.key
   user1 = user.address
 
-  const nonFungibleToken = await useBearV2(key, { owner: owner }, null)
-  contract = nonFungibleToken[0]
+  const bearV2 = await useBearV2(key, { owner: owner }, null)
+  contract = bearV2[0]
 
 })
 
@@ -140,10 +140,9 @@ test('add giveaway minter', async () => {
   expect(txn4.status).toEqual(3)
 })
 
-test('add TBM minter', async () => {
-
-  const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
-  v1Contract = nonFungibleToken[0]
+test('use TranscendenceMinter minter', async () => {
+  const bearV1 = await useNonFungibleToken(key, { owner: owner }, null)
+  v1Contract = bearV1[0]
 
   const configureMinterTx = await callContract(
     key, v1Contract,
@@ -159,7 +158,7 @@ test('add TBM minter', async () => {
   )
   expect(configureMinterTx.status).toEqual(2)
 
-  const txn = await callContract(
+  const mintTx = await callContract(
     key, v1Contract,
     'Mint',
     [
@@ -176,12 +175,9 @@ test('add TBM minter', async () => {
     ],
     1, false, false
   )
-  expect(txn.status).toEqual(2)
+  expect(mintTx.status).toEqual(2)
 
-  // let state = await v1Contract.getState()
-  // console.log('v1Contract State', state)
-
-  const burnCode = await fs.readFileSync('./src/tbm-v2/BurnTBMMinter.scilla')
+  const burnCode = await fs.readFileSync('./src/tbm-v2/TranscendenceMinter.scilla')
   const [burnContract, burnState] = await deployContract(key, burnCode.toString("utf8"), [
     {
       vname: '_scilla_version',
@@ -224,7 +220,20 @@ test('add TBM minter', async () => {
   }], 0, false, false)
   expect(txn2.status).toEqual(2)
 
-  const txn3 = await callContract(key, burnContract, 'Transcend', [
+  const txn3 = await callContract(key, burnContract, 'SetWhitelist', [{
+    vname: 'list',
+    type: 'List (Pair ByStr20 Uint32)',
+    value: [
+      {
+        "constructor": "Pair",
+        "argtypes": ["ByStr20","Uint32"],
+        "arguments": [owner.toLowerCase(), "3"]
+      }
+    ],
+  }], 0, false, false)
+  expect(txn3.status).toEqual(2)
+
+  const txn4 = await callContract(key, burnContract, 'Transcend', [
     {
       vname: 'to',
       type: 'ByStr20',
@@ -236,7 +245,7 @@ test('add TBM minter', async () => {
       value: ["1"],
     },
   ], 0, false, false)
-  expect(txn3.status).toEqual(2)
+  expect(txn4.status).toEqual(2)
 
 
   // const txn0 = await callContract(key, smContract, 'EnableSale', [], 0, false, false)
