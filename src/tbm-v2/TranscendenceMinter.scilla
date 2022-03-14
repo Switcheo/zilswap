@@ -225,9 +225,9 @@ end
 (*             Transitions             *)
 (***************************************)
 
-(* @dev:    Mint new tokens to contract owner                             *)
-(* @param:  to       - Recipient address of token                         *)
-(* @param:  token_ids - List of all TBM tokens ids to burn                *)
+(* @dev:    Burns tokens from TBM contract and mints Metazoa tokens to sender *)
+(* @param:  to       - Recipient address of token                             *)
+(* @param:  token_ids - List of all TBM tokens ids to burn                    *)
 transition Transcend(
     to: ByStr20,
     token_ids: List Uint256

@@ -6,6 +6,7 @@ require('dotenv').config()
 
 function getDefaultAccount() {
   const key = process.env.PRIVATE_KEY
+  if (!key) throw new Error('PRIVATE_KEY env var missing!')
   const address = getAddressFromPrivateKey(key).toLowerCase()
   const pubKey = getPubKeyFromPrivateKey(key)
 
@@ -14,6 +15,7 @@ function getDefaultAccount() {
 
 function getUserAccount() {
   const key = process.env.USER_1_KEY
+  if (!key) throw new Error('USER_1_KEY env var missing!')
   const address = getAddressFromPrivateKey(key).toLowerCase()
   const pubKey = getPubKeyFromPrivateKey(key)
 
