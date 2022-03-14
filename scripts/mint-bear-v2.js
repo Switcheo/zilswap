@@ -5,9 +5,9 @@ const { zilliqa } = require('./zilliqa')
 const { fromBech32Address } = require("@zilliqa-js/crypto")
 
 // const CONTRACT_HASH = '0x535416E04080219018717DF62bBE7f6a25e4080E' // giveaway
-const MOCK_CONTRACT_HASH = '0x5806733973E0Db7f2Ae0d1c9baF54855E85A2c8D' // nft
-const V2_CONTRACT_HASH = '0x42a84501ecf808F2659053f5eD61cF5EA71dB2A3' // nft
-const BURN_CONTRACT_HASH = '0xc7F0A2B82B239f4d5F74301554810f695f012D7a' // nft
+const MOCK_CONTRACT_HASH = '0xf9a19437C00de73d9C6b46A2f8d4f0D676a9d8E2' // nft
+const V2_CONTRACT_HASH = '0xcd9bA0249F2a819Ad032423C9e4CF19ef69aC65a' // nft
+const BURN_CONTRACT_HASH = '0x90CAeF92C07CBe2E80ec4c136884c16beca0aa5c' // nft
 
 // const userAddress = fromBech32Address("zil1r7szwmta4dlkka7qt2ledcmep56474gej3psj6") // steven
 // const userAddress = fromBech32Address("zil1nq8c5zp78lgtf6axvun6pd36ggjx48vzprpy4r") // andrew
@@ -26,32 +26,90 @@ const mintMock = async () => {
         'ConfigureMinter',
         [
             {
-                vname: 'minter',
-                type: 'ByStr20',
-                value: owner.address,
+                vname: 'proposed_traits',
+                type: 'List (Pair String String)',
+                value: traits.map((pair) => ({
+                  constructor: 'Pair',
+                  argtypes: ['String', 'String'],
+                  arguments: [pair[0], pair[1]],
+                })),
             }
         ],
         0, false, false
       )
 
     // add mint
-    await callContract(
-        owner.key, contract,
-        'Mint',
-        [
-            {
-                vname: 'to',
-                type: 'ByStr20',
-                value: owner.address,
-            },
-            {
-                vname: 'token_uri',
-                type: 'String',
-                value: '',
-            },
-        ],
-        0, false, false
-      )
+    // await callContract(
+    //     owner.key, contract,
+    //     'Mint',
+    //     [
+    //         {
+    //             vname: 'to',
+    //             type: 'ByStr20',
+    //             value: owner.address,
+    //         },
+    //         {
+    //             vname: 'token_uri',
+    //             type: 'String',
+    //             value: '',
+    //         },
+    //     ],
+    //     0, false, false
+    //   )
+    // for (let i = 0; i < 3; i++) {
+    //     await callContract(
+    //         owner.key, contract,
+    //         'Mint',
+    //         [
+    //             {
+    //                 vname: 'to',
+    //                 type: 'ByStr20',
+    //                 value: fromBech32Address("zil1r7szwmta4dlkka7qt2ledcmep56474gej3psj6"),
+    //             },
+    //             {
+    //                 vname: 'token_uri',
+    //                 type: 'String',
+    //                 value: '',
+    //             },
+    //         ],
+    //         0, false, false
+    //       )
+    //     await callContract(
+    //         owner.key, contract,
+    //         'Mint',
+    //         [
+    //             {
+    //                 vname: 'to',
+    //                 type: 'ByStr20',
+    //                 value: fromBech32Address("zil1nq8c5zp78lgtf6axvun6pd36ggjx48vzprpy4r"),
+    //             },
+    //             {
+    //                 vname: 'token_uri',
+    //                 type: 'String',
+    //                 value: '',
+    //             },
+    //         ],
+    //         0, false, false
+    //       )
+    //     await callContract(
+    //         owner.key, contract,
+    //         'Mint',
+    //         [
+    //             {
+    //                 vname: 'to',
+    //                 type: 'ByStr20',
+    //                 value: fromBech32Address("zil1gtk045960q0p5akectarewvt4eec3ws73mkn26"),
+    //             },
+    //             {
+    //                 vname: 'token_uri',
+    //                 type: 'String',
+    //                 value: '',
+    //             },
+    //         ],
+    //         0, false, false
+    //       )
+    // }
+
 }
 
 const burnAndMint = async () => {
@@ -75,40 +133,53 @@ const burnAndMint = async () => {
     //     ],
     //     0, false, false
     //   )
-
-    // allow BurnTBM contract to your burn mock nft
+    // wl
     await callContract(
-        owner.key, mockContract,
-        'SetApprovalForAll',
+        owner.key, v2Contract,
+        'SetWhitelist',
         [
             {
-                vname: 'to',
+                vname: 'minter',
                 type: 'ByStr20',
-                value: BURN_CONTRACT_HASH.toLowerCase(),
+                value: BURN_CONTRACT_HASH,
             },
         ],
         0, false, false
       )
+
+    // // allow BurnTBM contract to your burn mock nft
+    // await callContract(
+    //     owner.key, mockContract,
+    //     'SetApprovalForAll',
+    //     [
+    //         {
+    //             vname: 'to',
+    //             type: 'ByStr20',
+    //             value: BURN_CONTRACT_HASH.toLowerCase(),
+    //         },
+    //     ],
+    //     0, false, false
+    //   )
 
     
-    await callContract(
-        owner.key, burnContract,
-        'BurnAndMint',
-        [
-            {
-                vname: 'to',
-                type: 'ByStr20',
-                value: owner.address,
-            },
-            {
-                vname: 'token_ids',
-                type: 'List Uint256',
-                value: ["1"],
-            },
-        ],
-        0, false, false
-      )
+    // await callContract(
+    //     owner.key, burnContract,
+    //     'BurnAndMint',
+    //     [
+    //         {
+    //             vname: 'to',
+    //             type: 'ByStr20',
+    //             value: owner.address,
+    //         },
+    //         {
+    //             vname: 'token_ids',
+    //             type: 'List Uint256',
+    //             value: ["1"],
+    //         },
+    //     ],
+    //     0, false, false
+    //   )
 }
 
-// mintMock().then(() => console.log('Done.'))
-burnAndMint().then(() => console.log('Done.'))
+mintMock().then(() => console.log('Done.'))
+// burnAndMint().then(() => console.log('Done.'))
