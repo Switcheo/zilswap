@@ -158,24 +158,27 @@ test('use TranscendenceMinter minter', async () => {
   )
   expect(configureMinterTx.status).toEqual(2)
 
-  const mintTx = await callContract(
-    key, v1Contract,
-    'Mint',
-    [
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: owner,
-      },
-      {
-        vname: 'token_uri',
-        type: 'String',
-        value: "",
-      },
-    ],
-    1, false, false
-  )
-  expect(mintTx.status).toEqual(2)
+  // mint 10
+  for (let i = 0; i < 10; i++) {
+    const mintTx = await callContract(
+      key, v1Contract,
+      'Mint',
+      [
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: owner,
+        },
+        {
+          vname: 'token_uri',
+          type: 'String',
+          value: "",
+        },
+      ],
+      1, false, false
+    )
+    expect(mintTx.status).toEqual(2)
+  }
 
   const burnCode = await fs.readFileSync('./src/tbm-v2/TranscendenceMinter.scilla')
   const [burnContract, burnState] = await deployContract(key, burnCode.toString("utf8"), [
@@ -197,7 +200,7 @@ test('use TranscendenceMinter minter', async () => {
     {
       vname: 'max_supply',
       type: 'Uint128',
-      value: "5",
+      value: "12",
     },
     {
       vname: 'tbm_address',
@@ -227,7 +230,7 @@ test('use TranscendenceMinter minter', async () => {
       {
         "constructor": "Pair",
         "argtypes": ["ByStr20","Uint32"],
-        "arguments": [owner.toLowerCase(), "3"]
+        "arguments": [owner.toLowerCase(), "10"]
       }
     ],
   }], 0, false, false)
@@ -242,14 +245,10 @@ test('use TranscendenceMinter minter', async () => {
     {
       vname: 'token_ids',
       type: 'List Uint256',
-      value: ["1"],
+      value: ["1", "2", "3", "4", "5"],
     },
   ], 0, false, false)
   expect(txn4.status).toEqual(2)
-
-
-  // const txn0 = await callContract(key, smContract, 'EnableSale', [], 0, false, false)
-  // expect(txn0.status).toEqual(2)
 })
 
 test('add sale minter', async () => {
