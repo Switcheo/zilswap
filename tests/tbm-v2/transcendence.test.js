@@ -1,5 +1,5 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
-const { callContract } = require('../../scripts/call.js')
+const { callContract, getBlockNum } = require('../../scripts/call.js')
 const { useBearV2, useNonFungibleToken, deployContract } = require('../../scripts/deploy.js')
 const fs = require("fs")
 
@@ -107,6 +107,16 @@ test('tbm-v2 TranscendenceMinter success', async () => {
   }], 0, false, false)
   expect(whitelistTx.status).toEqual(2)
 
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const tx = await callContract(user1Key, contract, 'Transcend', [
     {
       vname: 'to',
@@ -122,7 +132,120 @@ test('tbm-v2 TranscendenceMinter success', async () => {
   expect(tx.status).toEqual(2)
 })
 
+test('tbm-v2 TranscendenceMinter mint not active transcend', async () => {
+  const tx = await callContract(user1Key, contract, 'Transcend', [
+    {
+      vname: 'to',
+      type: 'ByStr20',
+      value: user1,
+    },
+    {
+      vname: 'token_ids',
+      type: 'List Uint256',
+      value: ["1"],
+    },
+  ], 0, false, false)
+  expect(tx.status).toEqual(3)
+  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
+})
+
+test('tbm-v2 TranscendenceMinter mint disabled transcend', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
+  const disableMintTx = await callContract(key, contract, 'DisableMint', [], 0, false, false)
+  expect(disableMintTx.status).toEqual(2)
+
+  const tx = await callContract(user1Key, contract, 'Transcend', [
+    {
+      vname: 'to',
+      type: 'ByStr20',
+      value: user1,
+    },
+    {
+      vname: 'token_ids',
+      type: 'List Uint256',
+      value: ["1"],
+    },
+  ], 0, false, false)
+  expect(tx.status).toEqual(3)
+  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
+})
+
+test('tbm-v2 TranscendenceMinter mint transcend before start block', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: (blkNumber + 10e8).toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
+  const tx = await callContract(user1Key, contract, 'Transcend', [
+    {
+      vname: 'to',
+      type: 'ByStr20',
+      value: user1,
+    },
+    {
+      vname: 'token_ids',
+      type: 'List Uint256',
+      value: ["1"],
+    },
+  ], 0, false, false)
+  expect(tx.status).toEqual(3)
+  expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
+})
+
+test('tbm-v2 TranscendenceMinter mint not inactive enable', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
+  const newBlkNumber = await getBlockNum();
+  const renableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: newBlkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(renableMintTx.status).toEqual(3)
+  expect(JSON.stringify(renableMintTx.receipt.exceptions)).toContain("code : (Int32 -8)") // CodeMintNotInactive
+})
+
+test('tbm-v2 TranscendenceMinter mint not active disable', async () => {
+  const disableMintTx = await callContract(key, contract, 'DisableMint', [], 0, false, false)
+  expect(disableMintTx.status).toEqual(3)
+  expect(JSON.stringify(disableMintTx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
+})
+
 test('tbm-v2 TranscendenceMinter no whitelist', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const tx = await callContract(user1Key, contract, 'Transcend', [
     {
       vname: 'to',
@@ -140,6 +263,16 @@ test('tbm-v2 TranscendenceMinter no whitelist', async () => {
 })
 
 test('tbm-v2 TranscendenceMinter exceed whitelist', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const whitelistTx = await callContract(key, contract, 'SetWhitelist', [{
     vname: 'list',
     type: 'List (Pair ByStr20 Uint32)',
@@ -170,6 +303,16 @@ test('tbm-v2 TranscendenceMinter exceed whitelist', async () => {
 })
 
 test('tbm-v2 TranscendenceMinter minted full', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const whitelistTx = await callContract(key, contract, 'SetWhitelist', [{
     vname: 'list',
     type: 'List (Pair ByStr20 Uint32)',
@@ -215,6 +358,16 @@ test('tbm-v2 TranscendenceMinter minted full', async () => {
 })
 
 test('tbm-v2 TranscendenceMinter not token owner', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const whitelistTx = await callContract(key, contract, 'SetWhitelist', [{
     vname: 'list',
     type: 'List (Pair ByStr20 Uint32)',
@@ -245,6 +398,16 @@ test('tbm-v2 TranscendenceMinter not token owner', async () => {
 })
 
 test('tbm-v2 TranscendenceMinter exceed supply', async () => {
+  const blkNumber = await getBlockNum();
+  const enableMintTx = await callContract(key, contract, 'EnableMint', [
+    {
+      vname: 'start_block',
+      type: 'BNum',
+      value: blkNumber.toString(),
+    },
+  ], 0, false, false)
+  expect(enableMintTx.status).toEqual(2)
+
   const whitelistTx = await callContract(key, contract, 'SetWhitelist', [{
     vname: 'list',
     type: 'List (Pair ByStr20 Uint32)',
