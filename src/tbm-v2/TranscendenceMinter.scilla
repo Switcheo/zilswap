@@ -11,6 +11,7 @@ let max_mint_quantity = Uint32 10
 let zero = Uint128 0
 let one = Uint256 1
 let one_big = Uint128 1
+let unset_blk = BNum 0
 let none = None {ByStr20}
 let false = False
 let true = True
@@ -73,6 +74,8 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodeExceededMaximumSupply
   | CodeExceededWhitelistedQuantity
+  | CodeMintNotActive
+  | CodeMintNotInactive
 
 let make_error =
   fun (result : Error) =>
@@ -84,6 +87,8 @@ let make_error =
       | CodePendingOwnerNotEmpty        => Int32 -4
       | CodeExceededMaximumSupply       => Int32 -5
       | CodeExceededWhitelistedQuantity => Int32 -6
+      | CodeMintNotActive               => Int32 -7
+      | CodeMintNotInactive             => Int32 -8
       end
     in
     { _exception : "Error"; code : result_code }
@@ -109,6 +114,9 @@ field pending_owner : Option ByStr20 = none
 field total_supply: Uint128 = Uint128 0
 field whitelist: Map ByStr20 Uint32 = Emp ByStr20 Uint32
 field minted: Map ByStr20 Uint32 = Emp ByStr20 Uint32
+
+(* Flag to indicate if sale is active. Tokens will be mintable during a sale only *)
+field mint_start_block: BNum = unset_blk
 
 (**************************************)
 (*             Procedures             *)
@@ -160,6 +168,45 @@ procedure NoPendingOwner()
     err = CodePendingOwnerNotEmpty;
     ThrowError err
   | None =>
+  end
+end
+
+procedure IsMintActive()
+  mint_start_b <- mint_start_block;
+  is_start_unset = builtin eq mint_start_b unset_blk;
+  match is_start_unset with
+  | True =>
+    err = CodeMintNotActive;
+    ThrowError err
+  | False =>
+    curr_b <- & BLOCKNUMBER;
+    is_before_start_b = builtin blt curr_b mint_start_b;
+    match is_before_start_b with
+    | True => 
+      err = CodeMintNotActive;
+      ThrowError err
+    | False => 
+      (* noop: current block at or after start block *)
+    end
+  end
+end
+
+procedure IsMintInactive()
+  mint_start_b <- mint_start_block;
+  is_start_unset = builtin eq mint_start_b unset_blk;
+  match is_start_unset with
+  | True =>
+    (*  noop: start block not set *)
+  | False =>
+    curr_b <- & BLOCKNUMBER;
+    is_before_start_b = builtin blt curr_b mint_start_b;
+    match is_before_start_b with
+    | True => 
+      (* noop: current block before start block *)
+    | False => 
+      err = CodeMintNotInactive;
+      ThrowError err
+    end
   end
 end
 
@@ -232,6 +279,8 @@ transition Transcend(
     to: ByStr20,
     token_ids: List Uint256
   )
+  IsMintActive;
+
   quantity = let my_list_length = @list_length Uint256 in my_list_length token_ids;
   UpdateTotalSupply quantity;
   UpdateWhitelistCount quantity;
@@ -239,6 +288,28 @@ transition Transcend(
   msgs = build_burn_mint_msgs nft_address tbm_address to token_ids;
   send msgs
 end
+
+
+(* @dev: Enables the mint. *)
+transition EnableMint(start_block: BNum)
+  IsOwner _sender;
+  IsMintInactive;
+
+  mint_start_block := start_block;
+  e = {_eventname: "MintEnabled"; mint_start_block: start_block};
+  event e
+end
+
+(* @dev: Disables the mint. *)
+transition DisableMint()
+  IsOwner _sender;
+  IsMintActive;
+
+  mint_start_block := unset_blk;
+  e = {_eventname: "MintDisabled"};
+  event e
+end
+
 
 (** Ownership lifecycle transitions *)
 
