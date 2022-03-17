@@ -1,7 +1,7 @@
-const { getDefaultAccount } = require('./account')
+const { getDefaultAccount } = require('../account')
 const fs = require("fs");
-const { callContract } = require('./call.js')
-const { zilliqa } = require('./zilliqa')
+const { callContract } = require('../call.js')
+const { zilliqa } = require('../zilliqa')
 const { fromBech32Address } = require("@zilliqa-js/crypto")
 
 // const CONTRACT_HASH = '0x535416E04080219018717DF62bBE7f6a25e4080E' // giveaway
@@ -143,7 +143,7 @@ const burnAndMint = async () => {
     //     0, false, false
     //   )
 
-    
+
     // await callContract(
     //     owner.key, burnContract,
     //     'BurnAndMint',

@@ -1,6 +1,6 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
 const { callContract, getBlockNum } = require('../../scripts/call.js')
-const { useBearV2, useNonFungibleToken, deployContract } = require('../../scripts/deploy.js')
+const { useBearV2, useNonFungibleToken, useTranscendenceMinter } = require('../../scripts/deploy.js')
 const fs = require("fs")
 
 let contract, key, owner, tbmv1, tbmv2, user1Key, user1, user2Key, user2
@@ -21,7 +21,7 @@ beforeEach(async() => {
   }], 0, false, false)
   expect(minterTx1.status).toEqual(2);
 
-  [contract, _] = await deployTranscendenceMinter()
+  [contract, _] = await useTranscendenceMinter(key, { tbmv1, tbmv2 }, null)
   const minterTx2 = await callContract(key, tbmv2, 'AddMinter', [{
     vname: 'minter',
     type: 'ByStr20',
@@ -32,37 +32,6 @@ beforeEach(async() => {
   await mintToUser(user1Key, user1, 5)
   await mintToUser(user2Key, user2, 2)
 })
-
-const deployTranscendenceMinter = async () => {
-  const code = await fs.readFileSync('./src/tbm-v2/TranscendenceMinter.scilla')
-  return deployContract(key, code.toString("utf8"), [
-    {
-      vname: '_scilla_version',
-      type: 'Uint32',
-      value: '0',
-    },
-    {
-      vname: 'contract_owner',
-      type: 'ByStr20',
-      value: owner,
-    },
-    {
-      vname: 'nft_address',
-      type: 'ByStr20',
-      value: tbmv2.address,
-    },
-    {
-      vname: 'max_supply',
-      type: 'Uint128',
-      value: "3",
-    },
-    {
-      vname: 'tbm_address',
-      type: 'ByStr20',
-      value: tbmv1.address,
-    },
-  ])
-}
 
 const mintToUser = async (userKey, userAddress, count) => {
   for (let i = 0; i < count; ++i) {

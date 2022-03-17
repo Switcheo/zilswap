@@ -1,4 +1,3 @@
-
 const { VERSION, network, zilliqa, useKey } = require('./zilliqa')
 const { BN, Long, units } = require('@zilliqa-js/util')
 const { TransactionError } = require('@zilliqa-js/core')

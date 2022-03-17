@@ -151,7 +151,7 @@ async function deployNonFungibleToken(
   return deployContract(privateKey, code, init)
 }
 
-async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.NFT_CONTRACT_HASH) {
   if (useExisting) {
     return getContract(privateKey, useExisting)
   }
@@ -206,7 +206,7 @@ async function deployBearV2(
   return deployContract(privateKey, code, init)
 }
 
-async function useBearV2(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+async function useBearV2(privateKey, params = {}, useExisting = process.env.METAZOA_CONTRACT_HASH) {
   if (useExisting) {
     return getContract(privateKey, useExisting)
   }
@@ -223,7 +223,7 @@ async function deployHuny(
 
   // Generate default vars
   const address = getAddressFromPrivateKey(privateKey)
-  const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
+  const symbol = _symbol || `HUNY-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
   const code = (await readFile('./src/tbm-v2/Huny.scilla')).toString()
@@ -265,11 +265,68 @@ async function deployHuny(
   return deployContract(privateKey, code, init)
 }
 
-async function useHuny(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+async function useHuny(privateKey, params = {}, useExisting = process.env.HUNY_CONTRACT_HASH) {
   if (useExisting) {
     return getContract(privateKey, useExisting)
   }
   return deployHuny(privateKey, params)
+}
+
+async function deployTranscendenceMinter(
+  privateKey, { owner = null, tbmv1 = null, tbmv2 = null }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Check for dependent contracts
+  if (!tbmv1 || !tbmv2) {
+    throw new Error('tbmv1 and tbmv2 must be provided to TranscendenceMinter')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/TranscendenceMinter.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'tbm_address',
+      type: 'ByStr20',
+      value: tbmv1.address,
+    },
+    {
+      vname: 'nft_address',
+      type: 'ByStr20',
+      value: tbmv2.address,
+    },
+    {
+      vname: 'max_supply',
+      type: 'Uint128',
+      value: "3",
+    },
+  ]
+
+  console.info(`Deploying TranscendenceMinter...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useTranscendenceMinter(privateKey, params = {}, useExisting = process.env.TRANSCENDENCE_MINTER_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployTranscendenceMinter(privateKey, params)
 }
 
 async function deployZilswap(privateKey, { fee = null, owner = null }, version = 'V1.1') {
@@ -613,3 +670,5 @@ exports.deployBearV2 = deployBearV2
 exports.useBearV2 = useBearV2
 exports.deployHuny = deployHuny
 exports.useHuny = useHuny
+exports.deployTranscendenceMinter = deployTranscendenceMinter
+exports.useTranscendenceMinter = useTranscendenceMinter
