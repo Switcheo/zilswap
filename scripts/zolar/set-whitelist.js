@@ -1,5 +1,5 @@
 
-const { getContract, callContract }  = require('../call')
+const { callContract }  = require('../call')
 const { useBearV2, useNonFungibleToken, useTranscendenceMinter } = require('../deploy')
 const list = require('./whitelist/mint-whitelist.json')
 
