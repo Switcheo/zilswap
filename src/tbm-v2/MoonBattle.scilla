@@ -4,15 +4,40 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
+import ListUtils
 library MoonBattle
 
+let zero_amt = Uint128 0
 let zero = Uint32 0
 let one = Uint32 1
+let none = None {ByStr20}
+let true = True
+let false = False
+
+let trait_key_race = "race"
+let trait_value_ursa = "ursa"
+let trait_value_mino = "mino"
+let trait_key_gen = "generation"
+let trait_value_gen0 = "0"
+let trait_value_gen1 = "1"
+let trait_value_gen2 = "2"
+let trait_value_gen3 = "3"
 
 type Action =
-  | HarvestHuny
-  | ReturnToBase
-  | SummonReinforcements
+  | HarvestHuny of (List Uint256)
+  | ReturnToBase of (List Uint256)
+  | SummonReinforcements of Uint32
+
+type Race =
+  | Ursa
+  | Mino
+
+type Generation =
+  | Gen0
+  | Gen1
+  | Gen2
+  | Gen3
+  | GenUnknown
 
 (* Error exception *)
 type Error =
@@ -20,6 +45,9 @@ type Error =
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
   | CodeNotOracle
+  | CodeNotTokenOwner
+  | CodeInvalidActionId
+  | CodeMissingTraits
 
 let make_error =
   fun (result : Error) =>
@@ -29,6 +57,9 @@ let make_error =
       | CodeNotPendingOwner             => Int32 -2
       | CodePendingOwnerNotEmpty        => Int32 -3
       | CodeNotOracle                   => Int32 -4
+      | CodeNotTokenOwner               => Int32 -5
+      | CodeInvalidActionId             => Int32 -6
+      | CodeMissingTraits                => Int32 -7
       end
     in
     { _exception : "Error"; code : result_code }
@@ -37,6 +68,84 @@ let one_msg =
   fun (msg: Message) =>
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
+
+let get_trait =
+  fun (key: String) =>
+  fun (traits: List (Pair String String)) =>
+    let trait_find = @list_find (Pair String String)
+    let fn = fun (trait: Pair String String) =>
+      match trait with
+      | Pair k _ => builtin eq key k
+      end in
+    let pair = trait_find fn traits in
+    match pair with
+    |  Pair _ v => v
+    end
+
+let get_race =
+  fun (value: String) =>
+    is_ursa builtin eq race trait_value_ursa in
+    match is_ursa with
+    | True => Ursa
+    | False => Mino
+    end
+
+let get_gen =
+  fun (value: String) =>
+    match value with
+    | trait_value_gen0 => Gen0
+    | trait_value_gen1 => Gen1
+    | trait_value_gen2 => Gen2
+    | trait_value_gen3 => Gen3
+    _ => GenUnknown
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero_amt
+    end
+
+let add_randomness =
+  fun (list: List Uint256) =>
+  fun (random: List Uint256) =>
+    let mapper = @list_map Uint256 (Pair Uint256 Uint256) in
+    let fn =
+      fun (id : Uint256) =>
+      fun (random : Uint256) =>
+        Pair id random in
+    mapper fn list
+
+(* $HUNY constants and calculations *)
+
+let capture_huny_percentage = Uint128 30
+let percentage_denominator = Uint128 100
+let blocks_required_for_return = BNum 5040
+
+let huny_per_block =
+  fun (gen : Generation) =>
+    match gen with
+    | Gen0 => Uint128 3968253968253 (* 10,000 $HUNY per day => 10000_0000_0000_0000 / 2520 *)
+    | Gen1 => Uint128 5952380952380 (* 15,000 $HUNY per day => 15000_0000_0000_0000 / 2520 *)
+    | Gen2 => Uint128 7738095238095 (* 19,500 $HUNY per day => 19500_0000_0000_0000 / 2520 *)
+    | Gen3 => Uint128 6865079365079 (* 27,300 $HUNY per day => 17300_0000_0000_0000 / 2520 *)
+    | GenUnknown => zero_amt
+  end
+
+let blocks_to_claim =
+  fun (current_block : BNum) =>
+  fun (last_harvested_block : BNum) =>
+    let blks = builtin bsub current_block last_harvested_block in (* this is a uint256 *)
+    let result = builtin to_uint128 blks in
+    match result with
+    | None => builtin zero one (* throw on overflow *)
+    | Some uint128 => uint128
+    end
+
+let get_captured_huny =
+  fun (huny_harvested : Uint128) =>
+    let numerator = builtin mul huny_harvested capture_huny_percentage in
+    builtin div numerator percentage_denominator
 
 (***************************************************)
 (*             The contract definition             *)
@@ -52,196 +161,52 @@ contract MoonBattle
   end
 )
 
-(* Contract constraints *)
-with
-=>
-
 (* Mutable fields *)
 
 (* game addresses *)
 field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
-field current_oracle : ByStr20 = ByStr20 initial_oracle
+field current_oracle : ByStr20 = initial_oracle
 
 (* map of battling metazoas to their commanders (internal owner) *)
 field metazoa_commanders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
-(* incrementing action id *)
+(* used for distributing captured huny *)
+field capturing_huny: Uint128 = zero_amt (* captured huny is credited only at the first tx of the next active block *)
+field captured_huny: Uint128 = zero_amt
+field huny_last_captured_block: BNum = BNum 0
+field staked_minos_count: Uint128 = zero_amt
+
+(* an auto-incrementing action nonce *)
 field current_action_id: Uint32 = zero
 
-(* map of ongoing action ids to action type *)
+(* map of ongoing action ids to action *)
 field ongoing_actions: Map Uint32 Action = Emp Uint32 Action
 
-(* maps huny harvests that have been initialized but not concluded via oracle randomness provision *)
-field ongoing_harvests: Map Uint32 (List Uint256) = Emp Uint32 (List Uint256)
+(* map to track when huny was last harvested for each ursa *)
+field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
 
-(* maps returns to base that have been initialized but not concluded via oracle randomness provision *)
-field ongoing_returns: Map Uint32 (List Uint256) = Emp Uint32 (List Uint256)
+(* map to track amount of huny in the captured pool at the last action for each mino *)
+field captured_huny_debt: Map Uint256 Uint128
 
-(* maps summons that have been initialized but not concluded via oracle randomness provision *)
-field ongoing_summons: Map Uint32 Uint32 = Emp Uint32 Uint32
+(**************************************)
+(*         Internal Procedures        *)
+(**************************************)
 
-(* validates that the tx sender is the owner of the metazoa *)
-procedure ValidateOwnership(token_id: Uint256)
-  maybe_owner <- & metazoa_contract.token_owners[token_id];
-  match maybe_owner with
-  | Some actual_owner =>
-    is_owner = builtin eq actual_owner _sender;
-    match is_owner with
-    | True =>
-    | False =>
-      err = CodeNotTokenOwner;
-      ThrowError err
-    end
-  | None =>
-    err = CodeNotTokenOwner;
-    ThrowError err
-  end
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
 end
 
-(* validates that the tx sender is the commander of the battling metazoa *)
-procedure ValidateCommander(token_id: Uint256)
-  maybe_owner <- metazoa_commanders[token_id];
-  match maybe_owner with
-  | Some actual_owner =>
-    is_owner = builtin eq actual_owner _sender;
-    match is_owner with
-    | True =>
-    | False =>
-      err = CodeNotTokenOwner;
-      ThrowError err
-    end
-  | None =>
-    err = CodeNotTokenOwner;
-    ThrowError err
-  end
-end
-
-(* transfers a metazoa to this contract for battle under the tx sender as the commander *)
-procedure TransferToBattle(token_id: Uint256)
-  metazoa_commanders[token_id] = _sender;
-  msg_to_metazoa = {
-    _tag: "TransferFrom";
-    _recipient: metazoa_contract;
-    _amount: zero;
-    to: _this_address;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_metazoa;
-  send msgs
-end
-
-procedure RemoveCommander(token_id: Uint256)
-  delete metazoa_commanders[token_id]
-end
-
-(* burns huny from the targeted account *)
-procedure BurnHuny(burn_account: ByStr20, amount: Uint128)
-  msg_to_huny = {
-    _tag: "Burn";
-    _recipient: huny_token;
-    _amount: zero;
-    burn_account: burn_account;
-    amount: amount
-  };
-  msgs = one_msg msg_to_metazoa;
-  send msgs
-end
-
-(* emits an event with the current action id and action type, incrementing the current_action_id for next use *)
-procedure StartAction(action_id : Uint32, action_type : Action)
-  ongoing_actions[action_id] := action_type;
-  new_action_id = builtin add action_id one;
-  current_action_id := new_action_id;
-  e = { _eventname: "ActionStarted"; action_id: action_id; action_type: action_type };
-  event e
-end
-
-procedure ConcludeHarvestHuny(token_ids : List Uint256)
-  (* increase reward pool for minos *)
-  (* send remaining huny to commander *)
-end
-
-procedure ConcludeReturnToBase(token_ids : List Uint256)
-  (* for each metazoa: *)
-  (* calculate if huny is stolen (60%) *)
-  (* increase mino reward pool if stolen, else send to commander *)
-  (* calculate if metazoa is kidnapped (10%) for gen1-3 *)
-  (* if not kidnapped, send to user *)
-  (* if kidnapped, assign new commander based on berserker level *)
-end
-
-procedure ConcludeSummonReinforcements(count : Uint32)
-  (* calculate how many reinforcements are kidnapped (15%) *)
-  (* if not kidnapped, send to user via batchmint *)
-  (* if kidnapped, send to contract via batchmint and assign new commander based on berserker level *)
-end
-
-(***************************************************)
-(*               Battle Transitions                *)
-(***************************************************)
-
-transition EnterBattle(token_ids : List Uint256)
-  forall token_ids ValidateOwnership;
-  forall token_ids TransferToBattle
-end
-
-transition HarvestHuny(token_ids : List Uint256)
-  forall token_ids ValidateCommander;
-  action_type = HarvestHuny;
-  action_id <- current_action_id;
-  ongoing_harvests[action_id] := token_ids;
-  StartAction action_id action_type
-end
-
-transition ReturnToBase(token_ids : List Uint256)
-  forall token_ids ValidateCommander;
-  (* remove from stake here to avoid "double spend " *)
-  forall token_ids RemoveCommander;
-  action_type = ReturnToBase;
-  action_id <- current_action_id;
-  ongoing_returns[action_id] := token_ids;
-  StartAction action_id action_type
-end
-
-transition SummonReinforcements(count : Uint32)
-  (* calculate amount of huny required based on summon count *)
-  (* burn huny *)
-  action_type = SummonReinforcements;
-  action_id <- current_action_id;
-  ongoing_summons[action_id] := count;
-  StartAction action_id action_type
-end
-
-transition ConcludeAction(action_id : Uint32, random : Uint256)
-  IsOracle _sender;
-  action_type <- ongoing_actions[action_id];
-  match action_type with
-  | HarvestHuny =>
-    token_ids <- ongoing_harvests[action_id];
-    ConcludeHarvestHuny token_ids
-    delete ongoing_harvests[action_id];
-  | ReturnToBase
-    token_ids <- ongoing_returns[action_id];
-    ConcludeReturnToBase token_ids
-    delete ongoing_returns[action_id];
-  | SummonReinforcements
-    count <- ongoing_summons[action_id];
-    ConcludeSummonReinforcements count
-    delete ongoing_summons[action_id];
-  end
-  delete ongoing_actions[action_id];
-end
-
-(***************************************************)
-(*              Ownership Transitions              *)
-(***************************************************)
+(**************************************)
+(*         Ownership Procedures       *)
+(**************************************)
 
 procedure IsOwner(address: ByStr20)
   maybe_current_owner <- current_owner;
   match maybe_current_owner with
-  | Some current_owner =>
-    is_owner = builtin eq current_owner address;
+  | Some owner =>
+    is_owner = builtin eq owner address;
     match is_owner with
     | True =>
     | False =>
@@ -271,22 +236,299 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
-procedure IsOracle(address: ByStr20)
-  maybe_current_oracle <- current_oracle;
-  match maybe_current_oracle with
-  | Some current_oracle =>
-    is_oracle = builtin eq current_oracle address;
-    match is_oracle with
-    | True =>
-    | False =>
-      err = CodeNotOracle;
-      ThrowError err
-    end
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
   | None =>
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  end
+end
+
+procedure IsOracle(address: ByStr20)
+  oracle <- current_oracle;
+  is_oracle = builtin eq oracle address;
+  match is_oracle with
+  | True =>
+  | False =>
     err = CodeNotOracle;
     ThrowError err
   end
 end
+
+(* validates that the tx sender is the owner of the metazoa *)
+procedure ValidateOwnership(token_id: Uint256)
+  maybe_owner <- & metazoa_contract.token_owners[token_id];
+  match maybe_owner with
+  | Some actual_owner =>
+    is_owner = builtin eq actual_owner _sender;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotTokenOwner;
+    ThrowError err
+  end
+end
+
+(**************************************)
+(*           Game Procedures          *)
+(**************************************)
+
+(* validates that the tx sender is the commander of the battling metazoa *)
+procedure ValidateCommander(token_id: Uint256)
+  maybe_owner <- metazoa_commanders[token_id];
+  match maybe_owner with
+  | Some actual_owner =>
+    is_owner = builtin eq actual_owner _sender;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotTokenOwner;
+    ThrowError err
+  end
+end
+
+procedure RemoveCommander(token_id: Uint256)
+  delete metazoa_commanders[token_id]
+end
+
+(* transfers a metazoa to this contract for battle under the tx sender as the commander *)
+procedure TransferToBattle(token_id: Uint256)
+  current_block <- & BLOCK_NUMBER;
+  metazoa_commanders[token_id] := _sender;
+  last_harvested[token_id] := current_block;
+  msg_to_metazoa = {
+    _tag: "TransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to: _this_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
+procedure MintHuny(to: ByStr20, amount: Uint128)
+  msg_to_huny = {
+    _tag: "Mint";
+    _recipient: huny_token;
+    _amount: zero_amt;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+(* burns huny from the targeted account *)
+procedure BurnHuny(burn_account: ByStr20, amount: Uint128)
+  msg_to_huny = {
+    _tag: "Burn";
+    _recipient: huny_token;
+    _amount: zero_amt;
+    burn_account: burn_account;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+(* mint huny to this contract and save the amount for minos to claim later *)
+procedure CaptureHuny(amount : Uint128)
+  MintHuny _this_address amount;
+  h <- capturing_huny;
+  prev_amount = get_amount_or_zero h;
+  new_amount = builtin add prev_amount amount;
+  capturing_huny := new_amount
+end
+
+(* we only add newly captured huny at the start of the next block (like a coinbase reward) - so this action
+   flushes the incoming huny and must be called before any transition *)
+procedure StoreCapturedHuny()
+  current_block <- & BLOCK_NUMBER;
+  last_captured_block <- huny_last_captured_block;
+  already_stored = builtin eq current_block last_captured_block;
+  match already_stored with
+  | True => (* already done, no-op *)
+  | False =>
+    incoming <- capturing_huny;
+    current <- captured_huny;
+    incoming_amount = get_amount_or_zero incoming;
+    current_amount = get_amount_or_zero current;
+    new_amount = builtin add current_amount incoming_amount;
+    captured_huny := new_amount;
+    capturing_huny := zero_amt
+  end
+end
+
+(* stores the given action and emits an event with the current action counter while incrementing it for next use *)
+procedure StartAction(action : Action)
+  action_id <- current_action_id;
+  ongoing_actions[action_id] := action;
+  new_action_id = builtin add action_id one;
+  current_action_id := new_action_id;
+  e = { _eventname: "ActionStarted"; action_id: action_id; action: action };
+  event e
+end
+
+procedure HarvestForMetzoa(token_id_with_randomness : Pair Uint256 Uint256)
+  match token_id_with_randomness with
+  | Pair token_id random =>
+    traits <- & metazoa_contract.traits[token_id];
+    match maybe_traits with
+    | None =>
+      err = CodeMissingTraits;
+      ThrowError err
+    | Some Trait
+      trait = get_trait trait_key_race;
+      race = get_race trait;
+      match race with
+      | Ursa => HarvestForUrsa token_id random
+      | Mino => HarvestForMino token_id random
+      end
+    end
+  end
+end
+
+procedure HarvestForUrsa(token_id : Uint256, random : Uint256)
+  current_block <- & BLOCKNUMBER;
+  maybe_last_harvested <- last_harvested[token_id];
+  match maybe_last_harvested with
+  | None => (* should never happen, but no-op instead of error to avoid perma-breaking if we missed something *)
+  | Some last_harvested_block =>
+    blks = blocks_to_claim current_block last_harvested_block;
+    traits <- & metazoa_contract.traits[token_id];
+    match maybe_traits with
+    | None =>
+      err = CodeMissingTraits;
+      ThrowError err
+    | Some Trait
+      trait = get_trait trait_key_gen;
+      gen = get_gen trait;
+      huny_per_blk = huny_per_block gen;
+      harvested_huny = builtin mul huny_per_blk blks;
+
+      is_zero = builtin eq zero_amt harvested_huny;
+      match is_zero with
+      | True => (* no-op: save gas if harvesting on same block twice, or unknown metazoa gen  *)
+      | False =>
+        (* increase reward pool for minos *)
+        captured_huny = get_captured_huny harvested_huny;
+        CaptureHuny captured_huny;
+
+        (* send remaining huny to commander *)
+        remaining_huny = builtin sub harvested_huny captured_huny;
+        owner <- metazoa_commanders[token_id];
+        MintHuny owner remaining_huny
+      end
+    end
+  end
+end
+
+procedure HarvestForMino(token_id : Uint256, random : Uint256)
+  d <- captured_huny_debt[token_id];
+  current_debt = get_amount_or_zero d;
+  current_total <- captured_huny;
+  harvested_huny = builtin sub current_total current_debt;
+  owner <- metazoa_commanders[token_id];
+  MintHuny owner harvested_huny (* TODO: should we bother checking zero? *)
+  captured_huny_debt[token_id] := current_total
+end
+
+procedure ConcludeHarvestHuny(token_ids_with_randomness : List (Pair Uint256 Uint256))
+  forall token_ids_with_randomness HarvestForMetzoa
+end
+
+procedure ConcludeReturnToBase(token_ids_with_randomness : List (Pair Uint256 Uint256))
+  (* for each ursa: *)
+  (* calculate if huny is stolen (60%) *)
+  (* increase mino reward pool if stolen, else send to commander *)
+  (* calculate if ursa is kidnapped (10%) for gen1-3 *)
+  (* if not kidnapped, send to user *)
+  (* if kidnapped, assign new commander based on berserker level *)
+
+  (* for each mino: *)
+  (* harvest current outstanding huny *)
+  (* send to user *)
+end
+
+procedure ConcludeSummonReinforcements(count : Uint32, random : Uint256)
+  (* calculate how many reinforcements are kidnapped (15%) *)
+  (* if not kidnapped, send to user via batchmint *)
+  (* if kidnapped, send to contract via batchmint and assign new commander based on berserker level *)
+end
+
+(***************************************************)
+(*               Battle Transitions                *)
+(***************************************************)
+
+transition EnterBattle(token_ids : List Uint256)
+  StoreCapturedHuny;
+  forall token_ids ValidateOwnership;
+  forall token_ids TransferToBattle
+end
+
+transition HarvestHuny(token_ids : List Uint256)
+  StoreCapturedHuny;
+  forall token_ids ValidateCommander;
+  action = HarvestHuny token_ids;
+  StartAction action
+end
+
+transition ReturnToBase(token_ids : List Uint256)
+  StoreCapturedHuny;
+  (* check for sufficient huny *)
+  forall token_ids ValidateCommander;
+  (* remove from stake here to avoid "double spend " *)
+  forall token_ids RemoveCommander;
+  action = ReturnToBase token_ids;
+  StartAction action
+end
+
+transition SummonReinforcements(count : Uint32)
+  StoreCapturedHuny;
+  (* calculate amount of huny required based on summon count *)
+  (* burn huny *)
+  action_id <- current_action_id;
+  action = SummonReinforcements count;
+  StartAction action
+end
+
+transition ConcludeAction(action_id : Uint32, random : Uint256)
+  StoreCapturedHuny;
+  IsOracle _sender;
+  maybe_action <- ongoing_actions[action_id];
+  match maybe_action with
+  | None =>
+    err = CodeInvalidActionId;
+    ThrowError err
+  | Some action =>
+    match action with
+    | HarvestHuny token_ids =>
+      token_ids_with_randomness = add_randomness token_ids random
+      ConcludeHarvestHuny token_ids_with_randomness
+    | ReturnToBase token_ids =>
+      token_ids_with_randomness = add_randomness token_ids random
+      ConcludeReturnToBase token_ids_with_randomness
+    | SummonReinforcements count =>
+      ConcludeSummonReinforcements count random
+    end;
+    delete ongoing_actions[action_id]
+  end
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
 
 (* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
 transition RevokeOwnership()
