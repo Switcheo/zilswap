@@ -1,0 +1,388 @@
+(* SPDX-License-Identifier: MIT *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import ListUtils NatUtils
+library Refinery
+
+let zero = Uint32 0
+let one = Uint32 1
+let zero_amt = Uint128 0
+let one_amt = Uint128 1
+let none = None {ByStr20}
+let true = True
+let false = False
+
+type Claimer =
+  | Claimer of ByStr20 ByStr20 (* contract, user *)
+
+type Harvester =
+  | Harvester of Uint128 Uint128 (* initial % that needs refinement, number of blocks between claims to reduce % by 1 *)
+
+(* Error exception *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotHarvester
+  | CodeInvalidClaim
+  | CodeInvalidParameterValue
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                    => Int32 -1
+      | CodeNotPendingOwner             => Int32 -2
+      | CodePendingOwnerNotEmpty        => Int32 -3
+      | CodeNotHarvester                => Int32 -4
+      | CodeInvalidClaim                => Int32 -5
+      | CodeInvalidParameterValue       => Int32 -6
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg: Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero_amt
+    end
+
+let bsub_abs =
+  fun (a : BNum) =>
+  fun (b : BNum) =>
+    let interval = builtin bsub a b in
+    let small = builtin to_uint128 interval in
+    get_amount_or_zero small
+
+(* constants and calculations *)
+
+let percentage_denominator = Uint128 100
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract Refinery
+(
+  initial_owner: ByStr20,
+  huny_token: ByStr20  with contract (* _this_address must be a minter *)
+    field balances : Map ByStr20 Uint128
+  end
+)
+
+(* Mutable fields *)
+
+(* ownership addresses *)
+field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+(* map to track when huny was last claimed for each user + minter *)
+field last_refined: Map ByStr20 (Map ByStr20 BNum) = Emp ByStr20 (Map ByStr20 BNum)
+
+(* map to track harvester capabilities *)
+field harvesters: Map ByStr20 Harvester = Emp ByStr20 Harvester
+
+(* map to track huny that is being refined *)
+field refining: Map ByStr20 (Map BNum Uint128) = Emp ByStr20 (Map BNum Uint128) (* address => start block => share *)
+
+(* percentage of huny that is immediately refined *)
+field immediate_refinement: Uint128 = Uint128 10
+
+(* blocks required to refine huny fully - 365 days initially *)
+field refine_duration: Uint128 = Uint128 919800
+
+(* total share of huny undergoing refinement *)
+field total_share: Uint128 = zero_amt
+
+(**************************************)
+(*         Internal Procedures        *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+(**************************************)
+(*         Ownership Procedures       *)
+(**************************************)
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some owner =>
+    is_owner = builtin eq owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | None =>
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  end
+end
+
+procedure IsHarvester()
+  ok <- exists harvesters[_sender];
+  match ok with
+  | True =>
+  | False =>
+    err = CodeNotHarvester;
+    ThrowError err
+  end
+end
+
+procedure UpdateLastRefined(refiner: ByStr20)
+  current_block <- & BLOCKNUMBER;
+  last_refined[_sender][refiner] := current_block
+end
+
+procedure RefineHuny(refiner: ByStr20, amount: Uint128)
+  (* update share for this user and block *)
+  current_block <- & BLOCKNUMBER;
+  maybe_refining <- refining[refiner][current_block];
+  current_share = get_amount_or_zero maybe_refining;
+  new_share = builtin add current_share amount;
+  refining[refiner][current_block] := new_share;
+
+  (* update total shares *)
+  current_total_share <- total_share;
+  new_total_share = builtin add current_total_share amount;
+  total_share := new_total_share
+end
+
+procedure MintHuny(to: ByStr20, amount: Uint128)
+  msg_to_huny = {
+    _tag: "Mint";
+    _recipient: huny_token;
+    _amount: zero_amt;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+procedure SendHuny(to: ByStr20, amount: Uint128)
+  msg_to_huny = {
+    _tag: "Transfer";
+    _recipient: huny_token;
+    _amount: zero_amt;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+(***************************************************)
+(*             Refinery Transitions                *)
+(***************************************************)
+
+(* register as a claimer *)
+transition Register(claimer : ByStr20)
+  IsHarvester;
+  has_registered <- exists last_refined[_sender][claimer];
+  match has_registered with
+  | True => (* no-op *)
+  | False => UpdateLastRefined claimer (* set initial last claimed *)
+  end
+end
+
+(* refine some huny! depending on the last claim time, some of it is immediately refined *)
+(* while the rest is locked for additional processing! *)
+transition Refine(to: ByStr20, amount: Uint128)
+  harvester <- harvesters[_sender];
+  match harvester with
+  | None =>
+    err = CodeNotHarvester;
+    ThrowError err
+  | Some harvester =>
+    current_block <- & BLOCKNUMBER;
+    maybe_last_refined <- last_refined[_sender][to];
+    last_claim_interval = match maybe_last_refined with
+    | None => Uint128 0 (* should never happen, but just take it as 0 to avoid deadlock in case we missed something *)
+    | Some last_refined_block => bsub_abs current_block last_refined_block
+    end;
+    match harvester with
+    | Harvester initial decrement =>
+      full_unlock_requirement = builtin mul initial decrement;
+      partial_unlock = builtin lt last_claim_interval full_unlock_requirement;
+      match partial_unlock with
+      | True =>
+        (* (last_claim_interval / full_unlock_requirement) * initial / 100 *)
+        unlocked_amount = let numerator = builtin mul last_claim_interval initial in
+                          let denominator = builtin mul full_unlock_requirement percentage_denominator in
+                          builtin div numerator denominator;
+        refine_amount = builtin sub amount unlocked_amount;
+        MintHuny to unlocked_amount;
+        RefineHuny to refine_amount
+      | False =>
+        (* send all *)
+        MintHuny to amount
+      end
+    end;
+    UpdateLastRefined to
+  end
+end
+
+transition Claim(claim_block : BNum)
+  current_block <- & BLOCKNUMBER;
+  maybe_amount <- refining[_sender][claim_block];
+  match maybe_amount with
+  | None =>
+    err = CodeInvalidClaim;
+    ThrowError err
+  | Some amount =>
+    initial <- immediate_refinement;
+    current_total_share <- total_share;
+    maybe_current_supply <- & huny_token.balances[_this_address];
+    current_supply = get_amount_or_zero maybe_current_supply;
+    required_duration <- refine_duration;
+    refined_blocks = bsub_abs current_block claim_block;
+    not_fully_refined = builtin lt refined_blocks required_duration;
+    amount_to_send = match not_fully_refined with
+    | False =>
+      let n = builtin mul amount current_supply in
+      builtin div n current_total_share
+    | True =>
+      (* amount_to_send = (({initial +  [(refined_blocks / required_duration) * (100 - initial)]} / 100) * (amount / total_share) * current_supply *)
+      let prorate = (* {....} *)
+        let not_initial = builtin sub percentage_denominator initial in (* 100 - initial *)
+        let top = builtin mul refined_blocks not_initial in
+        let right = builtin div top required_duration in (* [....] *)
+        builtin add initial right in
+      let numerator =
+        let n1 = builtin mul prorate amount in
+        builtin mul n1 current_supply in
+      let denominator =
+        builtin mul percentage_denominator current_total_share in
+      builtin div numerator denominator
+    end;
+
+    SendHuny _sender amount_to_send;
+
+    (* update total share *)
+    new_total_share = builtin add current_total_share amount_to_send;
+    total_share := new_total_share;
+
+    (* clear refining claim *)
+    delete refining[_sender][claim_block]
+  end
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+
+transition UpdateImmediateRefinementPercentage(percentage: Uint128)
+  IsOwner _sender;
+  is_gt_100 = builtin lt percentage_denominator percentage;
+  match is_gt_100 with
+  | True =>
+    err = CodeInvalidParameterValue;
+    ThrowError err
+  | False =>
+    immediate_refinement := percentage
+  end
+end
+
+transition UpdateRefineDurationBlocks(blocks: Uint128)
+  IsOwner _sender;
+  is_zero = builtin eq zero_amt blocks;
+  match is_zero with
+  | True =>
+    err = CodeInvalidParameterValue;
+    ThrowError err
+  | False =>
+    refine_duration := blocks
+  end
+end
+
+(***************************************************)
+(*                     Callbacks                   *)
+(***************************************************)
+
+(* mint huny *)
+transition MintSuccessCallBack()
+  (* no-op *)
+end
+
+(* receive minted huny *)
+transition RecipientAcceptMint()
+  (* no-op *)
+end
+
+(* send huny *)
+transition TransferSuccessCallBack()
+  (* no-op *)
+end
