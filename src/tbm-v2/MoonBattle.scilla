@@ -30,11 +30,11 @@ let trait_value_berserker3 = "3"
 let trait_value_berserker4 = "4"
 
 type Action =
-  | ReturnToBase of (List Uint256) ByStr20 Uint128 (* list of metzoas, commander, last claimed interval *)
+  | ReturnToBase of (List Uint256) ByStr20 (* list of metzoas, commander *)
   | SummonReinforcements of Uint32 ByStr20 (* number of summons, commander *)
 
 type ReturnJourneyData =
-  | ReturnJourneyData of ByStr20 Uint128 Uint256  (* commander, claim interval, rng seed *)
+  | ReturnJourneyData of ByStr20 Uint256  (* commander, rng seed *)
 
 type Race =
   | Ursa
@@ -196,6 +196,7 @@ let get_captured_huny =
 (* Berseker kidnapping constants and helpers *)
 
 let kidnap_ursa_chance = Uint256 10 (* 10% chance to kidnap ursa on return to base *)
+let kidnap_summon_chance = Uint256 15 (* 15% chance to kidnap metazoa on summon *)
 let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 let insert_to_berserking_list =
@@ -231,9 +232,8 @@ let get_random_result =
 let add_return_data =
   fun (list: List Uint256) =>
   fun (commander: ByStr20) =>
-  fun (last_claim_interval: Uint128) =>
   fun (random: Uint256) =>
-    let data = ReturnJourneyData commander last_claim_interval random in
+    let data = ReturnJourneyData commander random in
     let mapper = @list_map Uint256 (Pair Uint256 ReturnJourneyData) in
     let fn = fun (id : Uint256) => Pair {Uint256 ReturnJourneyData} id data in
     mapper fn list
@@ -281,9 +281,6 @@ field ongoing_actions: Map Uint32 Action = Emp Uint32 Action
 
 (* map to track when huny was last harvested for each ursa *)
 field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
-
-(* map to track when huny was last claimed for each commander *)
-field last_claimed: Map ByStr20 BNum = Emp ByStr20 BNum
 
 (* map to track amount of huny in the captured pool at the last action for each mino *)
 field captured_huny_debt: Map Uint256 Uint128 = Emp Uint256 Uint128
@@ -424,8 +421,45 @@ procedure ValidateSufficientFuel(token_id : Uint256)
   end
 end
 
+(* add to berserking list based on berseker level *)
+procedure StartBerserking(token_id: Uint256)
+  traits <- & metazoa_contract.traits[token_id];
+  trait_race = get_trait traits trait_key_race;
+  race = get_race trait_race;
+  match race with
+  | Ursa => (* no-op *)
+  | Mino =>
+    trait_berserker = get_trait traits trait_key_berserker;
+    level = get_berserker_level trait_berserker;
+    list <- berserking_minos;
+    new_list = insert_to_berserking_list list token_id level;
+    berserking_minos := new_list
+  | RaceUnknown =>
+    err = CodeMissingTraits;
+    ThrowError err
+  end
+end
+
+(* remove from berserking list based *)
+procedure StopBerserking(token_id: Uint256)
+  traits <- & metazoa_contract.traits[token_id];
+  trait_race = get_trait traits trait_key_race;
+  race = get_race trait_race;
+  match race with
+  | Ursa => (* no-op *)
+  | Mino =>
+    list <- berserking_minos;
+    new_list = remove_from_berserking_list list token_id;
+    berserking_minos := new_list
+  | RaceUnknown =>
+    err = CodeMissingTraits;
+    ThrowError err
+  end
+end
+
 (* transfers a metazoa to this contract for battle under the tx sender as the commander *)
 procedure TransferToBattle(token_id: Uint256)
+  StartBerserking token_id;
   current_block <- & BLOCKNUMBER;
   metazoa_commanders[token_id] := _sender;
   last_harvested[token_id] := current_block;
@@ -442,6 +476,7 @@ end
 
 (* transfers a metazoa from this contract to the given commander *)
 procedure TransferFromBattle(token_id: Uint256, commander: ByStr20)
+  StopBerserking token_id;
   msg_to_metazoa = {
     _tag: "TransferFrom";
     _recipient: metazoa_contract;
@@ -458,49 +493,15 @@ procedure RemoveCommander(token_id: Uint256)
   delete metazoa_commanders[token_id]
 end
 
-(* add to berserking list based on berseker level *)
-procedure StartBerserking(token_id: Uint256)
-  traits <- & metazoa_contract.traits[token_id];
-  trait_race = get_trait traits trait_key_race;
-  race = get_race trait_race;
-  match race with
-  | _ => (* not mino: no-op *)
-  | Mino =>
-    trait_berserker = get_trait traits trait_key_berserker;
-    level = get_berserker_level trait_berserker;
-    list <- berserking_minos;
-    new_list = insert_to_berserking_list list token_id level;
-    berserking_minos := new_list
-  end
-end
-
-(* remove from berserking list based *)
-procedure StopBerserking(token_id: Uint256)
-  traits <- & metazoa_contract.traits[token_id];
-  trait_race = get_trait traits trait_key_race;
-  race = get_race trait_race;
-  match race with
-  | _ => (* not mino: no-op *)
-  | Mino =>
-    list <- berserking_minos;
-    new_list = remove_from_berserking_list list token_id;
-    berserking_minos := new_list
-  end
-end
-
-procedure UpdateLastClaimed(current_block: BNum)
-  last_claimed[_sender] := current_block
-end
-
 procedure MintHuny(to: ByStr20, amount: Uint128)
-  msg_to_huny = {
-    _tag: "Mint";
-    _recipient: huny_token;
+  msg_to_refinery = {
+    _tag: "Refine";
+    _recipient: refinery;
     _amount: zero_amt;
     to: to;
     amount: amount
   };
-  msgs = one_msg msg_to_huny;
+  msgs = one_msg msg_to_refinery;
   send msgs
 end
 
@@ -517,11 +518,15 @@ procedure BurnHuny(burn_account: ByStr20, amount: Uint128)
   send msgs
 end
 
-procedure MineHuny(to: ByStr20, amount: Uint128, last_claim_interval: BNum)
-  (* TODO: use this instead of MintHuny *)
-  (* TODO: mint to self first *)
-  (* TODO: msg deposit to refinery based on last_claim_interval *)
-  (* TODO: send rest to user *)
+procedure RegisterWithRefinery()
+  msg_to_refinery = {
+    _tag: "Register";
+    _recipient: refinery;
+    _amount: zero_amt;
+    claimer: _sender
+  };
+  msgs = one_msg msg_to_refinery;
+  send msgs
 end
 
 (* mint huny to this contract and save the amount for minos to claim later *)
@@ -606,7 +611,7 @@ end
 
 procedure HarvestForMetazoa(token_id : Uint256)
   maybe_commander <- metazoa_commanders[token_id];
-  match maybe_owner with
+  match maybe_commander with
   | None =>
     err = CodeMissingCommander; (* this should actually never happen.. no-op instead? *)
     ThrowError err
@@ -628,13 +633,12 @@ procedure HarvestForMetazoa(token_id : Uint256)
   end
 end
 
-(* for each ursa: *)
 (* calculate if huny is stolen (60%) *)
 (* increase mino reward pool if stolen, else send to commander *)
 (* calculate if ursa is kidnapped (10%) for gen1-3 *)
 (* if not kidnapped, send to user *)
 (* if kidnapped, assign new commander based on berserker level *)
-procedure ReturnToBaseForUrsa(random : Uint256, token_id : Uint256, commander : ByStr20, gen : Generation)
+procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
   (* TODO: emit an event for easier UI tracking of whether huny was captured or not *)
@@ -652,29 +656,31 @@ procedure ReturnToBaseForUrsa(random : Uint256, token_id : Uint256, commander : 
   end
 end
 
-(*  *)
-procedure ReturnToBaseForMino(random : Uint256, token_id : Uint256, commander : ByStr20)
-  (* for each mino: *)
-  (* harvest current outstanding huny *)
-  (* send to user *)
+(* just harvest and send to user *)
+procedure ReturnToBaseForMino(token_id : Uint256, commander : ByStr20)
+  HarvestForMino token_id commander;
+  TransferFromBattle token_id commander
 end
 
 procedure ReturnToBaseForMetazoa(token_id_with_return_data : Pair Uint256 ReturnJourneyData)
   match token_id_with_return_data with
   | Pair token_id data =>
-    traits <- & metazoa_contract.traits[token_id];
-    trait_race = get_trait traits trait_key_race;
-    race = get_race trait_race;
-    match race with
-    | Ursa =>
-      trait_gen = get_trait traits trait_key_gen;
-      gen = get_gen trait_gen;
-      ReturnToBaseForUrsa token_id gen data
-    | Mino =>
-      ReturnToBaseForMino token_id data
-    | RaceUnknown =>
-      err = CodeMissingTraits;
-      ThrowError err
+    match data with
+    | ReturnJourneyData commander random =>
+      traits <- & metazoa_contract.traits[token_id];
+      trait_race = get_trait traits trait_key_race;
+      race = get_race trait_race;
+      match race with
+      | Ursa =>
+        trait_gen = get_trait traits trait_key_gen;
+        gen = get_gen trait_gen;
+        ReturnToBaseForUrsa token_id commander random gen
+      | Mino =>
+        ReturnToBaseForMino token_id commander
+      | RaceUnknown =>
+        err = CodeMissingTraits;
+        ThrowError err
+      end
     end
   end
 end
@@ -683,10 +689,31 @@ procedure ConcludeReturnToBase(token_ids_with_return_data : List (Pair Uint256 R
   forall token_ids_with_return_data ReturnToBaseForMetazoa
 end
 
-procedure ConcludeSummonReinforcements(count : Uint32, random : Uint256)
-  (* calculate how many reinforcements are kidnapped (15%) *)
-  (* if not kidnapped, send to user via batchmint *)
-  (* if kidnapped, send to contract via batchmint and assign new commander based on berserker level *)
+(* TODO *)
+procedure SummonReinforcement(n : Uint256, commander : ByStr20, random : Uint256)
+  is_metazoa_kidnapped = get_random_result n random kidnap_summon_chance;
+  match is_metazoa_kidnapped with
+  | False =>
+    (* phew *)
+    (* TransferFromBattle token_id commander *)
+  | True =>
+    (* choose a random mino from the berserking list and assign *)
+  end
+  (* calculate if kidnapped (15%) *)
+  (* if not kidnapped, send to user *)
+  (* if kidnapped, assign new commander based on berserker level *)
+end
+
+(* TODO *)
+procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, random : Uint256)
+  (* mint all to contract via batch mint *)
+  (* msg_to_metazoa = build_batch_mint_msg count;
+  msgs = one_msg msg_to_metazoa;
+  send msgs; *)
+
+  (* generate new random number based on random % hash(token id) *)
+  (* list = build_summon_list count commander random;
+  forall list SummonReinforcement *)
 end
 
 (***************************************************)
@@ -700,11 +727,7 @@ transition EnterBattle(token_ids : List Uint256)
   forall token_ids ValidateOwnership;
   forall token_ids TransferToBattle;
 
-  has_claimed <- exists last_claimed[_sender];
-  match has_claimed with
-  | True => (* no-op *)
-  | False => UpdateLastClaimed current_block (* set initial last claimed *)
-  end
+  RegisterWithRefinery
 end
 
 transition HarvestHuny(token_ids : List Uint256)
@@ -712,22 +735,12 @@ transition HarvestHuny(token_ids : List Uint256)
 
   StoreCapturedHuny current_block;
   forall token_ids ValidateCommander;
-  forall token_ids HarvestForMetazoa;
-  UpdateLastClaimed current_block
+  forall token_ids HarvestForMetazoa
 end
 
 transition ReturnToBase(token_ids : List Uint256)
   current_block <- & BLOCKNUMBER;
-
-  maybe_last_claimed <- last_claimed[_sender];
-  last_claim_interval = match maybe_last_claimed with
-  | None => Uint128 0 (* should never happen *)
-  | Some last_claimed_block =>
-    let interval = builtin bsub current_block last_claimed_block in
-    let small = builtin to_uint128 interval in
-    get_amount_or_zero small
-  end;
-  action = ReturnToBase token_ids _sender last_claim_interval;
+  action = ReturnToBase token_ids _sender;
 
   StoreCapturedHuny current_block;
   forall token_ids ValidateCommander;
@@ -735,8 +748,7 @@ transition ReturnToBase(token_ids : List Uint256)
   (* remove now to avoid "double spend" *)
   forall token_ids RemoveCommander;
 
-  StartAction action;
-  UpdateLastClaimed current_block
+  StartAction action
 end
 
 transition SummonReinforcements(count : Uint32)
@@ -762,8 +774,8 @@ transition ConcludeAction(action_id : Uint32, random : Uint256)
     ThrowError err
   | Some action =>
     match action with
-    | ReturnToBase token_ids commander interval =>
-      token_ids_with_return_data = add_return_data token_ids commander interval random;
+    | ReturnToBase token_ids commander =>
+      token_ids_with_return_data = add_return_data token_ids commander random;
       ConcludeReturnToBase token_ids_with_return_data
     | SummonReinforcements count commander =>
       ConcludeSummonReinforcements count commander random
@@ -804,4 +816,28 @@ transition AcceptOwnership()
   pending_owner := none;
   e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
   event e
+end
+
+(***************************************************)
+(*                     Callbacks                   *)
+(***************************************************)
+
+(* accept mint *)
+transition ZRC6_BatchMintCallback()
+  (* no-op *)
+end
+
+(* send metazoa *)
+transition ZRC6_TransferFromCallback()
+  (* no-op *)
+end
+
+(* receive metazoa *)
+transition ZRC6_RecipientAcceptTransferFrom()
+  (* no-op *)
+end
+
+(* burn huny *)
+transition BurnSuccessCallBack()
+  (* no-op *)
 end
