@@ -93,6 +93,15 @@ let must_nat_to_uint256 =
     | Some r => r
     end
 
+let must_nat_to_uint128 =
+  fun (nat: Nat) =>
+    let int = nat_to_int nat in
+    let uint = builtin to_uint128 int in
+    match uint with
+    | None => let a = zero_amt in let b = one_amt in builtin sub a b (* throw if nat is -ve *)
+    | Some r => r
+    end
+
 let uint32_to_nat_or_zero =
   fun (uint: Uint32) =>
     let nat = uint32_to_nat uint in
@@ -114,6 +123,14 @@ let get_bnum_or_current =
     match maybe with
     | Some amt => amt
     | None => current
+    end
+
+let uint32_to_uint128 =
+  fun (var : Uint32) =>
+    let maybe_big = builtin to_uint128 var in
+    match maybe_big with
+    | Some big => big
+    | None => zero_amt (* should never happen *)
     end
 
 (* $HUNY constants and calculations *)
@@ -362,7 +379,7 @@ field current_action_id: Uint32 = zero
 
 (* used for distributing captured huny *)
 field capturing_huny: Uint128 = zero_amt (* captured huny is credited only at the first tx of the next active block *)
-field captured_huny: Uint128 = zero_amt
+field captured_huny_per_share: Uint128 = zero_amt
 field huny_last_captured_block: BNum = BNum 0
 
 (* used for kidnapping ursas *)
@@ -519,42 +536,6 @@ procedure ValidateSufficientFuel(token_id : Uint256)
   end
 end
 
-(* add to berserking list based on berseker level *)
-procedure StartBerserking(token_id: Uint256)
-  traits <- & metazoa_contract.traits[token_id];
-  trait_race = get_trait traits trait_key_race;
-  race = get_race trait_race;
-  match race with
-  | Ursa => (* no-op *)
-  | Mino =>
-    trait_berserker = get_trait traits trait_key_berserker;
-    level = get_berserker_level trait_berserker;
-    list <- berserking_minos;
-    new_list = insert_to_berserking_list list token_id level;
-    berserking_minos := new_list
-  | RaceUnknown =>
-    err = CodeMissingTraits;
-    ThrowError err
-  end
-end
-
-(* remove from berserking list based *)
-procedure StopBerserking(token_id: Uint256)
-  traits <- & metazoa_contract.traits[token_id];
-  trait_race = get_trait traits trait_key_race;
-  race = get_race trait_race;
-  match race with
-  | Ursa => (* no-op *)
-  | Mino =>
-    list <- berserking_minos;
-    new_list = remove_from_berserking_list list token_id;
-    berserking_minos := new_list
-  | RaceUnknown =>
-    err = CodeMissingTraits;
-    ThrowError err
-  end
-end
-
 procedure TransferCommand(token_id: Uint256, to: ByStr20)
   c <- metazoa_commanders[token_id];
   previous_commander = match c with
@@ -574,10 +555,33 @@ end
 
 (* transfers a metazoa to this contract for battle under the tx sender as the commander *)
 procedure TransferToBattle(token_id: Uint256)
-  StartBerserking token_id;
   TransferCommand token_id _sender;
-  current_block <- & BLOCKNUMBER;
-  last_harvested[token_id] := current_block;
+
+  traits <- & metazoa_contract.traits[token_id];
+  trait_race = get_trait traits trait_key_race;
+  race = get_race trait_race;
+  match race with
+  | Ursa =>
+    current_block <- & BLOCKNUMBER;
+    last_harvested[token_id] := current_block
+  | Mino =>
+    (* set debt *)
+    trait_berserker = get_trait traits trait_key_berserker;
+    level = get_berserker_level trait_berserker;
+    share = must_nat_to_uint128 level;
+    per_share <- captured_huny_per_share;
+    debt = builtin mul share per_share;
+    captured_huny_debt[token_id] := debt;
+
+    (* add to berserking list based on berseker level *)
+    list <- berserking_minos;
+    new_list = insert_to_berserking_list list token_id level;
+    berserking_minos := new_list
+  | RaceUnknown =>
+    err = CodeMissingTraits;
+    ThrowError err
+  end;
+
   msg_to_metazoa = {
     _tag: "TransferFrom";
     _recipient: metazoa_contract;
@@ -591,7 +595,6 @@ end
 
 (* transfers a metazoa from this contract to the given commander *)
 procedure TransferFromBattle(token_id: Uint256, commander: ByStr20)
-  StopBerserking token_id;
   TransferCommand token_id noone;
   msg_to_metazoa = {
     _tag: "TransferFrom";
@@ -693,9 +696,8 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
   end
 end
 
-(* mint huny to this contract and save the amount for minos to claim later *)
+(* save the amount of huny for minos to claim later - don't actually mint yet *)
 procedure CaptureHuny(amount : Uint128)
-  MintHuny _this_address amount;
   prev_amount <- capturing_huny;
   new_amount = builtin add prev_amount amount;
   capturing_huny := new_amount;
@@ -711,10 +713,13 @@ procedure StoreCapturedHuny(current_block : BNum)
   match already_stored with
   | True => (* already done, no-op *)
   | False =>
-    current_amount <- captured_huny;
+    current_amount_per_share <- captured_huny_per_share;
     incoming_amount <- capturing_huny;
-    new_amount = builtin add current_amount incoming_amount;
-    captured_huny := new_amount;
+    list <- berserking_minos;
+    shares = let len = @list_length(Uint256) in let s = len list in uint32_to_uint128 s;
+    additional_amount_per_share = builtin div incoming_amount shares;
+    new_amount_per_share = builtin add current_amount_per_share additional_amount_per_share;
+    captured_huny_per_share := new_amount_per_share;
     capturing_huny := zero_amt
   end
 end
@@ -761,17 +766,20 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
   last_harvested[token_id] := current_block
 end
 
-procedure HarvestForMino(token_id : Uint256, commander : ByStr20)
+procedure HarvestForMino(token_id : Uint256, commander : ByStr20, share : Uint128)
   d <- captured_huny_debt[token_id];
   current_debt = get_amount_or_zero d;
-  current_total <- captured_huny;
-  harvested_huny = builtin sub current_total current_debt;
-  is_zero = builtin eq zero_amt harvested_huny;
+  per_share <- captured_huny_per_share;
+
+  total = builtin mul share per_share;
+  share_of_huny = builtin sub total current_debt;
+
+  is_zero = builtin eq zero_amt share_of_huny;
   match is_zero with
   | True => (* no-op: save gas if harvesting on same block twice *)
   | False =>
-    MintHuny commander harvested_huny;
-    captured_huny_debt[token_id] := current_total
+    MintHuny commander share_of_huny;
+    captured_huny_debt[token_id] := total
   end
 end
 
@@ -791,7 +799,10 @@ procedure HarvestForMetazoa(token_id : Uint256)
       gen = get_gen trait_gen;
       HarvestForUrsa token_id commander gen false
     | Mino =>
-      HarvestForMino token_id commander
+      trait_berserker = get_trait traits trait_key_berserker;
+      level = get_berserker_level trait_berserker;
+      share = must_nat_to_uint128 level;
+      HarvestForMino token_id commander share
     | RaceUnknown =>
       err = CodeMissingTraits;
       ThrowError err
@@ -824,9 +835,17 @@ procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : 
 end
 
 (* just harvest and send to user *)
-procedure ReturnToBaseForMino(token_id : Uint256, commander : ByStr20)
-  HarvestForMino token_id commander;
-  TransferFromBattle token_id commander
+procedure ReturnToBaseForMino(token_id : Uint256, commander : ByStr20, share : Uint128)
+  HarvestForMino token_id commander share;
+  TransferFromBattle token_id commander;
+
+  (* remove from berserking list *)
+  list <- berserking_minos;
+  new_list = remove_from_berserking_list list token_id;
+  berserking_minos := new_list;
+
+  (* clear debt *)
+  delete captured_huny_debt[token_id]
 end
 
 procedure ReturnToBaseForMetazoa(token_id_with_return_data : Pair Uint256 ReturnJourneyData)
@@ -843,7 +862,10 @@ procedure ReturnToBaseForMetazoa(token_id_with_return_data : Pair Uint256 Return
         gen = get_gen trait_gen;
         ReturnToBaseForUrsa token_id commander random gen
       | Mino =>
-        ReturnToBaseForMino token_id commander
+        trait_berserker = get_trait traits trait_key_berserker;
+        level = get_berserker_level trait_berserker;
+        share = must_nat_to_uint128 level;
+        ReturnToBaseForMino token_id commander share
       | RaceUnknown =>
         err = CodeMissingTraits;
         ThrowError err
