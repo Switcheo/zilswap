@@ -61,6 +61,7 @@ type Error =
   | CodeMissingTraits
   | CodeMissingCommander
   | CodeInsufficientFuel
+  | CodeSupplyExceeded
 
 let make_error =
   fun (result : Error) =>
@@ -75,6 +76,7 @@ let make_error =
       | CodeMissingTraits               => Int32 -7
       | CodeMissingCommander            => Int32 -8
       | CodeInsufficientFuel            => Int32 -9
+      | CodeSupplyExceeded              => Int32 -10
       end
     in
     { _exception : "Error"; code : result_code }
@@ -89,7 +91,7 @@ let must_nat_to_uint256 =
     let int = nat_to_int nat in
     let uint = builtin to_uint256 int in
     match uint with
-    | None => let a = Uint256 0 in let b = Uint256 1 in builtin sub a b (* throw if nat is -ve *)
+    | None => let a = Uint256 0 in let b = Uint256 1 in builtin sub a b (* throw - shld nvr happen *)
     | Some r => r
     end
 
@@ -98,7 +100,7 @@ let must_nat_to_uint128 =
     let int = nat_to_int nat in
     let uint = builtin to_uint128 int in
     match uint with
-    | None => let a = zero_amt in let b = one_amt in builtin sub a b (* throw if nat is -ve *)
+    | None => let a = zero_amt in let b = one_amt in builtin sub a b (* throw - shld nvr happen *)
     | Some r => r
     end
 
@@ -135,7 +137,9 @@ let uint32_to_uint128 =
 
 (* $HUNY constants and calculations *)
 
-let max_metazoa_supply = Uint256 2888 (* TODO: confirm this *)
+let gen1_count = Uint32 1001 (* +1 of actual *)
+let gen1n2_count = Uint32 2001 (* +1 of actual *)
+let max_summon = Uint32 2500 (* TODO: confirm these *)
 let capture_huny_percentage = Uint128 30
 let percentage_denominator = Uint128 100
 let blocks_required_for_return = Uint32 5040 (* 2 days *)
@@ -149,6 +153,19 @@ let huny_per_block =
     | Gen3 => Uint128 6865079365079 (* 27,300 $HUNY per day => 17300_0000_0000_0000 / 2520 *)
     | GenUnknown => zero_amt
   end
+
+let get_summon_cost =
+  fun (count : Uint32) =>
+    let is_gen1 = builtin lt count gen1_count in
+    match is_gen1 with
+    | True => Uint128     12000000000000000 (* Gen 1 => 12,000 $HUNY *)
+    | False =>
+      let is_gen2 = builtin lt count gen1n2_count in
+      match is_gen2 with
+      | True => Uint128   15000000000000000 (* Gen 2 => 15,000 $HUNY *)
+      | False => Uint128  19500000000000000 (* Gen 3 => 19,500 $HUNY *)
+      end
+    end
 
 let blocks_to_harvest =
   fun (current_block : BNum) =>
@@ -363,7 +380,6 @@ contract MoonBattle
   huny_token: ByStr20, (* _this_address must also be a minter (to burn huny) *)
   tbm_contract: ByStr20, (* _this_address must also be a minter (to burn nft for discount) *)
   metazoa_contract: ByStr20 with contract (* _this_address must also be a minter (to mint reinforcements) *)
-    field total_supply : Uint256,
     field token_owners : Map Uint256 ByStr20,
     field traits: Map Uint256 (List (Pair String String))
   end
@@ -375,6 +391,9 @@ contract MoonBattle
 field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 field current_oracle : ByStr20 = initial_oracle
+
+(* track summon supply *)
+field summon_count: Uint32 = zero
 
 (* an auto-incrementing action nonce *)
 field current_action_id: Uint32 = zero
@@ -651,16 +670,6 @@ procedure RegisterWithRefinery()
   send msgs
 end
 
-procedure ScheduleHarvestingEndCheck()
-  msg_to_self = {
-    _tag: "CheckIfHarvestingEnded";
-    _recipient: _this_address;
-    _amount: zero_amt
-  };
-  msgs = one_msg msg_to_self;
-  send msgs
-end
-
 procedure SummonMetazoaBatch(to: ByStr20, count: Uint32)
   list = build_mint_param_list to count;
   msg_to_metazoa = {
@@ -903,8 +912,7 @@ procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, rand
     (* TODO: TEST MAX TOTAL MINT COUNT AND LIMIT IN FIRST STEP!! *)
     last_random := random;
     SummonMetazoa _this_address kidnap_count;
-    SummonMetazoaBatch commander mint_count;
-    ScheduleHarvestingEndCheck
+    SummonMetazoaBatch commander mint_count
   end
 end
 
@@ -948,13 +956,35 @@ transition SummonReinforcements(count : Uint32)
 
   StoreCapturedHuny current_block;
 
-  (* TODO: check if count + current supply + pending > max supply *)
-  (* TODO: calculate amount of huny required based on summon count *)
-  (* TODO: burn huny *)
+  (* update pending count *)
+  sc <- summon_count;
+  new_count = builtin add count sc;
+  summon_count := new_count;
 
-  action = SummonReinforcements count _sender;
+  exceeds_supply = builtin lt max_summon new_count;
+  match exceeds_supply with
+  | True =>
+    err = CodeSupplyExceeded;
+    ThrowError err
+  | False =>
+    (* check whether to stop huny harvesting *)
+    is_now_ended = builtin eq max_summon new_count;
+    match is_now_ended with
+    | False =>
+    | True =>
+      some_block = Some {BNum} current_block;
+      max_harvest_block := some_block
+    end;
 
-  StartAction action
+    (* calculate amount of huny required to burn based on summon count *)
+    summon_cost = get_summon_cost new_count;
+    count_uint128 = uint32_to_uint128 count;
+    huny_to_burn = builtin mul count_uint128 summon_cost;
+    BurnHuny _sender huny_to_burn;
+
+    action = SummonReinforcements count _sender;
+    StartAction action
+  end
 end
 
 transition ConcludeAction(action_id : Uint32, random : Uint256)
@@ -976,18 +1006,6 @@ transition ConcludeAction(action_id : Uint32, random : Uint256)
       ConcludeSummonReinforcements count commander random
     end;
     delete ongoing_actions[action_id]
-  end
-end
-
-transition CheckIfHarvestingEnded()
-  supply <- & metazoa_contract.total_supply;
-  not_ended = builtin lt supply max_metazoa_supply;
-  match not_ended with
-  | True =>
-  | False =>
-    current_block <- & BLOCKNUMBER;
-    blk = Some {BNum} current_block;
-    max_harvest_block := blk
   end
 end
 
