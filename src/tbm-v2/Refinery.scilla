@@ -343,6 +343,16 @@ transition AcceptOwnership()
   event e
 end
 
+transition AddHarvester(address: ByStr20, required_refinement_percentage: Uint128, blocks_to_reduce_required_refinement: Uint128)
+  IsOwner _sender;
+  harvester = Harvester required_refinement_percentage blocks_to_reduce_required_refinement;
+  harvesters[address] := harvester
+end
+
+transition RemoveHarvester(address: ByStr20)
+  IsOwner _sender;
+  delete harvesters[address]
+end
 
 transition UpdateImmediateRefinementPercentage(percentage: Uint128)
   IsOwner _sender;
@@ -373,16 +383,16 @@ end
 (***************************************************)
 
 (* mint huny *)
-transition MintSuccessCallBack()
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* receive minted huny *)
-transition RecipientAcceptMint()
+transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* send huny *)
-transition TransferSuccessCallBack()
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
