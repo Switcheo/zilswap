@@ -14,6 +14,7 @@ let one_amt = Uint128 1
 let none = None {ByStr20}
 let true = True
 let false = False
+let empty_string = ""
 
 let trait_key_race = "race"
 let trait_value_ursa = "ursa"
@@ -82,6 +83,24 @@ let one_msg =
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
+let must_nat_to_uint256 =
+  fun (nat: Nat) =>
+    let int = nat_to_int nat in
+    let uint = builtin to_uint256 int in
+    match uint with
+    | None => let a = Uint256 0 in let b = Uint256 1 in builtin sub a b (* throw if nat is -ve *)
+    | Some r => r
+    end
+
+let uint32_to_nat_or_zero =
+  fun (uint: Uint32) =>
+    let nat = uint32_to_nat uint in
+    match nat with
+    | None => Zero (* uint32 always fits in a nat, so shld nvr happen *)
+    | Some r => r
+    end
+
+
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
@@ -96,6 +115,43 @@ let get_bnum_or_current =
     | Some amt => amt
     | None => current
     end
+
+(* $HUNY constants and calculations *)
+
+let capture_huny_percentage = Uint128 30
+let percentage_denominator = Uint128 100
+let blocks_required_for_return = Uint32 5040 (* 2 days *)
+
+let huny_per_block =
+  fun (gen : Generation) =>
+    match gen with
+    | Gen0 => Uint128 3968253968253 (* 10,000 $HUNY per day => 10000_0000_0000_0000 / 2520 *)
+    | Gen1 => Uint128 5952380952380 (* 15,000 $HUNY per day => 15000_0000_0000_0000 / 2520 *)
+    | Gen2 => Uint128 7738095238095 (* 19,500 $HUNY per day => 19500_0000_0000_0000 / 2520 *)
+    | Gen3 => Uint128 6865079365079 (* 27,300 $HUNY per day => 17300_0000_0000_0000 / 2520 *)
+    | GenUnknown => zero_amt
+  end
+
+let blocks_to_harvest =
+  fun (current_block : BNum) =>
+  fun (last_harvested_block : BNum) =>
+    let blks = builtin bsub current_block last_harvested_block in (* this is a uint256 *)
+    let result = builtin to_uint128 blks in
+    match result with
+    | None => builtin sub zero_amt one_amt (* throw on overflow *)
+    | Some uint128 => uint128
+    end
+
+let get_captured_huny =
+  fun (huny_harvested : Uint128) =>
+    let numerator = builtin mul huny_harvested capture_huny_percentage in
+    builtin div numerator percentage_denominator
+
+(* Berseker kidnapping constants and helpers *)
+
+let kidnap_ursa_chance = Uint256 10 (* 10% chance to kidnap ursa on return to base *)
+let kidnap_summon_chance = Uint256 15 (* 15% chance to kidnap metazoa on summon *)
+let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 (* trait helpers *)
 
@@ -162,42 +218,7 @@ let get_berserker_level =
       end
     end
 
-(* $HUNY constants and calculations *)
-
-let capture_huny_percentage = Uint128 30
-let percentage_denominator = Uint128 100
-let blocks_required_for_return = Uint32 5040 (* 2 days *)
-
-let huny_per_block =
-  fun (gen : Generation) =>
-    match gen with
-    | Gen0 => Uint128 3968253968253 (* 10,000 $HUNY per day => 10000_0000_0000_0000 / 2520 *)
-    | Gen1 => Uint128 5952380952380 (* 15,000 $HUNY per day => 15000_0000_0000_0000 / 2520 *)
-    | Gen2 => Uint128 7738095238095 (* 19,500 $HUNY per day => 19500_0000_0000_0000 / 2520 *)
-    | Gen3 => Uint128 6865079365079 (* 27,300 $HUNY per day => 17300_0000_0000_0000 / 2520 *)
-    | GenUnknown => zero_amt
-  end
-
-let blocks_to_harvest =
-  fun (current_block : BNum) =>
-  fun (last_harvested_block : BNum) =>
-    let blks = builtin bsub current_block last_harvested_block in (* this is a uint256 *)
-    let result = builtin to_uint128 blks in
-    match result with
-    | None => builtin sub zero_amt one_amt (* throw on overflow *)
-    | Some uint128 => uint128
-    end
-
-let get_captured_huny =
-  fun (huny_harvested : Uint128) =>
-    let numerator = builtin mul huny_harvested capture_huny_percentage in
-    builtin div numerator percentage_denominator
-
-(* Berseker kidnapping constants and helpers *)
-
-let kidnap_ursa_chance = Uint256 10 (* 10% chance to kidnap ursa on return to base *)
-let kidnap_summon_chance = Uint256 15 (* 15% chance to kidnap metazoa on summon *)
-let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
+(* list helpers*)
 
 let insert_to_berserking_list =
   fun (list : List Uint256) =>
@@ -214,21 +235,6 @@ let remove_from_berserking_list =
     let fn = fun (i : Uint256) => builtin eq i token_id in
     filter fn list
 
-(* random number generator *)
-
-let get_random_result =
-  fun (token_id: Uint256) =>
-  fun (random: Uint256) =>
-  fun (threshold: Uint256) => (* 1% - 100% *)
-    let denominator = Uint256 100 in
-    let id_bz = builtin to_bystr32 token_id in
-    let seed0 = builtin to_bystr32 random in
-    let seed1 = builtin concat id_bz seed0 in
-    let seed2 = builtin sha256hash seed1 in
-    let final = builtin to_uint256 seed2 in
-    let result = builtin rem final denominator in (* 0-99 *)
-    builtin lt result threshold
-
 let add_return_data =
   fun (list: List Uint256) =>
   fun (commander: ByStr20) =>
@@ -237,6 +243,66 @@ let add_return_data =
     let mapper = @list_map Uint256 (Pair Uint256 ReturnJourneyData) in
     let fn = fun (id : Uint256) => Pair {Uint256 ReturnJourneyData} id data in
     mapper fn list
+
+let build_mint_param_list =
+  fun (to: ByStr20) =>
+  fun (count: Uint32) =>
+    let fold = @nat_fold (List (Pair ByStr20 String)) in
+    let nat = uint32_to_nat_or_zero count in
+    let init = Nil {(Pair ByStr20 String)} in
+    let fn =
+      fun (list: List (Pair ByStr20 String)) =>
+      fun (n: Nat) =>
+        let next_entry = Pair {ByStr20 String} to empty_string in
+        Cons {(Pair ByStr20 String)} next_entry list
+    in
+    fold fn init nat
+
+(* random number generator *)
+
+let get_random_result =
+  fun (num: Uint256) =>
+  fun (random: Uint256) =>
+  fun (threshold: Uint256) => (* 1% - 100% *)
+    let denominator = Uint256 100 in
+    let num_bz = builtin to_bystr32 num in
+    let seed0 = builtin to_bystr32 random in
+    let seed1 = builtin concat num_bz seed0 in
+    let seed2 = builtin sha256hash seed1 in
+    let final = builtin to_uint256 seed2 in
+    let result = builtin rem final denominator in (* 0-99 *)
+    builtin lt result threshold
+
+let add_to_results =
+  fun (results: Pair Uint32 Uint32) =>
+  fun (new_result: Bool) =>
+    match results with
+    | Pair yay nay =>
+      match new_result with
+      | True =>
+        let new_yay = builtin add one yay in
+        Pair {Uint32 Uint32} new_yay nay
+      | False =>
+        let new_nay = builtin add one nay in
+        Pair {Uint32 Uint32} yay new_nay
+      end
+    end
+
+let get_random_results =
+  fun (count: Uint32) =>
+  fun (random: Uint256) =>
+  fun (threshold: Uint256) =>
+    let fold = @nat_fold (Pair Uint32 Uint32) in
+    let nat = uint32_to_nat_or_zero count in
+    let init = Pair {Uint32 Uint32} zero zero in (* true count, false count *)
+    let fn =
+      fun (prev: Pair Uint32 Uint32) =>
+      fun (n: Nat) =>
+        let num = must_nat_to_uint256 n in
+        let result = get_random_result num random threshold in
+        add_to_results prev result
+    in
+    fold fn init nat
 
 (***************************************************)
 (*             The contract definition             *)
@@ -529,6 +595,18 @@ procedure RegisterWithRefinery()
   send msgs
 end
 
+procedure SummonMetazoa(to: ByStr20, count: Uint32)
+  list = build_mint_param_list to count;
+  msg_to_metazoa = {
+    _tag: "BatchMint";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to_token_uri_pair_list: list
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
 (* mint huny to this contract and save the amount for minos to claim later *)
 procedure CaptureHuny(amount : Uint128)
   MintHuny _this_address amount;
@@ -689,31 +767,14 @@ procedure ConcludeReturnToBase(token_ids_with_return_data : List (Pair Uint256 R
   forall token_ids_with_return_data ReturnToBaseForMetazoa
 end
 
-(* TODO *)
-procedure SummonReinforcement(n : Uint256, commander : ByStr20, random : Uint256)
-  is_metazoa_kidnapped = get_random_result n random kidnap_summon_chance;
-  match is_metazoa_kidnapped with
-  | False =>
-    (* phew *)
-    (* TransferFromBattle token_id commander *)
-  | True =>
-    (* choose a random mino from the berserking list and assign *)
-  end
-  (* calculate if kidnapped (15%) *)
-  (* if not kidnapped, send to user *)
-  (* if kidnapped, assign new commander based on berserker level *)
-end
-
-(* TODO *)
 procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, random : Uint256)
-  (* mint all to contract via batch mint *)
-  (* msg_to_metazoa = build_batch_mint_msg count;
-  msgs = one_msg msg_to_metazoa;
-  send msgs; *)
-
-  (* generate new random number based on random % hash(token id) *)
-  (* list = build_summon_list count commander random;
-  forall list SummonReinforcement *)
+  results = get_random_results count random kidnap_summon_chance;
+  match results with
+  | Pair kidnap_count mint_count =>
+    (* TODO: TEST MAX TOTAL MINT COUNT AND LIMIT IN FIRST STEP!! *)
+    SummonMetazoa _this_address kidnap_count;
+    SummonMetazoa commander mint_count
+  end
 end
 
 (***************************************************)
@@ -828,16 +889,16 @@ transition ZRC6_BatchMintCallback()
 end
 
 (* send metazoa *)
-transition ZRC6_TransferFromCallback()
+transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
   (* no-op *)
 end
 
 (* receive metazoa *)
-transition ZRC6_RecipientAcceptTransferFrom()
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
   (* no-op *)
 end
 
 (* burn huny *)
-transition BurnSuccessCallBack()
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end

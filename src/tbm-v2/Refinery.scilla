@@ -383,16 +383,16 @@ end
 (***************************************************)
 
 (* mint huny *)
-transition MintSuccessCallBack()
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* receive minted huny *)
-transition RecipientAcceptMint()
+transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* send huny *)
-transition TransferSuccessCallBack()
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op *)
 end
