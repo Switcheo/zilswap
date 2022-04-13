@@ -135,6 +135,7 @@ let uint32_to_uint128 =
 
 (* $HUNY constants and calculations *)
 
+let max_metazoa_supply = Uint256 2888 (* TODO: confirm this *)
 let capture_huny_percentage = Uint128 30
 let percentage_denominator = Uint128 100
 let blocks_required_for_return = Uint32 5040 (* 2 days *)
@@ -362,6 +363,7 @@ contract MoonBattle
   huny_token: ByStr20, (* _this_address must also be a minter (to burn huny) *)
   tbm_contract: ByStr20, (* _this_address must also be a minter (to burn nft for discount) *)
   metazoa_contract: ByStr20 with contract (* _this_address must also be a minter (to mint reinforcements) *)
+    field total_supply : Uint256,
     field token_owners : Map Uint256 ByStr20,
     field traits: Map Uint256 (List (Pair String String))
   end
@@ -393,6 +395,7 @@ field ongoing_actions: Map Uint32 Action = Emp Uint32 Action
 
 (* map to track when huny was last harvested for each ursa *)
 field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
+field max_harvest_block: Option BNum = None {BNum}
 
 (* map to track amount of huny in the captured pool at the last action for each mino *)
 field captured_huny_debt: Map Uint256 Uint128 = Emp Uint256 Uint128
@@ -648,6 +651,16 @@ procedure RegisterWithRefinery()
   send msgs
 end
 
+procedure ScheduleHarvestingEndCheck()
+  msg_to_self = {
+    _tag: "CheckIfHarvestingEnded";
+    _recipient: _this_address;
+    _amount: zero_amt
+  };
+  msgs = one_msg msg_to_self;
+  send msgs
+end
+
 procedure SummonMetazoaBatch(to: ByStr20, count: Uint32)
   list = build_mint_param_list to count;
   msg_to_metazoa = {
@@ -736,11 +749,16 @@ end
 
 procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generation, rekt : Bool)
   current_block <- & BLOCKNUMBER;
+  maybe_max <- max_harvest_block;
+  current_or_max_block = match maybe_max with
+  | Some max_block => max_block
+  | None => current_block
+  end;
   maybe_last_harvested <- last_harvested[token_id];
   match maybe_last_harvested with
   | None => (* should never happen, but no-op instead of error to avoid perma-breaking if we missed something *)
   | Some last_harvested_block =>
-    blks = blocks_to_harvest current_block last_harvested_block;
+    blks = blocks_to_harvest current_or_max_block last_harvested_block;
     huny_per_blk = huny_per_block gen;
     harvested_huny = builtin mul huny_per_blk blks;
 
@@ -763,7 +781,7 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
       end
     end
   end;
-  last_harvested[token_id] := current_block
+  last_harvested[token_id] := current_or_max_block
 end
 
 procedure HarvestForMino(token_id : Uint256, commander : ByStr20, share : Uint128)
@@ -885,7 +903,8 @@ procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, rand
     (* TODO: TEST MAX TOTAL MINT COUNT AND LIMIT IN FIRST STEP!! *)
     last_random := random;
     SummonMetazoa _this_address kidnap_count;
-    SummonMetazoaBatch commander mint_count
+    SummonMetazoaBatch commander mint_count;
+    ScheduleHarvestingEndCheck
   end
 end
 
@@ -928,8 +947,11 @@ transition SummonReinforcements(count : Uint32)
   current_block <- & BLOCKNUMBER;
 
   StoreCapturedHuny current_block;
-  (* calculate amount of huny required based on summon count *)
-  (* burn huny *)
+
+  (* TODO: check if count + current supply + pending > max supply *)
+  (* TODO: calculate amount of huny required based on summon count *)
+  (* TODO: burn huny *)
+
   action = SummonReinforcements count _sender;
 
   StartAction action
@@ -954,6 +976,18 @@ transition ConcludeAction(action_id : Uint32, random : Uint256)
       ConcludeSummonReinforcements count commander random
     end;
     delete ongoing_actions[action_id]
+  end
+end
+
+transition CheckIfHarvestingEnded()
+  supply <- & metazoa_contract.total_supply;
+  not_ended = builtin lt supply max_metazoa_supply;
+  match not_ended with
+  | True =>
+  | False =>
+    current_block <- & BLOCKNUMBER;
+    blk = Some {BNum} current_block;
+    max_harvest_block := blk
   end
 end
 
@@ -989,6 +1023,11 @@ transition AcceptOwnership()
   pending_owner := none;
   e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
   event e
+end
+
+transition SetMaxHarvestBlock(block : Option BNum)
+  IsOwner _sender;
+  max_harvest_block := block
 end
 
 (***************************************************)
