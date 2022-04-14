@@ -558,26 +558,9 @@ procedure ValidateSufficientFuel(token_id : Uint256)
   end
 end
 
-procedure TransferCommand(token_id: Uint256, to: ByStr20)
-  c <- metazoa_commanders[token_id];
-  previous_commander = match c with
-  | None => noone
-  | Some commander => commander
-  end;
-  is_leaving_battle = builtin eq to noone;
-  match is_leaving_battle with
-  | True =>
-    delete metazoa_commanders[token_id]
-  | False =>
-    metazoa_commanders[token_id] := to
-  end;
-  e = { _eventname: "CommanderChanged"; token_id: token_id; previous_commander: previous_commander; new_commander: to };
-  event e
-end
-
 (* transfers a metazoa to this contract for battle under the tx sender as the commander *)
 procedure TransferToBattle(token_id: Uint256)
-  TransferCommand token_id _sender;
+  metazoa_commanders[token_id] := _sender;
 
   traits <- & metazoa_contract.traits[token_id];
   trait_race = get_trait traits trait_key_race;
@@ -617,7 +600,6 @@ end
 
 (* transfers a metazoa from this contract to the given commander *)
 procedure TransferFromBattle(token_id: Uint256, commander: ByStr20)
-  TransferCommand token_id noone;
   msg_to_metazoa = {
     _tag: "TransferFrom";
     _recipient: metazoa_contract;
@@ -687,7 +669,7 @@ procedure SummonMetazoa(to: ByStr20, count: Uint32)
   send msgs
 end
 
-(* choose a random mino from the berserking list and transfer command to its commander *)
+(* choose a random mino from the berserking list and transfer to its commander *)
 procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
   list <- berserking_minos;
   owner <- current_owner;
@@ -706,15 +688,15 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
       c <- metazoa_commanders[id];
       match c with
       | Some commander =>
-        TransferCommand token_id commander
+        TransferFromBattle token_id commander
       | None =>
-        TransferCommand token_id default
+        TransferFromBattle token_id default
       end
     | None =>
-      TransferCommand token_id default
+      TransferFromBattle token_id default
     end
   | True =>
-    TransferCommand token_id default
+    TransferFromBattle token_id default
   end;
   e = { _eventname: "MetazoaKidnapped"; token_id: token_id };
   event e
