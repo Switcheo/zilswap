@@ -571,7 +571,7 @@ procedure TransferCommand(token_id: Uint256, to: ByStr20)
   | False =>
     metazoa_commanders[token_id] := to
   end;
-  e = { _eventname: "CommanderChanged"; previous_commander: previous_commander; new_commander: to };
+  e = { _eventname: "CommanderChanged"; token_id: token_id; previous_commander: previous_commander; new_commander: to };
   event e
 end
 
