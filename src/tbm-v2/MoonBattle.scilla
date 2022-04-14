@@ -715,7 +715,9 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
     end
   | True =>
     TransferCommand token_id default
-  end
+  end;
+  e = { _eventname: "MetazoaKidnapped"; token_id: token_id };
+  event e
 end
 
 (* save the amount of huny for minos to claim later - don't actually mint yet *)
@@ -845,7 +847,7 @@ end
 procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
-  e = { _eventname: "HunyStolen"; stolen: is_all_huny_captured };
+  e = { _eventname: "HunyStolen"; token_id: token_id; stolen: is_all_huny_captured };
   event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
@@ -1005,7 +1007,9 @@ transition ConcludeAction(action_id : Uint32, random : Uint256)
     | SummonReinforcements count commander =>
       ConcludeSummonReinforcements count commander random
     end;
-    delete ongoing_actions[action_id]
+    delete ongoing_actions[action_id];
+    e = { _eventname: "ActionConcluded"; action_id: action_id; action: action };
+    event e
   end
 end
 
