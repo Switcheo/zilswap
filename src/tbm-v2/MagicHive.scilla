@@ -204,7 +204,16 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
 
   ub <- balances[address];
   match ub with
-  | None => (* no-op *)
+  | None =>
+    (* may be first deposit, register with refinery *)
+    msg_to_refinery = {
+      _tag: "Register";
+      _recipient: refinery;
+      _amount: zero;
+      claimer: address
+    };
+    msgs = one_msg msg_to_refinery;
+    send msgs
   | Some balance =>
     (* send rewards first *)
     reward =
