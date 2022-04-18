@@ -148,9 +148,9 @@ let u256_list_length = @list_length(Uint256)
 
 (* $HUNY constants and calculations *)
 
-let gen1_count = Uint32 1001 (* +1 of actual *)
-let gen1n2_count = Uint32 2001 (* +1 of actual *)
-let max_summon = Uint32 2500 (* TODO: confirm these *)
+let gen1_count = Uint32 701 (* +1 of actual *)
+let gen1n2_count = Uint32 601 (* +1 of actual *)
+let max_summon = Uint32 1600
 let capture_huny_percentage = Uint128 30
 let percentage_denominator = Uint128 100
 let blocks_required_for_return = Uint32 5040 (* 2 days *)
@@ -158,10 +158,10 @@ let blocks_required_for_return = Uint32 5040 (* 2 days *)
 let huny_per_block =
   fun (gen : Generation) =>
     match gen with
-    | Gen0 => Uint128 3968253968253 (* 10,000 $HUNY per day => 10000_0000_0000_0000 / 2520 *)
-    | Gen1 => Uint128 5952380952380 (* 15,000 $HUNY per day => 15000_0000_0000_0000 / 2520 *)
-    | Gen2 => Uint128 7738095238095 (* 19,500 $HUNY per day => 19500_0000_0000_0000 / 2520 *)
-    | Gen3 => Uint128 6865079365079 (* 27,300 $HUNY per day => 17300_0000_0000_0000 / 2520 *)
+    | Gen0 => Uint128  99206349206 (*   250 $HUNY per day =>  250_0000_0000_0000 / 2520 *)
+    | Gen1 => Uint128 396825396825 (* 1,000 $HUNY per day => 1000_0000_0000_0000 / 2520 *)
+    | Gen2 => Uint128 793650793651 (* 2,000 $HUNY per day => 2000_0000_0000_0000 / 2520 *)
+    | Gen3 => Uint128 158730158730 (* 4,000 $HUNY per day => 4000_0000_0000_0000 / 2520 *)
     | GenUnknown => zero_amt
   end
 
@@ -182,8 +182,8 @@ let get_summon_cost =
   fun (gen : Generation) =>
     match gen with
     | Gen1 => Uint128 12000000000000000 (* Gen 1 => 12,000 $HUNY *)
-    | Gen2 => Uint128 15000000000000000 (* Gen 2 => 12,000 $HUNY *)
-    | _    => Uint128 19500000000000000 (* Gen 3 => 12,000 $HUNY *)
+    | Gen2 => Uint128 18000000000000000 (* Gen 2 => 18,000 $HUNY *)
+    | _    => Uint128 27000000000000000 (* Gen 3 => 27,000 $HUNY *)
     end
 
 let get_cost =
