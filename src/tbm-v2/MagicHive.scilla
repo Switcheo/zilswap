@@ -299,16 +299,6 @@ transition AddLiquidity(
   send msgs
 end
 
-(* @dev: Swaps the required amount of HUNY for ZIL and adds  evenly to Zilswap. *)
-transition SwapAndAddLiquidity(
-
-)
-  IsEnabled;
-  UpdateRewards;
-  accept
-  (* TODO *)
-end
-
 (* @dev: Removes liquidity from Zilswap based on the given params. *)
 transition RemoveLiquidity(
   contribution_amount : Uint128,
