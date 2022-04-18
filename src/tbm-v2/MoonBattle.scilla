@@ -148,8 +148,8 @@ let u256_list_length = @list_length(Uint256)
 
 (* $HUNY constants and calculations *)
 
-let gen1_count = Uint32 701 (* +1 of actual *)
-let gen1n2_count = Uint32 601 (* +1 of actual *)
+let first_gen2 = Uint32 701
+let first_gen3 = Uint32 501
 let max_summon = Uint32 1600
 let capture_huny_percentage = Uint128 30
 let percentage_denominator = Uint128 100
@@ -167,11 +167,11 @@ let huny_per_block =
 
 let get_current_gen =
   fun (supply : Uint32) =>
-    let is_gen1 = builtin lt supply gen1_count in
+    let is_gen1 = builtin lt supply first_gen2 in
     match is_gen1 with
     | True => Gen1
     | False =>
-      let is_gen2 = builtin lt supply gen1n2_count in
+      let is_gen2 = builtin lt supply first_gen3 in
       match is_gen2 with
       | True => Gen2
       | False => Gen3
