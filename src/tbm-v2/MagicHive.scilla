@@ -13,6 +13,7 @@ let one = Uint128 1
 let zero_u256 = Uint256 0
 let none = None {ByStr20}
 let share_factor = Uint256 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
+let fee_base = Uint128 100
 
 (* Error events *)
 type Error =
@@ -191,7 +192,7 @@ procedure IsEnabled()
   end
 end
 
-procedure UpdateBalance(address: ByStr20)
+procedure UpdateBalance(address: ByStr20, fee : Uint128)
   acc_rewards <- huny_rewards_per_share;
 
   b <- & zilswap_contract.balances[huny_token][_this_address];
@@ -231,7 +232,8 @@ procedure UpdateBalance(address: ByStr20)
       builtin add user_balance diff
     | False =>
       let diff = builtin sub prev_supply new_supply in
-      builtin sub user_balance diff
+      let before_fee = builtin sub user_balance diff in
+      builtin sub before_fee fee
     end;
 
   new_debt =
@@ -315,13 +317,15 @@ transition RemoveLiquidity(
     err = CodeInsufficientBalance;
     ThrowError err
   | False =>
+    fee = builtin div balance fee_base;
+    contribution_amount_after_fee = builtin sub contribution_amount fee;
     msg_to_zilswap = {
       _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
-      token_address : huny_token; contribution_amount : contribution_amount; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+      token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
     };
     msg_to_self = {
       _tag : "Flush"; _recipient : _this_address; _amount : zero;
-      address: _sender
+      address: _sender; fee: fee
     };
     msgs = two_msgs msg_to_zilswap msg_to_self;
     send msgs
@@ -336,9 +340,11 @@ transition EmergencyWithdraw(
 )
   b <- balances[_sender];
   contribution_amount = get_amount_or_zero b;
+  fee = builtin div contribution_amount fee_base;
+  contribution_amount_after_fee = builtin sub contribution_amount fee;
   msg_to_zilswap = {
     _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
-    token_address : huny_token; contribution_amount : contribution_amount; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
   };
   msg_to_self = {
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
@@ -351,13 +357,13 @@ end
 (* @dev: Claims rewards for the sender. *)
 transition Claim()
   UpdateRewards;
-  UpdateBalance _sender
+  UpdateBalance _sender zero
 end
 
 (* @dev: Flush all HUNY and ZIL from the contract to the user. Can only be called by this contract. *)
-transition Flush(address : ByStr20)
+transition Flush(address : ByStr20, fee : Uint128)
   IsSelf _sender; (* already done UpdateRewards *)
-  UpdateBalance address;
+  UpdateBalance address fee;
 
   zil_amount <- _balance;
   huny_balance <- & huny_token.balances[_this_address];
