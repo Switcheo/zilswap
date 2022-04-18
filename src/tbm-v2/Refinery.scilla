@@ -343,18 +343,23 @@ transition AcceptOwnership()
   event e
 end
 
+(* @dev: Adds an address as a harvester (can refine).
+(* @param required_refinement_percentage: the initial % that needs refinement (e.g. Uint128 75 = 75%)
+(* @param blocks_to_reduce_required_refinement: number of blocks between claims to reduce from the initial % by 1% (e.g. 2520 blocks = 1 day to go from 75% -> 74%) *)
 transition AddHarvester(address: ByStr20, required_refinement_percentage: Uint128, blocks_to_reduce_required_refinement: Uint128)
   IsOwner _sender;
   harvester = Harvester required_refinement_percentage blocks_to_reduce_required_refinement;
   harvesters[address] := harvester
 end
 
+(* @dev: Remove an address as a harvester (can no longer refine). *)
 transition RemoveHarvester(address: ByStr20)
   IsOwner _sender;
   delete harvesters[address]
 end
 
-transition UpdateImmediateRefinementPercentage(percentage: Uint128)
+(* @dev: Sets the percentage of huny that can be early unlocked immediately. *)
+transition SetImmediateRefinementPercentage(percentage: Uint128)
   IsOwner _sender;
   is_gt_100 = builtin lt percentage_denominator percentage;
   match is_gt_100 with
@@ -366,7 +371,8 @@ transition UpdateImmediateRefinementPercentage(percentage: Uint128)
   end
 end
 
-transition UpdateRefineDurationBlocks(blocks: Uint128)
+(* @dev: Sets the number of blocks to fully refine a batch of huny. *)
+transition SetRefineDurationBlocks(blocks: Uint128)
   IsOwner _sender;
   is_zero = builtin eq zero_amt blocks;
   match is_zero with
