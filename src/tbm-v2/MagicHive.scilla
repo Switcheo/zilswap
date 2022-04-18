@@ -107,7 +107,8 @@ let bsub_to_u256 =
 (***************************************************)
 
 contract MagicHive(
-  init_owner: ByStr20,
+  initial_owner: ByStr20,
+  reward_start_block: BNum,
   refinery: ByStr20,
   huny_token: ByStr20  with contract
     field balances : Map ByStr20 Uint128
@@ -117,7 +118,7 @@ contract MagicHive(
   end
 )
 
-field contract_owner : Option ByStr20 = Some {ByStr20} init_owner
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 field enabled : Bool = True
 
@@ -127,7 +128,7 @@ field debt : Map ByStr20 Uint256 = Emp ByStr20 Uint256
 
 field huny_per_block : Uint256 = Uint256 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
 field huny_rewards_per_share : Uint256 = zero_u256 (* this is multiplied by share_factor *)
-field last_reward_block : BNum = BNum 0
+field last_reward_block : BNum = reward_start_block
 
 (**************************************)
 (*             Procedures             *)

@@ -301,7 +301,7 @@ transition Claim(claim_block : BNum)
     SendHuny _sender amount_to_send;
 
     (* update total share *)
-    new_total_share = builtin add current_total_share amount_to_send;
+    new_total_share = builtin sub current_total_share amount;
     total_share := new_total_share;
 
     (* clear refining claim *)
@@ -343,8 +343,8 @@ transition AcceptOwnership()
   event e
 end
 
-(* @dev: Adds an address as a harvester (can refine).
-(* @param required_refinement_percentage: the initial % that needs refinement (e.g. Uint128 75 = 75%)
+(* @dev: Adds an address as a harvester (can refine). *)
+(* @param required_refinement_percentage: the initial % that needs refinement (e.g. Uint128 75 = 75%) *)
 (* @param blocks_to_reduce_required_refinement: number of blocks between claims to reduce from the initial % by 1% (e.g. 2520 blocks = 1 day to go from 75% -> 74%) *)
 transition AddHarvester(address: ByStr20, required_refinement_percentage: Uint128, blocks_to_reduce_required_refinement: Uint128)
   IsOwner _sender;

@@ -824,9 +824,14 @@ procedure StoreCapturedHuny(current_block : BNum)
     incoming_amount <- capturing_huny;
     list <- berserking_minos;
     shares = let l = u256_list_length list in u32_to_u128 l;
-    additional_amount_per_share = builtin div incoming_amount shares;
-    new_amount_per_share = builtin add current_amount_per_share additional_amount_per_share;
-    captured_huny_per_share := new_amount_per_share;
+    no_minos = builtin eq shares zero_amt;
+    match no_minos with
+    | True => (* no minos - huny is burnt! goodbye. *)
+    | False =>
+      additional_amount_per_share = builtin div incoming_amount shares;
+      new_amount_per_share = builtin add current_amount_per_share additional_amount_per_share;
+      captured_huny_per_share := new_amount_per_share
+    end;
     capturing_huny := zero_amt
   end
 end
