@@ -295,7 +295,7 @@ transition AddLiquidity(
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
-    address: _sender
+    address: _sender; fee: zero
   };
   msgs = four_msgs msg_to_token1 msg_to_token2 msg_to_zilswap msg_to_self;
   send msgs
@@ -348,7 +348,7 @@ transition EmergencyWithdraw(
   };
   msg_to_self = {
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
-    address: _sender
+    address: _sender; fee: fee
   };
   msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
