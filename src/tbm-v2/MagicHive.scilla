@@ -11,9 +11,8 @@ let false = False
 let zero = Uint128 0
 let one = Uint128 1
 let max = Uint128 340282366920938463463374607431768211455
-let zero_u256 = Uint256 0
 let none = None {ByStr20}
-let share_factor = Uint256 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
+let share_factor = Uint128 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
 let fee_base = Uint128 100
 
 (* Error events *)
@@ -67,32 +66,15 @@ let get_amount_or_zero =
     | None => zero
     end
 
-let get_amount_or_zero_u256 =
-  fun (maybe : Option Uint256) =>
-    match maybe with
-    | Some amt => amt
-    | None => zero_u256
-    end
-
-let grow =
-  fun (var : Uint128) =>
-    let maybe_big = builtin to_uint256 var in
-    match maybe_big with
-    | Some big => big
-    | None => zero_u256 (* should never happen *)
-    end
-
-let bsub_to_u256 =
+let bsub_to_u128 =
   fun (a : BNum) =>
   fun (b : BNum) =>
     let d = builtin bsub a b in
-    let d_u256 = builtin to_uint256 d in
-    match d_u256 with
+    let d_u128 = builtin to_uint128 d in
+    match d_u128 with
     | Some r => r
     | None =>
-      let x = zero_u256 in
-      let y = Uint256 1 in
-      builtin sub x y (* throw if a < b or a - b > size(uint128) *)
+      builtin sub zero one (* throw if a < b or a - b > size(uint128) *)
     end
 
 (***************************************************)
@@ -118,10 +100,10 @@ field enabled : Bool = True
 
 field total_supply : Uint128 = zero
 field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
-field debt : Map ByStr20 Uint256 = Emp ByStr20 Uint256
+field debt : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
-field huny_per_block : Uint256 = Uint256 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
-field huny_rewards_per_share : Uint256 = zero_u256 (* this is multiplied by share_factor *)
+field huny_per_block : Uint128 = Uint128 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
+field huny_rewards_per_share : Uint128 = zero (* this is multiplied by share_factor *)
 field last_reward_block : BNum = reward_start_block
 
 (**************************************)
@@ -212,7 +194,7 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
   prev_supply <- total_supply;
 
   ud <- debt[address];
-  user_debt = get_amount_or_zero_u256 ud;
+  user_debt = get_amount_or_zero ud;
 
   ub <- balances[address];
   match ub with
@@ -229,10 +211,10 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
   | Some balance =>
     (* send rewards first *)
     reward =
-      let balance_u256 = grow balance in
-      let pending_1e12 = builtin mul balance_u256 acc_rewards in
+      let pending_1e12 = builtin mul balance acc_rewards in
       let pending = builtin div pending_1e12 share_factor in
       builtin sub pending user_debt;
+
     msg_to_refinery = {
       _tag: "Refine";
       _recipient: refinery;
@@ -258,8 +240,7 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
     end;
 
   new_debt =
-    let ub_u256 = grow new_user_balance in
-    let debt_1e12 = builtin mul ub_u256 acc_rewards in
+    let debt_1e12 = builtin mul new_user_balance acc_rewards in
     builtin div debt_1e12 share_factor;
   debt[address] := new_debt;
 
@@ -274,7 +255,7 @@ procedure UpdateRewards()
   match needs_reward with
   | False => (* no-op *)
   | True =>
-    blocks_to_reward = bsub_to_u256 current_block last_block;
+    blocks_to_reward = bsub_to_u128 current_block last_block;
     lp_supply <- total_supply;
     prev <- huny_rewards_per_share;
     per_block <- huny_per_block;
@@ -283,10 +264,9 @@ procedure UpdateRewards()
     | True => (* no-op *)
     | False =>
       new =
-        let lp_supply_u256 = grow lp_supply in
         let rewards = builtin mul blocks_to_reward per_block in
         let rewards_1e12 = builtin mul rewards share_factor in
-        let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
+        let rewards_per_share = builtin div rewards_1e12 lp_supply in
         builtin add prev rewards_per_share;
       huny_rewards_per_share := new;
       last_reward_block := current_block
@@ -312,31 +292,15 @@ transition AddLiquidity(
     _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
     from: _sender; to: _this_address; amount: max_token_amount
   };
-  msg_to_self = {
-    _tag : "SendToZilswap"; _recipient : _this_address; _amount : zero;
-    zil_amount: _amount; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
-  };
-  msgs = two_msgs msg_to_token msg_to_self;
-  send msgs
-end
-
-(* @dev: Sends funds to ZilSwap LP. Needs to be done in a separate transition for ZIL balance to be registered correctly first. *)
-transition SendToZilswap(
-  zil_amount : Uint128,
-  min_contribution_amount : Uint128,
-  max_token_amount : Uint128,
-  deadline_block : BNum
-)
-  IsSelf _sender;
   msg_to_zilswap = {
-    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : zil_amount;
+    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : _amount;
     token_address : huny_token; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
     address: _sender; fee: zero
   };
-  msgs = two_msgs msg_to_zilswap msg_to_self;
+  msgs = three_msgs msg_to_token msg_to_zilswap msg_to_self;
   send msgs
 end
 
@@ -428,7 +392,7 @@ transition FlushWithoutRewards(address : ByStr20)
   huny_amount = get_amount_or_zero huny_balance;
 
   balances[address] := zero;
-  debt[address] := zero_u256;
+  debt[address] := zero;
 
   msg_to_user = {
     _tag : "AddFunds"; _recipient : address; _amount : zil_amount
@@ -467,7 +431,7 @@ transition AcceptOwnership()
 end
 
 (* @dev: Sets the current huny reward per block. *)
-transition SetHunyRewardsPerBlock(rewards_per_block: Uint256)
+transition SetHunyRewardsPerBlock(rewards_per_block: Uint128)
   IsOwner _sender;
   huny_per_block := rewards_per_block
 end

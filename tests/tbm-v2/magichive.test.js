@@ -90,7 +90,7 @@ const mintToUser = async (userKey, userAddress, amount = '10000000000000000') =>
   expect(approve.status).toEqual(2)
 }
 
-test('magichive AddLiquidity success', async () => {
+test('magichive AddLiquidity and RemoveLiquidity success', async () => {
   // test amts
   const zilAmount = '1880000000000000' // 1880
   const tokenAmount = '1500000000000000' // 1500
@@ -122,10 +122,36 @@ test('magichive AddLiquidity success', async () => {
     ],
     "constructor": `${zilswap.address.toLowerCase()}.Pool`
   })
+
+  console.log(JSON.stringify(state, null, 2))
+
+  const removeTxn = await callContract(
+    user1Key, magicHive,
+    "RemoveLiquidity",
+    [
+      {
+        vname: 'contribution_amount',
+        type: 'Uint128',
+        value: zilAmount,
+      },
+      {
+        vname: 'min_zil_amount',
+        type: 'Uint128',
+        value: '1',
+      },
+      {
+        vname: 'min_token_amount',
+        type: 'Uint128',
+        value: '1',
+      },
+    ],
+    0, false)
+  expect(removeTxn.status).toEqual(2)
 })
 
-// test('magichive RemoveLiquidity success', async () => {
-// })
+test('magichive multiple Addliquidity success', async () => {
+
+})
 
 // test('magichive EmergencyRemoveLiquidity success', async () => {
 // })
