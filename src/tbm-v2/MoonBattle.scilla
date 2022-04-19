@@ -939,6 +939,7 @@ procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : 
   event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
+    TransferFromBattle token_id commander
   | _ =>
     is_ursa_kidnapped = get_random_result token_id random kidnap_ursa_chance;
     match is_ursa_kidnapped with
