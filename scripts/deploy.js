@@ -4,7 +4,7 @@ const BigNumber = require('bignumber.js')
 const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long } = require('@zilliqa-js/util')
-const { callContract, nextBlock } = require('./call.js')
+const { callContract, nextBlock, getState } = require('./call.js')
 const { compress } = require('./compile')
 const { VERSION, zilliqa, useKey } = require('./zilliqa')
 
@@ -168,7 +168,6 @@ async function deployBearV2(
 
   // Generate default vars
   const address = getAddressFromPrivateKey(privateKey)
-  console.log('address', address)
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
@@ -329,6 +328,110 @@ async function useTranscendenceMinter(privateKey, params = {}, useExisting = pro
   return deployTranscendenceMinter(privateKey, params)
 }
 
+async function deployRefinery(
+  privateKey, { owner = null, huny = null }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!huny) huny = (await useHuny(privateKey))[0]
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: huny.address,
+    },
+  ]
+
+  console.info(`Deploying Refinery...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useRefinery(privateKey, params = {}, useExisting = process.env.REFINERY_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployRefinery(privateKey, params)
+}
+
+async function deployMagicHive(
+  privateKey, { owner = null, refinery = null, huny = null, zilswap = null, rewardStartBlock = '0' }
+) {
+
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!huny) huny = (await useHuny(privateKey))[0]
+  if (!refinery) refinery = (await useRefinery(privateKey, { huny }))
+  if (!zilswap) zilswap = (await useZilswap(privateKey))[0]
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/MagicHive.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'refinery',
+      type: 'ByStr20',
+      value: refinery.address,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: huny.address,
+    },
+    {
+      vname: 'zilswap_contract',
+      type: 'ByStr20',
+      value: zilswap.address,
+    },
+    {
+      vname: 'reward_start_block',
+      type: 'BNum',
+      value: rewardStartBlock.toString(),
+    },
+  ]
+
+  console.info(`Deploying MagicHive...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useMagicHive(privateKey, params = {}, useExisting = process.env.MAGIC_HIVE_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployMagicHive(privateKey, params)
+}
+
 async function deployZilswap(privateKey, { fee = null, owner = null }, version = 'V1.1') {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -362,10 +465,14 @@ async function deployZilswap(privateKey, { fee = null, owner = null }, version =
 
   console.info(`Deploying zilswap...`)
   const result = await deployContract(privateKey, code, init)
+  let [contract, state] = result
 
-  if (version === 'V1.1') await callContract(privateKey, result[0], 'Initialize', [], 0, false, false)
+  if (version === 'V1.1') {
+    await callContract(privateKey, contract, 'Initialize', [], 0, false, false)
+    state = await contract.getState()
+  }
 
-  return result
+  return [contract, state]
 }
 
 async function useZilswap(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
@@ -672,3 +779,7 @@ exports.deployHuny = deployHuny
 exports.useHuny = useHuny
 exports.deployTranscendenceMinter = deployTranscendenceMinter
 exports.useTranscendenceMinter = useTranscendenceMinter
+exports.deployRefinery = deployRefinery
+exports.useRefinery = useRefinery
+exports.deployMagicHive = deployMagicHive
+exports.useMagicHive = useMagicHive

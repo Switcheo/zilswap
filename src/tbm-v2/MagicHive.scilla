@@ -10,6 +10,7 @@ let true = True
 let false = False
 let zero = Uint128 0
 let one = Uint128 1
+let max = Uint128 340282366920938463463374607431768211455
 let zero_u256 = Uint256 0
 let none = None {ByStr20}
 let share_factor = Uint256 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
@@ -59,14 +60,6 @@ let three_msgs =
     let msgs_tmp = two_msgs msg2 msg3 in
     Cons {Message} msg1 msgs_tmp
 
-let four_msgs =
-  fun (msg1 : Message) =>
-  fun (msg2 : Message) =>
-  fun (msg3 : Message) =>
-  fun (msg4 : Message) =>
-    let msgs_tmp = three_msgs msg2 msg3 msg4 in
-    Cons {Message} msg1 msgs_tmp
-
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
@@ -111,7 +104,8 @@ contract MagicHive(
   reward_start_block: BNum,
   refinery: ByStr20,
   huny_token: ByStr20  with contract
-    field balances : Map ByStr20 Uint128
+    field balances : Map ByStr20 Uint128,
+    field allowances : Map ByStr20 (Map ByStr20 Uint128)
   end,
   zilswap_contract: ByStr20 with contract
     field balances : Map ByStr20 (Map ByStr20 Uint128)
@@ -193,6 +187,23 @@ procedure IsEnabled()
   end
 end
 
+procedure IncreaseAllowance(required_amount : Uint128)
+  a <- & huny_token.allowances[_this_address][zilswap_contract];
+  allowance = get_amount_or_zero a;
+  need_increase = builtin lt allowance required_amount;
+  match need_increase with
+  | False => (* no-op *)
+  | True =>
+    increase_amount = builtin sub max allowance;
+    msg_to_token = {
+      _tag : "IncreaseAllowance"; _recipient : huny_token; _amount : zero;
+      spender : zilswap_contract; amount : increase_amount
+    };
+    msg = one_msg msg_to_token;
+    send msg
+  end
+end
+
 procedure UpdateBalance(address: ByStr20, fee : Uint128)
   acc_rewards <- huny_rewards_per_share;
 
@@ -267,13 +278,19 @@ procedure UpdateRewards()
     lp_supply <- total_supply;
     prev <- huny_rewards_per_share;
     per_block <- huny_per_block;
-    new =
-      let lp_supply_u256 = grow lp_supply in
-      let rewards = builtin mul blocks_to_reward per_block in
-      let rewards_1e12 = builtin mul rewards share_factor in
-      let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
-      builtin add prev rewards_per_share;
-    huny_rewards_per_share := new
+    no_lp = builtin eq lp_supply zero;
+    match no_lp with
+    | True => (* no-op *)
+    | False =>
+      new =
+        let lp_supply_u256 = grow lp_supply in
+        let rewards = builtin mul blocks_to_reward per_block in
+        let rewards_1e12 = builtin mul rewards share_factor in
+        let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
+        builtin add prev rewards_per_share;
+      huny_rewards_per_share := new;
+      last_reward_block := current_block
+    end
   end
 end
 
@@ -289,25 +306,37 @@ transition AddLiquidity(
 )
   IsEnabled;
   UpdateRewards;
+  IncreaseAllowance max_token_amount;
   accept;
-  amount <- _balance;
-  msg_to_token1 = {
+  msg_to_token = {
     _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
     from: _sender; to: _this_address; amount: max_token_amount
   };
-  msg_to_token2 = {
-    _tag : "IncreaseAllowance"; _recipient : huny_token; _amount : zero;
-    spender : zilswap_contract; amount : max_token_amount
+  msg_to_self = {
+    _tag : "SendToZilswap"; _recipient : _this_address; _amount : zero;
+    zil_amount: _amount; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
   };
+  msgs = two_msgs msg_to_token msg_to_self;
+  send msgs
+end
+
+(* @dev: Sends funds to ZilSwap LP. Needs to be done in a separate transition for ZIL balance to be registered correctly first. *)
+transition SendToZilswap(
+  zil_amount : Uint128,
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsSelf _sender;
   msg_to_zilswap = {
-    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : amount;
-    token_address : huny_token; min_contribution_amount : zero; max_token_amount : max_token_amount; deadline_block : deadline_block
+    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : zil_amount;
+    token_address : huny_token; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
     address: _sender; fee: zero
   };
-  msgs = four_msgs msg_to_token1 msg_to_token2 msg_to_zilswap msg_to_self;
+  msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
 end
 
@@ -360,7 +389,7 @@ transition EmergencyWithdraw(
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
     address: _sender; fee: fee
   };
-  msgs = two_msgs msg_to_zilswap msg_to_self;
+  msgs = two_msgs msg_to_self msg_to_zilswap;
   send msgs
 end
 
@@ -464,10 +493,18 @@ transition AddFunds()
   accept
 end
 
-transition RecipientAcceptTransfer(sender : ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow receiving HUNY from Zilswap *)
+end
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op - allow receiving HUNY from user *)
 end
 
-transition TransferSuccessCallBack(sender : ByStr20, recipient : ByStr20, amount : Uint128)
-  (* no-op - allow withdrawing HUNY to user *)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow sending HUNY to user *)
+end
+
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow sending HUNY to Zilswap *)
 end
