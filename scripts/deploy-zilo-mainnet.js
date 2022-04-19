@@ -5,7 +5,7 @@ const { deployZILO, deploySeedLP } = require('./deploy')
 const deploy = async () => {
   const owner = getDefaultAccount()
   const bNum = await getBlockNum()
-  const tokenAddress =  '0xacd35e75e004f9d79a45dfa3a35ef9563c811671' // https://devex.zilliqa.com/address/zil14nf4ua0qqnua0xj9m736xhhe2c7gz9n3ayjtc7?network=https%3A%2F%2Fapi.zilliqa.com
+  const tokenAddress =  '0xb8975762e4d13850f1367f9020ae123ee300897c' // https://devex.zilliqa.com/address/zil1hzt4wchy6yu9pufk07gzptsj8m3spztuqmeucs?network=https%3A%2F%2Fapi.zilliqa.com
   const zwapAddress =   '0x0d21c1901a06abee40d8177f95171c8c63abdc31' // https://devex.zilliqa.com/address/zil1p5suryq6q647usxczale29cu3336hhp376c627?network=https%3A%2F%2Fapi.zilliqa.com
 
   // deploy seed lp
@@ -21,17 +21,17 @@ const deploy = async () => {
 
   // deploy zilo
   const zilDecimals = '000000000000'
-  const tknDecimals = '00000'
-  const receiverAddress = '0x5a1ab69fec1d0c9e1c1e702ea398fd8a333a50b9' // https://devex.zilliqa.com/address/zil1tgdtd8lvr5xfu8q7wqh28x8a3gen559el8qtwp?network=https%3A%2F%2Fapi.zilliqa.com
+  const tknDecimals = '00000000'
+  const receiverAddress = '0xd716b3f19d787bc72f04106086ec32a6f8d5da24' // https://devex.zilliqa.com/address/zil16utt8uva0pauwtcyzpsgdmpj5mudtk3y4fz6h6?network=https%3A%2F%2Fapi.zilliqa.com
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:             '300000000' + tknDecimals, // PLAY 300m
-    targetZilAmount:          '25000000' + zilDecimals, // ZIL 25m (~$1.47m @ $0.0587)
-    targetZwapAmount:            '32500' + zilDecimals, // ZWAP 32.5k (~$630k @$19.33)
-    minimumZilAmount:          '6250000' + zilDecimals, // ZIL 6.25m (25% of target)
-    liquidityZilAmount:       '17880000' + zilDecimals, // ZIL 17.88m ($0.007*Liquidity/ZIL Price)
-    liquidityTokenAmount:    '150000000' + tknDecimals, // PLAY 150m
+    tokenAmount:             '250000000' + tknDecimals, // TOKEN 250m
+    targetZilAmount:           '2660000' + zilDecimals, // ZIL 2.66m (~$292.6K @ $0.11)
+    targetZwapAmount:             '2180' + zilDecimals, // ZWAP 2.18k (~$32.4k @$14.9)
+    minimumZilAmount:           '664000' + zilDecimals, // ZIL 664k (25% of target)
+    liquidityZilAmount:        '2659999' + zilDecimals, // ZIL 2.66m (tknPrice*liquidity/zilPrice)
+    liquidityTokenAmount:    '225076838' + tknDecimals, // TOKEN 225m
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
     startBlock:                (bNum + 200).toString(), // 2 hrs, 100 blocks an hr

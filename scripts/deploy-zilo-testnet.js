@@ -4,8 +4,11 @@ const { deployZILO, deploySeedLP } = require('./deploy')
 
 const deploy = async () => {
   const owner = getDefaultAccount()
+
+  console.log("deploying from", owner.address)
+
   const bNum = await getBlockNum()
-  const tokenAddress = '0xa127c94853be4eeb19a4a78857015830f4b6ce4b'
+  const tokenAddress = '0x4fdc0e9b17871b8ed7c3205c0f9f59643dcd00d1'
   const zwapAddress = '0xb2b119e2496f24590eff419f15aa1b6e82aa7074'
 
   // deploy seed lp
@@ -21,20 +24,21 @@ const deploy = async () => {
 
   // deploy zilo
   const zilDecimals = '0000000000' // shifted -2 for easier completion **NOTE**
-  const tknDecimals = '00000'
+  const tknDecimals = '00000000'
+  const receiverAddress = '0x9a8d50d1811d5276e57a4c4c159d3282b2b59ff4' // https://devex.zilliqa.com/address/zil1n2x4p5vpr4f8det6f3xpt8fjs2ett8l5p0cnx0?network=https%3A%2F%2Fapi.zilliqa.com
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:             '300000000' + tknDecimals, // PLAY 300m
-    targetZilAmount:          '21000000' + zilDecimals, // ZIL 21m (~$1.47m @ $0.07)
-    targetZwapAmount:            '28545' + zilDecimals, // ZWAP 28.5k (~$630k @$22.07)
-    minimumZilAmount:          '5250000' + zilDecimals, // ZIL 5.25m (25% of target)
-    liquidityZilAmount:       '15000000' + zilDecimals, // ZIL 15m ($0.007*Liquidity/ZIL Price)
-    liquidityTokenAmount:    '150000000' + tknDecimals, // PLAY 150m
-    receiverAddress:                     owner.address,
+    tokenAmount:             '250000000' + tknDecimals, // TOKEN 250m
+    targetZilAmount:           '2660000' + zilDecimals, // ZIL 2.66m (~$292.6K @ $0.11)
+    targetZwapAmount:             '2180' + zilDecimals, // ZWAP 2.18k (~$32.4k @$14.9)
+    minimumZilAmount:           '664000' + zilDecimals, // ZIL 664k (25% of target)
+    liquidityZilAmount:        '2659999' + zilDecimals, // ZIL 2.66m (tknPrice*liquidity/zilPrice)
+    liquidityTokenAmount:    '225076838' + tknDecimals, // TOKEN 225m
+    receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
     startBlock:                (bNum + 100).toString(), // 1 hrs, 100 blocks an hr
-    endBlock:                 (bNum + 600).toString(),  // 6 hrs, hopefully
+    endBlock:                  (bNum + 500).toString(), // 6 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
