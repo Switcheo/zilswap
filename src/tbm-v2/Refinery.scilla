@@ -347,7 +347,7 @@ transition Claim(claim_block : BNum)
     match kickback with
     | Pair magic_hive kickback_percent =>
       unrefined_amount = builtin sub claim_amount refined_amount;
-      kickback_amount = let n = builtin mul kickback_percent claim_amount in builtin div n percentage_denominator;
+      kickback_amount = let n = builtin mul kickback_percent unrefined_amount in builtin div n percentage_denominator;
       retained_amount = builtin sub unrefined_amount kickback_amount;
 
       KickbackHuny magic_hive kickback_amount;
