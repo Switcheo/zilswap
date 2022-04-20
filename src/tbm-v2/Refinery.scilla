@@ -232,10 +232,10 @@ end
 
 procedure SendHuny(to: ByStr20, amount: Uint128)
   msg_to_huny = {
-    _tag: "Transfer";
+    _tag: "Mint";
     _recipient: huny_token;
     _amount: zero_amt;
-    to: to;
+    recipient: to;
     amount: amount
   };
   msgs = one_msg msg_to_huny;
