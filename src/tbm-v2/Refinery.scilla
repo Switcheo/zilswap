@@ -211,7 +211,11 @@ procedure RefineHuny(refiner: ByStr20, amount: Uint128)
   (* update total supply *)
   current_supply <- total_supply;
   new_total_supply = builtin add current_supply amount;
-  total_supply := new_total_supply
+  total_supply := new_total_supply;
+
+  e = { _eventname: "HunyRefinementStarted"; refiner: refiner; amount: amount;
+        pot_share: new_share; total_share: new_total_share; total_supply: new_total_supply };
+  event e
 end
 
 procedure MintHuny(to: ByStr20, amount: Uint128)
@@ -357,7 +361,14 @@ transition Claim(claim_block : BNum)
       total_share := new_total_share;
 
       (* clear refining claim *)
-      delete refining[_sender][claim_block]
+      delete refining[_sender][claim_block];
+
+      e = { _eventname: "HunyClaimed"; claimer: _sender; claim_block: claim_block; claim_share: amount;
+            refined_amount: refined_amount; unrefined_amount: unrefined_amount;
+            kickback_amount: kickback_amount; retained_amount: retained_amount;
+            previous_total_share: current_total_share; previous_total_supply: current_supply;
+            new_total_share: new_total_share; new_total_supply: new_total_supply };
+      event e
     end
   end
 end
@@ -402,13 +413,17 @@ end
 transition AddHarvester(address: ByStr20, required_refinement_percentage: Uint128, blocks_to_reduce_required_refinement: Uint128)
   IsOwner _sender;
   harvester = Harvester required_refinement_percentage blocks_to_reduce_required_refinement;
-  harvesters[address] := harvester
+  harvesters[address] := harvester;
+  e = {_eventname : "HarvestedAdded"; harvester : harvester};
+  event e
 end
 
 (* @dev: Remove an address as a harvester (can no longer refine). *)
 transition RemoveHarvester(address: ByStr20)
   IsOwner _sender;
-  delete harvesters[address]
+  delete harvesters[address];
+  e = {_eventname : "HarvestedRemoved"; address : address};
+  event e
 end
 
 (* @dev: Sets the percentage of huny that can be early unlocked immediately. *)
@@ -420,7 +435,9 @@ transition SetImmediateRefinementPercentage(percentage: Uint128)
     err = CodeInvalidParameterValue;
     ThrowError err
   | False =>
-    immediate_refinement := percentage
+    immediate_refinement := percentage;
+    e = {_eventname : "ImmediateRefinementPercentageSet"; percentage : percentage};
+    event e
   end
 end
 
@@ -433,13 +450,17 @@ transition SetRefineDurationBlocks(blocks: Uint128)
     err = CodeInvalidParameterValue;
     ThrowError err
   | False =>
-    refine_duration := blocks
+    refine_duration := blocks;
+    e = {_eventname : "RefineDurationBlocksSet"; blocks : blocks};
+    event e
   end
 end
 
 transition SetMagicHiveKickback(kickback: Pair ByStr20 Uint128)
   IsOwner _sender;
-  magic_hive_kickback := kickback
+  magic_hive_kickback := kickback;
+  e = {_eventname : "MagicHiveKickbackSet"; kickback : kickback};
+  event e
 end
 
 (***************************************************)
