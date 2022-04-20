@@ -90,9 +90,7 @@ let percentage_denominator = Uint128 100
 contract Refinery
 (
   initial_owner: ByStr20,
-  huny_token: ByStr20 with contract (* _this_address must be a minter *)
-    field balances : Map ByStr20 Uint128
-  end
+  huny_token: ByStr20 (* _this_address must be a minter *)
 )
 
 (* Mutable fields *)
@@ -121,6 +119,9 @@ field refine_duration: Uint128 = Uint128 919800
 
 (* total share of huny undergoing refinement *)
 field total_share: Uint128 = zero_amt
+
+(* total supply of huny undergoing refinement *)
+field total_supply: Uint128 = zero_amt
 
 (**************************************)
 (*         Internal Procedures        *)
@@ -205,7 +206,12 @@ procedure RefineHuny(refiner: ByStr20, amount: Uint128)
   (* update total shares *)
   current_total_share <- total_share;
   new_total_share = builtin add current_total_share amount;
-  total_share := new_total_share
+  total_share := new_total_share;
+
+  (* update total supply *)
+  current_supply <- total_supply;
+  new_total_supply = builtin add current_supply amount;
+  total_supply := new_total_supply
 end
 
 procedure MintHuny(to: ByStr20, amount: Uint128)
@@ -304,8 +310,7 @@ transition Claim(claim_block : BNum)
   | Some amount =>
     initial <- immediate_refinement;
     current_total_share <- total_share;
-    maybe_current_supply <- & huny_token.balances[_this_address];
-    current_supply = get_amount_or_zero maybe_current_supply;
+    current_supply <- total_supply;
     required_duration <- refine_duration;
     refined_blocks = bsub_abs current_block claim_block;
 
@@ -343,8 +348,12 @@ transition Claim(claim_block : BNum)
 
       KickbackHuny magic_hive kickback_amount;
 
-      (* update total share = current huny - claim amt + retained amt *)
-      new_total_share = let x = builtin sub current_total_share claim_amount in builtin add x retained_amount;
+      (* update total supply = current huny - claim amt + retained amt *)
+      new_total_supply = let x = builtin sub current_supply claim_amount in builtin add x retained_amount;
+      total_supply := new_total_supply;
+
+      (* update total share *)
+      new_total_share = builtin sub current_total_share amount;
       total_share := new_total_share;
 
       (* clear refining claim *)
