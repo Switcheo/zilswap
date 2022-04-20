@@ -470,6 +470,9 @@ field captured_huny_debt: Map Uint256 Uint128 = Emp Uint256 Uint128
 (* used in callbacks *)
 field last_random: Uint256 = Uint256 0
 
+(* used to track new commander after kidnap*)
+field new_commander: ByStr20 = initial_owner
+
 (**************************************)
 (*         Internal Procedures        *)
 (**************************************)
@@ -778,6 +781,7 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
   | None => noone
   | Some o => o
   end;
+  new_commander := default;
   length = u256_list_length list;
   no_berserkers = builtin eq length zero;
   match no_berserkers with
@@ -789,7 +793,8 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
       c <- metazoa_commanders[id];
       match c with
       | Some commander =>
-        TransferFromBattle token_id commander
+        TransferFromBattle token_id commander;
+        new_commander := commander
       | None =>
         TransferFromBattle token_id default
       end
@@ -799,7 +804,8 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
   | True =>
     TransferFromBattle token_id default
   end;
-  e = { _eventname: "MetazoaKidnapped"; token_id: token_id };
+  commander <- new_commander;
+  e = { _eventname: "MetazoaKidnapped"; token_id: token_id; new_commander: commander };
   event e
 end
 
@@ -868,7 +874,9 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
       match rekt with
       | True =>
         (* rekt during return to base, nothing for commander *)
-        CaptureHuny harvested_huny
+        CaptureHuny harvested_huny;
+        e = { _eventname: "HunyStolen"; token_id: token_id; stolen: rekt; amount: harvested_huny };
+        event e
       | False =>
         (* increase reward pool for minos *)
         newly_captured_huny = get_captured_huny harvested_huny;
@@ -935,8 +943,6 @@ end
 procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
-  e = { _eventname: "HunyStolen"; token_id: token_id; stolen: is_all_huny_captured };
-  event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
     TransferFromBattle token_id commander
