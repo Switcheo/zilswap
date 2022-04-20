@@ -49,6 +49,22 @@ let one_msg =
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+let shrink =
+  fun (var : Uint256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => builtin sub zero_amt one_amt (* throw on overflow *)
+    end
+
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
@@ -96,6 +112,9 @@ field refining: Map ByStr20 (Map BNum Uint128) = Emp ByStr20 (Map BNum Uint128) 
 
 (* percentage of huny that is immediately refined *)
 field immediate_refinement: Uint128 = Uint128 10
+
+(* percentage of huny that is sent back to the magic hive *)
+field magic_hive_kickback: Uint128 = Uint128 80
 
 (* blocks required to refine huny fully - 365 days initially *)
 field refine_duration: Uint128 = Uint128 919800
@@ -281,8 +300,12 @@ transition Claim(claim_block : BNum)
     not_fully_refined = builtin lt refined_blocks required_duration;
     amount_to_send = match not_fully_refined with
     | False =>
-      let n = builtin mul amount current_supply in
-      builtin div n current_total_share
+      let amount_u256 = grow amount in
+      let current_supply_u256 = grow current_supply in
+      let current_total_share_u256 = grow current_total_share in
+      let n = builtin mul amount_u256 current_supply_u256 in
+      let result_u256 = builtin div n current_total_share_u256 in
+      shrink result_u256
     | True =>
       (* amount_to_send = (({initial +  [(refined_blocks / required_duration) * (100 - initial)]} / 100) * (amount / total_share) * current_supply *)
       let prorate = (* {....} *)
@@ -292,10 +315,13 @@ transition Claim(claim_block : BNum)
         builtin add initial right in
       let numerator =
         let n1 = builtin mul prorate amount in
-        builtin mul n1 current_supply in
+        let n1_u256 = grow n1 in
+        let current_supply_u256 = grow current_supply in
+        builtin mul n1_u256 current_supply_u256 in
       let denominator =
-        builtin mul percentage_denominator current_total_share in
-      builtin div numerator denominator
+        let d = builtin mul percentage_denominator current_total_share in grow d in
+      let result_u256 = builtin div numerator denominator in
+      shrink result_u256
     end;
 
     SendHuny _sender amount_to_send;
@@ -382,6 +408,11 @@ transition SetRefineDurationBlocks(blocks: Uint128)
   | False =>
     refine_duration := blocks
   end
+end
+
+transition SetMagicHiveKickback(amount: Uint128)
+  IsOwner _sender;
+  magic_hive_kickback := amount
 end
 
 (***************************************************)
