@@ -869,6 +869,8 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
       | True =>
         (* rekt during return to base, nothing for commander *)
         CaptureHuny harvested_huny
+        e = { _eventname: "HunyStolen"; token_id: token_id; stolen: rekt, amount: harvested_huny};
+        event e
       | False =>
         (* increase reward pool for minos *)
         newly_captured_huny = get_captured_huny harvested_huny;
@@ -935,8 +937,6 @@ end
 procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
-  e = { _eventname: "HunyStolen"; token_id: token_id; stolen: is_all_huny_captured };
-  event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
     TransferFromBattle token_id commander
@@ -971,7 +971,6 @@ procedure ReturnToBaseForMetazoa(token_id_with_return_data : Pair Uint256 Return
   | Pair token_id data =>
     match data with
     | ReturnJourneyData commander random =>
-      RemoveCommander token_id;
       traits <- & metazoa_contract.traits[token_id];
       trait_race = get_trait traits trait_key_race;
       race = get_race trait_race;
@@ -1037,6 +1036,8 @@ transition ReturnToBase(token_ids : List Uint256)
   StoreCapturedHuny current_block;
   forall token_ids ValidateCommander;
   forall token_ids ValidateSufficientFuel;
+  (* remove now to avoid "double spend" *)
+  forall token_ids RemoveCommander;
 
   StartAction action
 end
