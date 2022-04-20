@@ -221,6 +221,8 @@ test('magichive multiple Addliquidity success', async () => {
   expect(removeTxn.status).toEqual(2)
 
   // check total supply is correct
+  const zilswapState = await zilswap.getState()
+  const magicHiveState = await magicHive.getState()
   const lpBalance = zilswapState.balances[huny.address.toLowerCase()][magicHive.address.toLowerCase()]
   expect(magicHiveState.total_contribution).toEqual(lpBalance)
 

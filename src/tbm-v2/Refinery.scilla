@@ -90,7 +90,7 @@ let percentage_denominator = Uint128 100
 contract Refinery
 (
   initial_owner: ByStr20,
-  huny_token: ByStr20  with contract (* _this_address must be a minter *)
+  huny_token: ByStr20 with contract (* _this_address must be a minter *)
     field balances : Map ByStr20 Uint128
   end
 )
@@ -114,7 +114,7 @@ field refining: Map ByStr20 (Map BNum Uint128) = Emp ByStr20 (Map BNum Uint128) 
 field immediate_refinement: Uint128 = Uint128 10
 
 (* percentage of huny that is sent back to the magic hive *)
-field magic_hive_kickback: Uint128 = Uint128 80
+field magic_hive_kickback: Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} initial_owner zero_amt
 
 (* blocks required to refine huny fully - 365 days initially *)
 field refine_duration: Uint128 = Uint128 919800
@@ -232,6 +232,17 @@ procedure SendHuny(to: ByStr20, amount: Uint128)
   send msgs
 end
 
+procedure KickbackHuny(to: ByStr20, amount: Uint128)
+  msg_to_kickback = {
+    _tag: "Kickback";
+    _recipient: to;
+    _amount: zero_amt;
+    amount: amount
+  };
+  msgs = one_msg msg_to_kickback;
+  send msgs
+end
+
 (***************************************************)
 (*             Refinery Transitions                *)
 (***************************************************)
@@ -297,41 +308,48 @@ transition Claim(claim_block : BNum)
     current_supply = get_amount_or_zero maybe_current_supply;
     required_duration <- refine_duration;
     refined_blocks = bsub_abs current_block claim_block;
-    not_fully_refined = builtin lt refined_blocks required_duration;
-    amount_to_send = match not_fully_refined with
-    | False =>
+
+    claim_amount =
+      (* (amount / total_share) * current_supply *)
       let amount_u256 = grow amount in
       let current_supply_u256 = grow current_supply in
       let current_total_share_u256 = grow current_total_share in
       let n = builtin mul amount_u256 current_supply_u256 in
       let result_u256 = builtin div n current_total_share_u256 in
-      shrink result_u256
+      shrink result_u256;
+
+    not_fully_refined = builtin lt refined_blocks required_duration;
+    refined_amount = match not_fully_refined with
+    | False =>
+      claim_amount
     | True =>
-      (* amount_to_send = (({initial +  [(refined_blocks / required_duration) * (100 - initial)]} / 100) * (amount / total_share) * current_supply *)
-      let prorate = (* {....} *)
-        let not_initial = builtin sub percentage_denominator initial in (* 100 - initial *)
-        let top = builtin mul refined_blocks not_initial in
-        let right = builtin div top required_duration in (* [....] *)
-        builtin add initial right in
-      let numerator =
-        let n1 = builtin mul prorate amount in
-        let n1_u256 = grow n1 in
-        let current_supply_u256 = grow current_supply in
-        builtin mul n1_u256 current_supply_u256 in
-      let denominator =
-        let d = builtin mul percentage_denominator current_total_share in grow d in
-      let result_u256 = builtin div numerator denominator in
-      shrink result_u256
+      (* refined_amount = (({initial +  [(refined_blocks / required_duration) * (100 - initial)]} / 100) * claim_amount *)
+      let not_initial = builtin sub percentage_denominator initial in (* 100 - initial *)
+      let top = builtin mul refined_blocks not_initial in
+      let right = builtin div top required_duration in (* [....] *)
+      let prorate = builtin add initial right in (* {....} *)
+      let numerator = builtin mul prorate claim_amount in
+      builtin div numerator percentage_denominator
     end;
 
-    SendHuny _sender amount_to_send;
+    SendHuny _sender refined_amount;
 
-    (* update total share *)
-    new_total_share = builtin sub current_total_share amount;
-    total_share := new_total_share;
+    kickback <- magic_hive_kickback;
+    match kickback with
+    | Pair magic_hive kickback_percent =>
+      unrefined_amount = builtin sub claim_amount refined_amount;
+      kickback_amount = let n = builtin mul kickback_percent claim_amount in builtin div n percentage_denominator;
+      retained_amount = builtin sub unrefined_amount kickback_amount;
 
-    (* clear refining claim *)
-    delete refining[_sender][claim_block]
+      KickbackHuny magic_hive kickback_amount;
+
+      (* update total share = current huny - claim amt + retained amt *)
+      new_total_share = let x = builtin sub current_total_share claim_amount in builtin add x retained_amount;
+      total_share := new_total_share;
+
+      (* clear refining claim *)
+      delete refining[_sender][claim_block]
+    end
   end
 end
 
@@ -410,9 +428,9 @@ transition SetRefineDurationBlocks(blocks: Uint128)
   end
 end
 
-transition SetMagicHiveKickback(amount: Uint128)
+transition SetMagicHiveKickback(kickback: Pair ByStr20 Uint128)
   IsOwner _sender;
-  magic_hive_kickback := amount
+  magic_hive_kickback := kickback
 end
 
 (***************************************************)
