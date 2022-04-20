@@ -12,7 +12,7 @@ let zero = Uint128 0
 let one = Uint128 1
 let max = Uint128 340282366920938463463374607431768211455
 let none = None {ByStr20}
-let share_factor = Uint128 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
+let share_factor = Uint256 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
 let fee_base = Uint128 100
 
 (* Error events *)
@@ -24,6 +24,10 @@ type Error =
   | CodeNotDisabled
   | CodeNotSelf
   | CodeInsufficientBalance
+
+type Delta =
+  | Positive of Uint128
+  | Negative of Uint128
 
 let make_error =
   fun (result : Error) =>
@@ -59,11 +63,44 @@ let three_msgs =
     let msgs_tmp = two_msgs msg2 msg3 in
     Cons {Message} msg1 msgs_tmp
 
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+let shrink =
+  fun (var : Uint256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => builtin sub zero one (* throw on overflow *)
+    end
+
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
     | Some amt => amt
     | None => zero
+    end
+
+let get_delta =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let increased = builtin lt a b in
+    match increased with
+      | True => let d = builtin sub b a in Positive d
+      | False => let d = builtin sub a b in Negative d
+    end
+
+let apply_delta =
+  fun (amount : Uint128) =>
+  fun (delta : Delta) =>
+    match delta with
+    | Positive diff => builtin add amount diff
+    | Negative diff => builtin sub amount diff
     end
 
 let bsub_to_u128 =
@@ -76,6 +113,19 @@ let bsub_to_u128 =
     | None =>
       builtin sub zero one (* throw if a < b or a - b > size(uint128) *)
     end
+
+(* pro-rates the actual contributions by share of user *)
+let get_contribution_amount =
+  fun (share_amount : Uint128) =>
+  fun (total_shares : Uint128) =>
+  fun (total_contribution : Uint128) =>
+    (* contribution = total_contribution * [share_amount / total_shares] *)
+    let share_amount_u256 = grow share_amount in
+    let total_shares_u256 = grow total_shares in
+    let total_contribution_u256 = grow total_contribution in
+    let n = builtin mul total_contribution_u256 share_amount_u256 in
+    let result = builtin div n total_shares_u256 in
+    shrink result
 
 (***************************************************)
 (*             The contract definition             *)
@@ -99,11 +149,12 @@ field pending_owner : Option ByStr20 = none
 field enabled : Bool = True
 
 field total_supply : Uint128 = zero
+field total_contribution : Uint128 = zero
 field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field debt : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 field huny_per_block : Uint128 = Uint128 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
-field huny_rewards_per_share : Uint128 = zero (* this is multiplied by share_factor *)
+field huny_rewards_per_share : Uint256 = Uint256 0 (* this is multiplied by share_factor *)
 field last_reward_block : BNum = reward_start_block
 
 (**************************************)
@@ -189,9 +240,10 @@ end
 procedure UpdateBalance(address: ByStr20, fee : Uint128)
   acc_rewards <- huny_rewards_per_share;
 
+  prev_contribution <- total_contribution;
   b <- & zilswap_contract.balances[huny_token][_this_address];
-  new_supply = get_amount_or_zero b;
-  prev_supply <- total_supply;
+  new_contribution = get_amount_or_zero b;
+  total_contribution := new_contribution;
 
   ud <- debt[address];
   user_debt = get_amount_or_zero ud;
@@ -211,8 +263,10 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
   | Some balance =>
     (* send rewards first *)
     reward =
-      let pending_1e12 = builtin mul balance acc_rewards in
-      let pending = builtin div pending_1e12 share_factor in
+      let balance_u256 = grow balance in
+      let pending_1e12 = builtin mul balance_u256 acc_rewards in
+      let pending_u256 = builtin div pending_1e12 share_factor in
+      let pending = shrink pending_u256 in
       builtin sub pending user_debt;
 
     msg_to_refinery = {
@@ -226,25 +280,34 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
     send msgs
   end;
 
+  delta = get_delta prev_contribution new_contribution;
   user_balance = get_amount_or_zero ub;
   new_user_balance =
-    let increased = builtin lt prev_supply new_supply in
-    match increased with
-    | True =>
-      let diff = builtin sub new_supply prev_supply in
-      builtin add user_balance diff
-    | False =>
-      let diff = builtin sub prev_supply new_supply in
-      let before_fee = builtin sub user_balance diff in
-      builtin sub before_fee fee
-    end;
+    let before_fee = apply_delta user_balance delta in
+    builtin sub before_fee fee;
+
+  is_zero_bal = builtin eq zero new_user_balance;
+  match is_zero_bal with
+  | True => delete balances[address]
+  | False => balances[address] := new_user_balance
+  end;
 
   new_debt =
-    let debt_1e12 = builtin mul new_user_balance acc_rewards in
-    builtin div debt_1e12 share_factor;
-  debt[address] := new_debt;
+    let new_user_balance_u256 = grow new_user_balance in
+    let debt_1e12 = builtin mul new_user_balance_u256 acc_rewards in
+    let debt_u256 = builtin div debt_1e12 share_factor in
+    shrink debt_u256;
 
-  balances[address] := new_user_balance;
+  is_zero_debt = builtin eq zero new_debt;
+  match is_zero_debt with
+  | True => delete debt[address]
+  | False => debt[address] := new_debt
+  end;
+
+  prev_supply <- total_supply;
+  new_supply =
+    let before_fee = apply_delta prev_supply delta in
+    builtin sub before_fee fee;
   total_supply := new_supply
 end
 
@@ -265,8 +328,10 @@ procedure UpdateRewards()
     | False =>
       new =
         let rewards = builtin mul blocks_to_reward per_block in
-        let rewards_1e12 = builtin mul rewards share_factor in
-        let rewards_per_share = builtin div rewards_1e12 lp_supply in
+        let rewards_u256 = grow rewards in
+        let lp_supply_u256 = grow lp_supply in
+        let rewards_1e12 = builtin mul rewards_u256 share_factor in
+        let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
         builtin add prev rewards_per_share;
       huny_rewards_per_share := new;
       last_reward_block := current_block
@@ -306,7 +371,7 @@ end
 
 (* @dev: Removes liquidity from Zilswap based on the given params. *)
 transition RemoveLiquidity(
-  contribution_amount : Uint128,
+  amount : Uint128,
   min_zil_amount : Uint128,
   min_token_amount : Uint128,
   deadline_block : BNum
@@ -314,13 +379,16 @@ transition RemoveLiquidity(
   UpdateRewards;
   b <- balances[_sender];
   balance = get_amount_or_zero b;
-  insufficient_balance = builtin lt balance contribution_amount;
+  insufficient_balance = builtin lt balance amount;
   match insufficient_balance with
   | True =>
     err = CodeInsufficientBalance;
     ThrowError err
   | False =>
-    fee = builtin div balance fee_base;
+    current_contribution <- total_contribution;
+    total_shares <- total_supply;
+    contribution_amount = get_contribution_amount amount total_shares current_contribution;
+    fee = builtin div contribution_amount fee_base;
     contribution_amount_after_fee = builtin sub contribution_amount fee;
     msg_to_zilswap = {
       _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
@@ -336,18 +404,18 @@ transition RemoveLiquidity(
 end
 
 (* @dev: Removes all liquidity from Zilswap without any reward functions. *)
-transition EmergencyWithdraw(
-  min_zil_amount : Uint128,
-  min_token_amount : Uint128,
-  deadline_block : BNum
-)
+transition EmergencyWithdraw()
+  current_block <- & BLOCKNUMBER;
   b <- balances[_sender];
-  contribution_amount = get_amount_or_zero b;
+  shares = get_amount_or_zero b;
+  current_contribution <- total_contribution;
+  total_shares <- total_supply;
+  contribution_amount = get_contribution_amount shares total_shares current_contribution;
   fee = builtin div contribution_amount fee_base;
   contribution_amount_after_fee = builtin sub contribution_amount fee;
   msg_to_zilswap = {
     _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
-    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : one; min_token_amount : one; deadline_block : current_block
   };
   msg_to_self = {
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
