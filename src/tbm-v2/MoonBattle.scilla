@@ -16,6 +16,7 @@ let true = True
 let false = False
 let empty = ""
 let noone = 0x0000000000000000000000000000000000000000
+let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
 
 let trait_key_race = "race"
 let trait_value_ursa = "ursa"
@@ -773,33 +774,37 @@ end
 (* choose a random mino from the berserking list and transfer to its commander *)
 procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
   list <- berserking_minos;
-  owner <- current_owner;
-  default = match owner with
-  | None => noone
-  | Some o => o
-  end;
-  length = u256_list_length list;
-  no_berserkers = builtin eq length zero;
-  match no_berserkers with
-  | False =>
-    index = pick_random_index token_id random length;
-    find_id = let nth = @list_nth(Uint256) in nth index list;
-    match find_id with
-    | Some id =>
-      c <- metazoa_commanders[id];
-      match c with
-      | Some commander =>
-        TransferFromBattle token_id commander
-      | None =>
-        TransferFromBattle token_id default
+
+  kidnapper_id =
+    let length = u256_list_length list in
+    let no_berserkers = builtin eq length zero in
+    match no_berserkers with
+    | True =>
+      invalid_id (* use an invalid id so that the lookup will fail later *)
+    | False =>
+      let index = pick_random_index token_id random length in
+      let nth = @list_nth(Uint256) in
+      let maybe_id = nth index list in
+      match maybe_id with
+      | Some i => i
+      | None => invalid_id
       end
-    | None =>
-      TransferFromBattle token_id default
+    end;
+
+  maybe_commander <- metazoa_commanders[kidnapper_id];
+  maybe_owner <- current_owner;
+  new_commander = match maybe_commander with
+  | Some commander => commander
+  | None =>
+    match maybe_owner with
+    | None => noone
+    | Some owner => owner
     end
-  | True =>
-    TransferFromBattle token_id default
   end;
-  e = { _eventname: "MetazoaKidnapped"; token_id: token_id };
+
+  TransferFromBattle token_id new_commander;
+
+  e = { _eventname: "MetazoaKidnapped"; token_id: token_id; new_commander: new_commander };
   event e
 end
 
@@ -868,7 +873,9 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
       match rekt with
       | True =>
         (* rekt during return to base, nothing for commander *)
-        CaptureHuny harvested_huny
+        CaptureHuny harvested_huny;
+        e = { _eventname: "HunyStolen"; token_id: token_id; stolen: rekt; amount: harvested_huny };
+        event e
       | False =>
         (* increase reward pool for minos *)
         newly_captured_huny = get_captured_huny harvested_huny;
@@ -935,8 +942,6 @@ end
 procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
-  e = { _eventname: "HunyStolen"; token_id: token_id; stolen: is_all_huny_captured };
-  event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
     TransferFromBattle token_id commander
