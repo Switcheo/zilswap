@@ -1037,8 +1037,6 @@ transition ReturnToBase(token_ids : List Uint256)
   StoreCapturedHuny current_block;
   forall token_ids ValidateCommander;
   forall token_ids ValidateSufficientFuel;
-  (* remove now to avoid "double spend" *)
-  forall token_ids RemoveCommander;
 
   StartAction action
 end
