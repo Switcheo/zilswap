@@ -1,28 +1,25 @@
 const { default: BigNumber } = require('bignumber.js');
 const BN = require('bn.js');
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
-const { getBlockNum, callContract } = require('../../scripts/call.js')
-const { useZilswap, useHuny, useRefinery, useMagicHive } = require('../../scripts/deploy.js')
+const { callContract, nextBlock, getBlockNum } = require('../../scripts/call.js')
+const { useHuny, useRefinery } = require('../../scripts/deploy.js')
 
 let owner, key, user1Key, user1, user2Key, user2,
-    zilswap, magicHive, refinery, huny;
+    magicHive, refinery, huny;
 
 beforeAll(async () => {
   ;({ key, address: owner } = getDefaultAccount());
-  [zilswap, state] = await useZilswap(key);
+  ;({ key: user1Key, address: user1 } = await createRandomAccount(key, '100000'));
+  ({ key: user2Key, address: user2 } = await createRandomAccount(key, '100000'));
+  magicHive = user1; // cheat code!
   [huny, _] = await useHuny(key, { owner, initSupply: new BN("10000000000000000000") }); // 100k
   [refinery, _] = await useRefinery(key, { owner, huny });
-  [magicHive, _] = await useMagicHive(key, { owner, huny, refinery, zilswap, rewardStartBlock: (await getBlockNum()) });
   await allowRefineryToMint()
   await allowMagicHiveToRefine()
   await setMagicHiveKickbackOnRefinery()
 })
 
 beforeEach(async () => {
-  ;({ key: user1Key, address: user1 } = await createRandomAccount(key, '100000'));
-  ({ key: user2Key, address: user2 } = await createRandomAccount(key, '100000'));
-  await mintToUser(user1Key, user1)
-  await mintToUser(user2Key, user2)
 })
 
 const allowRefineryToMint = async () => {
@@ -39,7 +36,7 @@ const allowMagicHiveToRefine = async () => {
     {
       vname: 'address',
       type: 'ByStr20',
-      value: magicHive.address.toLowerCase(),
+      value: magicHive,
     },
     {
       vname: 'required_refinement_percentage',
@@ -56,51 +53,56 @@ const allowMagicHiveToRefine = async () => {
 }
 
 const setMagicHiveKickbackOnRefinery = async () => {
-
+  const setMagicHiveKickbackOnRefineryTx = await callContract(key, refinery, 'SetMagicHiveKickback', [
+    {
+      vname: 'kickback',
+      type: 'Pair ByStr20 Uint128',
+      value: {
+        "constructor": "Pair",
+        "argtypes": ["ByStr20","Uint128"],
+        "arguments": [magicHive, '80']
+      },
+    }
+  ], 0, false, false)
+  expect(setMagicHiveKickbackOnRefineryTx.status).toEqual(2)
 }
 
-const mintToUser = async (userKey, userAddress, amount = '10000000000000000') => { // 10000
-  const txn = await callContract(
-    key, huny,
-    'Transfer',
+test('refinery refine and claim success', async () => {
+  const block = await getBlockNum()
+  const refineTxn = await callContract(
+    user1Key, refinery,
+    "Refine",
     [
       {
         vname: 'to',
         type: 'ByStr20',
-        value: userAddress,
+        value: user2,
       },
       {
         vname: 'amount',
         type: 'Uint128',
-        value: amount,
+        value: '10000000000000000', // 10k
       },
     ],
-    0, false, false
-  )
-  expect(txn.status).toEqual(2)
+    0, false, false)
+  expect(refineTxn.status).toEqual(2)
 
-  const approve = await callContract(
-    userKey, huny,
-    'IncreaseAllowance',
+  await nextBlock()
+
+  const claimTxn = await callContract(
+    user2Key, refinery,
+    "Claim",
     [
       {
-        vname: 'spender',
-        type: 'ByStr20',
-        value: magicHive.address,
-      },
-      {
-        vname: 'amount',
-        type: 'Uint128',
-        value: '10000000000000000000',
+        vname: 'claim_block',
+        type: 'BNum',
+        value: block.toString(),
       },
     ],
-    0, false, false
-  )
-  expect(approve.status).toEqual(2)
-}
-
-test('refinery refine success', async () => {
+    0, false, false)
+  expect(claimTxn.status).toEqual(2)
 })
 
 test('refinery claim success', async () => {
+
 })
