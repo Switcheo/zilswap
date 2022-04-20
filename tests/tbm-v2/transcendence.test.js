@@ -1,7 +1,6 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js')
 const { callContract, getBlockNum } = require('../../scripts/call.js')
 const { useBearV2, useNonFungibleToken, useTranscendenceMinter } = require('../../scripts/deploy.js')
-const fs = require("fs")
 
 let contract, key, owner, tbmv1, tbmv2, user1Key, user1, user2Key, user2
 

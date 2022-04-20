@@ -226,8 +226,8 @@ let get_captured_huny =
 
 (* Berseker kidnapping constants and helpers *)
 
-let kidnap_ursa_chance = Uint256 15 (* 10% chance to kidnap ursa on return to base *)
-let kidnap_summon_chance = Uint256 10 (* 15% chance to kidnap metazoa on summon *)
+let kidnap_ursa_chance = Uint256 15 (* 15% chance to kidnap ursa on return to base *)
+let kidnap_summon_chance = Uint256 10 (* 10% chance to kidnap metazoa on summon *)
 let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 (* trait helpers *)
