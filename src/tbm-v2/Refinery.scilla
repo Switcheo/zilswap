@@ -194,7 +194,7 @@ procedure MintHuny(to: ByStr20, amount: Uint128)
     _tag: "Mint";
     _recipient: huny_token;
     _amount: zero_amt;
-    to: to;
+    recipient: to;
     amount: amount
   };
   msgs = one_msg msg_to_huny;

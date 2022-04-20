@@ -226,8 +226,8 @@ let get_captured_huny =
 
 (* Berseker kidnapping constants and helpers *)
 
-let kidnap_ursa_chance = Uint256 10 (* 10% chance to kidnap ursa on return to base *)
-let kidnap_summon_chance = Uint256 15 (* 15% chance to kidnap metazoa on summon *)
+let kidnap_ursa_chance = Uint256 15 (* 10% chance to kidnap ursa on return to base *)
+let kidnap_summon_chance = Uint256 10 (* 15% chance to kidnap metazoa on summon *)
 let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 (* trait helpers *)
@@ -259,7 +259,7 @@ let get_race =
     let is_mino = builtin eq value trait_value_mino in
     match is_ursa with
     | True => Ursa
-    | False => match is_ursa with | True => Ursa
+    | False => match is_mino with | True => Mino
     | False => RaceUnknown
     end
     end
@@ -617,7 +617,7 @@ procedure ValidateSufficientFuel(token_id : Uint256)
     | None => (* should never happen, but don't throw to avoid perma-stuck metazoas if we missed something *)
     | Some last_harvested_blk =>
       min_blk = builtin badd last_harvested_blk blocks_required_for_return;
-      sufficient = builtin blt min_blk last_harvested_blk;
+      sufficient = builtin blt min_blk current_blk;
       match sufficient with
       | True => (* ok *)
       | False =>
@@ -939,6 +939,7 @@ procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : 
   event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
+    TransferFromBattle token_id commander
   | _ =>
     is_ursa_kidnapped = get_random_result token_id random kidnap_ursa_chance;
     match is_ursa_kidnapped with
@@ -970,6 +971,7 @@ procedure ReturnToBaseForMetazoa(token_id_with_return_data : Pair Uint256 Return
   | Pair token_id data =>
     match data with
     | ReturnJourneyData commander random =>
+      RemoveCommander token_id;
       traits <- & metazoa_contract.traits[token_id];
       trait_race = get_trait traits trait_key_race;
       race = get_race trait_race;
@@ -1162,6 +1164,10 @@ end
 
 (* accept mint *)
 transition ZRC6_BatchMintCallback()
+  (* no-op *)
+end
+
+transition ZRC6_RecipientAcceptMint()
   (* no-op *)
 end
 
