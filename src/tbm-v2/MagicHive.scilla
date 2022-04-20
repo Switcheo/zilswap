@@ -156,6 +156,7 @@ field debt : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field huny_per_block : Uint128 = Uint128 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
 field huny_rewards_per_share : Uint256 = Uint256 0 (* this is multiplied by share_factor *)
 field last_reward_block : BNum = reward_start_block
+field incoming_kickbacks : Uint128 = zero
 
 (**************************************)
 (*             Procedures             *)
@@ -318,23 +319,26 @@ procedure UpdateRewards()
   match needs_reward with
   | False => (* no-op *)
   | True =>
-    blocks_to_reward = bsub_to_u128 current_block last_block;
     lp_supply <- total_supply;
-    prev <- huny_rewards_per_share;
-    per_block <- huny_per_block;
     no_lp = builtin eq lp_supply zero;
     match no_lp with
     | True => (* no-op *)
     | False =>
+      prev <- huny_rewards_per_share;
+      per_block <- huny_per_block;
+      kickback_rewards <- incoming_kickbacks;
       new =
-        let rewards = builtin mul blocks_to_reward per_block in
+        let blocks_to_reward = bsub_to_u128 current_block last_block in
+        let inflation_rewards = builtin mul blocks_to_reward per_block in
+        let rewards = builtin add kickback_rewards inflation_rewards in
         let rewards_u256 = grow rewards in
         let lp_supply_u256 = grow lp_supply in
         let rewards_1e12 = builtin mul rewards_u256 share_factor in
         let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
         builtin add prev rewards_per_share;
       huny_rewards_per_share := new;
-      last_reward_block := current_block
+      last_reward_block := current_block;
+      incoming_kickbacks := zero
     end
   end
 end
@@ -523,6 +527,18 @@ end
 transition AddFunds()
   (* allow receiving of ZIL from Zilswap *)
   accept
+end
+
+transition Kickback(amount: Uint128)
+  (* accept kickback huny from refinery *)
+  sender_is_refinery = builtin eq refinery _sender;
+  match sender_is_refinery with
+  | False =>
+  | True =>
+    prev <- incoming_kickbacks;
+    new = builtin add prev amount;
+    incoming_kickbacks := new
+  end
 end
 
 transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
