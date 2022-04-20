@@ -936,7 +936,7 @@ procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : 
   is_all_huny_captured = get_random_result token_id random capture_huny_chance;
   HarvestForUrsa token_id commander gen is_all_huny_captured;
   e = { _eventname: "HunyStolen"; token_id: token_id; stolen: is_all_huny_captured };
-  event e
+  event e;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
     TransferFromBattle token_id commander
