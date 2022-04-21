@@ -429,7 +429,7 @@ transition EmergencyWithdraw()
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
     address: _sender
   };
-  msgs = two_msgs msg_to_self msg_to_zilswap;
+  msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
 end
 
@@ -468,8 +468,18 @@ transition FlushWithoutRewards(address : ByStr20)
   huny_balance <- & huny_token.balances[_this_address];
   huny_amount = get_amount_or_zero huny_balance;
 
-  balances[address] := zero;
-  debt[address] := zero;
+  b1 <- & zilswap_contract.balances[huny_token][_this_address];
+  new_contribution = get_amount_or_zero b1;
+  total_contribution := new_contribution;
+
+  b2 <- balances[address];
+  user_balance = get_amount_or_zero b2;
+  prev_supply <- total_supply;
+  new_supply = builtin sub prev_supply user_balance;
+  total_supply := new_supply;
+
+  delete balances[address];
+  delete debt[address];
 
   msg_to_user = {
     _tag : "AddFunds"; _recipient : address; _amount : zil_amount
