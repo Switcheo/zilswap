@@ -745,6 +745,18 @@ procedure BurnHuny(burn_account: ByStr20, amount: Uint128)
   send msgs
 end
 
+(* burn tbm bear *)
+procedure BurnTBM(token_id: Uint256)
+  msg_to_tbm = {
+    _tag: "Burn";
+    _recipient: tbm_contract;
+    _amount: zero_amt;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_tbm;
+  send msgs
+end
+
 procedure RegisterWithRefinery()
   refinery <- current_refinery;
   msg_to_refinery = {
@@ -1067,6 +1079,7 @@ transition SummonReinforcements(count : Uint32, burn_token_ids: List Uint256)
 
   (* check that we are burning valid tokens *)
   forall burn_token_ids ValidateTBMOwnership;
+  forall burn_token_ids BurnTBM;
 
   exceeds_supply = builtin lt max_summon new_count;
   match exceeds_supply with

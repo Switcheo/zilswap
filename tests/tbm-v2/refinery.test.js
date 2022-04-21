@@ -89,6 +89,9 @@ test('refinery refine and claim success', async () => {
 
   await nextBlock()
 
+  console.log(block)
+  let refineryState = await refinery.getState()
+  console.log(JSON.stringify(refineryState, null, 2))
   const claimTxn = await callContract(
     user2Key, refinery,
     "Claim",
@@ -101,6 +104,12 @@ test('refinery refine and claim success', async () => {
     ],
     0, false, false)
   expect(claimTxn.status).toEqual(2)
+
+  const hunyState = await huny.getState()
+  console.log(JSON.stringify(hunyState, null, 2))
+
+  refineryState = await refinery.getState()
+  console.log(JSON.stringify(refineryState, null, 2))
 })
 
 test('refinery claim success', async () => {

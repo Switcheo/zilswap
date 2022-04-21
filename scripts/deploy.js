@@ -400,7 +400,7 @@ async function deployMagicHive(
       value: owner,
     },
     {
-      vname: 'refinery',
+      vname: 'initial_refinery',
       type: 'ByStr20',
       value: refinery.address,
     },
