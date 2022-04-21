@@ -133,8 +133,8 @@ let get_contribution_amount =
 
 contract MagicHive(
   initial_owner: ByStr20,
+  initial_refinery: ByStr20,
   reward_start_block: BNum,
-  refinery: ByStr20,
   huny_token: ByStr20  with contract
     field balances : Map ByStr20 Uint128,
     field allowances : Map ByStr20 (Map ByStr20 Uint128)
@@ -146,6 +146,7 @@ contract MagicHive(
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
+field current_refinery : ByStr20 = initial_refinery
 field enabled : Bool = True
 
 field total_supply : Uint128 = zero
@@ -249,6 +250,7 @@ procedure UpdateBalance(address: ByStr20, fee : Uint128)
   ud <- debt[address];
   user_debt = get_amount_or_zero ud;
 
+  refinery <- current_refinery;
   ub <- balances[address];
   match ub with
   | None =>
@@ -380,6 +382,7 @@ transition RemoveLiquidity(
   min_token_amount : Uint128,
   deadline_block : BNum
 )
+  IsEnabled;
   UpdateRewards;
   b <- balances[_sender];
   balance = get_amount_or_zero b;
@@ -431,6 +434,7 @@ end
 
 (* @dev: Claims rewards for the sender. *)
 transition Claim()
+  IsEnabled;
   UpdateRewards;
   UpdateBalance _sender zero
 end
@@ -505,19 +509,33 @@ end
 (* @dev: Sets the current huny reward per block. *)
 transition SetHunyRewardsPerBlock(rewards_per_block: Uint128)
   IsOwner _sender;
-  huny_per_block := rewards_per_block
+  huny_per_block := rewards_per_block;
+  e = {_eventname : "HunyRewardsPerBlockSet"; huny_per_block : rewards_per_block};
+  event e
 end
 
-(* @dev: Enables adding of liquidity. Only can be called by the contract_owner. *)
+(* @dev: Sets the refinery contract for upgrading in case of emergencies. *)
+transition SetRefinery(refinery : ByStr20)
+  IsOwner _sender;
+  current_refinery := refinery;
+  e = {_eventname : "RefinerySet"; refinery : refinery};
+  event e
+end
+
+(* @dev: Enables all functionalities. Only can be called by the contract_owner. *)
 transition Enable()
   IsOwner _sender;
-  enabled := true
+  enabled := true;
+  e = {_eventname : "Enabled"};
+  event e
 end
 
-(* @dev: Disables adding of liquidity. Only can be called by the contract_owner. *)
+(* @dev: Disables all functionalities except emergency withdraw. Only can be called by the contract_owner. *)
 transition Disable()
   IsOwner _sender;
-  enabled := false
+  enabled := false;
+  e = {_eventname : "Disabled"};
+  event e
 end
 
 (***************************************)
@@ -531,6 +549,7 @@ end
 
 transition Kickback(amount: Uint128)
   (* accept kickback huny from refinery *)
+  refinery <- current_refinery;
   sender_is_refinery = builtin eq refinery _sender;
   match sender_is_refinery with
   | False =>
