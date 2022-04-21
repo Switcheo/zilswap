@@ -1225,3 +1225,8 @@ end
 transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end
+
+(* burn tbm *)
+transition BurnCallBack(initiator: ByStr20, burn_address : ByStr20, token_id : Uint256)
+  (* no-op *)
+end
