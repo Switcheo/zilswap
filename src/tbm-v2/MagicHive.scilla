@@ -426,7 +426,7 @@ transition EmergencyWithdraw()
   };
   msg_to_self = {
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
-    address: _sender; fee: fee
+    address: _sender
   };
   msgs = two_msgs msg_to_self msg_to_zilswap;
   send msgs
