@@ -152,7 +152,7 @@ let u256_list_length = @list_length(Uint256)
 let first_gen2 = Uint32 701
 let first_gen3 = Uint32 501
 let max_summon = Uint32 1600
-let capture_huny_percentage = Uint128 30
+let capture_huny_percentage = Uint128 25
 let percentage_denominator = Uint128 100
 let blocks_required_for_return = Uint32 5040 (* 2 days *)
 
@@ -228,7 +228,7 @@ let get_captured_huny =
 (* Berseker kidnapping constants and helpers *)
 
 let kidnap_ursa_chance = Uint256 15 (* 15% chance to kidnap ursa on return to base *)
-let kidnap_summon_chance = Uint256 10 (* 10% chance to kidnap metazoa on summon *)
+let kidnap_summon_chance = Uint256 5 (* 5% chance to kidnap metazoa on summon *)
 let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 (* trait helpers *)
@@ -419,7 +419,7 @@ contract MoonBattle
 (
   initial_owner: ByStr20,
   initial_oracle: ByStr20,
-  refinery: ByStr20, (* huny vault *)
+  initial_refinery: ByStr20, (* huny vault *)
   huny_token: ByStr20, (* _this_address must also be a minter (to burn huny) *)
   tbm_contract: ByStr20 with contract (* _this_address must also be a minter (to burn nft for discount) *)
     field token_owners : Map Uint256 ByStr20
@@ -436,6 +436,7 @@ contract MoonBattle
 field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 field current_oracle : ByStr20 = initial_oracle
+field current_refinery : ByStr20 = initial_refinery
 
 (* track summon supply *)
 field summon_count: Uint32 = zero
@@ -719,6 +720,7 @@ procedure RemoveCommander(token_id: Uint256)
 end
 
 procedure MintHuny(to: ByStr20, amount: Uint128)
+  refinery <- current_refinery;
   msg_to_refinery = {
     _tag: "Refine";
     _recipient: refinery;
@@ -744,6 +746,7 @@ procedure BurnHuny(burn_account: ByStr20, amount: Uint128)
 end
 
 procedure RegisterWithRefinery()
+  refinery <- current_refinery;
   msg_to_refinery = {
     _tag: "Register";
     _recipient: refinery;
@@ -1077,7 +1080,9 @@ transition SummonReinforcements(count : Uint32, burn_token_ids: List Uint256)
     | False =>
     | True =>
       some_block = Some {BNum} current_block;
-      max_harvest_block := some_block
+      max_harvest_block := some_block;
+      e = {_eventname : "MaxHarvestBlockSet"; max_harvest_block : some_block};
+      event e
     end;
 
     (* calculate amount of huny required to burn based on summon count *)
@@ -1157,10 +1162,20 @@ transition SetWhitelist(list: List (Pair ByStr20 Uint32))
   event e
 end
 
+(* @dev: Sets the refinery contract for upgrading in case of emergencies. *)
+transition SetRefinery(refinery : ByStr20)
+  IsOwner _sender;
+  current_refinery := refinery;
+  e = {_eventname : "RefinerySet"; refinery : refinery};
+  event e
+end
+
 (* @dev: Sets the mint end time. Can be overriden at any time in emergencies to end the game. *)
 transition SetMaxHarvestBlock(block : Option BNum)
   IsOwner _sender;
-  max_harvest_block := block
+  max_harvest_block := block;
+  e = {_eventname : "MaxHarvestBlockSet"; max_harvest_block : block};
+  event e
 end
 
 (***************************************************)
