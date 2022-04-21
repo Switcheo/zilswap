@@ -288,8 +288,9 @@ transition Refine(to: ByStr20, amount: Uint128)
       partial_unlock = builtin lt last_claim_interval full_unlock_requirement;
       match partial_unlock with
       | True =>
-        (* (last_claim_interval / full_unlock_requirement) * initial / 100 *)
-        unlocked_amount = let numerator = builtin mul last_claim_interval initial in
+        (* (last_claim_interval / full_unlock_requirement) * initial * amount / 100 *)
+        unlocked_amount = let n1 = builtin mul last_claim_interval initial in
+                          let numerator = builtin mul n1 amount in
                           let denominator = builtin mul full_unlock_requirement percentage_denominator in
                           builtin div numerator denominator;
         refine_amount = builtin sub amount unlocked_amount;
