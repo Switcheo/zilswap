@@ -554,7 +554,7 @@ procedure ValidateOwnership(
     field token_owners : Map Uint256 ByStr20
   end
 )
-  maybe_owner <- & metazoa_contract.token_owners[token_id];
+  maybe_owner <- & address.token_owners[token_id];
   match maybe_owner with
   | Some actual_owner =>
     is_owner = builtin eq actual_owner _sender;
