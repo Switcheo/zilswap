@@ -413,6 +413,7 @@ end
 (* @dev: Removes all liquidity from Zilswap without any reward functions. *)
 transition EmergencyWithdraw()
   current_block <- & BLOCKNUMBER;
+  deadline_block = builtin badd current_block one;
   b <- balances[_sender];
   shares = get_amount_or_zero b;
   current_contribution <- total_contribution;
@@ -422,7 +423,7 @@ transition EmergencyWithdraw()
   contribution_amount_after_fee = builtin sub contribution_amount fee;
   msg_to_zilswap = {
     _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
-    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : one; min_token_amount : one; deadline_block : current_block
+    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : one; min_token_amount : one; deadline_block : deadline_block
   };
   msg_to_self = {
     _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
