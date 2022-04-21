@@ -231,6 +231,40 @@ test('magichive multiple Addliquidity success', async () => {
   expect(fee.plus(magicHiveState.total_supply).toString()).toEqual(lpBalance)
 })
 
+test('magichive SwapAndAddLiquidity success', async () => {
+  // test amts
+  const zilAmount = '1880000000000000' // 1880
+  const tokenAmount = '3000000000000000' // 1500 * 2
+
+  const addTxn1 = await callContract(
+    user2Key, magicHive,
+    "SwapAndAddLiquidity",
+    [
+      {
+        vname: 'min_zil_amount',
+        type: 'Uint128',
+        value: '1',
+      },
+      {
+        vname: 'token_amount',
+        type: 'Uint128',
+        value: '750000000000000', // swap half for zil
+      },
+      {
+        vname: 'min_contribution_amount',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'max_token_amount',
+        type: 'Uint128',
+        value: tokenAmount,
+      },
+    ],
+    940, false)
+  expect(addTxn1.status).toEqual(2)
+})
+
 // test('magichive EmergencyRemoveLiquidity success', async () => {
 // })
 
