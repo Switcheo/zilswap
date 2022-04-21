@@ -387,9 +387,9 @@ transition SwapAndAddLiquidity(
 )
   IsEnabled;
   UpdateRewards;
-  IncreaseAllowance max_token_amount;
   accept;
   total_amount = builtin add token_amount max_token_amount;
+  IncreaseAllowance total_amount;
   msg_to_token = {
     _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
     from: _sender; to: _this_address; amount: total_amount
