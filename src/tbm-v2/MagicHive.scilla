@@ -63,6 +63,14 @@ let three_msgs =
     let msgs_tmp = two_msgs msg2 msg3 in
     Cons {Message} msg1 msgs_tmp
 
+let four_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  fun (msg4 : Message) =>
+    let msgs_tmp = three_msgs msg2 msg3 msg4 in
+    Cons {Message} msg1 msgs_tmp
+
 let grow =
   fun (var : Uint128) =>
     let maybe_big = builtin to_uint256 var in
@@ -372,6 +380,41 @@ transition AddLiquidity(
     address: _sender; fee: zero
   };
   msgs = three_msgs msg_to_token msg_to_zilswap msg_to_self;
+  send msgs
+end
+
+(* @dev: Adds liquidity to Zilswap using the given params. *)
+transition SwapAndAddLiquidity(
+  (* swap *)
+  token_amount : Uint128,
+  min_zil_amount : Uint128,
+  (* add *)
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsEnabled;
+  UpdateRewards;
+  IncreaseAllowance max_token_amount;
+  accept;
+  total_amount = builtin add token_amount max_token_amount;
+  msg_to_token = {
+    _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
+    from: _sender; to: _this_address; amount: total_amount
+  };
+  msg_to_zilswap_swap = {
+    _tag : "SwapExactTokensForZIL"; _recipient : zilswap_contract; _amount : zero;
+    token_address : huny_token; token_amount : token_amount; min_zil_amount : min_zil_amount; deadline_block : deadline_block; recipient_address: _this_address
+  };
+  msg_to_zilswap_add = {
+    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : _amount;
+    token_address : huny_token; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
+  };
+  msg_to_self = {
+    _tag : "Flush"; _recipient : _this_address; _amount : zero;
+    address: _sender; fee: zero
+  };
+  msgs = four_msgs msg_to_token msg_to_zilswap_swap msg_to_zilswap_add msg_to_self;
   send msgs
 end
 
