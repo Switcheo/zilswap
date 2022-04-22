@@ -1,7 +1,7 @@
 
-const { callContract }  = require('../call')
-const { zilliqa } = require('../zilliqa')
-const list = require('./whitelist/mint-whitelist.json')
+const { callContract }  = require('../../call')
+const { zilliqa } = require('../../zilliqa')
+const list = require('../whitelist/mint-whitelist.json')
 
 const BATCH_SIZE = 500
 
