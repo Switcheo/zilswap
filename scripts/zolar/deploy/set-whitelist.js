@@ -9,6 +9,7 @@ async function setWhitelist() {
   const key = process.env.PRIVATE_KEY
   if (!key) throw new Error('PRIVATE_KEY env var missing!')
 
+  const contract = zilliqa.contracts.at(process.env.MOON_BATTLE_CONTRACT_HASH);
   const value = Object.keys(list).map((addr) => {
     return {
       constructor: 'Pair',
@@ -21,7 +22,7 @@ async function setWhitelist() {
   while (value.length > 0){
     const v = value.splice(0, Math.min(value.length, BATCH_SIZE))
     const tx = await callContract(
-      key, zilliqa.contracts.at(process.env.MOON_BATTLE_CONTRACT_HASH),
+      key, contract,
       'SetWhitelist',
       [
         {
