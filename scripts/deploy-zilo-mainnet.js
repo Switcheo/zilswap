@@ -22,7 +22,7 @@ const deploy = async () => {
   // deploy zilo
   const zilDecimals = '000000000000'
   const tknDecimals = '00000000'
-  const receiverAddress = '0xd716b3f19d787bc72f04106086ec32a6f8d5da24' // https://devex.zilliqa.com/address/zil16utt8uva0pauwtcyzpsgdmpj5mudtk3y4fz6h6?network=https%3A%2F%2Fapi.zilliqa.com
+  const receiverAddress = '0x17a118d5fc29e8462a26f3eebbf2d703e6c332dc' // https://devex.zilliqa.com/address/zil1z7s3340u985yv23x70hthukhq0nvxvkur3nuyc?network=https%3A%2F%2Fapi.zilliqa.com
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,

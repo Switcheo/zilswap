@@ -25,7 +25,7 @@ const deploy = async () => {
   // deploy zilo
   const zilDecimals = '0000000000' // shifted -2 for easier completion **NOTE**
   const tknDecimals = '00000000'
-  const receiverAddress = '0x9a8d50d1811d5276e57a4c4c159d3282b2b59ff4' // https://devex.zilliqa.com/address/zil1n2x4p5vpr4f8det6f3xpt8fjs2ett8l5p0cnx0?network=https%3A%2F%2Fapi.zilliqa.com
+  const receiverAddress = '0x17a118d5fc29e8462a26f3eebbf2d703e6c332dc' // https://devex.zilliqa.com/address/zil1z7s3340u985yv23x70hthukhq0nvxvkur3nuyc?network=https%3A%2F%2Fapi.zilliqa.com
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
@@ -37,8 +37,8 @@ const deploy = async () => {
     liquidityTokenAmount:    '225076838' + tknDecimals, // TOKEN 225m
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:                (bNum + 100).toString(), // 1 hrs, 100 blocks an hr
-    endBlock:                  (bNum + 500).toString(), // 6 hrs, hopefully
+    startBlock:               (bNum + 1050).toString(), // 10 hrs to 12pm, 105 blocks an hr
+    endBlock:                 (bNum + 1680).toString(), // + 6 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
