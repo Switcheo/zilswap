@@ -15,8 +15,8 @@ const { fromBech32Address, toBech32Address } = require('@zilliqa-js/zilliqa');
       console.log(metadata.id, "trait not set");
       continue;
     }
-    const faction = tokenTraits.find(trait => trait.arguments[0] === "race").arguments[1];
-    const berserkerLevel = tokenTraits.find(trait => trait.arguments[0] === "berserker")?.arguments[1];
+    const faction = tokenTraits.find(trait => trait.arguments[0] === "faction").arguments[1];
+    const berserkerLevel = tokenTraits.find(trait => trait.arguments[0] === "berserker_level")?.arguments[1];
 
     const metadataFaction = metadata.attributes.find(attr => attr.trait_type === "Faction")?.value;
     const metadataBerserker = metadata.attributes.find(attr => attr.trait_type === "Berserker Level")?.value;

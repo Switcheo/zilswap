@@ -19,11 +19,19 @@ async function setTokenTraits() {
 
     const value = [{
       argtypes: ["String", "String"],
-      arguments: ["race", faction.toLowerCase()],
+      arguments: ["race", "mino"],
+      constructor: "Pair"
+    }, {
+      argtypes: ["String", "String"],
+      arguments: ["berserker", "1"],
       constructor: "Pair"
     }, {
       argtypes: ["String", "String"],
       arguments: ["generation", "0"],
+      constructor: "Pair"
+    }, {
+      argtypes: ["String", "String"],
+      arguments: ["faction", faction.toLowerCase()],
       constructor: "Pair"
     }];
 
@@ -31,7 +39,7 @@ async function setTokenTraits() {
       const berserker = metadata.attributes.find(attribute => attribute.trait_type === "Berserker Level").value;
       value.push({
         argtypes: ["String", "String"],
-        arguments: ["berserker", berserker],
+        arguments: ["berserker_level", berserker],
         constructor: "Pair"
       });
     }
