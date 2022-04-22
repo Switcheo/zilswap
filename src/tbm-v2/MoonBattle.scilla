@@ -18,7 +18,7 @@ let empty = ""
 let noone = 0x0000000000000000000000000000000000000000
 let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
 
-let trait_key_race = "race"
+let trait_key_race = "faction"
 let trait_value_ursa = "ursa"
 let trait_value_mino = "mino"
 let trait_key_gen = "generation"
@@ -26,7 +26,7 @@ let trait_value_gen0 = "0"
 let trait_value_gen1 = "1"
 let trait_value_gen2 = "2"
 let trait_value_gen3 = "3"
-let trait_key_berserker = "berserker"
+let trait_key_berserker = "berserker_level"
 let trait_value_berserker1 = "1"
 let trait_value_berserker2 = "2"
 let trait_value_berserker3 = "3"
@@ -1180,6 +1180,14 @@ transition SetRefinery(refinery : ByStr20)
   IsOwner _sender;
   current_refinery := refinery;
   e = {_eventname : "RefinerySet"; refinery : refinery};
+  event e
+end
+
+(* @dev: Sets the RNG oracle address. Can be overriden at any time. *)
+transition SetOracle(oracle : ByStr20)
+  IsOwner _sender;
+  current_oracle := oracle;
+  e = {_eventname : "OracleSet"; oracle : oracle};
   event e
 end
 
