@@ -1,0 +1,313 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+library HunyStallDynamic
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let none = None {ByStr20}
+let empty = ""
+let scale_denom = Uint128 10000 (* 1 bps *)
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotEmporium
+  | CodeItemNotFound
+
+type Price =
+  | SupplyScaledPrice of Uint128 (* dynamic price based on % of HUNY supply *)
+  | FixedPrice of Uint128 (* numeric amount *)
+
+type PriceScale =
+  | MinPrice of Price Price (* min of the two prices *)
+  | MaxPrice of Price Price (* max of the two prices *)
+  | BoundedPrice of Price Price Price (* target price, bounded by min, max *)
+  | ConstantPrice of Price (* use target price directly *)
+
+type Item =
+  | Item of String PriceScale (* item name, item price *)
+
+let no_item = None {Item}
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner              => Int32 -1
+      | CodeNotPendingOwner       => Int32 -2
+      | CodePendingOwnerNotEmpty  => Int32 -3
+      | CodeNotEmporium           => Int32 -4
+      | CodeItemNotFound          => Int32 -5
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let get_min =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_is_min = builtin lt a b in
+    match a_is_min with
+    | True => a
+    | False => b
+    end
+
+let get_max =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_is_max = builtin lt b a in
+    match a_is_max with
+    | True => a
+    | False => b
+    end
+
+let get_amount_from_price =
+  fun (supply : Uint128) =>
+  fun (price : Price) =>
+    match price with
+    | FixedPrice p => p
+    | SupplyScaledPrice p =>
+      let numerator = builtin mul supply p in
+      builtin div numerator scale_denom
+    end
+
+let get_amount_from_price_scale =
+  fun (supply : Uint128) =>
+  fun (pricing : PriceScale) =>
+    match pricing with
+    | ConstantPrice p => get_amount_from_price supply p
+    | MinPrice a b =>
+      let a_amt = get_amount_from_price supply a in
+      let b_amt = get_amount_from_price supply b in
+      get_min a_amt b_amt
+    | MaxPrice a b =>
+      let a_amt = get_amount_from_price supply a in
+      let b_amt = get_amount_from_price supply b in
+      get_max a_amt b_amt
+    | BoundedPrice target min max =>
+      let target_amt = get_amount_from_price supply target in
+      let min_amt = get_amount_from_price supply min in
+      let max_amt = get_amount_from_price supply max in
+      let x = get_max target_amt min_amt in
+      get_min x max_amt
+    end
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract HunyStallDynamic(
+  initial_owner: ByStr20,
+  emporium: ByStr20,
+  huny_token: ByStr20  with contract (* this contract must be a minter to burn *)
+    field total_supply : Uint128
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field items : Map Uint128 Item = Emp Uint128 Item
+field adding_item : Option Item = no_item
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsEmporium(address: ByStr20)
+  is_emporium = builtin eq emporium address;
+  match is_emporium with
+  | True =>
+  | False =>
+    err = CodeNotEmporium;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+(* @param purchase_data: extra purchase data for events *)
+(* @param purchaser: buyer of purchased item *)
+transition PurchaseItem(item_id: Uint128, purchase_data: String, purchaser: ByStr20)
+  IsEmporium _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    match item with
+    | Item name pricing =>
+      huny_supply <- & huny_token.total_supply;
+      amount = get_amount_from_price_scale huny_supply pricing;
+      msg_to_emporium = {
+        _tag: "TransferToken";
+        _recipient: emporium;
+        _amount: zero;
+        token: huny_token;
+        from: purchaser;
+        amount: amount
+      };
+      msgs = one_msg msg_to_emporium;
+      send msgs;
+      e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
+           purchaser: purchaser; price: amount; purchase_data: purchase_data};
+      event e
+    end
+  end
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Adds an item to the store and lists it on z grand emporium. *)
+transition AddItem(item_name: String, pricing: PriceScale)
+  IsOwner _sender;
+
+  item = let i = Item item_name pricing in Some {Item} i;
+  adding_item := item;
+
+  msg_to_emporium = {
+    _tag: "ListItem";
+    _recipient: emporium;
+    _amount: zero;
+    item_name: item_name
+  };
+  msgs = one_msg msg_to_emporium;
+  send msgs
+end
+
+(* @dev: Removes an item from the store and delists it from z grand emporium. *)
+transition RemoveItem(item_id: Uint128)
+  IsOwner _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e;
+
+    msg_to_emporium = {
+      _tag: "DelistItem";
+      _recipient: emporium;
+      _amount: zero;
+      item_id: item_id
+    };
+    msgs = one_msg msg_to_emporium;
+    send msgs
+  end
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  IsEmporium initiator;
+  (* this stall burns all huny hohoho! *)
+  msg_to_huny = {
+    _tag: "Burn";
+    _recipient: huny_token;
+    _amount: zero;
+    burn_account: _this_address;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+transition ListItemSuccess(item_id: Uint128, item_name: String)
+  IsEmporium _sender;
+  maybe_item <- adding_item;
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    items[item_id] := item;
+    adding_item := no_item;
+    e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
+    event e
+  end
+end
