@@ -1,0 +1,709 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+library MagicHiveV2
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let two = Uint128 2
+let max = Uint128 340282366920938463463374607431768211455
+let none = None {ByStr20}
+let share_factor = Uint256 1000000000000 (* huny_per_share is multiplied by this to retain precision *)
+let basis_points_denominator = Uint128 10000 (* 10000 bps = 100% *)
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotEnabled
+  | CodeNotDisabled
+  | CodeNotSelf
+  | CodeInsufficientBalance
+
+type Delta =
+  | Positive of Uint128
+  | Negative of Uint128
+
+type FeeCurve =
+   | FeeCurve of Uint128 Uint128 Uint128 (* initial bps, final bps, blocks to decrement by 1 bps *)
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner              => Int32 -1
+      | CodeNotPendingOwner       => Int32 -2
+      | CodePendingOwnerNotEmpty  => Int32 -3
+      | CodeNotEnabled            => Int32 -4
+      | CodeNotDisabled           => Int32 -5
+      | CodeNotSelf               => Int32 -6
+      | CodeInsufficientBalance   => Int32 -7
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let msgs_tmp = one_msg msg2 in
+    Cons {Message} msg1 msgs_tmp
+
+let three_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+    let msgs_tmp = two_msgs msg2 msg3 in
+    Cons {Message} msg1 msgs_tmp
+
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+let shrink =
+  fun (var : Uint256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => builtin sub zero one (* throw on overflow *)
+    end
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
+let get_delta =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let increased = builtin lt a b in
+    match increased with
+      | True => let d = builtin sub b a in Positive d
+      | False => let d = builtin sub a b in Negative d
+    end
+
+let bsub_to_u128 =
+  fun (a : BNum) =>
+  fun (b : BNum) =>
+    let d = builtin bsub a b in
+    let d_u128 = builtin to_uint128 d in
+    match d_u128 with
+    | Some r => r
+    | None =>
+      builtin sub zero one (* throw if a < b or a - b > size(uint128) *)
+    end
+
+(* get current withdraw fee based on fee curve and duration *)
+let get_fee =
+  fun (amount : Uint128) =>
+  fun (fee_curve : FeeCurve) =>
+  fun (maybe_last_deposit_block : Option BNum) =>
+  fun (current_block : BNum) =>
+    match maybe_last_deposit_block with
+    | None => zero (* no fee if we somehow screwed up saving last deposit block *)
+    | Some last_deposit_block =>
+      match fee_curve with
+      | FeeCurve initial final step =>
+        (* max_blocks = (final - initial) * step *)
+        let max_blocks = let x = builtin sub final initial in builtin mul x step in
+        let blocks_delta = bsub_to_u128 current_block last_deposit_block in
+        let not_max = builtin lt blocks_delta max_blocks in
+        match not_max with
+        | True => (* progressing in the curve => *)
+          (* bps = initial - (blocks_delta / step) *)
+          let bps = let x = builtin div blocks_delta step in builtin sub initial x in
+          (* fee = amount * bps / basis_points_denominator *)
+          let numerator = builtin mul amount bps in builtin div numerator basis_points_denominator
+        | False => final (* max => final *)
+        end
+      end
+    end
+
+(* pro-rates the actual contributions by share of user *)
+let get_contribution_amount =
+  fun (share_amount : Uint128) =>
+  fun (total_shares : Uint128) =>
+  fun (total_contribution : Uint128) =>
+    (* contribution = total_contribution * [share_amount / total_shares] *)
+    let share_amount_u256 = grow share_amount in
+    let total_shares_u256 = grow total_shares in
+    let total_contribution_u256 = grow total_contribution in
+    let n = builtin mul total_contribution_u256 share_amount_u256 in
+    let result = builtin div n total_shares_u256 in
+    shrink result
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract MagicHiveV2(
+  initial_owner: ByStr20,
+  initial_refinery: ByStr20,
+  reward_start_block: BNum,
+  huny_token: ByStr20  with contract
+    field balances : Map ByStr20 Uint128,
+    field allowances : Map ByStr20 (Map ByStr20 Uint128)
+  end,
+  zilswap_contract: ByStr20 with contract
+    field balances : Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+field current_refinery : ByStr20 = initial_refinery
+field enabled : Bool = True
+
+field total_supply : Uint128 = zero
+field total_contribution : Uint128 = zero
+field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field debt : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field last_significant_deposit : Map ByStr20 BNum = Emp ByStr20 BNum
+
+field fee_curve : FeeCurve =
+  let initial = Uint128 900 in
+  let final =   Uint128 100 in
+  let step =    Uint128 176 in
+  FeeCurve initial final step (* 9% -> 1%, decreasing by 1% every week (2520 blocks x 7 / 100) *)
+field huny_per_block : Uint128 = Uint128 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
+field huny_rewards_per_share : Uint256 = Uint256 0 (* this is multiplied by share_factor *)
+field last_reward_block : BNum = reward_start_block
+field incoming_kickbacks : Uint128 = zero
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsSelf(address: ByStr20)
+  is_self = builtin eq _this_address address;
+  match is_self with
+  | True =>
+  | False =>
+    err = CodeNotSelf;
+    ThrowError err
+  end
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsEnabled()
+  e <- enabled;
+  match e with
+  | True =>
+  | False =>
+    err = CodeNotEnabled;
+    ThrowError err
+  end
+end
+
+procedure IncreaseAllowance(required_amount : Uint128)
+  a <- & huny_token.allowances[_this_address][zilswap_contract];
+  allowance = get_amount_or_zero a;
+  need_increase = builtin lt allowance required_amount;
+  match need_increase with
+  | False => (* no-op *)
+  | True =>
+    increase_amount = builtin sub max allowance;
+    msg_to_token = {
+      _tag : "IncreaseAllowance"; _recipient : huny_token; _amount : zero;
+      spender : zilswap_contract; amount : increase_amount
+    };
+    msg = one_msg msg_to_token;
+    send msg
+  end
+end
+
+procedure UpdateBalance(address : ByStr20, reduce_balance : Uint128)
+  current_block <- & BLOCKNUMBER;
+  acc_rewards <- huny_rewards_per_share;
+
+  prev_contribution <- total_contribution;
+  b <- & zilswap_contract.balances[huny_token][_this_address];
+  new_contribution = get_amount_or_zero b;
+  total_contribution := new_contribution;
+
+  delta = get_delta prev_contribution new_contribution;
+
+  ud <- debt[address];
+  user_debt = get_amount_or_zero ud;
+
+  refinery <- current_refinery;
+  ub <- balances[address];
+  user_balance = get_amount_or_zero ub;
+
+  reward =
+    let balance_u256 = grow user_balance in
+    let pending_1e12 = builtin mul balance_u256 acc_rewards in
+    let pending_u256 = builtin div pending_1e12 share_factor in
+    let pending = shrink pending_u256 in
+    builtin sub pending user_debt;
+
+  match ub with
+  | None =>
+    (* mark deposit time *)
+    last_significant_deposit[address] := current_block;
+    (* may be first deposit, register with refinery *)
+    msg_to_refinery = {
+      _tag: "Register";
+      _recipient: refinery;
+      _amount: zero;
+      claimer: address
+    };
+    msgs = one_msg msg_to_refinery;
+    send msgs
+  | Some balance =>
+    match delta with
+    | Positive d =>
+      (* adding liquidity, so don't claim yet *)
+      (* refresh deposit time if it is greater than 50% of current balance *)
+      is_significant_deposit = let half_balance = builtin div balance two in builtin lt half_balance d;
+      match is_significant_deposit with
+      | False => (* no-op *)
+      | True =>
+        last_significant_deposit[address] := current_block
+      end
+    | Negative _ =>
+      (* either a claim or remove liquidity, so send rewards *)
+      msg_to_refinery = {
+        _tag: "Refine";
+        _recipient: refinery;
+        _amount: zero;
+        to: address;
+        amount: reward
+      };
+      msgs = one_msg msg_to_refinery;
+      send msgs
+    end
+  end;
+
+  new_user_balance = match delta with
+  | Positive increase_balance => builtin add user_balance increase_balance
+  | Negative _ => builtin sub user_balance reduce_balance
+  end;
+
+  is_zero_bal = builtin eq zero new_user_balance;
+  match is_zero_bal with
+  | True => delete balances[address]
+  | False => balances[address] := new_user_balance
+  end;
+
+  new_debt =
+    let new_user_balance_u256 = grow new_user_balance in
+    let debt_1e12 = builtin mul new_user_balance_u256 acc_rewards in
+    let debt_u256 = builtin div debt_1e12 share_factor in
+    let debt_before_unclaimed_rewards = shrink debt_u256 in
+    match delta with
+    | Positive _ => builtin sub debt_before_unclaimed_rewards reward (* add back unclaimed rewards *)
+    | Negative _ => debt_before_unclaimed_rewards (* nothing to do here, no unclaimed rewards as we just claimed *)
+    end;
+
+  is_zero_debt = builtin eq zero new_debt;
+  match is_zero_debt with
+  | True => delete debt[address]
+  | False => debt[address] := new_debt
+  end;
+
+  prev_supply <- total_supply;
+  new_supply = match delta with
+  | Positive increase_balance => builtin add prev_supply increase_balance
+  | Negative _ => builtin sub prev_supply reduce_balance
+  end;
+  total_supply := new_supply
+end
+
+procedure UpdateRewards()
+  current_block <- & BLOCKNUMBER;
+  last_block <- last_reward_block;
+  needs_reward = builtin blt last_block current_block;
+  match needs_reward with
+  | False => (* no-op *)
+  | True =>
+    lp_supply <- total_supply;
+    no_lp = builtin eq lp_supply zero;
+    match no_lp with
+    | True => (* no-op *)
+    | False =>
+      prev <- huny_rewards_per_share;
+      per_block <- huny_per_block;
+      kickback_rewards <- incoming_kickbacks;
+      new =
+        let blocks_to_reward = bsub_to_u128 current_block last_block in
+        let inflation_rewards = builtin mul blocks_to_reward per_block in
+        let rewards = builtin add kickback_rewards inflation_rewards in
+        let rewards_u256 = grow rewards in
+        let lp_supply_u256 = grow lp_supply in
+        let rewards_1e12 = builtin mul rewards_u256 share_factor in
+        let rewards_per_share = builtin div rewards_1e12 lp_supply_u256 in
+        builtin add prev rewards_per_share;
+      huny_rewards_per_share := new;
+      last_reward_block := current_block;
+      incoming_kickbacks := zero
+    end
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Adds liquidity to Zilswap using the given params. *)
+transition AddLiquidity(
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsEnabled;
+  UpdateRewards;
+  IncreaseAllowance max_token_amount;
+  accept;
+  msg_to_token = {
+    _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
+    from: _sender; to: _this_address; amount: max_token_amount
+  };
+  msg_to_zilswap = {
+    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : _amount;
+    token_address : huny_token; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
+  };
+  msg_to_self = {
+    _tag : "Flush"; _recipient : _this_address; _amount : zero;
+    address: _sender; fee: zero
+  };
+  msgs = three_msgs msg_to_token msg_to_zilswap msg_to_self;
+  send msgs
+end
+
+(* @dev: Swaps HUNY tokens for ZIL on Zilswap then add liquidity using the given params. *)
+transition SwapAndAddLiquidity(
+  (* swap *)
+  token_amount : Uint128,
+  min_zil_amount : Uint128,
+  (* add *)
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsEnabled;
+  UpdateRewards;
+  accept;
+  total_amount = builtin add token_amount max_token_amount;
+  IncreaseAllowance total_amount;
+  msg_to_token = {
+    _tag : "TransferFrom"; _recipient: huny_token; _amount: zero;
+    from: _sender; to: _this_address; amount: total_amount
+  };
+  msg_to_zilswap = {
+    _tag : "SwapExactTokensForZIL"; _recipient : zilswap_contract; _amount : zero;
+    token_address : huny_token; token_amount : token_amount; min_zil_amount : min_zil_amount; deadline_block : deadline_block; recipient_address: _this_address
+  };
+  msg_to_self = {
+    _tag : "AddLiquidityWithBalance"; _recipient : _this_address; _amount : zero;
+    address: _sender; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
+  };
+  msgs = three_msgs msg_to_token msg_to_zilswap msg_to_self;
+  send msgs
+end
+
+(* @dev: Adds liquidity to Zilswap using the given params and current balance. *)
+transition AddLiquidityWithBalance(
+  address : ByStr20,
+  min_contribution_amount : Uint128,
+  max_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsSelf _sender;
+  amount <- _balance;
+  msg_to_zilswap = {
+    _tag : "AddLiquidity"; _recipient : zilswap_contract; _amount : amount;
+    token_address : huny_token; min_contribution_amount : min_contribution_amount; max_token_amount : max_token_amount; deadline_block : deadline_block
+  };
+  msg_to_self = {
+    _tag : "Flush"; _recipient : _this_address; _amount : zero;
+    address: address; fee: zero
+  };
+  msgs = two_msgs msg_to_zilswap msg_to_self;
+  send msgs
+end
+
+(* @dev: Removes liquidity from Zilswap based on the given params. *)
+transition RemoveLiquidity(
+  amount : Uint128,
+  min_zil_amount : Uint128,
+  min_token_amount : Uint128,
+  deadline_block : BNum
+)
+  IsEnabled;
+  UpdateRewards;
+  current_block <- & BLOCKNUMBER;
+  b <- balances[_sender];
+  balance = get_amount_or_zero b;
+  insufficient_balance = builtin lt balance amount;
+  match insufficient_balance with
+  | True =>
+    err = CodeInsufficientBalance;
+    ThrowError err
+  | False =>
+    current_contribution <- total_contribution;
+    total_shares <- total_supply;
+    contribution_amount = get_contribution_amount amount total_shares current_contribution;
+    last_deposited <- last_significant_deposit[_sender];
+    fc <- fee_curve;
+    fee = get_fee contribution_amount fc last_deposited current_block;
+    contribution_amount_after_fee = builtin sub contribution_amount fee;
+    msg_to_zilswap = {
+      _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
+      token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+    };
+    msg_to_self = {
+      _tag : "Flush"; _recipient : _this_address; _amount : zero;
+      address: _sender; fee: fee
+    };
+    msgs = two_msgs msg_to_zilswap msg_to_self;
+    send msgs
+  end
+end
+
+(* @dev: Removes all liquidity from Zilswap without any reward functions. *)
+transition EmergencyWithdraw()
+  current_block <- & BLOCKNUMBER;
+  deadline_block = builtin badd current_block one;
+  b <- balances[_sender];
+  shares = get_amount_or_zero b;
+  current_contribution <- total_contribution;
+  total_shares <- total_supply;
+  contribution_amount = get_contribution_amount shares total_shares current_contribution;
+  last_deposited <- last_significant_deposit[_sender];
+  fc <- fee_curve;
+  is_enabled <- enabled;
+  fee = match is_enabled with
+  | False => zero (* skip fee if not enabled *)
+  | True =>
+    get_fee contribution_amount fc last_deposited current_block
+  end;
+  contribution_amount_after_fee = builtin sub contribution_amount fee;
+  msg_to_zilswap = {
+    _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
+    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : one; min_token_amount : one; deadline_block : deadline_block
+  };
+  msg_to_self = {
+    _tag : "FlushWithoutRewards"; _recipient : _this_address; _amount : zero;
+    address: _sender
+  };
+  msgs = two_msgs msg_to_zilswap msg_to_self;
+  send msgs
+end
+
+(* @dev: Claims rewards for the sender. *)
+transition Claim()
+  IsEnabled;
+  UpdateRewards;
+  UpdateBalance _sender zero
+end
+
+(* @dev: Flush all HUNY and ZIL from the contract to the user. Can only be called by this contract. *)
+transition Flush(address : ByStr20, reduce_balance: Uint128)
+  IsSelf _sender; (* already done UpdateRewards *)
+  UpdateBalance address reduce_balance;
+
+  zil_amount <- _balance;
+  huny_balance <- & huny_token.balances[_this_address];
+  huny_amount = get_amount_or_zero huny_balance;
+
+  msg_to_user = {
+    _tag : "AddFunds"; _recipient : address; _amount : zil_amount
+  };
+  msg_to_token = {
+    _tag : "Transfer"; _recipient : huny_token; _amount : zero;
+    to : address; amount : huny_amount
+  };
+  msgs = two_msgs msg_to_user msg_to_token;
+  send msgs
+end
+
+(* @dev: Flush all HUNY and ZIL from the contract to the user without rewards. Can only be called by this contract. *)
+transition FlushWithoutRewards(address : ByStr20)
+  IsSelf _sender;
+
+  zil_amount <- _balance;
+  huny_balance <- & huny_token.balances[_this_address];
+  huny_amount = get_amount_or_zero huny_balance;
+
+  b1 <- & zilswap_contract.balances[huny_token][_this_address];
+  new_contribution = get_amount_or_zero b1;
+  total_contribution := new_contribution;
+
+  b2 <- balances[address];
+  user_balance = get_amount_or_zero b2;
+  prev_supply <- total_supply;
+  new_supply = builtin sub prev_supply user_balance;
+  total_supply := new_supply;
+
+  delete balances[address];
+  delete debt[address];
+
+  msg_to_user = {
+    _tag : "AddFunds"; _recipient : address; _amount : zil_amount
+  };
+  msg_to_token = {
+    _tag : "Transfer"; _recipient : huny_token; _amount : zero;
+    to : address; amount : huny_amount
+  };
+  msgs = two_msgs msg_to_user msg_to_token;
+  send msgs
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Sets the current huny reward per block. *)
+transition SetHunyRewardsPerBlock(rewards_per_block: Uint128)
+  IsOwner _sender;
+  huny_per_block := rewards_per_block;
+  e = {_eventname : "HunyRewardsPerBlockSet"; huny_per_block : rewards_per_block};
+  event e
+end
+
+(* @dev: Sets the fee curve. *)
+transition SetFeeCurve(initial_bps: Uint128, final_bps: Uint128, blocks_to_decrement_by_one_bps: Uint128)
+  IsOwner _sender;
+  fc = FeeCurve initial_bps final_bps blocks_to_decrement_by_one_bps;
+  fee_curve := fc;
+  e = {_eventname : "FeeCurveSet"; fee_curve : fc};
+  event e
+end
+
+(* @dev: Sets the refinery contract for upgrading in case of emergencies. *)
+transition SetRefinery(refinery : ByStr20)
+  IsOwner _sender;
+  current_refinery := refinery;
+  e = {_eventname : "RefinerySet"; refinery : refinery};
+  event e
+end
+
+(* @dev: Enables all functionalities. Only can be called by the contract_owner. *)
+transition Enable()
+  IsOwner _sender;
+  enabled := true;
+  e = {_eventname : "Enabled"};
+  event e
+end
+
+(* @dev: Disables all functionalities except emergency withdraw. Only can be called by the contract_owner. *)
+transition Disable()
+  IsOwner _sender;
+  enabled := false;
+  e = {_eventname : "Disabled"};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition AddFunds()
+  (* allow receiving of ZIL from Zilswap *)
+  accept
+end
+
+transition Kickback(amount: Uint128)
+  (* accept kickback huny from refinery *)
+  refinery <- current_refinery;
+  sender_is_refinery = builtin eq refinery _sender;
+  match sender_is_refinery with
+  | False =>
+  | True =>
+    prev <- incoming_kickbacks;
+    new = builtin add prev amount;
+    incoming_kickbacks := new
+  end
+end
+
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow receiving HUNY from Zilswap *)
+end
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow receiving HUNY from user *)
+end
+
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow sending HUNY to user *)
+end
+
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow sending HUNY to Zilswap *)
+end
