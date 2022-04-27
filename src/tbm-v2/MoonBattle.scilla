@@ -156,9 +156,9 @@ let u256_list_length = @list_length(Uint256)
 
 (* $HUNY constants and calculations *)
 
-let first_gen2 = Uint32 701
+let first_gen2 = Uint32 568 (* 701 - 133 *)
 let first_gen3 = Uint32 501
-let max_summon = Uint32 1600
+let max_summon = Uint32 1467 (* 1600 - 133 *)
 let capture_huny_percentage = Uint128 22
 let percentage_denominator = Uint128 100
 let blocks_required_for_return = Uint32 5040 (* 2 days *)
