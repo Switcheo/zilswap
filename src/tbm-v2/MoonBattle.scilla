@@ -145,6 +145,13 @@ let u32_or_zero : Option Uint32 -> Uint32 =
     | None => Uint32 0
     end
 
+let negate =
+  fun (b: Bool) =>
+    match b with
+    | True => False
+    | False => True
+    end
+
 let u256_list_length = @list_length(Uint256)
 
 (* $HUNY constants and calculations *)
@@ -225,12 +232,6 @@ let get_captured_huny =
     let numerator = builtin mul huny_harvested capture_huny_percentage in
     builtin div numerator percentage_denominator
 
-(* Berseker kidnapping constants and helpers *)
-
-let kidnap_ursa_chance = Uint256 15 (* 15% chance to kidnap ursa on return to base *)
-let kidnap_summon_chance = Uint256 5 (* 5% chance to kidnap metazoa on summon *)
-let capture_huny_chance = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
-
 (* trait helpers *)
 
 let get_trait =
@@ -310,7 +311,7 @@ let remove_from_berserking_list =
   fun (list : List Uint256) =>
   fun (token_id : Uint256) =>
     let filter = @list_filter Uint256 in
-    let fn = fun (i : Uint256) => builtin eq i token_id in
+    let fn = fun (i : Uint256) => let e = builtin eq i token_id in negate e in
     filter fn list
 
 let add_return_data =
@@ -471,6 +472,14 @@ field captured_huny_debt: Map Uint256 Uint128 = Emp Uint256 Uint128
 
 (* used in callbacks *)
 field last_random: Uint256 = Uint256 0
+
+(* optimize msg count *)
+field pending_huny_to_refinery : Uint128 = zero_amt
+
+(* berseker kidnapping constants *)
+field kidnap_ursa_chance : Uint256 = Uint256 15 (* 15% chance to kidnap ursa on return to base *)
+field kidnap_summon_chance : Uint256 = Uint256 5 (* 5% chance to kidnap metazoa on summon *)
+field capture_huny_chance : Uint256 = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
 (**************************************)
 (*         Internal Procedures        *)
@@ -719,8 +728,18 @@ procedure RemoveCommander(token_id: Uint256)
   delete metazoa_commanders[token_id]
 end
 
-procedure MintHuny(to: ByStr20, amount: Uint128)
+(* prepares huny for refining *)
+procedure PrepareRefineHuny(amount: Uint128)
+  prev_amount <- pending_huny_to_refinery;
+  new_amount = builtin add amount prev_amount;
+  pending_huny_to_refinery := new_amount
+end
+
+(* sends all huny in one batch *)
+procedure RefineHuny(to: ByStr20)
   refinery <- current_refinery;
+  amount <- pending_huny_to_refinery;
+  pending_huny_to_refinery := zero_amt;
   msg_to_refinery = {
     _tag: "Refine";
     _recipient: refinery;
@@ -866,7 +885,7 @@ procedure StartAction(action : Action)
   event e
 end
 
-procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generation, rekt : Bool)
+procedure HarvestForUrsa(token_id : Uint256, gen : Generation, rekt : Bool)
   current_block <- & BLOCKNUMBER;
   maybe_max <- max_harvest_block;
   current_or_max_block = match maybe_max with
@@ -898,14 +917,14 @@ procedure HarvestForUrsa(token_id : Uint256, commander : ByStr20, gen : Generati
 
         (* send remaining huny to commander *)
         remaining_huny = builtin sub harvested_huny newly_captured_huny;
-        MintHuny commander remaining_huny
+        PrepareRefineHuny remaining_huny
       end
     end
   end;
   last_harvested[token_id] := current_or_max_block
 end
 
-procedure HarvestForMino(token_id : Uint256, commander : ByStr20, share : Uint128)
+procedure HarvestForMino(token_id : Uint256, share : Uint128)
   d <- captured_huny_debt[token_id];
   current_debt = get_amount_or_zero d;
   per_share <- captured_huny_per_share;
@@ -917,36 +936,29 @@ procedure HarvestForMino(token_id : Uint256, commander : ByStr20, share : Uint12
   match is_zero with
   | True => (* no-op: save gas if harvesting on same block twice *)
   | False =>
-    MintHuny commander share_of_huny;
+    PrepareRefineHuny share_of_huny;
     captured_huny_debt[token_id] := total
   end
 end
 
 procedure HarvestForMetazoa(token_id : Uint256)
-  maybe_commander <- metazoa_commanders[token_id];
-  match maybe_commander with
-  | None =>
-    err = CodeMissingCommander; (* this should actually never happen.. no-op instead? *)
+  traits <- & metazoa_contract.traits[token_id];
+  trait_race = get_trait traits trait_key_race;
+  race = get_race trait_race;
+  match race with
+  | Ursa =>
+    trait_gen = get_trait traits trait_key_gen;
+    gen = get_gen trait_gen;
+    HarvestForUrsa token_id gen false
+  | Mino =>
+    trait_berserker = get_trait traits trait_key_berserker;
+    level = get_berserker_level trait_berserker;
+    share = must_nat_to_u128 level;
+    HarvestForMino token_id share
+  | RaceUnknown =>
+    err = CodeMissingTraits;
     ThrowError err
-  | Some commander =>
-    traits <- & metazoa_contract.traits[token_id];
-    trait_race = get_trait traits trait_key_race;
-    race = get_race trait_race;
-    match race with
-    | Ursa =>
-      trait_gen = get_trait traits trait_key_gen;
-      gen = get_gen trait_gen;
-      HarvestForUrsa token_id commander gen false
-    | Mino =>
-      trait_berserker = get_trait traits trait_key_berserker;
-      level = get_berserker_level trait_berserker;
-      share = must_nat_to_u128 level;
-      HarvestForMino token_id commander share
-    | RaceUnknown =>
-      err = CodeMissingTraits;
-      ThrowError err
-    end
-  end
+end
 end
 
 (* calculate if huny is stolen (60%) *)
@@ -955,13 +967,15 @@ end
 (* if not kidnapped, send to user *)
 (* if kidnapped, assign new commander based on berserker level *)
 procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : Uint256, gen : Generation)
-  is_all_huny_captured = get_random_result token_id random capture_huny_chance;
-  HarvestForUrsa token_id commander gen is_all_huny_captured;
+  chance <- capture_huny_chance;
+  is_all_huny_captured = get_random_result token_id random chance;
+  HarvestForUrsa token_id gen is_all_huny_captured;
   match gen with
   | Gen0 => (* yay, cannot be kidnapped *)
     TransferFromBattle token_id commander
   | _ =>
-    is_ursa_kidnapped = get_random_result token_id random kidnap_ursa_chance;
+    k_chance <- kidnap_ursa_chance;
+    is_ursa_kidnapped = get_random_result token_id random k_chance;
     match is_ursa_kidnapped with
     | False =>
       (* phew *)
@@ -974,7 +988,7 @@ end
 
 (* just harvest and send to user *)
 procedure ReturnToBaseForMino(token_id : Uint256, commander : ByStr20, share : Uint128)
-  HarvestForMino token_id commander share;
+  HarvestForMino token_id share;
   TransferFromBattle token_id commander;
 
   (* remove from berserking list *)
@@ -1018,7 +1032,8 @@ procedure ConcludeReturnToBase(token_ids_with_return_data : List (Pair Uint256 R
 end
 
 procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, random : Uint256)
-  results = get_random_results count random kidnap_summon_chance;
+  chance <- kidnap_summon_chance;
+  results = get_random_results count random chance;
   match results with
   | Pair kidnap_count mint_count =>
     (* TODO: TEST MAX TOTAL MINT COUNT AND LIMIT IN FIRST STEP!! *)
@@ -1047,7 +1062,8 @@ transition HarvestHuny(token_ids : List Uint256)
 
   StoreCapturedHuny current_block;
   forall token_ids ValidateCommander;
-  forall token_ids HarvestForMetazoa
+  forall token_ids HarvestForMetazoa;
+  RefineHuny _sender
 end
 
 transition ReturnToBase(token_ids : List Uint256)
@@ -1123,7 +1139,8 @@ transition ConcludeAction(action_id : Uint32, random : Uint256)
     match action with
     | ReturnToBase token_ids commander =>
       token_ids_with_return_data = add_return_data token_ids commander random;
-      ConcludeReturnToBase token_ids_with_return_data
+      ConcludeReturnToBase token_ids_with_return_data;
+      RefineHuny commander
     | SummonReinforcements count commander =>
       ConcludeSummonReinforcements count commander random
     end;
@@ -1196,6 +1213,16 @@ transition SetMaxHarvestBlock(block : Option BNum)
   IsOwner _sender;
   max_harvest_block := block;
   e = {_eventname : "MaxHarvestBlockSet"; max_harvest_block : block};
+  event e
+end
+
+(* @dev: Sets the random factors dynamically. *)
+transition SetRandomFactors(kidnap_ursa_percent : Uint256, kidnap_summon_percent : Uint256, capture_huny_percent : Uint256)
+  IsOwner _sender;
+  kidnap_ursa_chance := kidnap_ursa_percent;
+  kidnap_summon_chance := kidnap_ursa_percent;
+  capture_huny_chance := kidnap_ursa_percent;
+  e = {_eventname : "RandomFactorsSet"; kidnap_ursa_chance : kidnap_ursa_percent; kidnap_summon_chance: kidnap_summon_percent; capture_huny_chance: capture_huny_percent};
   event e
 end
 
