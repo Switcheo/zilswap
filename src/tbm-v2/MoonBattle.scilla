@@ -482,6 +482,9 @@ field kidnap_ursa_chance : Uint256 = Uint256 15 (* 15% chance to kidnap ursa on 
 field kidnap_summon_chance : Uint256 = Uint256 5 (* 5% chance to kidnap metazoa on summon *)
 field capture_huny_chance : Uint256 = Uint256 60 (* 60% chance to capture ALL huny from ursa on return to base *)
 
+(* use for immediate retreat *)
+field abandoned : Bool = False
+
 (**************************************)
 (*         Internal Procedures        *)
 (**************************************)
@@ -722,6 +725,11 @@ procedure TransferFromBattle(token_id: Uint256, commander: ByStr20)
   };
   msgs = one_msg msg_to_metazoa;
   send msgs
+end
+
+(* transfers a metazoa from this contract to the sender *)
+procedure TransferFromBattleToSender(token_id: Uint256)
+  TransferFromBattle token_id _sender
 end
 
 (* removes a metazoa from its current commander *)
@@ -1127,6 +1135,16 @@ transition SummonReinforcements(count : Uint32, burn_token_ids: List Uint256)
   end
 end
 
+transition AbandonBattle(token_ids : List Uint256)
+  is_abandoned <- abandoned;
+  match is_abandoned with
+  | False => (* no-op *)
+  | True =>
+    forall token_ids ValidateMetazoaOwnership;
+    forall token_ids TransferFromBattleToSender
+  end
+end
+
 transition ConcludeAction(action_id : Uint32, random : Uint256)
   current_block <- & BLOCKNUMBER;
 
@@ -1228,15 +1246,14 @@ transition SetRandomFactors(kidnap_ursa_percent : Uint256, kidnap_summon_percent
   event e
 end
 
-(* @dev: Sets the random factors dynamically. *)
-transition SetAbandonPlanet(abandoned: Bool)
+(* @dev: Sets battle as abanonded. Can be used to withdraw all metazoas from battle without harvest and penalty. *)
+transition SetBattleAbandoned(a: Bool)
   IsOwner _sender;
-  abandoned := abandoned;
-  kidnap_summon_chance := kidnap_ursa_percent;
-  capture_huny_chance := kidnap_ursa_percent;
-  e = {_eventname : "AbandonPlanetSet"; abandoned : abandoned};
+  abandoned := a;
+  e = {_eventname : "BattleAbandonedSet"; abandoned : a};
   event e
 end
+
 (***************************************************)
 (*                     Callbacks                   *)
 (***************************************************)
