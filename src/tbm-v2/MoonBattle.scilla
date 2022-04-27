@@ -472,6 +472,7 @@ field captured_huny_debt: Map Uint256 Uint128 = Emp Uint256 Uint128
 
 (* used in callbacks *)
 field last_random: Uint256 = Uint256 0
+field last_summoner: ByStr20 = noone
 
 (* optimize msg count *)
 field pending_huny_to_refinery : Uint128 = zero_amt
@@ -806,7 +807,7 @@ procedure SummonMetazoa(to: ByStr20, count: Uint32)
 end
 
 (* choose a random mino from the berserking list and transfer to its commander *)
-procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
+procedure KidnapMetazoa(token_id: Uint256, random: Uint256, previous_commander: ByStr20)
   list <- berserking_minos;
 
   kidnapper_id =
@@ -838,7 +839,7 @@ procedure KidnapMetazoa(token_id: Uint256, random: Uint256)
 
   TransferFromBattle token_id new_commander;
 
-  e = { _eventname: "MetazoaKidnapped"; token_id: token_id; new_commander: new_commander };
+  e = { _eventname: "MetazoaKidnapped"; token_id: token_id; previous_commander: previous_commander; new_commander: new_commander };
   event e
 end
 
@@ -981,7 +982,7 @@ procedure ReturnToBaseForUrsa(token_id : Uint256, commander : ByStr20, random : 
       (* phew *)
       TransferFromBattle token_id commander
     | True =>
-      KidnapMetazoa token_id random
+      KidnapMetazoa token_id random commander
     end
   end
 end
@@ -1038,6 +1039,7 @@ procedure ConcludeSummonReinforcements(count : Uint32, commander : ByStr20, rand
   | Pair kidnap_count mint_count =>
     (* TODO: TEST MAX TOTAL MINT COUNT AND LIMIT IN FIRST STEP!! *)
     last_random := random;
+    last_summoner := commander;
     SummonMetazoa _this_address kidnap_count;
     SummonMetazoaBatch commander mint_count
   end
@@ -1243,7 +1245,8 @@ transition ZRC6_MintCallback(to: ByStr20, token_id: Uint256, token_uri: String)
   (* a direct mint to this contract means its a stolen metazoa *)
   (* randomly choose a metazoa from berserking list *)
   random <- last_random;
-  KidnapMetazoa token_id random
+  summoner <- last_summoner;
+  KidnapMetazoa token_id random summoner
 end
 
 (* send metazoa *)
