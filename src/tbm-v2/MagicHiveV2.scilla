@@ -266,11 +266,12 @@ procedure IncreaseAllowance(required_amount : Uint128)
   end
 end
 
-procedure UpdateBalance(address : ByStr20, reduce_balance : Uint128)
+procedure UpdateBalance(address : ByStr20, decrease_balance : Uint128)
   current_block <- & BLOCKNUMBER;
   acc_rewards <- huny_rewards_per_share;
-
+  prev_supply <- total_supply;
   prev_contribution <- total_contribution;
+
   b <- & zilswap_contract.balances[huny_token][_this_address];
   new_contribution = get_amount_or_zero b;
   total_contribution := new_contribution;
@@ -329,16 +330,27 @@ procedure UpdateBalance(address : ByStr20, reduce_balance : Uint128)
     end
   end;
 
-  new_user_balance = match delta with
-  | Positive increase_balance => builtin add user_balance increase_balance
-  | Negative _ => builtin sub user_balance reduce_balance
+  increase_balance = match delta with
+  | Positive amount =>
+    (* amount * prev_supply / prev_contribution *)
+    let amount_u256 = grow amount in
+    let supply_u256 = grow prev_supply in
+    let contribution_u256 = grow prev_contribution in
+    let numerator = builtin mul amount_u256 supply_u256 in
+    let result_u256 = builtin div numerator contribution_u256 in
+    shrink result_u256
+  | Negative _ => zero
   end;
 
+  new_user_balance = let x = builtin add user_balance increase_balance in builtin sub x decrease_balance;
   is_zero_bal = builtin eq zero new_user_balance;
   match is_zero_bal with
   | True => delete balances[address]
   | False => balances[address] := new_user_balance
   end;
+
+  new_supply = let x = builtin add prev_supply increase_balance in builtin sub x decrease_balance;
+  total_supply := new_supply;
 
   new_debt =
     let new_user_balance_u256 = grow new_user_balance in
@@ -354,14 +366,7 @@ procedure UpdateBalance(address : ByStr20, reduce_balance : Uint128)
   match is_zero_debt with
   | True => delete debt[address]
   | False => debt[address] := new_debt
-  end;
-
-  prev_supply <- total_supply;
-  new_supply = match delta with
-  | Positive increase_balance => builtin add prev_supply increase_balance
-  | Negative _ => builtin sub prev_supply reduce_balance
-  end;
-  total_supply := new_supply
+  end
 end
 
 procedure UpdateRewards()
