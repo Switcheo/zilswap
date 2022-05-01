@@ -25,6 +25,7 @@ type Error =
   | CodeNotDisabled
   | CodeNotSelf
   | CodeInsufficientBalance
+  | CodeNotUnlocked
 
 type Delta =
   | Positive of Uint128
@@ -44,6 +45,7 @@ let make_error =
       | CodeNotDisabled           => Int32 -5
       | CodeNotSelf               => Int32 -6
       | CodeInsufficientBalance   => Int32 -7
+      | CodeNotUnlocked           => Int32 -8
       end
     in
     { _exception : "Error"; code : result_code }
@@ -168,12 +170,15 @@ contract MagicHiveV2(
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 field current_refinery : ByStr20 = initial_refinery
+field current_lock_monitor : Option ByStr20 = none
 field enabled : Bool = True
 
 field total_supply : Uint128 = zero
 field total_contribution : Uint128 = zero
 field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field debt : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field locked : Map ByStr20 (Map BNum Uint128) = Emp ByStr20 (Map BNum Uint128)
+field locked_total : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field last_significant_deposit : Map ByStr20 BNum = Emp ByStr20 BNum
 
 field fee_curve : FeeCurve =
@@ -245,6 +250,30 @@ procedure IsEnabled()
   | True =>
   | False =>
     err = CodeNotEnabled;
+    ThrowError err
+  end
+end
+
+procedure IsSufficientUnlockedBalance(balance : Uint128, required_amount : Uint128)
+  l <- locked_total[_sender];
+  locked_amount = get_amount_or_zero l;
+  unlocked_balance = builtin sub balance locked_amount;
+  insufficient_balance = builtin lt unlocked_balance required_amount;
+  match insufficient_balance with
+  | False =>
+  | True =>
+    err = CodeInsufficientBalance;
+    ThrowError err
+  end
+end
+
+procedure IsUnlocked(block : BNum)
+  current_block <- & BLOCKNUMBER;
+  is_unlocked = builtin blt block current_block;
+  match is_unlocked with
+  | True =>
+  | False =>
+    err = CodeNotUnlocked;
     ThrowError err
   end
 end
@@ -491,53 +520,61 @@ transition RemoveLiquidity(
 )
   IsEnabled;
   UpdateRewards;
+
   current_block <- & BLOCKNUMBER;
+  fc <- fee_curve;
   b <- balances[_sender];
+  last_deposited <- last_significant_deposit[_sender];
+  total_shares <- total_supply;
+  current_contribution <- total_contribution;
+
   balance = get_amount_or_zero b;
-  insufficient_balance = builtin lt balance amount;
-  match insufficient_balance with
-  | True =>
-    err = CodeInsufficientBalance;
-    ThrowError err
-  | False =>
-    current_contribution <- total_contribution;
-    total_shares <- total_supply;
-    contribution_amount = get_contribution_amount amount total_shares current_contribution;
-    last_deposited <- last_significant_deposit[_sender];
-    fc <- fee_curve;
-    fee = get_fee contribution_amount fc last_deposited current_block;
-    contribution_amount_after_fee = builtin sub contribution_amount fee;
-    msg_to_zilswap = {
-      _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
-      token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
-    };
-    msg_to_self = {
-      _tag : "Flush"; _recipient : _this_address; _amount : zero;
-      address: _sender; fee: fee
-    };
-    msgs = two_msgs msg_to_zilswap msg_to_self;
-    send msgs
-  end
+  IsSufficientUnlockedBalance balance amount;
+
+  contribution_amount = get_contribution_amount amount total_shares current_contribution;
+
+  fee = get_fee contribution_amount fc last_deposited current_block;
+  contribution_amount_after_fee = builtin sub contribution_amount fee;
+
+  msg_to_zilswap = {
+    _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
+    token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : min_zil_amount; min_token_amount : min_token_amount; deadline_block : deadline_block
+  };
+  msg_to_self = {
+    _tag : "Flush"; _recipient : _this_address; _amount : zero;
+    address: _sender; fee: fee
+  };
+  msgs = two_msgs msg_to_zilswap msg_to_self;
+  send msgs
 end
 
 (* @dev: Removes all liquidity from Zilswap without any reward functions. *)
 transition EmergencyWithdraw()
   current_block <- & BLOCKNUMBER;
-  deadline_block = builtin badd current_block one;
+  is_enabled <- enabled;
+  fc <- fee_curve;
   b <- balances[_sender];
-  shares = get_amount_or_zero b;
+  l <- locked_total[_sender];
+  last_deposited <- last_significant_deposit[_sender];
   current_contribution <- total_contribution;
   total_shares <- total_supply;
-  contribution_amount = get_contribution_amount shares total_shares current_contribution;
-  last_deposited <- last_significant_deposit[_sender];
-  fc <- fee_curve;
-  is_enabled <- enabled;
+
+  balance = get_amount_or_zero b;
+  locked_amount = match is_enabled with
+  | False => zero (* skip locked if not enabled *)
+  | True => get_amount_or_zero l
+  end;
+  amount = builtin sub balance locked_amount;
+
+  contribution_amount = get_contribution_amount amount total_shares current_contribution;
   fee = match is_enabled with
   | False => zero (* skip fee if not enabled *)
-  | True =>
-    get_fee contribution_amount fc last_deposited current_block
+  | True => get_fee contribution_amount fc last_deposited current_block
   end;
   contribution_amount_after_fee = builtin sub contribution_amount fee;
+
+  deadline_block = builtin badd current_block one;
+
   msg_to_zilswap = {
     _tag : "RemoveLiquidity"; _recipient : zilswap_contract; _amount : zero;
     token_address : huny_token; contribution_amount : contribution_amount_after_fee; min_zil_amount : one; min_token_amount : one; deadline_block : deadline_block
@@ -552,9 +589,74 @@ end
 
 (* @dev: Claims rewards for the sender. *)
 transition Claim()
-  IsEnabled;
   UpdateRewards;
   UpdateBalance _sender zero
+end
+
+transition Lock(amount: Uint128, duration: Uint32)
+  IsEnabled;
+  current_block <- & BLOCKNUMBER;
+  unlock_block = builtin badd current_block duration;
+  b <- balances[_sender];
+  balance = get_amount_or_zero b;
+  IsSufficientUnlockedBalance balance amount;
+
+  l <- locked_total[_sender];
+  prev_locked = get_amount_or_zero l;
+  new_locked = builtin add prev_locked amount;
+  locked_total[_sender] := new_locked;
+
+  l2 <- locked[_sender][unlock_block];
+  prev_locked_for_block = get_amount_or_zero l2;
+  new_locked_for_block = builtin add prev_locked_for_block amount;
+  locked[_sender][current_block] := new_locked_for_block;
+
+  lm <- current_lock_monitor;
+  match lm with
+  | None => (* no-op *)
+  | Some lock_monitor =>
+    msg_to_lock_monitor = {
+      _tag : "Lock"; _recipient : lock_monitor; _amount : zero;
+      amount : amount; duration : duration; unlock_block: unlock_block
+    };
+    msgs = one_msg msg_to_lock_monitor;
+    send msgs
+  end;
+
+  e = {_eventname : "Locked"; amount : amount; duration : duration; unlock_block: unlock_block};
+  event e
+end
+
+transition Unlock(unlock_block: BNum)
+  IsUnlocked unlock_block;
+
+  l <- locked[_sender][unlock_block];
+  locked_for_block = get_amount_or_zero l;
+  delete locked[_sender][unlock_block];
+
+  tl <- locked_total[_sender];
+  prev_locked = get_amount_or_zero tl;
+  new_locked = builtin sub prev_locked locked_for_block;
+  is_zero_locked = builtin eq zero new_locked;
+  match is_zero_locked with
+  | True => delete locked_total[_sender]
+  | False => locked_total[_sender] := new_locked
+  end;
+
+  lm <- current_lock_monitor;
+  match lm with
+  | None => (* no-op *)
+  | Some lock_monitor =>
+    msg_to_lock_monitor = {
+      _tag : "Unlock"; _recipient : lock_monitor; _amount : zero;
+      amount : locked_for_block; unlock_block: unlock_block
+    };
+    msgs = one_msg msg_to_lock_monitor;
+    send msgs
+  end;
+
+  e = {_eventname : "Unlocked"; amount : locked_for_block; unlock_block: unlock_block};
+  event e
 end
 
 (* @dev: Flush all HUNY and ZIL from the contract to the user. Can only be called by this contract. *)
@@ -656,6 +758,14 @@ transition SetRefinery(refinery : ByStr20)
   IsOwner _sender;
   current_refinery := refinery;
   e = {_eventname : "RefinerySet"; refinery : refinery};
+  event e
+end
+
+(* @dev: Sets the lock monitor for distributing lock rewards. *)
+transition SetLockMonitor(lock_monitor : Option ByStr20)
+  IsOwner _sender;
+  current_lock_monitor := lock_monitor;
+  e = {_eventname : "LockmonitorSet"; lock_monitor : lock_monitor};
   event e
 end
 
