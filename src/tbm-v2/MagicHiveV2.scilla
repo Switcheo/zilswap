@@ -122,8 +122,8 @@ let get_fee =
     | Some last_deposit_block =>
       match fee_curve with
       | FeeCurve initial final step =>
-        (* max_blocks = (final - initial) * step *)
-        let max_blocks = let x = builtin sub final initial in builtin mul x step in
+        (* max_blocks = (initial - final) * step *)
+        let max_blocks = let x = builtin sub initial final in builtin mul x step in
         let blocks_delta = bsub_to_u128 current_block last_deposit_block in
         let not_max = builtin lt blocks_delta max_blocks in
         match not_max with
