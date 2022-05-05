@@ -453,7 +453,7 @@ transition AddLiquidity(
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
-    address: _sender; fee: zero
+    address: _sender; decrease_balance: zero
   };
   msgs = three_msgs msg_to_token msg_to_zilswap msg_to_self;
   send msgs
@@ -505,7 +505,7 @@ transition AddLiquidityWithBalance(
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
-    address: address; fee: zero
+    address: address; decrease_balance: zero
   };
   msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
@@ -542,7 +542,7 @@ transition RemoveLiquidity(
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
-    address: _sender; fee: fee
+    address: _sender; decrease_balance: balance
   };
   msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
@@ -660,9 +660,9 @@ transition Unlock(unlock_block: BNum)
 end
 
 (* @dev: Flush all HUNY and ZIL from the contract to the user. Can only be called by this contract. *)
-transition Flush(address : ByStr20, reduce_balance: Uint128)
+transition Flush(address : ByStr20, decrease_balance: Uint128)
   IsSelf _sender; (* already done UpdateRewards *)
-  UpdateBalance address reduce_balance;
+  UpdateBalance address decrease_balance;
 
   zil_amount <- _balance;
   huny_balance <- & huny_token.balances[_this_address];
