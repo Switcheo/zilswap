@@ -551,7 +551,7 @@ transition RemoveLiquidity(
   };
   msg_to_self = {
     _tag : "Flush"; _recipient : _this_address; _amount : zero;
-    address: _sender; decrease_balance: balance
+    address: _sender; decrease_balance: amount
   };
   msgs = two_msgs msg_to_zilswap msg_to_self;
   send msgs
