@@ -120,21 +120,25 @@ let get_fee =
     match maybe_last_deposit_block with
     | None => zero (* no fee if we somehow screwed up saving last deposit block *)
     | Some last_deposit_block =>
-      match fee_curve with
-      | FeeCurve initial final step =>
-        (* max_blocks = (initial - final) * step *)
-        let max_blocks = let x = builtin sub initial final in builtin mul x step in
-        let blocks_delta = bsub_to_u128 current_block last_deposit_block in
-        let not_max = builtin lt blocks_delta max_blocks in
-        match not_max with
-        | True => (* progressing in the curve => *)
-          (* bps = initial - (blocks_delta / step) *)
-          let bps = let x = builtin div blocks_delta step in builtin sub initial x in
-          (* fee = amount * bps / basis_points_denominator *)
-          let numerator = builtin mul amount bps in builtin div numerator basis_points_denominator
-        | False => final (* max => final *)
+      let bps =
+        match fee_curve with
+        | FeeCurve initial final step =>
+          (* max_blocks = (initial - final) * step *)
+          let max_blocks = let x = builtin sub initial final in builtin mul x step in
+          let blocks_delta = bsub_to_u128 current_block last_deposit_block in
+          let not_max = builtin lt blocks_delta max_blocks in
+          match not_max with
+          | True => (* progressing in the curve => *)
+            (* bps = initial - (blocks_delta / step) *)
+            let x = builtin div blocks_delta step in
+            builtin sub initial x
+          | False => final (* max => final *)
+          end
         end
-      end
+      in
+      (* fee = amount * bps / basis_points_denominator *)
+      let numerator = builtin mul amount bps in
+      builtin div numerator basis_points_denominator
     end
 
 (* pro-rates the actual contributions by share of user *)
@@ -362,12 +366,17 @@ procedure UpdateBalance(address : ByStr20, decrease_balance : Uint128)
   increase_balance = match delta with
   | Positive amount =>
     (* amount * prev_supply / prev_contribution *)
-    let amount_u256 = grow amount in
-    let supply_u256 = grow prev_supply in
-    let contribution_u256 = grow prev_contribution in
-    let numerator = builtin mul amount_u256 supply_u256 in
-    let result_u256 = builtin div numerator contribution_u256 in
-    shrink result_u256
+    let is_zero = builtin eq prev_contribution zero in
+    match is_zero with
+    | False =>
+      let amount_u256 = grow amount in
+      let supply_u256 = grow prev_supply in
+      let contribution_u256 = grow prev_contribution in
+      let numerator = builtin mul amount_u256 supply_u256 in
+      let result_u256 = builtin div numerator contribution_u256 in
+      shrink result_u256
+    | True => zero
+    end
   | Negative _ => zero
   end;
 
