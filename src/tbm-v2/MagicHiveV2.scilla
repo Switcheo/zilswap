@@ -393,7 +393,7 @@ procedure UpdateBalance(address : ByStr20, decrease_balance : Uint128)
       let numerator = builtin mul amount_u256 supply_u256 in
       let result_u256 = builtin div numerator contribution_u256 in
       shrink result_u256
-    | True => zero
+    | True => amount
     end
   | Negative _ => zero
   end;
