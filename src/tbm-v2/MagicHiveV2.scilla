@@ -366,7 +366,7 @@ procedure UpdateBalance(address : ByStr20, decrease_balance : Uint128)
   increase_balance = match delta with
   | Positive amount =>
     (* amount * prev_supply / prev_contribution *)
-    let is_zero = builtin eq prev_contribution zero in
+    let is_zero = builtin eq prev_supply zero in
     match is_zero with
     | False =>
       let amount_u256 = grow amount in
@@ -618,7 +618,7 @@ transition Lock(amount: Uint128, duration: Uint32)
   l2 <- locked[_sender][unlock_block];
   prev_locked_for_block = get_amount_or_zero l2;
   new_locked_for_block = builtin add prev_locked_for_block amount;
-  locked[_sender][current_block] := new_locked_for_block;
+  locked[_sender][unlock_block] := new_locked_for_block;
 
   lm <- current_lock_monitor;
   match lm with
