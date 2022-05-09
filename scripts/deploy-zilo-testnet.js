@@ -29,16 +29,16 @@ const deploy = async () => {
   const [zilo, state] = await deployZILO(owner.key, {
     zwapAddress,
     tokenAddress,
-    tokenAmount:             '250000000' + tknDecimals, // TOKEN 250m
-    targetZilAmount:           '2660000' + zilDecimals, // ZIL 2.66m (~$292.6K @ $0.11)
-    targetZwapAmount:             '2180' + zilDecimals, // ZWAP 2.18k (~$32.4k @$14.9)
-    minimumZilAmount:           '664000' + zilDecimals, // ZIL 664k (25% of target)
-    liquidityZilAmount:        '2659999' + zilDecimals, // ZIL 2.66m (tknPrice*liquidity/zilPrice)
-    liquidityTokenAmount:    '225076838' + tknDecimals, // TOKEN 225m
+    tokenAmount:             '180000000' + tknDecimals, // TOKEN 180m
+    targetZilAmount:           '2880000' + zilDecimals, // ZIL 2.88m (~$210.2K @ $0.073)
+    targetZwapAmount:             '2400' + zilDecimals, // ZWAP 2.4k (~$23.4K @$9.78)
+    minimumZilAmount:           '720000' + zilDecimals, // ZIL 720k (25% of target)
+    liquidityZilAmount:        '1425000' + zilDecimals, // ZIL 1.42m (tknPrice*liquidity/zilPrice)
+    liquidityTokenAmount:     '80000000' + tknDecimals, // TOKEN 80m
     receiverAddress:                   receiverAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:               (bNum + 1050).toString(), // 10 hrs to 12pm, 105 blocks an hr
-    endBlock:                 (bNum + 1680).toString(), // + 6 hrs, hopefully
+    startBlock:               (bNum + 85).toString(), // 10 hrs to 12pm, 105 blocks an hr
+    endBlock:                 (bNum + 500).toString(), // + 6 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
