@@ -618,7 +618,7 @@ transition Lock(amount: Uint128, duration: Uint32)
   l2 <- locked[_sender][unlock_block];
   prev_locked_for_block = get_amount_or_zero l2;
   new_locked_for_block = builtin add prev_locked_for_block amount;
-  locked[_sender][current_block] := new_locked_for_block;
+  locked[_sender][unlock_block] := new_locked_for_block;
 
   lm <- current_lock_monitor;
   match lm with
