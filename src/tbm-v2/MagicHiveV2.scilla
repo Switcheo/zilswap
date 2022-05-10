@@ -186,11 +186,11 @@ field locked_total : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field last_significant_deposit : Map ByStr20 BNum = Emp ByStr20 BNum
 
 field fee_curve : FeeCurve =
-  let initial = Uint128 900 in
-  let final =   Uint128 100 in
-  let step =    Uint128 176 in
-  FeeCurve initial final step (* 9% -> 1%, decreasing by 1% every week (2520 blocks x 7 / 100) *)
-field huny_per_block : Uint128 = Uint128 81018518518519 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day  *)
+  let initial = Uint128 500 in
+  let final =   Uint128 50 in
+  let step =    Uint128 252 in
+  FeeCurve initial final step (* 5% -> 0.5%, decreasing by 0.1% every day (2520 blocks => 10bps, 252 blocks => 1bps) *)
+field huny_per_block : Uint128 = Uint128 162037037037038 (* 36,750,000 HUNY / 180days = 204166666666666667 HUNY/day = 81018518518519 HUNY/block @ 2520 blocks/day, x2 initial boost *)
 field huny_rewards_per_share : Uint256 = Uint256 0 (* this is multiplied by share_factor *)
 field last_reward_block : BNum = reward_start_block
 field incoming_kickbacks : Uint128 = zero
