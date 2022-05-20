@@ -311,3 +311,9 @@ transition ListItemSuccess(item_id: Uint128, item_name: String)
     event e
   end
 end
+
+(* burn huny *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
