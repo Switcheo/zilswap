@@ -22,15 +22,20 @@ type Error =
   | CodeNotEmporium
   | CodeItemNotFound
 
+type Inflation =
+  | SupplyScaledInflation of Uint128 (* dynamic increment based on % of HUNY supply per item purchased *)
+  | NumericInflation of Uint128 (* numeric increment per item purchased *)
+  | NoInflation (* don't inflate for each item purchased  *)
+
 type Price =
-  | SupplyScaledPrice of Uint128 (* dynamic price based on % of HUNY supply *)
-  | FixedPrice of Uint128 (* numeric amount *)
+  | SupplyScaledPrice of Uint128 Inflation (* dynamic base amount based on % of HUNY supply + inflation *)
+  | NumericPrice of Uint128 Inflation (* numeric base amount + inflation *)
 
 type PriceScale =
   | MinPrice of Price Price (* min of the two prices *)
   | MaxPrice of Price Price (* max of the two prices *)
   | BoundedPrice of Price Price Price (* target price, bounded by min, max *)
-  | ConstantPrice of Price (* use target price directly *)
+  | DirectPrice of Price (* use target price directly *)
 
 type Item =
   | Item of String PriceScale (* item name, item price *)
@@ -55,6 +60,13 @@ let one_msg =
   let nil_msg = Nil {Message} in
   Cons {Message} msg nil_msg
 
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
 let get_min =
   fun (a : Uint128) =>
   fun (b : Uint128) =>
@@ -73,33 +85,52 @@ let get_max =
     | False => b
     end
 
+let get_inflation_amount =
+  fun (supply : Uint128) =>
+  fun (count : Uint128) =>
+  fun (inflation : Inflation) =>
+    match inflation with
+    | NoInflation => zero
+    | NumericInflation i =>
+      builtin mul count i
+    | SupplyScaledInflation i =>
+      let numerator = let x = builtin mul supply i in builtin mul count x in
+      builtin div numerator scale_denom
+    end
+
 let get_amount_from_price =
   fun (supply : Uint128) =>
+  fun (count : Uint128) =>
   fun (price : Price) =>
     match price with
-    | FixedPrice p => p
-    | SupplyScaledPrice p =>
+    | NumericPrice p i =>
+      let inflation = get_inflation_amount supply count i in
+      builtin add p inflation
+    | SupplyScaledPrice p i =>
+      let inflation = get_inflation_amount supply count i in
       let numerator = builtin mul supply p in
-      builtin div numerator scale_denom
+      let base = builtin div numerator scale_denom in
+      builtin add base inflation
     end
 
 let get_amount_from_price_scale =
   fun (supply : Uint128) =>
+  fun (purchase_count : Uint128) =>
   fun (pricing : PriceScale) =>
     match pricing with
-    | ConstantPrice p => get_amount_from_price supply p
+    | DirectPrice p => get_amount_from_price supply purchase_count p
     | MinPrice a b =>
-      let a_amt = get_amount_from_price supply a in
-      let b_amt = get_amount_from_price supply b in
+      let a_amt = get_amount_from_price supply purchase_count a in
+      let b_amt = get_amount_from_price supply purchase_count b in
       get_min a_amt b_amt
     | MaxPrice a b =>
-      let a_amt = get_amount_from_price supply a in
-      let b_amt = get_amount_from_price supply b in
+      let a_amt = get_amount_from_price supply purchase_count a in
+      let b_amt = get_amount_from_price supply purchase_count b in
       get_max a_amt b_amt
     | BoundedPrice target min max =>
-      let target_amt = get_amount_from_price supply target in
-      let min_amt = get_amount_from_price supply min in
-      let max_amt = get_amount_from_price supply max in
+      let target_amt = get_amount_from_price supply purchase_count target in
+      let min_amt = get_amount_from_price supply purchase_count min in
+      let max_amt = get_amount_from_price supply purchase_count max in
       let x = get_max target_amt min_amt in
       get_min x max_amt
     end
@@ -120,6 +151,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field items : Map Uint128 Item = Emp Uint128 Item
+field purchase_count : Map Uint128 Uint128 = Emp Uint128 Uint128 (* id => count *)
 field adding_item : Option Item = no_item
 
 (**************************************)
@@ -194,7 +226,9 @@ transition PurchaseItem(item_id: Uint128, purchase_data: String, purchaser: BySt
     match item with
     | Item name pricing =>
       huny_supply <- & huny_token.total_supply;
-      amount = get_amount_from_price_scale huny_supply pricing;
+      c <- purchase_count[item_id];
+      current_purchase_count = get_amount_or_zero c;
+      amount = get_amount_from_price_scale huny_supply current_purchase_count pricing;
       msg_to_emporium = {
         _tag: "TransferToken";
         _recipient: emporium;
@@ -205,8 +239,10 @@ transition PurchaseItem(item_id: Uint128, purchase_data: String, purchaser: BySt
       };
       msgs = one_msg msg_to_emporium;
       send msgs;
+      new_purchase_count = builtin add current_purchase_count one;
+      purchase_count[item_id] := new_purchase_count;
       e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
-           purchaser: purchaser; price: amount; purchase_data: purchase_data};
+           purchaser: purchaser; price: amount; purchase_data: purchase_data; purchase_count: new_purchase_count};
       event e
     end
   end
