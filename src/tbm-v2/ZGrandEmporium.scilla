@@ -131,7 +131,7 @@ end
 (* @dev: Purchases an item. *)
 (* @param item_id: the globally unique id of the item to purchase *)
 (* @param purchase_data: extra purchase data for events *)
-transition PurchaseItem(item_id: Uint128, max_price: Uint256, purchase_data: String) (* extra purchase data for events *)
+transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: String) (* extra purchase data for events *)
   accept;
   maybe_item <- items[item_id];
   match maybe_item with
