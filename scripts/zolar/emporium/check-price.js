@@ -113,7 +113,7 @@ async function checkPrice() {
   const { result } = await zilliqa.blockchain.getSmartContractSubState(process.env.HUNY_CONTRACT_HASH, "total_supply");
   const hunySupply = new BigNumber(result.total_supply);
 
-  const { result: countResult } = await zilliqa.blockchain.getSmartContractSubState(process.env.HUNY_CONTRACT_HASH, "purchase_count", [ITEM_ID]);
+  const { result: countResult } = await zilliqa.blockchain.getSmartContractSubState(process.env.HUNY_STALL_CONTRACT_HASH, "purchase_count", [ITEM_ID]);
   const purchaseCount = new BigNumber(countResult?.purchase_count?.[ITEM_ID] ?? 0).toNumber();
   console.log("Purchase Count", purchaseCount)
 
