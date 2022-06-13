@@ -131,7 +131,7 @@ end
 (* @dev: Purchases an item. *)
 (* @param item_id: the globally unique id of the item to purchase *)
 (* @param purchase_data: extra purchase data for events *)
-transition PurchaseItem(item_id: Uint128, purchase_data: String) (* extra purchase data for events *)
+transition PurchaseItem(item_id: Uint128, max_price: Uint256, purchase_data: String) (* extra purchase data for events *)
   accept;
   maybe_item <- items[item_id];
   match maybe_item with
@@ -147,6 +147,7 @@ transition PurchaseItem(item_id: Uint128, purchase_data: String) (* extra purcha
         _amount: _amount; (* forward all ZILs *)
         item_id: item_id;
         purchase_data: purchase_data;
+        max_price: max_price;
         purchaser: _sender
       };
       msgs = one_msg msg_to_stall;

@@ -21,6 +21,7 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodeNotEmporium
   | CodeItemNotFound
+  | CodeItemTooExpensive
 
 type Inflation =
   | SupplyScaledInflation of Uint128 (* dynamic increment based on % of HUNY supply per item purchased *)
@@ -51,6 +52,7 @@ let make_error =
       | CodePendingOwnerNotEmpty  => Int32 -3
       | CodeNotEmporium           => Int32 -4
       | CodeItemNotFound          => Int32 -5
+      | CodeItemTooExpensive      => Int32 -6
       end
     in
     { _exception : "Error"; code : result_code }
@@ -213,9 +215,10 @@ end
 
 (* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
 (* @param item_id: the id of the item to purchase *)
+(* @param max_price: maximum price to pay *)
 (* @param purchase_data: extra purchase data for events *)
 (* @param purchaser: buyer of purchased item *)
-transition PurchaseItem(item_id: Uint128, purchase_data: String, purchaser: ByStr20)
+transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: String, purchaser: ByStr20)
   IsEmporium _sender;
   maybe_item <- items[item_id];
   match maybe_item with
@@ -229,21 +232,29 @@ transition PurchaseItem(item_id: Uint128, purchase_data: String, purchaser: BySt
       c <- purchase_count[item_id];
       current_purchase_count = get_amount_or_zero c;
       amount = get_amount_from_price_scale huny_supply current_purchase_count pricing;
-      msg_to_emporium = {
-        _tag: "TransferToken";
-        _recipient: emporium;
-        _amount: zero;
-        token: huny_token;
-        from: purchaser;
-        amount: amount
-      };
-      msgs = one_msg msg_to_emporium;
-      send msgs;
-      new_purchase_count = builtin add current_purchase_count one;
-      purchase_count[item_id] := new_purchase_count;
-      e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
-           purchaser: purchaser; price: amount; purchase_data: purchase_data; purchase_count: new_purchase_count};
-      event e
+
+      price_over_max = builtin lt max_price amount;
+      match price_over_max with
+      | True => 
+        err = CodeItemTooExpensive;
+        ThrowError err
+      | False =>
+        msg_to_emporium = {
+          _tag: "TransferToken";
+          _recipient: emporium;
+          _amount: zero;
+          token: huny_token;
+          from: purchaser;
+          amount: amount
+        };
+        msgs = one_msg msg_to_emporium;
+        send msgs;
+        new_purchase_count = builtin add current_purchase_count one;
+        purchase_count[item_id] := new_purchase_count;
+        e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
+            purchaser: purchaser; price: amount; purchase_data: purchase_data; purchase_count: new_purchase_count};
+        event e
+      end
     end
   end
 end
