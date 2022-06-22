@@ -106,7 +106,7 @@ async function computeFinalPrice(priceScale, hunySupply, purchaseCount) {
 
 async function checkPrice() {
 
-  const ITEM_ID = "21";
+  const ITEM_ID = "0";
 
   console.log("checking price for", ITEM_ID);
 

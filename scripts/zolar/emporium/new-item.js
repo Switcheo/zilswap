@@ -8,11 +8,6 @@ async function setNewItem() {
   const key = process.env.PRIVATE_KEY
   if (!key) throw new Error('PRIVATE_KEY env var missing!')
 
-  const { result } = await zilliqa.blockchain.getSmartContractSubState(process.env.HUNY_CONTRACT_HASH, "total_supply");
-  const hunySupply = new BigNumber(result.total_supply);
-  const p01Supply = hunySupply.shiftedBy(-12).dividedToIntegerBy(1e4).shiftedBy(12);
-  console.log(hunySupply.toString(10), p01Supply.toString(10));
-
   const contract = zilliqa.contracts.at(process.env.HUNY_STALL_CONTRACT_HASH);
 
   const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
