@@ -707,15 +707,13 @@ async function deployContract(privateKey, code, init) {
   // Deploy contract
   const compressedCode = compress(code)
   const contract = zilliqa.contracts.new(compressedCode, init)
-  const [deployTx, s] = await contract.deploy(
+  const [deployTx, s] = await contract.deployWithoutConfirm(
     {
       version: VERSION,
       amount: new BN(0),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
     },
-    33,
-    1000,
     false,
   )
 
@@ -725,9 +723,11 @@ async function deployContract(privateKey, code, init) {
   }
   console.info(`Deployment transaction id: ${deployTx.id}`)
 
+  const confirmedTx = await deployTx.confirm(deployTx.id, 33, 1000);
+
   // Check for txn execution success
-  if (!deployTx.txParams.receipt.success) {
-    const errors = deployTx.txParams.receipt.errors
+  if (!confirmedTx.txParams.receipt.success) {
+    const errors = confirmedTx.txParams.receipt.errors
     const errMsgs = errors
       ? Object.keys(errors).reduce((acc, depth) => {
         const errorMsgList = errors[depth].map(num => TransactionError[num])
@@ -738,7 +738,7 @@ async function deployContract(privateKey, code, init) {
   }
 
   // Print txn receipt
-  console.log(`Deployment transaction receipt:\n${JSON.stringify(deployTx.txParams.receipt)}`)
+  console.log(`Deployment transaction receipt:\n${JSON.stringify(confirmedTx.txParams.receipt)}`)
   await nextBlock()
 
   // Refetch contract

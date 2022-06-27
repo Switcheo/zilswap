@@ -1,0 +1,288 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+library GuildBank
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let none = None {ByStr20}
+let empty = ""
+let scale_denom = Uint128 10000 (* 1 bps *)
+
+type ControlMode =
+  | CaptainOnly
+  | CaptainAndOneOfficer
+  | CaptainAndTwoOfficers
+
+type GuildBankSettings =
+  | GuildBankSettings of Uint128 Uint128 ControlMode (* joining fee, weekly tax, multisig mode *)
+
+type TxParams =
+  | UpdateConfigTxParams of GuildBankSettings
+  | WithdrawTxParams of ByStr20 Uint128 (* recipient, amount *)
+  | DepositHiveTxParams of ByStr20 Uint128 (* recipient, amount *)
+
+type BankTx =
+  | BankTx of String ByStr20 TxParams (* message, initiator, params *)
+
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodePendingTxDoesNotExist
+  | CodePendingTxExists
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                => Int32 -1
+      | CodeNotPendingOwner         => Int32 -2
+      | CodePendingOwnerNotEmpty    => Int32 -3
+      | CodePendingTxDoesNotExist   => Int32 -4
+      | CodePendingTxExists         => Int32 -5
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
+let get_min =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_is_min = builtin lt a b in
+    match a_is_min with
+    | True => a
+    | False => b
+    end
+
+let get_max =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_is_max = builtin lt b a in
+    match a_is_max with
+    | True => a
+    | False => b
+    end
+
+let get_control_mode =
+fun (power : Uint32) =>
+  let five = Uint32 5 in
+  let two_officers = builtin eq power five in
+  match two_officers with
+  | True => CaptainAndTwoOfficers
+  | False =>
+    let four = Uint32 4 in
+    let one_officer = builtin eq power four in
+    match one_officer with
+    | True => CaptainAndOneOfficer
+    | False => CaptainOnly
+    end
+  end
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract GuildBank(
+  initial_owner: ByStr20,
+  hive: ByStr20,
+  huny_token: ByStr20,
+  initial_joining_fee: Uint128,
+  initial_weekly_tax: Uint128,
+  initial_control_mode_power: Uint32
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field control_mode : ControlMode = get_control_mode initial_control_mode_power
+field pending_tx : Option BankTx = None {BankTx}
+
+field joining_fee : Uint128 = initial_joining_fee
+field weekly_tax : Uint128 = initial_weekly_tax
+
+field members : List ByStr20 = Nil {ByStr20}
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsNoPendingTx()
+  maybe_pending_tx <- pending_tx;
+  match maybe_pending_tx with
+    | Some current_pending_tx =>
+    err = CodePendingTxExists;
+    ThrowError err
+    | None =>
+   end
+end
+
+procedure IsPendingTx()
+  maybe_pending_tx <- pending_tx;
+  match maybe_pending_tx with
+    | Some current_pending_tx =>
+    | None =>
+    err = CodePendingTxDoesNotExist;
+    ThrowError err
+   end
+end
+
+(* 
+procedure IsEmporium(address: ByStr20)
+  is_emporium = builtin eq emporium address;
+  match is_emporium with
+  | True =>
+  | False =>
+    err = CodeNotEmporium;
+    ThrowError err
+  end
+end *)
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Initiate a generic multisig transaction (depends on configuration *)
+(* could resolve immediately if in single-signature mode) *)
+transition InitiateTx(tx: BankTx)
+  
+end
+
+(* @dev: Sign a multisig transaction, resolves and executes if number of *)
+(* required signing parties is met. *)
+transition SignTx()
+  
+end
+
+(* @dev: Charge joining fee to user, called once by user joining a guild *)
+transition PayJoiningFee()
+  list <- members;
+  new_list = Cons {ByStr20} _sender list;
+  members := new_list;
+
+  current_joining_fee <- joining_fee;
+  e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
+  event e;
+
+  has_joining_fee = builtin lt zero current_joining_fee;
+  match has_joining_fee with
+    | False =>
+    | True =>
+      msg_to_token = {
+        _tag: "TransferFrom";
+        _recipient: huny_token;
+        _amount: zero;
+        from: _sender;
+        to: _this_address;
+        amount: current_joining_fee
+      };
+      msgs = one_msg msg_to_token;
+      send msgs
+  end
+end
+
+(* @dev: Transfers specified amount of tokens to guild bank *)
+transition MakeDonation()
+end
+
+(* @dev: Transfers tax from specified guild members to guild bank *)
+transition CollectTax()
+end
+
+(* @dev: Migrate balance to specified contract - for contract upgrade *)
+transition Migrate()
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+(* receive fee/tax *)
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow sending tokens to stall *)
+end
