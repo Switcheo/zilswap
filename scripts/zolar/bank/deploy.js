@@ -103,6 +103,11 @@ async function deployGuildBank({
       type: 'Uint32',
       value: '5',
     },
+    {
+      vname: 'initial_officers',
+      type: 'List ByStr20',
+      value: [],
+    },
   ]
 
   console.info(`Deploying GuildBank...`)
