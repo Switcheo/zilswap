@@ -238,6 +238,21 @@ async function deployGuildBank({
   }], 1, false, false)
   console.log("make donation zil tx", txMakeZilDonation.id)
 
+  const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
+    vname: "params",
+    type: `List ${bankAddress}.TaxParam`,
+    value: [{
+      constructor: `${bankAddress}.TaxParam`,
+      argtypes: [],
+      arguments: [address, "1"]
+    }, {
+      constructor: `${bankAddress}.TaxParam`,
+      argtypes: [],
+      arguments: [address, "2"]
+    }],
+  }], 0, false, false)
+  console.log("collect tax tx", txCollectTax.id)
+
   const txMigrateZil = await callContract(privateKey, bankContract, "Migrate", [{
     vname: "recipient",
     type: "ByStr20",

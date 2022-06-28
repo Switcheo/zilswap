@@ -52,7 +52,9 @@ type Error =
   | CodePendingTxExists
   | CodeInvalidTxInsufficientBalance
   | CodeAmountRecievedMismatch
+  | CodeInvalidTokenContract
   | CodeNoTokenBalance
+  | CodeAlreadyTaxed
 
 let make_error =
   fun (result : Error) =>
@@ -68,7 +70,9 @@ let make_error =
       (* is not a valid ZRC2 token contract address *)
       | CodeInvalidTxInsufficientBalance    => Int32 -7
       | CodeAmountRecievedMismatch          => Int32 -8
-      | CodeNoTokenBalance                  => Int32 -9
+      | CodeInvalidTokenContract            => Int32 -9
+      | CodeNoTokenBalance                  => Int32 -10
+      | CodeAlreadyTaxed                    => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -84,24 +88,32 @@ let get_amount_or_zero =
     | Some amt => amt
     | None => zero
     end
-
-let get_min =
-  fun (a : Uint128) =>
-  fun (b : Uint128) =>
-    let a_is_min = builtin lt a b in
-    match a_is_min with
-    | True => a
-    | False => b
-    end
-
-let get_max =
-  fun (a : Uint128) =>
-  fun (b : Uint128) =>
-    let a_is_max = builtin lt b a in
-    match a_is_max with
-    | True => a
-    | False => b
-    end
+(* removed in favour of forall implementation
+let build_tax_msgs = 
+  fun (taxed_list : List TaxParam) => 
+  fun (tax_amount : Uint128) => 
+  fun (huny_token_address : ByStr20) => 
+  fun (recipient : ByStr20) => 
+    let fold = @list_foldl_while TaxParam (List Message) in
+    let fn = 
+      fun (msgs: List Message) => 
+      fun (param: TaxParam) =>
+        match param with
+        | TaxParam member epoch_number =>
+          let msg = { 
+            _tag: "TransferFrom";
+            _recipient: huny_token_address;
+            _amount: zero;
+            from: member;
+            to: recipient;
+            amount: tax_amount
+          } in
+          let new_msgs = Cons {Message} msg msgs in
+          Some {(List Message)} new_msgs
+        end
+    in
+    let empty_msgs = Nil {Message} in
+    fold fn empty_msgs taxed_list *)
 
 let get_control_mode =
   fun (power : Uint32) =>
@@ -203,6 +215,7 @@ field members : List ByStr20 = Nil {ByStr20}
 field officers : List ByStr20 = initial_officers
 
 field token_balances : List ByStr20 = Nil {ByStr20}
+field tax_collected: Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
 (**************************************)
 (*             Procedures             *)
@@ -291,6 +304,16 @@ procedure IsNotPendingTx()
       err = CodePendingTxExists;
       ThrowError err
     | None =>
+  end
+end
+
+procedure IsTaxable(member: ByStr20, epoch_number: Uint32)
+  maybe_taxed <- tax_collected[epoch_number][member];
+  match maybe_taxed with
+    | None =>
+    | Some tax_amount =>
+      err = CodeAlreadyTaxed;
+      ThrowError err
   end
 end
 
@@ -451,6 +474,20 @@ procedure SignPendingTx(signer: ByStr20)
    end
 end
 
+procedure ReceiveTax(param: TaxParam)
+  tax_amount <- weekly_tax;
+  match param with
+    | TaxParam member epoch_number =>
+      IsTaxable member epoch_number;
+      ReceiveToken member huny_token tax_amount;
+
+      tax_collected[epoch_number][member] := tax_amount;
+
+      e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
+      event e
+  end
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -532,6 +569,7 @@ end
 
 (* @dev: Transfers tax from specified guild members to guild bank *)
 transition CollectTax(params: List TaxParam)
+  forall params ReceiveTax
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
@@ -554,12 +592,10 @@ transition Migrate(recipient: ByStr20, token: ByStr20)
       msgs = one_msg msg_to_self;
       send msgs
   end
-  
 end
 
-
 (* @dev: Migrate token balance to specified contract *)
-(* @dev: Only called by self, to workaround ByStr20 cast restriction *)
+(* @dev: Only called by self, address cast workaround *)
 transition MigrateToken(
   recipient: ByStr20,
   token: ByStr20 with contract
@@ -577,6 +613,37 @@ transition MigrateToken(
       ThrowError err
   end
 end
+
+(* @dev: Migrate balance to specified contract - for contract upgrade *)
+(* works on v8.1.0 (testnet, mainnet) but not v8.0.4 (ceres local) *)
+(* transition Migrate(recipient: ByStr20, token: ByStr20)
+  IsOwner _sender;
+
+  is_token_zil = builtin eq zero_address token;
+  match is_token_zil with
+  | True =>
+    amount <- _balance;
+    SendZil recipient amount
+  | False =>
+    maybe_token_contract <- & token as ByStr20 with contract
+      field balances: Map ByStr20 Uint128
+    end;
+    match maybe_token_contract with
+    | Some token_contract =>
+      maybe_token_balance <- & token_contract.balances[_this_address];
+      match maybe_token_balance with
+      | Some token_balance =>
+        SendToken recipient token token_balance
+      | None =>
+        err = CodeNoTokenBalance;
+        ThrowError err
+      end
+    | None =>
+      err = CodeInvalidTokenContract;
+      ThrowError err
+    end
+  end
+end *)
 
 (***************************************************)
 (*              Ownership Transitions              *)
