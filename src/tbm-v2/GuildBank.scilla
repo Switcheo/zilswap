@@ -14,6 +14,7 @@ let one = Uint128 1
 let none = None {ByStr20}
 let empty = ""
 let scale_denom = Uint128 10000 (* 1 bps *)
+let zil_address = 0x0000000000000000000000000000000000000000
 
 type ControlMode =
   | CaptainOnly
@@ -51,6 +52,7 @@ type Error =
   | CodePendingTxDoesNotExist
   | CodePendingTxExists
   | CodeInvalidTxInsufficientBalance
+  | CodeAmountRecievedMismatch
 
 let make_error =
   fun (result : Error) =>
@@ -61,10 +63,10 @@ let make_error =
       | CodePendingOwnerNotEmpty            => Int32 -3
       | CodePendingTxDoesNotExist           => Int32 -4
       | CodePendingTxExists                 => Int32 -5
-      
       (* CodeInvalidTxInsufficientBalance is also thrown when withdraw tx token address *)
       (* is not a valid ZRC2 token contract address *)
       | CodeInvalidTxInsufficientBalance    => Int32 -6
+      | CodeAmountRecievedMismatch          => Int32 -7
       end
     in
     { _exception : "Error"; code : result_code }
@@ -294,14 +296,13 @@ procedure IsValidPendingTx()
   end
 end
 
-(* Check for existing PendingTx, used for CancelTx transition only *)
-(* throws if there is no PendingTx *)
-procedure IsPendingTx()
-  maybe_pending_tx <- pending_tx;
-  match maybe_pending_tx with
-    | Some current_pending_tx =>
-    | None =>
-      err = CodePendingTxExists;
+procedure CheckAndReceiveZil(amount: Uint128)
+  maybe_match_amount = builtin eq amount _amount;
+  match maybe_match_amount with
+    | True =>
+      accept
+    | False =>
+      err = CodeAmountRecievedMismatch;
       ThrowError err
   end
 end
@@ -434,14 +435,20 @@ end
 (* @dev: Cancels a pending multisig transaction. *)
 transition CancelTx()
   IsOwner _sender;
-  IsPendingTx;
 
-  cancelled_pending_tx <- pending_tx;
-  no_pending_tx = None {PendingTx};
-  pending_tx := no_pending_tx;
+  maybe_pending_tx <- pending_tx;
+  match maybe_pending_tx with
+    | Some cancelled_pending_tx =>
+      no_pending_tx = None {PendingTx};
+      pending_tx := no_pending_tx;
 
-  e = {_eventname: "TxCancelled"; pending_tx: cancelled_pending_tx };
-  event e
+      e = {_eventname: "TxCancelled"; initiator: _sender; pending_tx: cancelled_pending_tx };
+      event e
+    | None =>
+      err = CodePendingTxDoesNotExist;
+      ThrowError err
+   end
+  
 end
 
 (* @dev: Sign a multisig transaction, resolves and executes if number of *)
@@ -478,7 +485,26 @@ transition PayJoiningFee()
 end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
-transition MakeDonation()
+transition MakeDonation(token: ByStr20, amount: Uint128)
+  is_token_zil = builtin eq zil_address token;
+  match is_token_zil with
+    | True =>
+      CheckAndReceiveZil amount
+    | False =>
+      msg_to_token = {
+        _tag: "TransferFrom";
+        _recipient: token;
+        _amount: zero;
+        from: _sender;
+        to: _this_address;
+        amount: amount
+      };
+      msgs = one_msg msg_to_token;
+      send msgs
+  end;
+
+  e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount };
+  event e
 end
 
 (* @dev: Transfers tax from specified guild members to guild bank *)

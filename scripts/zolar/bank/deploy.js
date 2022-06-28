@@ -4,7 +4,8 @@ const { deployContract } = require("../../deploy");
 const { default: BigNumber } = require("bignumber.js");
 const { callContract } = require("../../call");
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const ONE_HUNY = new BigNumber(1).shiftedBy(12);
 
 const getPrivateKey = () => {
   const privateKey = process.env.PRIVATE_KEY;
@@ -91,12 +92,12 @@ async function deployGuildBank({
     {
       vname: 'initial_joining_fee',
       type: 'Uint128',
-      value: new BigNumber(1).shiftedBy(12).toString(10),
+      value: ONE_HUNY.toString(10),
     },
     {
       vname: 'initial_weekly_tax',
       type: 'Uint128',
-      value: new BigNumber(1).shiftedBy(12).toString(10),
+      value: ONE_HUNY.toString(10),
     },
     {
       vname: 'initial_control_mode_power',
@@ -181,8 +182,8 @@ async function deployGuildBank({
         constructor: `${bankAddress}.GuildBankSettings`,
         argtypes: [],
         arguments: [
-          new BigNumber(1).shiftedBy(12).toString(10),
-          new BigNumber(1).shiftedBy(12).toString(10), {
+          ONE_HUNY.toString(10),
+          ONE_HUNY.toString(10), {
             constructor: `${bankAddress}.CaptainAndTwoOfficers`,
             argtypes: [],
             arguments: [],
@@ -214,4 +215,26 @@ async function deployGuildBank({
 
   const txCancelTx = await callContract(privateKey, bankContract, "CancelTx", [], 0, false, false)
   console.log("initiate cancel tx", txCancelTx.id)
+
+  const txMakeHunyDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: hunyAddress,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: ONE_HUNY.toString(10),
+  }], 0, false, false)
+  console.log("make donation huny tx", txMakeHunyDonation.id)
+
+  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: ZERO_ADDRESS,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
+  }], 1, false, false)
+  console.log("make donation zil tx", txMakeZilDonation.id)
 })().catch(console.error).finally(() => process.exit(0));
