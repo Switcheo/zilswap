@@ -275,8 +275,3 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("migrate huny tx", txMigrateHuny.id)
 })().catch(console.error).finally(() => process.exit(0));
-
-// exports.ZERO_ADDRESS = ZERO_ADDRESS
-// exports.getPrivateKey = getPrivateKey
-// exports.deployHuny = deployHuny
-// exports.deployGuildBank = deployGuildBank
