@@ -294,6 +294,18 @@ procedure IsValidPendingTx()
   end
 end
 
+(* Check for existing PendingTx, used for CancelTx transition only *)
+(* throws if there is no PendingTx *)
+procedure IsPendingTx()
+  maybe_pending_tx <- pending_tx;
+  match maybe_pending_tx with
+    | Some current_pending_tx =>
+    | None =>
+      err = CodePendingTxExists;
+      ThrowError err
+  end
+end
+
 (* multi-sig authenticated operation *)
 procedure UpdateGuildSettings(settings: GuildBankSettings)
   match settings with
@@ -407,7 +419,6 @@ transition InitiateTx(tx_params: TxParams, message: String)
   IsNotPendingTx;
 
   bank_tx = BankTx message _sender tx_params; 
-
   IsValidBankTx bank_tx;
 
   new_pending_tx = create_pending_tx bank_tx;
@@ -423,10 +434,14 @@ end
 (* @dev: Cancels a pending multisig transaction. *)
 transition CancelTx()
   IsOwner _sender;
-  IsValidPendingTx;
+  IsPendingTx;
 
+  cancelled_pending_tx <- pending_tx;
   no_pending_tx = None {PendingTx};
-  pending_tx := no_pending_tx
+  pending_tx := no_pending_tx;
+
+  e = {_eventname: "TxCancelled"; pending_tx: cancelled_pending_tx };
+  event e
 end
 
 (* @dev: Sign a multisig transaction, resolves and executes if number of *)

@@ -162,7 +162,7 @@ async function deployGuildBank({
     value: {
       constructor: `${bankAddress}.WithdrawTxParams`,
       argtypes: [],
-      arguments: [address, hunyAddress, new BigNumber(1).shiftedBy(12).toString(10)]
+      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
     },
   }, {
     vname: "message",
@@ -171,7 +171,7 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("initiate withdraw tx", txInitiateWithdrawTx.id)
 
-  const txInitiateUpdateGuildSettings = await callContract(privateKey, bankContract, "InitiateTx", [{
+  const txInitiateUpdateGuildSettingsTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
     value: {
@@ -195,5 +195,23 @@ async function deployGuildBank({
     type: "String",
     value: "Change control mode to Captain + two Officers",
   }], 0, false, false)
-  console.log("initiate update settings tx", txInitiateUpdateGuildSettings.id)
+  console.log("initiate update settings tx", txInitiateUpdateGuildSettingsTx.id)
+
+  const txInitiateWithdrawAgainTx = await callContract(privateKey, bankContract, "InitiateTx", [{
+    vname: "tx_params",
+    type: `${bankAddress}.TxParams`,
+    value: {
+      constructor: `${bankAddress}.WithdrawTxParams`,
+      argtypes: [],
+      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
+    },
+  }, {
+    vname: "message",
+    type: "String",
+    value: "New withdraw request",
+  }], 0, false, false)
+  console.log("initiate withdraw again tx", txInitiateWithdrawAgainTx.id)
+
+  const txCancelTx = await callContract(privateKey, bankContract, "CancelTx", [], 0, false, false)
+  console.log("initiate cancel tx", txCancelTx.id)
 })().catch(console.error).finally(() => process.exit(0));
