@@ -12,9 +12,7 @@ let false = False
 let zero = Uint128 0
 let one = Uint128 1
 let none = None {ByStr20}
-let empty = ""
-let scale_denom = Uint128 10000 (* 1 bps *)
-let zil_address = 0x0000000000000000000000000000000000000000
+let zero_address = 0x0000000000000000000000000000000000000000
 
 type ControlMode =
   | CaptainOnly
@@ -47,6 +45,7 @@ type PendingTx =
 (* Error events *)
 type Error =
   | CodeNotOwner
+  | CodeNotSelf
   | CodeNotPendingOwner
   | CodePendingOwnerNotEmpty
   | CodePendingTxDoesNotExist
@@ -60,15 +59,16 @@ let make_error =
     let result_code =
       match result with
       | CodeNotOwner                        => Int32 -1
-      | CodeNotPendingOwner                 => Int32 -2
-      | CodePendingOwnerNotEmpty            => Int32 -3
-      | CodePendingTxDoesNotExist           => Int32 -4
-      | CodePendingTxExists                 => Int32 -5
+      | CodeNotSelf                         => Int32 -2
+      | CodeNotPendingOwner                 => Int32 -3
+      | CodePendingOwnerNotEmpty            => Int32 -4
+      | CodePendingTxDoesNotExist           => Int32 -5
+      | CodePendingTxExists                 => Int32 -6
       (* CodeInvalidTxInsufficientBalance is also thrown when withdraw tx token address *)
       (* is not a valid ZRC2 token contract address *)
-      | CodeInvalidTxInsufficientBalance    => Int32 -6
-      | CodeAmountRecievedMismatch          => Int32 -7
-      | CodeNoTokenBalance                  => Int32 -8
+      | CodeInvalidTxInsufficientBalance    => Int32 -7
+      | CodeAmountRecievedMismatch          => Int32 -8
+      | CodeNoTokenBalance                  => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -243,6 +243,16 @@ procedure IsPendingOwner(address: ByStr20)
     end
   | None =>
     err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsSelf(address: ByStr20)
+  is_self = builtin eq _this_address address;
+  match is_self with
+  | True =>
+  | False =>
+    err = CodeNotSelf;
     ThrowError err
   end
 end
@@ -504,7 +514,7 @@ end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
 transition MakeDonation(token: ByStr20, amount: Uint128)
-  is_token_zil = builtin eq zil_address token;
+  is_token_zil = builtin eq zero_address token;
   match is_token_zil with
     | True =>
       ReceiveZil amount
@@ -521,13 +531,38 @@ transition CollectTax(params: List TaxParam)
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
+transition Migrate(recipient: ByStr20, token: ByStr20)
+  IsOwner _sender;
+
+  is_token_zil = builtin eq zero_address token;
+  match is_token_zil with
+    | True =>
+      amount <- _balance;
+      SendZil recipient amount
+    | False =>
+      msg_to_self = {
+        _tag: "MigrateToken";
+        _recipient: _this_address;
+        _amount: zero;
+        recipient: recipient;
+        token: token
+      };
+      msgs = one_msg msg_to_self;
+      send msgs
+  end
+  
+end
+
+
+(* @dev: Migrate token balance to specified contract *)
+(* @dev: Only called by self, to workaround ByStr20 cast restriction *)
 transition MigrateToken(
+  recipient: ByStr20,
   token: ByStr20 with contract
     field balances: Map ByStr20 Uint128
-  end,
-  recipient: ByStr20
+  end
 )
-  IsOwner _sender;
+  IsSelf _sender;
 
   maybe_token_balance <- & token.balances[_this_address];
   match maybe_token_balance with
@@ -537,14 +572,6 @@ transition MigrateToken(
       err = CodeNoTokenBalance;
       ThrowError err
   end
-end
-
-(* @dev: Migrate balance to specified contract - for contract upgrade *)
-transition MigrateZil(recipient: ByStr20)
-  IsOwner _sender;
-  
-  amount <- _balance;
-  SendZil recipient amount
 end
 
 (***************************************************)
