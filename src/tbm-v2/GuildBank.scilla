@@ -367,6 +367,10 @@ procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
             | True => (* insufficient power to execute *)
             | False => 
               ExecuteBankTx bank_tx;
+
+              none_pending_tx = None {PendingTx};
+              pending_tx := none_pending_tx;
+
               e = {_eventname: "TxExecuted"; pending_tx: current_pending_tx };
               event e
           end

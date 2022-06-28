@@ -170,4 +170,30 @@ async function deployGuildBank({
     value: "New withdraw request",
   }], 0, false, false)
   console.log("initiate withdraw tx", txInitiateWithdrawTx.id)
+
+  const txInitiateUpdateGuildSettings = await callContract(privateKey, bankContract, "InitiateTx", [{
+    vname: "tx_params",
+    type: `${bankAddress}.TxParams`,
+    value: {
+      constructor: `${bankAddress}.UpdateConfigTxParams`,
+      argtypes: [],
+      arguments: [{
+        constructor: `${bankAddress}.GuildBankSettings`,
+        argtypes: [],
+        arguments: [
+          new BigNumber(1).shiftedBy(12).toString(10),
+          new BigNumber(1).shiftedBy(12).toString(10), {
+            constructor: `${bankAddress}.CaptainAndTwoOfficers`,
+            argtypes: [],
+            arguments: [],
+          },
+        ],
+      }],
+    },
+  }, {
+    vname: "message",
+    type: "String",
+    value: "Change control mode to Captain + two Officers",
+  }], 0, false, false)
+  console.log("initiate update settings tx", txInitiateUpdateGuildSettings.id)
 })().catch(console.error).finally(() => process.exit(0));
