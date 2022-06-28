@@ -31,7 +31,7 @@ type TxParams =
       field allowances : Map ByStr20 (Map ByStr20 Uint128)
     end
     Uint128
-  | DepositHiveTxParams of Uint128 Uint128 Uint128 (* min contribution, max token amount, deadline blocks offset *)
+  | DepositHiveTxParams of Uint128 Uint128 Uint32 (* min contribution, max token amount, deadline blocks offset *)
 
 type BankTx =
   | BankTx of String ByStr20 TxParams (* message, initiator, params *)
@@ -279,7 +279,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
               ThrowError err
           end
 
-        | DepositHiveTxParams min_contribution max_token_amount deadline_block =>
+        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset =>
       end
   end
 end
@@ -374,17 +374,20 @@ procedure Withdraw(recipient: ByStr20, token: ByStr20, amount: Uint128)
 end
 
 (* multi-sig authenticated operation *)
-procedure DepositHive()
-  (* msg_to_token = {
+procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, deadline_block_offset: Uint32)
+  current_block_number <- & BLOCKNUMBER;
+  deadline_block = builtin badd current_block_number deadline_block_offset;
+  hive_address <- hive;
+  msg_to_hive = {
     _tag: "AddLiquidity";
-    _recipient: hive;
+    _recipient: hive_address;
     _amount: zero;
-    min_contribution_amount,
-    max_token_amount,
-    deadline_block,
+    min_contribution_amount: min_contribution;
+    max_token_amount: max_token_amount;
+    deadline_block: deadline_block
   };
-  msgs = one_msg msg_to_token;
-  send msgs; *)
+  msgs = one_msg msg_to_hive;
+  send msgs;
 
   e = {_eventname: "HiveDepositComplete" };
   event e
@@ -397,7 +400,8 @@ procedure ExecuteBankTx(bank_tx: BankTx)
       match tx_params with
         | UpdateConfigTxParams new_settings => UpdateGuildSettings new_settings
         | WithdrawTxParams recipient token amount => Withdraw recipient token amount
-        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => DepositHive
+        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => 
+          DepositHive min_contribution max_token_amount deadline_block_offset
       end
    end
 end
