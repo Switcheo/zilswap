@@ -25,8 +25,14 @@ type GuildBankSettings =
 
 type TxParams =
   | UpdateConfigTxParams of GuildBankSettings
-  | WithdrawTxParams of ByStr20 ByStr20 Uint128 (* recipient, token, amount *)
-  | DepositHiveTxParams of ByStr20 Uint128 (* recipient, amount *)
+  | WithdrawTxParams of (* recipient, token, amount *)
+    ByStr20
+    ByStr20 with contract 
+      field balances : Map ByStr20 Uint128,
+      field allowances : Map ByStr20 (Map ByStr20 Uint128)
+    end
+    Uint128
+  | DepositHiveTxParams of Uint128 Uint128 Uint128 (* min contribution, max token amount, deadline blocks offset *)
 
 type BankTx =
   | BankTx of String ByStr20 TxParams (* message, initiator, params *)
@@ -44,16 +50,21 @@ type Error =
   | CodePendingOwnerNotEmpty
   | CodePendingTxDoesNotExist
   | CodePendingTxExists
+  | CodeInvalidTxInsufficientBalance
 
 let make_error =
   fun (result : Error) =>
     let result_code =
       match result with
-      | CodeNotOwner                => Int32 -1
-      | CodeNotPendingOwner         => Int32 -2
-      | CodePendingOwnerNotEmpty    => Int32 -3
-      | CodePendingTxDoesNotExist   => Int32 -4
-      | CodePendingTxExists         => Int32 -5
+      | CodeNotOwner                        => Int32 -1
+      | CodeNotPendingOwner                 => Int32 -2
+      | CodePendingOwnerNotEmpty            => Int32 -3
+      | CodePendingTxDoesNotExist           => Int32 -4
+      | CodePendingTxExists                 => Int32 -5
+      
+      (* CodeInvalidTxInsufficientBalance is also thrown when withdraw tx token address *)
+      (* is not a valid ZRC2 token contract address *)
+      | CodeInvalidTxInsufficientBalance    => Int32 -6
       end
     in
     { _exception : "Error"; code : result_code }
@@ -163,8 +174,10 @@ let add_tx_signer =
 
 contract GuildBank(
   initial_owner: ByStr20,
-  hive: ByStr20,
-  huny_token: ByStr20,
+  initial_hive: ByStr20,
+  huny_token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128
+  end,
   initial_joining_fee: Uint128,
   initial_weekly_tax: Uint128,
   initial_control_mode_power: Uint32,
@@ -173,6 +186,8 @@ contract GuildBank(
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
+
+field hive : ByStr20 = initial_hive
 
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
@@ -226,6 +241,33 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
+procedure IsValidBankTx(bank_tx: BankTx)
+  match bank_tx with
+    | BankTx message initiator params =>
+      match params with
+        | UpdateConfigTxParams new_settings =>
+
+        | WithdrawTxParams recipient token amount =>
+          maybe_token_balance <- & token.balances[_this_address];
+          match maybe_token_balance with
+            | Some token_balance =>
+              maybe_insufficient_balance = builtin lt token_balance amount;
+              match maybe_insufficient_balance with
+                | False => (* no-op - balance is sufficient *)
+                | True =>
+                  err = CodeInvalidTxInsufficientBalance;
+                  ThrowError err
+              end
+            | None =>
+              err = CodeInvalidTxInsufficientBalance;
+              ThrowError err
+          end
+
+        | DepositHiveTxParams min_contribution max_token_amount deadline_block =>
+      end
+  end
+end
+
 procedure IsNotPendingTx()
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
@@ -233,17 +275,23 @@ procedure IsNotPendingTx()
       err = CodePendingTxExists;
       ThrowError err
     | None =>
-   end
+  end
 end
 
-procedure IsPendingTx()
+(* Validates BankTx params of the current PendingTx *)
+(* throws if there is no PendingTx *)
+(* throws conditions of PendingTx is not met  *)
+procedure IsValidPendingTx()
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
     | Some current_pending_tx =>
+      match current_pending_tx with
+        | PendingTx bank_tx signers => IsValidBankTx bank_tx
+      end
     | None =>
       err = CodePendingTxDoesNotExist;
       ThrowError err
-   end
+  end
 end
 
 (* multi-sig authenticated operation *)
@@ -252,18 +300,44 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
     | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
       joining_fee := new_joining_fee;
       weekly_tax := new_weekly_tax;
-      control_mode := new_control_mode
+      control_mode := new_control_mode;
+
+      e = {_eventname: "BankSettingsUpdated"; settings: settings };
+      event e
   end
 end
 
 (* multi-sig authenticated operation *)
 procedure Withdraw(recipient: ByStr20, token: ByStr20, amount: Uint128)
-  
+  msg_to_token = {
+    _tag: "Transfer";
+    _recipient: token;
+    _amount: zero;
+    to: recipient;
+    amount: amount
+  };
+  msgs = one_msg msg_to_token;
+  send msgs;
+
+  e = {_eventname: "WithdrawComplete" };
+  event e
 end
 
 (* multi-sig authenticated operation *)
-procedure DepositHive(recipient: ByStr20, amount: Uint128)
-  
+procedure DepositHive()
+  (* msg_to_token = {
+    _tag: "AddLiquidity";
+    _recipient: hive;
+    _amount: zero;
+    min_contribution_amount,
+    max_token_amount,
+    deadline_block,
+  };
+  msgs = one_msg msg_to_token;
+  send msgs; *)
+
+  e = {_eventname: "HiveDepositComplete" };
+  event e
 end
 
 
@@ -273,7 +347,7 @@ procedure ExecuteBankTx(bank_tx: BankTx)
       match tx_params with
         | UpdateConfigTxParams new_settings => UpdateGuildSettings new_settings
         | WithdrawTxParams recipient token amount => Withdraw recipient token amount
-        | DepositHiveTxParams recipient amount => DepositHive recipient amount
+        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => DepositHive
       end
    end
 end
@@ -291,7 +365,10 @@ procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
           maybe_insufficient_power = builtin lt current_power required_power;
           match maybe_insufficient_power with
             | True => (* insufficient power to execute *)
-            | False => ExecuteBankTx bank_tx
+            | False => 
+              ExecuteBankTx bank_tx;
+              e = {_eventname: "TxExecuted"; pending_tx: current_pending_tx };
+              event e
           end
         | None => (* impossible *)
        end
@@ -299,7 +376,7 @@ procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
 end
 
 procedure SignPendingTx(signer: ByStr20)
-  IsPendingTx;
+  IsValidPendingTx;
 
   maybe_tx <- pending_tx;
   match maybe_tx with
@@ -316,27 +393,20 @@ procedure SignPendingTx(signer: ByStr20)
    end
 end
 
-(* 
-procedure IsEmporium(address: ByStr20)
-  is_emporium = builtin eq emporium address;
-  match is_emporium with
-  | True =>
-  | False =>
-    err = CodeNotEmporium;
-    ThrowError err
-  end
-end *)
-
 (***************************************)
 (*             Transitions             *)
 (***************************************)
 
 (* @dev: Initiate a generic multisig transaction (depends on configuration *)
 (* could resolve immediately if in single-signature mode) *)
-transition InitiateTx(tx: BankTx)
+transition InitiateTx(tx_params: TxParams, message: String)
   IsNotPendingTx;
 
-  new_pending_tx = create_pending_tx tx;
+  bank_tx = BankTx message _sender tx_params; 
+
+  IsValidBankTx bank_tx;
+
+  new_pending_tx = create_pending_tx bank_tx;
   p = Some {PendingTx} new_pending_tx;
   pending_tx := p;
 
@@ -344,6 +414,15 @@ transition InitiateTx(tx: BankTx)
   event e;
 
   SignPendingTx _sender
+end
+
+(* @dev: Cancels a pending multisig transaction. *)
+transition CancelTx()
+  IsOwner _sender;
+  IsValidPendingTx;
+
+  no_pending_tx = None {PendingTx};
+  pending_tx := no_pending_tx
 end
 
 (* @dev: Sign a multisig transaction, resolves and executes if number of *)
@@ -425,5 +504,8 @@ transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, reci
   (* no-op *)
 end
 transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
-  (* no-op - allow sending tokens to stall *)
+  (* no-op - allow sending tokens to bank *)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow withdraw multisign tx *)
 end

@@ -79,7 +79,7 @@ async function deployGuildBank({
       value: `${address}`,
     },
     {
-      vname: 'hive',
+      vname: 'initial_hive',
       type: 'ByStr20',
       value: `${hiveAddress}`,
     },
@@ -101,7 +101,7 @@ async function deployGuildBank({
     {
       vname: 'initial_control_mode_power',
       type: 'Uint32',
-      value: '5',
+      value: '3',
     },
     {
       vname: 'initial_officers',
@@ -119,7 +119,8 @@ async function deployGuildBank({
 (async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  const hunyContract = await deployHuny()
+  const hunyContract = await deployHuny();
+  const hunyAddress = hunyContract.address.toLowerCase();
   const bankContract = await deployGuildBank({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
@@ -139,11 +140,12 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("mint", txMint.id)
 
+  const bankAddress = bankContract.address.toLowerCase();
 
   const txAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
-    value: bankContract.address.toLowerCase(),
+    value: bankAddress,
   }, {
     vname: 'amount',
     type: 'Uint128',
@@ -153,4 +155,19 @@ async function deployGuildBank({
 
   const txPayJoiningFee = await callContract(privateKey, bankContract, "PayJoiningFee", [], 0, false, false)
   console.log("pay joining fee", txPayJoiningFee.id)
+
+  const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
+    vname: "tx_params",
+    type: `${bankAddress}.TxParams`,
+    value: {
+      constructor: `${bankAddress}.WithdrawTxParams`,
+      argtypes: [],
+      arguments: [address, hunyAddress, new BigNumber(1).shiftedBy(12).toString(10)]
+    },
+  }, {
+    vname: "message",
+    type: "String",
+    value: "New withdraw request",
+  }], 0, false, false)
+  console.log("initiate withdraw tx", txInitiateWithdrawTx.id)
 })().catch(console.error).finally(() => process.exit(0));
