@@ -237,4 +237,22 @@ async function deployGuildBank({
     value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
   }], 1, false, false)
   console.log("make donation zil tx", txMakeZilDonation.id)
+
+  const txMigrateZil = await callContract(privateKey, bankContract, "MigrateZil", [{
+    vname: "recipient",
+    type: "ByStr20",
+    value: address,
+  }], 0, false, false)
+  console.log("migrate zil tx", txMigrateZil.id)
+
+  const txMigrateHuny = await callContract(privateKey, bankContract, "MigrateToken", [{
+    vname: "token",
+    type: "ByStr20",
+    value: hunyAddress,
+  }, {
+    vname: "recipient",
+    type: "ByStr20",
+    value: address,
+  }], 0, false, false)
+  console.log("migrate huny tx", txMigrateHuny.id)
 })().catch(console.error).finally(() => process.exit(0));

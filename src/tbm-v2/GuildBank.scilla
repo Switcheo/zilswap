@@ -53,6 +53,7 @@ type Error =
   | CodePendingTxExists
   | CodeInvalidTxInsufficientBalance
   | CodeAmountRecievedMismatch
+  | CodeNoTokenBalance
 
 let make_error =
   fun (result : Error) =>
@@ -67,6 +68,7 @@ let make_error =
       (* is not a valid ZRC2 token contract address *)
       | CodeInvalidTxInsufficientBalance    => Int32 -6
       | CodeAmountRecievedMismatch          => Int32 -7
+      | CodeNoTokenBalance                  => Int32 -8
       end
     in
     { _exception : "Error"; code : result_code }
@@ -200,6 +202,8 @@ field weekly_tax : Uint128 = initial_weekly_tax
 field members : List ByStr20 = Nil {ByStr20}
 field officers : List ByStr20 = initial_officers
 
+field token_balances : List ByStr20 = Nil {ByStr20}
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)
@@ -296,7 +300,7 @@ procedure IsValidPendingTx()
   end
 end
 
-procedure CheckAndReceiveZil(amount: Uint128)
+procedure ReceiveZil(amount: Uint128)
   maybe_match_amount = builtin eq amount _amount;
   match maybe_match_amount with
     | True =>
@@ -305,6 +309,37 @@ procedure CheckAndReceiveZil(amount: Uint128)
       err = CodeAmountRecievedMismatch;
       ThrowError err
   end
+end
+
+procedure SendZil(recipient: ByStr20, amount: Uint128)
+  msg = { _tag : "AddFunds"; _recipient: recipient; _amount: amount };
+  msgs = one_msg msg;
+  send msgs
+end
+
+procedure ReceiveToken(from: ByStr20, token: ByStr20, amount: Uint128)
+  msg_to_token = {
+    _tag: "TransferFrom";
+    _recipient: token;
+    _amount: zero;
+    from: from;
+    to: _this_address;
+    amount: amount
+  };
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+procedure SendToken(recipient: ByStr20, token: ByStr20, amount: Uint128)
+  msg_to_token = {
+    _tag: "Transfer";
+    _recipient: token;
+    _amount: zero;
+    to: recipient;
+    amount: amount
+  };
+  msgs = one_msg msg_to_token;
+  send msgs
 end
 
 (* multi-sig authenticated operation *)
@@ -322,15 +357,7 @@ end
 
 (* multi-sig authenticated operation *)
 procedure Withdraw(recipient: ByStr20, token: ByStr20, amount: Uint128)
-  msg_to_token = {
-    _tag: "Transfer";
-    _recipient: token;
-    _amount: zero;
-    to: recipient;
-    amount: amount
-  };
-  msgs = one_msg msg_to_token;
-  send msgs;
+  SendToken recipient token amount;
 
   e = {_eventname: "WithdrawComplete" };
   event e
@@ -464,24 +491,15 @@ transition PayJoiningFee()
   members := new_list;
 
   current_joining_fee <- joining_fee;
-  e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
-  event e;
-
   has_joining_fee = builtin lt zero current_joining_fee;
   match has_joining_fee with
     | False =>
     | True =>
-      msg_to_token = {
-        _tag: "TransferFrom";
-        _recipient: huny_token;
-        _amount: zero;
-        from: _sender;
-        to: _this_address;
-        amount: current_joining_fee
-      };
-      msgs = one_msg msg_to_token;
-      send msgs
-  end
+      ReceiveToken _sender huny_token current_joining_fee
+  end;
+
+  e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
+  event e
 end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
@@ -489,18 +507,9 @@ transition MakeDonation(token: ByStr20, amount: Uint128)
   is_token_zil = builtin eq zil_address token;
   match is_token_zil with
     | True =>
-      CheckAndReceiveZil amount
+      ReceiveZil amount
     | False =>
-      msg_to_token = {
-        _tag: "TransferFrom";
-        _recipient: token;
-        _amount: zero;
-        from: _sender;
-        to: _this_address;
-        amount: amount
-      };
-      msgs = one_msg msg_to_token;
-      send msgs
+      ReceiveToken _sender token amount
   end;
 
   e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount };
@@ -512,7 +521,30 @@ transition CollectTax(params: List TaxParam)
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
-transition Migrate()
+transition MigrateToken(
+  token: ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  recipient: ByStr20
+)
+  IsOwner _sender;
+
+  maybe_token_balance <- & token.balances[_this_address];
+  match maybe_token_balance with
+    | Some token_balance =>
+      SendToken recipient token token_balance
+    | None =>
+      err = CodeNoTokenBalance;
+      ThrowError err
+  end
+end
+
+(* @dev: Migrate balance to specified contract - for contract upgrade *)
+transition MigrateZil(recipient: ByStr20)
+  IsOwner _sender;
+  
+  amount <- _balance;
+  SendZil recipient amount
 end
 
 (***************************************************)
