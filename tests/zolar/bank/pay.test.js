@@ -1,6 +1,6 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const { ZERO_ADDRESS, getPrivateKey, deployHuny, deployGuildBank } = require('../../../scripts/zolar/bank/deploy.js');
+const { ZERO_ADDRESS, ONE_HUNY, getPrivateKey, deployHuny, deployGuildBank } = require('../../../scripts/zolar/bank/deploy.js');
 const {callContract} = require('../../../scripts/call.js')
 
 let privateKey, address, hunyContract, bankContract
@@ -11,13 +11,13 @@ beforeAll(async () => {
   hunyContract = await deployHuny()
   bankContract = await deployGuildBank({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address })
 
-  const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
+  await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
     value: address,
   }], 0, false, false);
 
-  const txMint = await callContract(privateKey, hunyContract, "Mint", [{
+  await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
     type: 'ByStr20',
     value: address,
@@ -26,10 +26,8 @@ beforeAll(async () => {
     type: 'Uint128',
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
-})
 
-test('increase allowance', async () => {
-  const txAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
+  await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
     value: bankContract.address.toLowerCase(),
@@ -38,9 +36,6 @@ test('increase allowance', async () => {
     type: 'Uint128',
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
-  
-  expect(txAllowance.status).toEqual(2)
-  expect(txAllowance.receipt.success).toEqual(true)
 })
 
 test('pay joining fee', async () => {
@@ -60,8 +55,8 @@ test('pay joining fee', async () => {
   const memberBalanceAfterTx = parseInt(stateAfterTx.balances[address])
   const memberPaid = memberBalanceBeforeTx - memberBalanceAfterTx
   
-  expect(bankReceive.toString()).toEqual('1000000000000')
-  expect(memberPaid.toString()).toEqual('1000000000000')
+  expect(bankReceive.toString()).toEqual(ONE_HUNY.toString(10))
+  expect(memberPaid.toString()).toEqual(ONE_HUNY.toString(10))
 })
 
 
