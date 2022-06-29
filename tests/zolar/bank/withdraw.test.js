@@ -3,13 +3,15 @@ const { default: BigNumber } = require("bignumber.js");
 const { ZERO_ADDRESS, ONE_HUNY, getPrivateKey, deployHuny, deployGuildBank } = require('../../../scripts/zolar/bank/deploy.js');
 const {callContract} = require('../../../scripts/call.js')
 
-let privateKey, address, hunyContract, bankContract
+let privateKey, address, hunyContract, bankContract, hunyAddress, bankAddress
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
   hunyContract = await deployHuny()
   bankContract = await deployGuildBank({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address })
+  hunyAddress = hunyContract.address.toLowerCase()
+  bankAddress = bankContract.address.toLowerCase()
 
   await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
@@ -40,9 +42,7 @@ beforeAll(async () => {
   await callContract(privateKey, bankContract, "PayJoiningFee", [], 0, false, false)
 })
 
-test('initiate withdrawal after new member paid joining fee', async () => {
-  const hunyAddress = hunyContract.address.toLowerCase()
-  const bankAddress = bankContract.address.toLowerCase()
+test('initiate withdrawal tx after new member paid joining fee', async () => {
   const stateBeforeTx = await hunyContract.getState()
 
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
@@ -75,10 +75,7 @@ test('initiate withdrawal after new member paid joining fee', async () => {
   expect(memberReceive.toString()).toEqual(ONE_HUNY.toString(10))
 })
 
-test('initiate withdrawal with 0 huny in bank', async () => {
-  const hunyAddress = hunyContract.address.toLowerCase()
-  const bankAddress = bankContract.address.toLowerCase()
-
+test('initiate withdrawal tx with insufficient huny in bank', async () => {
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -94,5 +91,6 @@ test('initiate withdrawal with 0 huny in bank', async () => {
   }], 0, false, false)
 
   expect(txInitiateWithdrawTx.status).toEqual(3)
+  expect(txInitiateWithdrawTx.receipt.errors["0"]).toContain(7) // CodeInvalidTxInsufficientBalance
   expect(txInitiateWithdrawTx.receipt.success).toEqual(false)
 })
