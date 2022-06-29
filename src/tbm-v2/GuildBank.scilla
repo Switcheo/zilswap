@@ -10,6 +10,7 @@ library GuildBank
 let true = True
 let false = False
 let zero = Uint128 0
+let uint32_zero = Uint32 0
 let one = Uint128 1
 let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
@@ -41,6 +42,9 @@ type TaxParam =
 
 type PendingTx =
   | PendingTx of BankTx (List ByStr20) (* tx, approvals *)
+
+type MigrateParam = 
+  | MigrateParam of (ByStr20 with contract field balances: Map ByStr20 Uint128 end) ByStr20 (* token contract, recipient *)
 
 (* Error events *)
 type Error =
@@ -88,32 +92,6 @@ let get_amount_or_zero =
     | Some amt => amt
     | None => zero
     end
-(* removed in favour of forall implementation
-let build_tax_msgs = 
-  fun (taxed_list : List TaxParam) => 
-  fun (tax_amount : Uint128) => 
-  fun (huny_token_address : ByStr20) => 
-  fun (recipient : ByStr20) => 
-    let fold = @list_foldl_while TaxParam (List Message) in
-    let fn = 
-      fun (msgs: List Message) => 
-      fun (param: TaxParam) =>
-        match param with
-        | TaxParam member epoch_number =>
-          let msg = { 
-            _tag: "TransferFrom";
-            _recipient: huny_token_address;
-            _amount: zero;
-            from: member;
-            to: recipient;
-            amount: tax_amount
-          } in
-          let new_msgs = Cons {Message} msg msgs in
-          Some {(List Message)} new_msgs
-        end
-    in
-    let empty_msgs = Nil {Message} in
-    fold fn empty_msgs taxed_list *)
 
 let get_control_mode =
   fun (power : Uint32) =>
@@ -146,36 +124,40 @@ let get_power =
     let fn = fun (officer: ByStr20) => builtin eq officer member in
     let maybe_officer = officer_find fn officers in
     match maybe_officer with
-      | Some address => Uint32 1 (* officer has 1 power *)
-      | None =>
-        let maybe_captain = builtin eq captain member in
-        match maybe_captain with
-          | True => Uint32 3 (* captain has 3 power *)
-          | False => Uint32 0 (* member not privileged *)
-        end
-     end
+    | Some address => Uint32 1 (* officer has 1 power *)
+    | None =>
+      let maybe_captain = builtin eq captain member in
+      match maybe_captain with
+      | True => Uint32 3 (* captain has 3 power *)
+      | False => Uint32 0 (* member not privileged *)
+      end
+    end
 
 let get_current_power =
   fun (signers : List ByStr20) =>
   fun (officers : List ByStr20) =>
   fun (captain : ByStr20) =>
-    let fold = @list_foldl_while ByStr20 Uint32 in
+    let fold = @list_foldl ByStr20 Uint32 in
     let fn = 
       fun (power: Uint32) => 
       fun (signer: ByStr20) =>
         let signer_power = get_power officers captain signer in
-        let new_power = builtin add signer_power power in
-        Some {Uint32} new_power
+        builtin add signer_power power
     in
     let uint32_zero = Uint32 0 in
     fold fn uint32_zero signers
+
+let get_first_addr = 
+  fun (addr_list : List ByStr20) =>
+    let fn = @list_head ByStr20 in
+    fn addr_list
 
 let create_pending_tx = 
   fun (tx : BankTx) => 
     let empty_list = Nil {ByStr20} in
     PendingTx tx empty_list
 
-let add_tx_signer = 
+let insert_tx_signer = 
   fun (tx : PendingTx) => 
   fun (signer : ByStr20) =>
     match tx with
@@ -183,6 +165,34 @@ let add_tx_signer =
       let new_signers = Cons {ByStr20} signer signers in
       PendingTx bank_tx new_signers
     end
+
+let list_append_recipient =
+  fun (token_list : List (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) => 
+  fun (recipient : ByStr20) =>
+  let fold = @list_foldl (ByStr20 with contract field balances: Map ByStr20 Uint128 end) (List MigrateParam) in
+  let fn = 
+    fun (result_list: List MigrateParam) => 
+    fun (token: (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) =>
+      let new_item = MigrateParam token recipient in
+      Cons {MigrateParam} new_item result_list
+  in
+  let empty_list = Nil {MigrateParam} in
+  fold fn empty_list token_list
+
+let map_to_list =
+  fun (tokens_held : Map ByStr20 Bool) => 
+  let fold = @list_foldl (Pair ByStr20 Bool) (List ByStr20) in
+  let fn = 
+    fun (result_list: List ByStr20) => 
+    fun (token_pair: Pair ByStr20 Bool) =>
+      match token_pair with
+        | Pair token _ =>
+          Cons {ByStr20} token result_list
+      end
+  in
+  let token_list = builtin to_list tokens_held in
+  let empty_list = Nil {ByStr20} in
+  fold fn empty_list token_list
 
 (***************************************************)
 (*             The contract definition             *)
@@ -214,8 +224,8 @@ field weekly_tax : Uint128 = initial_weekly_tax
 field members : List ByStr20 = Nil {ByStr20}
 field officers : List ByStr20 = initial_officers
 
-field token_balances : List ByStr20 = Nil {ByStr20}
-field tax_collected: Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
+field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
+field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
 (**************************************)
 (*             Procedures             *)
@@ -272,48 +282,48 @@ end
 
 procedure IsValidBankTx(bank_tx: BankTx)
   match bank_tx with
-    | BankTx message initiator params =>
-      match params with
-        | UpdateConfigTxParams new_settings =>
+  | BankTx message initiator params =>
+    match params with
+    | UpdateConfigTxParams new_settings =>
 
-        | WithdrawTxParams recipient token amount =>
-          maybe_token_balance <- & token.balances[_this_address];
-          match maybe_token_balance with
-            | Some token_balance =>
-              maybe_insufficient_balance = builtin lt token_balance amount;
-              match maybe_insufficient_balance with
-                | False => (* no-op - balance is sufficient *)
-                | True =>
-                  err = CodeInvalidTxInsufficientBalance;
-                  ThrowError err
-              end
-            | None =>
-              err = CodeInvalidTxInsufficientBalance;
-              ThrowError err
-          end
-
-        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset =>
+    | WithdrawTxParams recipient token amount =>
+      maybe_token_balance <- & token.balances[_this_address];
+      match maybe_token_balance with
+      | Some token_balance =>
+        maybe_insufficient_balance = builtin lt token_balance amount;
+        match maybe_insufficient_balance with
+        | False => (* no-op - balance is sufficient *)
+        | True =>
+          err = CodeInvalidTxInsufficientBalance;
+          ThrowError err
+        end
+      | None =>
+        err = CodeInvalidTxInsufficientBalance;
+        ThrowError err
       end
+
+    | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset =>
+    end
   end
 end
 
 procedure IsNotPendingTx()
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
-    | Some current_pending_tx =>
-      err = CodePendingTxExists;
-      ThrowError err
-    | None =>
+  | Some current_pending_tx =>
+    err = CodePendingTxExists;
+    ThrowError err
+  | None =>
   end
 end
 
 procedure IsTaxable(member: ByStr20, epoch_number: Uint32)
   maybe_taxed <- tax_collected[epoch_number][member];
   match maybe_taxed with
-    | None =>
-    | Some tax_amount =>
-      err = CodeAlreadyTaxed;
-      ThrowError err
+  | None =>
+  | Some tax_amount =>
+    err = CodeAlreadyTaxed;
+    ThrowError err
   end
 end
 
@@ -323,30 +333,41 @@ end
 procedure IsValidPendingTx()
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
-    | Some current_pending_tx =>
-      match current_pending_tx with
-        | PendingTx bank_tx signers => IsValidBankTx bank_tx
-      end
-    | None =>
-      err = CodePendingTxDoesNotExist;
-      ThrowError err
+  | Some current_pending_tx =>
+    match current_pending_tx with
+    | PendingTx bank_tx signers => IsValidBankTx bank_tx
+    end
+  | None =>
+    err = CodePendingTxDoesNotExist;
+    ThrowError err
   end
 end
 
 procedure ReceiveZil(amount: Uint128)
   maybe_match_amount = builtin eq amount _amount;
   match maybe_match_amount with
-    | True =>
-      accept
-    | False =>
-      err = CodeAmountRecievedMismatch;
-      ThrowError err
+  | True =>
+    accept
+  | False =>
+    err = CodeAmountRecievedMismatch;
+    ThrowError err
   end
 end
 
 procedure SendZil(recipient: ByStr20, amount: Uint128)
   msg = { _tag : "AddFunds"; _recipient: recipient; _amount: amount };
   msgs = one_msg msg;
+  send msgs
+end
+
+procedure SendUpdateTokenBalance(token: ByStr20)
+  msg_to_self = {
+    _tag: "UpdateTokenBalance";
+    _recipient: _this_address;
+    _amount: zero;
+    token: token
+  };
+  msgs = one_msg msg_to_self;
   send msgs
 end
 
@@ -360,7 +381,9 @@ procedure ReceiveToken(from: ByStr20, token: ByStr20, amount: Uint128)
     amount: amount
   };
   msgs = one_msg msg_to_token;
-  send msgs
+  send msgs;
+
+  SendUpdateTokenBalance token
 end
 
 procedure SendToken(recipient: ByStr20, token: ByStr20, amount: Uint128)
@@ -372,19 +395,21 @@ procedure SendToken(recipient: ByStr20, token: ByStr20, amount: Uint128)
     amount: amount
   };
   msgs = one_msg msg_to_token;
-  send msgs
+  send msgs;
+
+  SendUpdateTokenBalance token
 end
 
 (* multi-sig authenticated operation *)
 procedure UpdateGuildSettings(settings: GuildBankSettings)
   match settings with
-    | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
-      joining_fee := new_joining_fee;
-      weekly_tax := new_weekly_tax;
-      control_mode := new_control_mode;
+  | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+    joining_fee := new_joining_fee;
+    weekly_tax := new_weekly_tax;
+    control_mode := new_control_mode;
 
-      e = {_eventname: "BankSettingsUpdated"; settings: settings };
-      event e
+    e = {_eventname: "BankSettingsUpdated"; settings: settings };
+    event e
   end
 end
 
@@ -419,40 +444,40 @@ end
 
 procedure ExecuteBankTx(bank_tx: BankTx)
   match bank_tx with
-    | BankTx message initiator tx_params => 
-      match tx_params with
-        | UpdateConfigTxParams new_settings => UpdateGuildSettings new_settings
-        | WithdrawTxParams recipient token amount => Withdraw recipient token amount
-        | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => 
-          DepositHive min_contribution max_token_amount deadline_block_offset
-      end
-   end
+  | BankTx message initiator tx_params => 
+    match tx_params with
+    | UpdateConfigTxParams new_settings => UpdateGuildSettings new_settings
+    | WithdrawTxParams recipient token amount => Withdraw recipient token amount
+    | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => 
+      DepositHive min_contribution max_token_amount deadline_block_offset
+    end
+  end
 end
 
 procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
   current_control_mode <- control_mode;
   required_power = get_required_power current_control_mode;
   match current_pending_tx with
-    | PendingTx bank_tx signers =>
-      current_officers <- officers;
-      maybe_owner <- contract_owner;
-      match maybe_owner with
-        | Some current_captain =>
-          current_power = get_current_power signers current_officers current_captain;
-          maybe_insufficient_power = builtin lt current_power required_power;
-          match maybe_insufficient_power with
-            | True => (* insufficient power to execute *)
-            | False => 
-              ExecuteBankTx bank_tx;
+  | PendingTx bank_tx signers =>
+    current_officers <- officers;
+    maybe_owner <- contract_owner;
+    match maybe_owner with
+    | Some current_captain =>
+      current_power = get_current_power signers current_officers current_captain;
+      maybe_insufficient_power = builtin lt current_power required_power;
+      match maybe_insufficient_power with
+      | True => (* insufficient power to execute *)
+      | False => 
+        ExecuteBankTx bank_tx;
 
-              none_pending_tx = None {PendingTx};
-              pending_tx := none_pending_tx;
+        none_pending_tx = None {PendingTx};
+        pending_tx := none_pending_tx;
 
-              e = {_eventname: "TxExecuted"; pending_tx: current_pending_tx };
-              event e
-          end
-        | None => (* impossible *)
-       end
+        e = {_eventname: "TxExecuted"; pending_tx: current_pending_tx };
+        event e
+      end
+    | None => (* impossible *)
+    end
    end
 end
 
@@ -461,32 +486,45 @@ procedure SignPendingTx(signer: ByStr20)
 
   maybe_tx <- pending_tx;
   match maybe_tx with
-    | Some tx =>
-      new_pending_tx = add_tx_signer tx signer;
-      p = Some {PendingTx} new_pending_tx;
-      pending_tx := p;
-      
-      e = {_eventname: "TxSigned"; signer: _sender; pending_tx: new_pending_tx };
-      event e;
-      
-      CheckConcludePendingTx new_pending_tx
-    | None => (* not possible *)
+  | Some tx =>
+    new_pending_tx = insert_tx_signer tx signer;
+    p = Some {PendingTx} new_pending_tx;
+    pending_tx := p;
+    
+    e = {_eventname: "TxSigned"; signer: _sender; pending_tx: new_pending_tx };
+    event e;
+    
+    CheckConcludePendingTx new_pending_tx
+  | None => (* not possible *)
    end
 end
 
 procedure ReceiveTax(param: TaxParam)
   tax_amount <- weekly_tax;
   match param with
-    | TaxParam member epoch_number =>
-      IsTaxable member epoch_number;
-      ReceiveToken member huny_token tax_amount;
+  | TaxParam member epoch_number =>
+    IsTaxable member epoch_number;
+    ReceiveToken member huny_token tax_amount;
 
-      tax_collected[epoch_number][member] := tax_amount;
+    tax_collected[epoch_number][member] := tax_amount;
 
-      e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
-      event e
+    e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
+    event e
   end
 end
+
+procedure MigrateToken(param: MigrateParam)
+  match param with
+  | MigrateParam token recipient =>
+    maybe_token_balance <- & token.balances[_this_address];
+    match maybe_token_balance with
+    | Some token_balance =>
+      SendToken recipient token token_balance
+    | None => (* no-op - should not happen *)
+    end
+  end
+end
+
 
 (***************************************)
 (*             Transitions             *)
@@ -516,16 +554,16 @@ transition CancelTx()
 
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
-    | Some cancelled_pending_tx =>
-      no_pending_tx = None {PendingTx};
-      pending_tx := no_pending_tx;
+  | Some cancelled_pending_tx =>
+    no_pending_tx = None {PendingTx};
+    pending_tx := no_pending_tx;
 
-      e = {_eventname: "TxCancelled"; initiator: _sender; pending_tx: cancelled_pending_tx };
-      event e
-    | None =>
-      err = CodePendingTxDoesNotExist;
-      ThrowError err
-   end
+    e = {_eventname: "TxCancelled"; initiator: _sender; pending_tx: cancelled_pending_tx };
+    event e
+  | None =>
+    err = CodePendingTxDoesNotExist;
+    ThrowError err
+  end
   
 end
 
@@ -544,9 +582,9 @@ transition PayJoiningFee()
   current_joining_fee <- joining_fee;
   has_joining_fee = builtin lt zero current_joining_fee;
   match has_joining_fee with
-    | False =>
-    | True =>
-      ReceiveToken _sender huny_token current_joining_fee
+  | False =>
+  | True =>
+    ReceiveToken _sender huny_token current_joining_fee
   end;
 
   e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
@@ -557,10 +595,10 @@ end
 transition MakeDonation(token: ByStr20, amount: Uint128)
   is_token_zil = builtin eq zero_address token;
   match is_token_zil with
-    | True =>
-      ReceiveZil amount
-    | False =>
-      ReceiveToken _sender token amount
+  | True =>
+    ReceiveZil amount
+  | False =>
+    ReceiveToken _sender token amount
   end;
 
   e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount };
@@ -573,31 +611,53 @@ transition CollectTax(params: List TaxParam)
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
-transition Migrate(recipient: ByStr20, token: ByStr20)
+transition Migrate(recipient: ByStr20)
   IsOwner _sender;
 
-  is_token_zil = builtin eq zero_address token;
-  match is_token_zil with
-    | True =>
-      amount <- _balance;
-      SendZil recipient amount
-    | False =>
-      msg_to_self = {
-        _tag: "MigrateToken";
-        _recipient: _this_address;
-        _amount: zero;
-        recipient: recipient;
-        token: token
-      };
-      msgs = one_msg msg_to_self;
-      send msgs
+  zil_balance <- _balance;
+  has_no_zil_balance = builtin eq zil_balance zero;
+  match has_no_zil_balance with
+  | True =>
+  | False =>
+    SendZil recipient zil_balance
+  end;
+
+  current_tokens_held <- tokens_held;
+  token_list = map_to_list current_tokens_held;
+
+  some_token_item = get_first_addr token_list;
+  match some_token_item with
+  | None => (* no-op *)
+  | Some _ =>
+    msg_to_self = {
+      _tag: "MigrateTokens";
+      _recipient: _this_address;
+      _amount: zero;
+      recipient: recipient;
+      token_list: token_list
+    };
+    msgs = one_msg msg_to_self;
+    send msgs
   end
 end
 
 (* @dev: Migrate token balance to specified contract *)
 (* @dev: Only called by self, address cast workaround *)
-transition MigrateToken(
+transition MigrateTokens(
   recipient: ByStr20,
+  token_list: List (ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end)
+)
+  IsSelf _sender;
+
+  token_and_recipient_list = list_append_recipient token_list recipient;
+  forall token_and_recipient_list MigrateToken
+end
+
+(* @dev: Update tokens_held map *)
+(* @dev: Only called by self, address cast workaround *)
+transition UpdateTokenBalance(
   token: ByStr20 with contract
     field balances: Map ByStr20 Uint128
   end
@@ -606,25 +666,41 @@ transition MigrateToken(
 
   maybe_token_balance <- & token.balances[_this_address];
   match maybe_token_balance with
-    | Some token_balance =>
-      SendToken recipient token token_balance
-    | None =>
-      err = CodeNoTokenBalance;
-      ThrowError err
+  | Some token_balance =>
+    is_zero_balance = builtin eq token_balance zero;
+    match is_zero_balance with
+    | True => delete tokens_held[token]
+    | False => tokens_held[token] := true
+    end
+  | None => delete tokens_held[token]
   end
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
 (* works on v8.1.0 (testnet, mainnet) but not v8.0.4 (ceres local) *)
-(* transition Migrate(recipient: ByStr20, token: ByStr20)
+(* transition Migrate(recipient: ByStr20)
   IsOwner _sender;
 
-  is_token_zil = builtin eq zero_address token;
-  match is_token_zil with
+  zil_balance <- _balance;
+  has_no_zil_balance = builtin eq zil_balance zero;
+  match has_no_zil_balance with
   | True =>
-    amount <- _balance;
-    SendZil recipient amount
   | False =>
+    SendZil recipient zil_balance
+  end;
+
+
+  current_tokens_held <- tokens_held;
+  token_list = map_to_list current_tokens_held;
+
+  some_token_item = get_first_addr token_list;
+  match some_token_item with
+  | None =>
+  | Some _ =>
+    token_and_recipient_list = list_append_recipient token_list recipient;
+    forall token_and_recipient_list MigrateToken
+
+    // MigrateToken
     maybe_token_contract <- & token as ByStr20 with contract
       field balances: Map ByStr20 Uint128
     end;
@@ -635,12 +711,8 @@ end
       | Some token_balance =>
         SendToken recipient token token_balance
       | None =>
-        err = CodeNoTokenBalance;
-        ThrowError err
       end
     | None =>
-      err = CodeInvalidTokenContract;
-      ThrowError err
     end
   end
 end *)

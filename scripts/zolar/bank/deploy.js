@@ -257,10 +257,6 @@ async function deployGuildBank({
     vname: "recipient",
     type: "ByStr20",
     value: address,
-  }, {
-    vname: "token",
-    type: "ByStr20",
-    value: ZERO_ADDRESS,
   }], 0, false, false)
   console.log("migrate zil tx", txMigrateZil.id)
 
@@ -268,10 +264,6 @@ async function deployGuildBank({
     vname: "recipient",
     type: "ByStr20",
     value: address,
-  }, {
-    vname: "token",
-    type: "ByStr20",
-    value: hunyAddress,
   }], 0, false, false)
   console.log("migrate huny tx", txMigrateHuny.id)
 })().catch(console.error).finally(() => process.exit(0));
