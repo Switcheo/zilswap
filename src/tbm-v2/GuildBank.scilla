@@ -11,6 +11,7 @@ let true = True
 let false = False
 let zero = Uint128 0
 let one = Uint128 1
+let thousand = Uint128 1000
 let uint32_zero = Uint32 0
 let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
@@ -56,6 +57,9 @@ type PendingTx =
 
 type MigrateParam = 
   | MigrateParam of (ByStr20 with contract field balances: Map ByStr20 Uint128 end) ByStr20 (* token contract, recipient *)
+
+type SendTokenParam = 
+  | SendTokenParam of ByStr20 (ByStr20 with contract field balances : Map ByStr20 Uint128 end) Uint128 (* recipient, token contract, amount *)
 
 (* Error events *)
 type Error =
@@ -165,6 +169,12 @@ let get_fee_amount =
         builtin add initial_amount inflation_amount
       end
     end
+
+let get_amount_portion = 
+  fun (amount : Uint128) =>
+  fun (portion_bps : Uint128) =>
+    let product = builtin mul amount portion_bps in
+    builtin div product thousand
   
 let get_control_mode =
   fun (power : Uint32) =>
@@ -653,24 +663,21 @@ procedure ReceiveToken(
   UpdateTokenBalance token
 end
 
-procedure SendToken(
-  recipient: ByStr20,
-  token: ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end, 
-  amount: Uint128
-)
-  msg_to_token = {
-    _tag: "Transfer";
-    _recipient: token;
-    _amount: zero;
-    to: recipient;
-    amount: amount
-  };
-  msgs = one_msg msg_to_token;
-  send msgs;
+procedure SendToken(params: SendTokenParam)
+  match params with
+  | SendTokenParam recipient token amount =>
+    msg_to_token = {
+      _tag: "Transfer";
+      _recipient: token;
+      _amount: zero;
+      to: recipient;
+      amount: amount
+    };
+    msgs = one_msg msg_to_token;
+    send msgs;
 
-  UpdateTokenBalance token
+    UpdateTokenBalance token
+  end
 end
 
 (* multi-sig authenticated operation *)
@@ -694,7 +701,8 @@ procedure Withdraw(
   end, 
   amount: Uint128
 )
-  SendToken recipient token amount;
+  params = SendTokenParam recipient token amount;
+  SendToken params;
 
   e = {_eventname: "WithdrawComplete" };
   event e
@@ -797,6 +805,38 @@ procedure ResetPendingTx()
   end
 end
 
+procedure PayoutManagementFee(
+  fee: Fee,
+  gross_amount: Uint128,
+  token: ByStr20 with contract field balances: Map ByStr20 Uint128 end
+)
+  (* payout to captain and officers according to allocation *)
+  match fee with
+  | Fee _ _ _ allocation =>
+    match allocation with
+    | FeeAllocation captain_bps officer_bps =>
+      current_officers <- officers;
+      officer_list = map_to_list current_officers;
+
+      officer_amount = get_amount_portion gross_amount officer_bps;
+      map_send_params = @list_map ByStr20 SendTokenParam;
+      fn = fun (officer: ByStr20) => SendTokenParam officer token officer_amount;
+      param_list = map_send_params fn officer_list;
+      forall param_list SendToken;
+
+      maybe_captain <- contract_owner;
+      match maybe_captain with
+      | Some captain =>
+        captain_amount = get_amount_portion gross_amount captain_bps;
+        params = SendTokenParam captain token captain_amount;
+        SendToken params
+      | None =>
+      end
+    end
+  end
+end
+
+
 procedure ReceiveTax(param: TaxParam)
   current_tax <- weekly_tax;
   match param with
@@ -810,7 +850,9 @@ procedure ReceiveTax(param: TaxParam)
     tax_collected[epoch_number][member] := tax_amount;
 
     e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
-    event e
+    event e;
+
+    PayoutManagementFee current_tax tax_amount huny_token
   end
 end
 
@@ -820,7 +862,8 @@ procedure MigrateToken(param: MigrateParam)
     maybe_token_balance <- & token.balances[_this_address];
     match maybe_token_balance with
     | Some token_balance =>
-      SendToken recipient token token_balance
+      params = SendTokenParam recipient token token_balance;
+      SendToken params
     | None => (* no-op - should not happen *)
     end
   end
@@ -995,7 +1038,10 @@ transition JoinAndPayJoiningFee()
       e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: fee_amount};
       event e;
 
-      ReceiveToken _sender huny_token fee_amount
+      ReceiveToken _sender huny_token fee_amount;
+
+      fee_config <- joining_fee;
+      PayoutManagementFee fee_config fee_amount huny_token
     end
    end
 end

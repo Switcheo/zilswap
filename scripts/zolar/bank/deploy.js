@@ -268,7 +268,7 @@ async function deployGuildBank({
     value: {
       constructor: `${bankAddress}.WithdrawTxParams`,
       argtypes: [],
-      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
+      arguments: [address, hunyAddress, new BigNumber(0.1).shiftedBy(12).toString(10)]
     },
   }, {
     vname: "message",
