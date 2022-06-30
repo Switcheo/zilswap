@@ -5,6 +5,7 @@ const { default: BigNumber } = require("bignumber.js");
 const { callContract } = require("../../call");
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const randomAddress = "0xd793f378a925b9f0d3c4b6ee544d31c707899386"
 const ONE_HUNY = new BigNumber(1).shiftedBy(12);
 
 const getPrivateKey = () => {
@@ -60,13 +61,14 @@ const deployHuny = async () => {
   return contract;
 }
 
-async function deployGuildBank({
+async function deployBankAuthority({
   hiveAddress,
   hunyAddress,
 }) {
   const privateKey = getPrivateKey();
+
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/GuildBank.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/tbm-v2/BankAuthority.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -89,6 +91,38 @@ async function deployGuildBank({
       type: 'ByStr20',
       value: `${hunyAddress}`,
     },
+  ]
+
+  console.info(`Deploying BankAuthority...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+};
+
+async function deployGuildBank({
+  authorityAddress,
+}) {
+  const privateKey = getPrivateKey();
+
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile('./src/tbm-v2/GuildBank.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'bank_authority',
+      type: 'ByStr20',
+      value: `${authorityAddress}`,
+    },
     {
       vname: 'initial_joining_fee',
       type: 'Uint128',
@@ -105,9 +139,14 @@ async function deployGuildBank({
       value: '3',
     },
     {
+      vname: 'initial_members',
+      type: 'List ByStr20',
+      value: [randomAddress],
+    },
+    {
       vname: 'initial_officers',
       type: 'List ByStr20',
-      value: [],
+      value: [randomAddress],
     },
   ]
 
@@ -122,7 +161,8 @@ async function deployGuildBank({
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
   const hunyContract = await deployHuny();
   const hunyAddress = hunyContract.address.toLowerCase();
-  const bankContract = await deployGuildBank({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
+  const authorityContract = await deployBankAuthority({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
+  const bankContract = await deployGuildBank({ authorityAddress: authorityContract.address });
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
@@ -154,8 +194,8 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("allowance", txAllowance.id)
 
-  const txPayJoiningFee = await callContract(privateKey, bankContract, "PayJoiningFee", [], 0, false, false)
-  console.log("pay joining fee", txPayJoiningFee.id)
+  const txJoinAndPayJoiningFee = await callContract(privateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
+  console.log("join and pay joining fee", txJoinAndPayJoiningFee.id)
 
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
@@ -266,4 +306,18 @@ async function deployGuildBank({
     value: address,
   }], 0, false, false)
   console.log("migrate huny tx", txMigrateHuny.id)
+
+  const txDemote = await callContract(privateKey, bankContract, "DemoteMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: randomAddress,
+  }], 0, false, false)
+  console.log("demote tx", txDemote.id)
+
+  const txPromote = await callContract(privateKey, bankContract, "PromoteMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: randomAddress,
+  }], 0, false, false)
+  console.log("promote tx", txPromote.id)
 })().catch(console.error).finally(() => process.exit(0));

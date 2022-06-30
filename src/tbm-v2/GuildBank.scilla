@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 
-import ListUtils
+import ListUtils BoolUtils
 library GuildBank
 
 let true = True
@@ -14,6 +14,12 @@ let uint32_zero = Uint32 0
 let one = Uint128 1
 let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
+
+(* sets to contract substate bank_version *)
+let guild_bank_version = Uint32 1
+
+let max_officer_count = Uint32 2
+let max_member_count = Uint32 30
 
 type ControlMode =
   | CaptainOnly
@@ -59,6 +65,11 @@ type Error =
   | CodeInvalidTokenContract
   | CodeNoTokenBalance
   | CodeAlreadyTaxed
+  | CodeIsAlreadyMember
+  | CodeNotMember
+  | CodeIsAlreadyOfficer
+  | CodeNotOfficer
+  | CodeOfficerLimitReached
 
 let make_error =
   fun (result : Error) =>
@@ -77,6 +88,11 @@ let make_error =
       | CodeInvalidTokenContract            => Int32 -9
       | CodeNoTokenBalance                  => Int32 -10
       | CodeAlreadyTaxed                    => Int32 -11
+      | CodeIsAlreadyMember                 => Int32 -12
+      | CodeNotMember                       => Int32 -13
+      | CodeIsAlreadyOfficer                => Int32 -14
+      | CodeNotOfficer                      => Int32 -15
+      | CodeOfficerLimitReached             => Int32 -16
       end
     in
     { _exception : "Error"; code : result_code }
@@ -117,14 +133,12 @@ let get_required_power =
       end
 
 let get_power = 
-  fun (officers : List ByStr20) =>
+  fun (officers : Map ByStr20 Bool) =>
   fun (captain : ByStr20) =>
   fun (member : ByStr20) =>
-    let officer_find = @list_find (ByStr20) in
-    let fn = fun (officer: ByStr20) => builtin eq officer member in
-    let maybe_officer = officer_find fn officers in
+    let maybe_officer = builtin get officers member in
     match maybe_officer with
-    | Some address => Uint32 1 (* officer has 1 power *)
+    | Some _ => Uint32 1 (* officer has 1 power *)
     | None =>
       let maybe_captain = builtin eq captain member in
       match maybe_captain with
@@ -135,7 +149,7 @@ let get_power =
 
 let get_current_power =
   fun (signers : List ByStr20) =>
-  fun (officers : List ByStr20) =>
+  fun (officers : Map ByStr20 Bool) =>
   fun (captain : ByStr20) =>
     let fold = @list_foldl ByStr20 Uint32 in
     let fn = 
@@ -152,6 +166,17 @@ let get_first_addr =
     let fn = @list_head ByStr20 in
     fn addr_list
 
+let get_addr =
+  fun (addr_list : List ByStr20) =>
+  fun (target : ByStr20) =>
+    let find = @list_find ByStr20 in
+    let fn = fun (addr: ByStr20) => builtin eq target addr in
+    find fn addr_list
+
+let get_list_length = 
+  fun (list : List ByStr20) =>
+    let fn = @list_length ByStr20 in fn list
+  
 let create_pending_tx = 
   fun (tx : BankTx) => 
     let empty_list = Nil {ByStr20} in
@@ -170,29 +195,64 @@ let list_append_recipient =
   fun (token_list : List (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) => 
   fun (recipient : ByStr20) =>
   let fold = @list_foldl (ByStr20 with contract field balances: Map ByStr20 Uint128 end) (List MigrateParam) in
-  let fn = 
-    fun (result_list: List MigrateParam) => 
-    fun (token: (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) =>
-      let new_item = MigrateParam token recipient in
-      Cons {MigrateParam} new_item result_list
-  in
-  let empty_list = Nil {MigrateParam} in
-  fold fn empty_list token_list
+    let fn = 
+      fun (result_list: List MigrateParam) => 
+      fun (token: (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) =>
+        let new_item = MigrateParam token recipient in
+        Cons {MigrateParam} new_item result_list
+    in
+    let empty_list = Nil {MigrateParam} in
+    fold fn empty_list token_list
 
 let map_to_list =
   fun (tokens_held : Map ByStr20 Bool) => 
-  let fold = @list_foldl (Pair ByStr20 Bool) (List ByStr20) in
-  let fn = 
-    fun (result_list: List ByStr20) => 
-    fun (token_pair: Pair ByStr20 Bool) =>
-      match token_pair with
-        | Pair token _ =>
-          Cons {ByStr20} token result_list
-      end
-  in
-  let token_list = builtin to_list tokens_held in
-  let empty_list = Nil {ByStr20} in
-  fold fn empty_list token_list
+    let fold = @list_foldl (Pair ByStr20 Bool) (List ByStr20) in
+    let fn = 
+      fun (result_list: List ByStr20) => 
+      fun (token_pair: Pair ByStr20 Bool) =>
+        match token_pair with
+          | Pair token _ =>
+            Cons {ByStr20} token result_list
+        end
+    in
+    let token_list = builtin to_list tokens_held in
+    let empty_list = Nil {ByStr20} in
+    fold fn empty_list token_list
+
+let list_to_map =
+  fun (list : List ByStr20) => 
+    let fold = @list_foldl (ByStr20) (Map ByStr20 Bool) in
+    let fn = 
+      fun (result_map: Map ByStr20 Bool) => 
+      fun (item: ByStr20) =>
+        builtin put result_map item true
+    in
+    let empty_map = Emp ByStr20 Bool in
+    fold fn empty_map list
+
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+let is_list_subset =
+  fun (set : List ByStr20) =>
+  fun (candidate : List ByStr20) =>
+    let fold = @list_foldl ByStr20 (List Bool) in
+    let check_exists = @list_exists ByStr20 in
+    let fn = 
+      fun (result_list: List Bool) => 
+      fun (item: ByStr20) =>
+        let exist_fn = fun (set_item: ByStr20) => builtin eq set_item item in
+        let is_element = check_exists exist_fn set in
+        Cons {Bool} is_element result_list
+    in
+    let empty_list = Nil {Bool} in
+    let result = fold fn empty_list candidate in
+    all_true result
+
 
 (***************************************************)
 (*             The contract definition             *)
@@ -200,20 +260,41 @@ let map_to_list =
 
 contract GuildBank(
   initial_owner: ByStr20,
-  initial_hive: ByStr20,
-  huny_token: ByStr20 with contract
-    field balances : Map ByStr20 Uint128
+  bank_authority: ByStr20 with contract
+    field current_epoch : Uint32,
+    field hive : ByStr20,
+    field huny : ByStr20 with contract
+      field balances : Map ByStr20 Uint128
+    end
   end,
   initial_joining_fee: Uint128,
   initial_weekly_tax: Uint128,
   initial_control_mode_power: Uint32,
+  initial_members: List ByStr20,
   initial_officers: List ByStr20
 )
+with
+  let officer_count = get_list_length initial_officers in
+  let officer_overlimit = builtin lt max_officer_count officer_count in
+  let officer_limit_ok = negb officer_overlimit in
+  
+  let member_count = get_list_length initial_members in
+  let member_overlimit = builtin lt max_member_count member_count in
+  let member_limit_ok = negb member_overlimit in
+  
+  let officer_list_ok = is_list_subset initial_officers initial_members in
+
+  let l0 = Nil {Bool} in
+  let l1 = Cons {Bool} officer_limit_ok l0 in
+  let l2 = Cons {Bool} member_limit_ok l1 in
+  let l3 = Cons {Bool} officer_list_ok l2 in
+  all_true l3
+=>
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
-field hive : ByStr20 = initial_hive
+field bank_version : Uint32 = guild_bank_version
 
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
@@ -221,10 +302,16 @@ field pending_tx : Option PendingTx = None {PendingTx}
 field joining_fee : Uint128 = initial_joining_fee
 field weekly_tax : Uint128 = initial_weekly_tax
 
-field members : List ByStr20 = Nil {ByStr20}
-field officers : List ByStr20 = initial_officers
+field members : Map ByStr20 Bool = list_to_map initial_members
+field officers : Map ByStr20 Bool = list_to_map initial_officers
 
+(* stores a map of joining fee paid per user *)
+field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+
+(* stores a map of token addresses that bank has balance of, used for migrate *)
 field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* stores a map of tax collected per user by epoch *)
 field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
 (**************************************)
@@ -343,6 +430,46 @@ procedure IsValidPendingTx()
   end
 end
 
+procedure IsNotMember(user: ByStr20)
+  maybe_member <- members[user];
+  match maybe_member with
+  | Some member =>
+    err = CodeIsAlreadyMember;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsMember(user: ByStr20)
+  maybe_member <- members[user];
+  match maybe_member with
+  | Some member =>
+  | None =>
+    err = CodeNotMember;
+    ThrowError err
+  end
+end
+
+procedure IsNotOfficer(user: ByStr20)
+  maybe_officer <- officers[user];
+  match maybe_officer with
+  | Some officer =>
+    err = CodeIsAlreadyOfficer;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsOfficer(user: ByStr20)
+  maybe_officer <- officers[user];
+  match maybe_officer with
+  | Some officer =>
+  | None =>
+    err = CodeNotOfficer;
+    ThrowError err
+  end
+end
+
 procedure ReceiveZil(amount: Uint128)
   maybe_match_amount = builtin eq amount _amount;
   match maybe_match_amount with
@@ -425,7 +552,7 @@ end
 procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, deadline_block_offset: Uint32)
   current_block_number <- & BLOCKNUMBER;
   deadline_block = builtin badd current_block_number deadline_block_offset;
-  hive_address <- hive;
+  hive_address <- & bank_authority.hive;
   msg_to_hive = {
     _tag: "AddLiquidity";
     _recipient: hive_address;
@@ -459,10 +586,10 @@ procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
   required_power = get_required_power current_control_mode;
   match current_pending_tx with
   | PendingTx bank_tx signers =>
-    current_officers <- officers;
     maybe_owner <- contract_owner;
     match maybe_owner with
     | Some current_captain =>
+      current_officers <- officers;
       current_power = get_current_power signers current_officers current_captain;
       maybe_insufficient_power = builtin lt current_power required_power;
       match maybe_insufficient_power with
@@ -499,11 +626,32 @@ procedure SignPendingTx(signer: ByStr20)
    end
 end
 
+(* reset signature progress on guild multisig transaction *)
+(* effected when any of guild officers or captain is changed *)
+procedure ResetPendingTx()
+  maybe_pending_tx <- pending_tx;
+  match maybe_pending_tx with
+  | Some current_pending_tx =>
+    match current_pending_tx with
+    | PendingTx bank_tx signers =>
+      empty_signers = Nil {ByStr20};
+      new_pending_tx = PendingTx bank_tx empty_signers;
+      p = Some {PendingTx} new_pending_tx;
+      pending_tx := p;
+      e = {_eventname: "TxSigningReset"; pending_tx: new_pending_tx };
+      event e
+    end
+  | None => (* no-op *)
+  end
+end
+
+
 procedure ReceiveTax(param: TaxParam)
   tax_amount <- weekly_tax;
   match param with
   | TaxParam member epoch_number =>
     IsTaxable member epoch_number;
+    huny_token <- & bank_authority.huny;
     ReceiveToken member huny_token tax_amount;
 
     tax_collected[epoch_number][member] := tax_amount;
@@ -573,22 +721,72 @@ transition SignTx()
   SignPendingTx _sender
 end
 
-(* @dev: Charge joining fee to user, called once by user joining a guild *)
-transition PayJoiningFee()
-  list <- members;
-  new_list = Cons {ByStr20} _sender list;
-  members := new_list;
+transition PromoteMember(member: ByStr20)
+  IsNotOfficer member;
+  IsMember member;
 
-  current_joining_fee <- joining_fee;
-  has_joining_fee = builtin lt zero current_joining_fee;
-  match has_joining_fee with
-  | False =>
+  current_officers <- officers;
+  officer_list = map_to_list current_officers;
+  officer_count = get_list_length officer_list;
+
+  has_officer_capacity = builtin lt officer_count max_officer_count;
+  match has_officer_capacity with
   | True =>
-    ReceiveToken _sender huny_token current_joining_fee
-  end;
+    officers[member] := true;
 
-  e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
-  event e
+    e = {_eventname: "MemberPromoted"; member: _sender};
+    event e;
+
+    ResetPendingTx
+  | False =>
+    err = CodeOfficerLimitReached;
+    ThrowError err
+  end
+end
+
+transition DemoteMember(member: ByStr20)
+  IsOfficer member;
+
+  delete officers[member];
+
+  e = {_eventname: "MemberDemoted"; member: _sender};
+  event e;
+
+  ResetPendingTx
+end
+
+(* @dev: Charge joining fee to user, called once by user joining a guild *)
+transition JoinAndPayJoiningFee()
+  IsNotMember _sender;
+
+  (* add member to members *)
+  members[_sender] := true;
+
+  (* announce new membership *)
+  e = {_eventname: "MemberJoined"; member: _sender};
+  event e;
+
+  (* check if joining fee paid *)
+  maybe_paid_joining_fee <- joining_fee_paid[_sender];
+  match maybe_paid_joining_fee with
+  | Some _ => (* no-op - fee already paid previously *)
+  | None =>
+
+    (* check if joining fee is zero *)
+    current_joining_fee <- joining_fee;
+    has_joining_fee = builtin lt zero current_joining_fee;
+    match has_joining_fee with
+    | False => (* no-op - joining fee ≤ zero *)
+    | True =>
+      joining_fee_paid[_sender] := current_joining_fee;
+    
+      huny_token <- & bank_authority.huny;
+      e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
+      event e;
+
+      ReceiveToken _sender huny_token current_joining_fee
+    end
+   end
 end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
@@ -739,7 +937,9 @@ transition AcceptOwnership()
   contract_owner := o;
   pending_owner := none;
   e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
-  event e
+  event e;
+
+  ResetPendingTx
 end
 
 (***************************************)
