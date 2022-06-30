@@ -199,6 +199,14 @@ async function deployGuildBank({
   console.log("set epoch number tx", txSetEpochNumber.id)
 
   const bankContract = await deployGuildBank({ initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
+
+  const txSetEpochNumberAgain = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: (newEpochNumber + 1).toString(),
+  }], 0, false, false)
+  console.log("set epoch number again tx", txSetEpochNumberAgain.id)
+
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
@@ -374,11 +382,11 @@ async function deployGuildBank({
     value: [{
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [address, "1"]
+      arguments: [address, newEpochNumber.toString()]
     }, {
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [address, "2"]
+      arguments: [address, (newEpochNumber + 1).toString()]
     }],
   }], 0, false, false)
   console.log("collect tax tx", txCollectTax.id)

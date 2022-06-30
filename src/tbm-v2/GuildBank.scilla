@@ -169,7 +169,7 @@ let get_fee_amount =
   fun (current_epoch : Uint32) =>
     match fee with
     | Fee initial_amount inflation initial_epoch allocation =>
-      let epochs_diff = builtin sub initial_epoch current_epoch in
+      let epochs_diff = builtin sub current_epoch initial_epoch in
       let maybe_epochs_diff = builtin to_uint128 epochs_diff in
       match maybe_epochs_diff with
       | None =>
@@ -1027,7 +1027,7 @@ transition ApproveMember(member: ByStr20)
 
   member_approvals[member] := true;
 
-  e = {_eventname: "MemberApproved"; member: _sender; approver: _sender};
+  e = {_eventname: "MemberApproved"; member: member; approver: _sender};
   event e
 end
 
