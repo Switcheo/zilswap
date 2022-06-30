@@ -520,7 +520,7 @@ end
 
 (* Validates BankTx params of the current PendingTx *)
 (* throws if there is no PendingTx *)
-(* throws conditions of PendingTx is not met  *)
+(* throws conditions of BankTx is not met  *)
 procedure IsValidPendingTx()
   maybe_pending_tx <- pending_tx;
   match maybe_pending_tx with
@@ -619,7 +619,6 @@ procedure IsOfficer(user: ByStr20)
   end
 end
 
-
 procedure ReceiveZil(amount: Uint128)
   maybe_match_amount = builtin eq amount _amount;
   match maybe_match_amount with
@@ -637,7 +636,7 @@ procedure SendZil(recipient: ByStr20, amount: Uint128)
   send msgs
 end
 
-(* @dev: Update tokens_held map *)
+(* update tokens_held map *)
 procedure UpdateTokenBalance(
   token: ByStr20 with contract
     field balances: Map ByStr20 Uint128
@@ -762,6 +761,7 @@ procedure WithdrawHive(contribution: Uint128, min_zil_amount: Uint128, min_token
   event e
 end
 
+(* execute transaction specified in BankTx *)
 procedure ExecuteBankTx(bank_tx: BankTx)
   match bank_tx with
   | BankTx message initiator tx_params => 
@@ -776,6 +776,7 @@ procedure ExecuteBankTx(bank_tx: BankTx)
   end
 end
 
+(* execute given PendingTx is multisig signature requirement has been met *)
 procedure CheckConcludePendingTx(current_pending_tx: PendingTx)
   current_control_mode <- control_mode;
   required_power = get_required_power current_control_mode;
@@ -840,12 +841,12 @@ procedure ResetPendingTx()
   end
 end
 
+(* payout to captain and officers according to allocation *)
 procedure PayoutManagementFee(
   fee: Fee,
   gross_amount: Uint128,
   token: ByStr20 with contract field balances: Map ByStr20 Uint128 end
 )
-  (* payout to captain and officers according to allocation *)
   match fee with
   | Fee _ _ _ allocation =>
     match allocation with
@@ -904,6 +905,8 @@ procedure MigrateToken(param: MigrateParam)
   end
 end
 
+(* check bank authority contract and update current epoch *)
+(* update joining fee if epoch has been updated           *)
 procedure UpdateEpoch()
   last_epoch <- last_updated_epoch;
   current_epoch <- & bank_authority.current_epoch;
@@ -926,8 +929,10 @@ end
 (*             Transitions             *)
 (***************************************)
 
-(* @dev: Initiate a generic multisig transaction (depends on configuration *)
-(* could resolve immediately if in single-signature mode) *)
+(* @dev: Initiate a generic multisig transaction (depends on configuration  *)
+(* could resolve immediately if in single-signature mode)                   *)
+(* @param tx_params: multisig transaction parameters                        *)
+(* @param message: user message for the multisig transaction request        *)
 transition InitiateTx(tx_params: TxParams, message: String)
   IsCaptainOrOfficer _sender;
   IsNotPendingTx;
@@ -972,6 +977,7 @@ transition SignTx()
 end
 
 (* @dev: Promote a member from normal member to officer status *)
+(* @param member: member to be promoted                        *)
 transition PromoteMember(member: ByStr20)
   IsOwner _sender;
 
@@ -998,6 +1004,7 @@ transition PromoteMember(member: ByStr20)
 end
 
 (* @dev: Demote a member from officer to normal member status *)
+(* @param member: member to be demoted                        *)
 transition DemoteMember(member: ByStr20)
   IsOwner _sender;
   
@@ -1011,8 +1018,9 @@ transition DemoteMember(member: ByStr20)
   ResetPendingTx
 end
 
-(* @dev: Approve a user's request to join guild *)
-(* required before a member can join the guild by calling JoinAndPayJoiningFee *)
+(* @dev: Approve a user's request to join guild                                 *)
+(* required before a member can join the guild by calling JoinAndPayJoiningFee  *)
+(* @param member: member to be added to approved list                           *)
 transition ApproveMember(member: ByStr20)
   IsCaptainOrOfficer _sender;
   IsNotMember member;
@@ -1082,6 +1090,8 @@ transition JoinAndPayJoiningFee()
 end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
+(* @param token: address of token to donate                 *)
+(* @param amount: amount of token to donate                 *)
 transition MakeDonation(
   token: ByStr20 with contract 
     field balances : Map ByStr20 Uint128
@@ -1100,7 +1110,8 @@ transition MakeDonation(
   event e
 end
 
-(* @dev: Transfers tax from specified guild members to guild bank *)
+(* @dev: Transfers tax from specified guild members to guild bank       *)
+(* @param params: list of member and epoch number to collect taxes for  *)
 transition CollectTax(params: List TaxParam)
   IsCaptainOrOfficer _sender;
 
@@ -1109,6 +1120,7 @@ transition CollectTax(params: List TaxParam)
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
+(* @param recipient: contract to receive token balances               *)
 transition Migrate(recipient: ByStr20)
   IsBankAuthority _sender;
 
@@ -1139,8 +1151,10 @@ transition Migrate(recipient: ByStr20)
   end
 end
 
-(* @dev: Migrate token balance to specified contract *)
-(* @dev: Only called by self, address cast workaround *)
+(* @dev: Migrate token balance to specified contract      *)
+(* @dev: Only called by self, address cast workaround     *)
+(* @param recipient: contract to receive token balances   *)
+(* @param token_list: list of token addresses to migrate  *)
 transition MigrateTokens(
   recipient: ByStr20,
   token_list: List (ByStr20 with contract
