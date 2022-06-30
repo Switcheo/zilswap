@@ -3,16 +3,17 @@ const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { deployContract } = require("../../deploy");
 const { default: BigNumber } = require("bignumber.js");
 const { callContract } = require("../../call");
+const { useKey } = require("../../zilliqa");
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const randomAddress = "0xd793f378a925b9f0d3c4b6ee544d31c707899386"
 const ONE_HUNY = new BigNumber(1).shiftedBy(12);
 
-const getPrivateKey = () => {
-  const privateKey = process.env.PRIVATE_KEY;
+const getPrivateKey = (key = "PRIVATE_KEY") => {
+  const privateKey = process.env[key];
   // Check for key
   if (!privateKey || privateKey === '') {
-    throw new Error('No private key was provided!')
+    throw new Error('No private key was provided - ' + key)
   }
   return privateKey;
 }
@@ -64,6 +65,7 @@ const deployHuny = async () => {
 async function deployBankAuthority({
   hiveAddress,
   hunyAddress,
+  initialEpochNumber,
 }) {
   const privateKey = getPrivateKey();
 
@@ -80,6 +82,11 @@ async function deployBankAuthority({
       vname: 'initial_owner',
       type: 'ByStr20',
       value: `${address}`,
+    },
+    {
+      vname: 'initial_epoch_number',
+      type: 'Uint32',
+      value: initialEpochNumber.toString(),
     },
     {
       vname: 'initial_hive',
@@ -101,6 +108,7 @@ async function deployBankAuthority({
 
 async function deployGuildBank({
   authorityAddress,
+  initialEpochNumber,
 }) {
   const privateKey = getPrivateKey();
 
@@ -125,13 +133,28 @@ async function deployGuildBank({
     },
     {
       vname: 'initial_joining_fee',
-      type: 'Uint128',
-      value: ONE_HUNY.toString(10),
+      type: 'List Uint128',
+      value: [
+        ONE_HUNY.toString(10), // initial amount
+        ONE_HUNY.toString(10), // inflation amount
+        "50", // captain allocation bps
+        "10", // officer allocation bps
+      ],
     },
     {
       vname: 'initial_weekly_tax',
-      type: 'Uint128',
-      value: ONE_HUNY.toString(10),
+      type: 'List Uint128',
+      value: [
+        ONE_HUNY.toString(10), // initial amount
+        ONE_HUNY.toString(10), // inflation amount
+        "50", // captain allocation bps
+        "10", // officer allocation bps
+      ],
+    },
+    {
+      vname: 'initial_epoch',
+      type: 'Uint32',
+      value: initialEpochNumber.toString(),
     },
     {
       vname: 'initial_control_mode_power',
@@ -161,8 +184,21 @@ async function deployGuildBank({
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
   const hunyContract = await deployHuny();
   const hunyAddress = hunyContract.address.toLowerCase();
-  const authorityContract = await deployBankAuthority({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
-  const bankContract = await deployGuildBank({ authorityAddress: authorityContract.address });
+
+  const memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER");
+  const memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+
+  const initialEpochNumber = 1;
+  const newEpochNumber = 2;
+  const authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
+  const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: newEpochNumber.toString(),
+  }], 0, false, false)
+  console.log("set epoch number tx", txSetEpochNumber.id)
+
+  const bankContract = await deployGuildBank({ initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
@@ -170,7 +206,7 @@ async function deployGuildBank({
   }], 0, false, false);
   console.log("add minter", txAddMinter.id)
 
-  const txMint = await callContract(privateKey, hunyContract, "Mint", [{
+  const txMintCaptain = await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
     type: 'ByStr20',
     value: address,
@@ -179,11 +215,22 @@ async function deployGuildBank({
     type: 'Uint128',
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
-  console.log("mint", txMint.id)
+  console.log("mint", txMintCaptain.id)
+
+  const txMintMember = await callContract(privateKey, hunyContract, "Mint", [{
+    vname: 'recipient',
+    type: 'ByStr20',
+    value: memberAddress,
+  }, {
+    vname: 'amount',
+    type: 'Uint128',
+    value: new BigNumber(1).shiftedBy(12 + 3),
+  }], 0, false, false)
+  console.log("mint", txMintMember.id)
 
   const bankAddress = bankContract.address.toLowerCase();
 
-  const txAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
+  const txAllowanceCaptain = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
     value: bankAddress,
@@ -192,9 +239,27 @@ async function deployGuildBank({
     type: 'Uint128',
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
-  console.log("allowance", txAllowance.id)
+  console.log("allowance", txAllowanceCaptain.id)
 
-  const txJoinAndPayJoiningFee = await callContract(privateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
+  const txAllowanceMember = await callContract(memberPrivateKey, hunyContract, "IncreaseAllowance", [{
+    vname: 'spender',
+    type: 'ByStr20',
+    value: bankAddress,
+  }, {
+    vname: 'amount',
+    type: 'Uint128',
+    value: new BigNumber(2).pow(64).minus(1).toString(),
+  }], 0, false, false)
+  console.log("allowance", txAllowanceMember.id)
+
+  const txApproveMember = await callContract(privateKey, bankContract, "ApproveMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  console.log("approve member", txApproveMember.id)
+
+  const txJoinAndPayJoiningFee = await callContract(memberPrivateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
   console.log("join and pay joining fee", txJoinAndPayJoiningFee.id)
 
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
@@ -221,13 +286,37 @@ async function deployGuildBank({
       arguments: [{
         constructor: `${bankAddress}.GuildBankSettings`,
         argtypes: [],
-        arguments: [
-          ONE_HUNY.toString(10),
-          ONE_HUNY.toString(10), {
-            constructor: `${bankAddress}.CaptainAndTwoOfficers`,
-            argtypes: [],
-            arguments: [],
-          },
+        arguments: [{
+          constructor: `${bankAddress}.Fee`,
+          argtypes: [],
+          arguments: [
+            ONE_HUNY.toString(10), // initial amount
+            ONE_HUNY.toString(10), // inflation
+            newEpochNumber.toString(), // first epoch
+            {
+              constructor: `${bankAddress}.FeeAllocation`,
+              argtypes: [],
+              arguments: ["50", "10"],
+            }, // fee allocation
+          ],
+        }, {
+          constructor: `${bankAddress}.Fee`,
+          argtypes: [],
+          arguments: [
+            ONE_HUNY.toString(10), // initial amount
+            ONE_HUNY.toString(10), // inflation
+            newEpochNumber.toString(), // first epoch
+            {
+              constructor: `${bankAddress}.FeeAllocation`,
+              argtypes: [],
+              arguments: ["50", "10"],
+            }, // fee allocation
+          ],
+        }, {
+          constructor: `${bankAddress}.CaptainAndTwoOfficers`,
+          argtypes: [],
+          arguments: [],
+        },
         ],
       }],
     },
@@ -267,16 +356,17 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("make donation huny tx", txMakeHunyDonation.id)
 
-  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
-    vname: "token",
-    type: "ByStr20",
-    value: ZERO_ADDRESS,
-  }, {
-    vname: "amount",
-    type: "Uint128",
-    value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
-  }], 1, false, false)
-  console.log("make donation zil tx", txMakeZilDonation.id)
+  // temporary disable, waiting for ceres release to enable address typecast
+  // const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+  //   vname: "token",
+  //   type: "ByStr20",
+  //   value: ZERO_ADDRESS,
+  // }, {
+  //   vname: "amount",
+  //   type: "Uint128",
+  //   value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
+  // }], 1, false, false)
+  // console.log("make donation zil tx", txMakeZilDonation.id)
 
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
     vname: "params",
@@ -293,31 +383,31 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("collect tax tx", txCollectTax.id)
 
-  const txMigrateZil = await callContract(privateKey, bankContract, "Migrate", [{
+  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
+    vname: "bank",
+    type: "ByStr20",
+    value: bankAddress,
+  }, {
     vname: "recipient",
     type: "ByStr20",
     value: address,
   }], 0, false, false)
-  console.log("migrate zil tx", txMigrateZil.id)
-
-  const txMigrateHuny = await callContract(privateKey, bankContract, "Migrate", [{
-    vname: "recipient",
-    type: "ByStr20",
-    value: address,
-  }], 0, false, false)
-  console.log("migrate huny tx", txMigrateHuny.id)
-
-  const txDemote = await callContract(privateKey, bankContract, "DemoteMember", [{
-    vname: "member",
-    type: "ByStr20",
-    value: randomAddress,
-  }], 0, false, false)
-  console.log("demote tx", txDemote.id)
+  console.log("migrate huny tx", txMigrate.id)
 
   const txPromote = await callContract(privateKey, bankContract, "PromoteMember", [{
     vname: "member",
     type: "ByStr20",
-    value: randomAddress,
+    value: memberAddress,
   }], 0, false, false)
   console.log("promote tx", txPromote.id)
+
+  const txDemote = await callContract(privateKey, bankContract, "DemoteMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  console.log("demote tx", txDemote.id)
+
+  const txLeaveGuild = await callContract(memberPrivateKey, bankContract, "LeaveGuild", [], 0, false, false)
+  console.log("demote tx", txDemote.id)
 })().catch(console.error).finally(() => process.exit(0));

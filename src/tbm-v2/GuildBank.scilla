@@ -10,8 +10,8 @@ library GuildBank
 let true = True
 let false = False
 let zero = Uint128 0
-let uint32_zero = Uint32 0
 let one = Uint128 1
+let uint32_zero = Uint32 0
 let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
 
@@ -26,16 +26,21 @@ type ControlMode =
   | CaptainAndOneOfficer
   | CaptainAndTwoOfficers
 
+type FeeAllocation =
+  | FeeAllocation of Uint128 Uint128 (* captain bps, officers bps *)
+
+type Fee =
+  | Fee of Uint128 Uint128 Uint32 FeeAllocation (* amount, inflation, first epoch, fee allocation *)
+
 type GuildBankSettings =
-  | GuildBankSettings of Uint128 Uint128 ControlMode (* joining fee, weekly tax, multisig control mode *)
+  | GuildBankSettings of Fee Fee ControlMode (* joining fee, weekly tax, multisig control mode *)
 
 type TxParams =
   | UpdateConfigTxParams of GuildBankSettings
   | WithdrawTxParams of (* recipient, token, amount *)
     ByStr20
     ByStr20 with contract 
-      field balances : Map ByStr20 Uint128,
-      field allowances : Map ByStr20 (Map ByStr20 Uint128)
+      field balances : Map ByStr20 Uint128
     end
     Uint128
   | DepositHiveTxParams of Uint128 Uint128 Uint32 (* min contribution, max token amount, deadline blocks offset *)
@@ -70,6 +75,12 @@ type Error =
   | CodeIsAlreadyOfficer
   | CodeNotOfficer
   | CodeOfficerLimitReached
+  | CodeMemberLimitReached
+  | CodeInvalidMembershipState
+  | CodeRequestNotAccepted
+  | CodeCaptainCannotLeave
+  | CodeNotCaptainOrOfficer
+  | CodeNotBankAuthority
 
 let make_error =
   fun (result : Error) =>
@@ -93,6 +104,12 @@ let make_error =
       | CodeIsAlreadyOfficer                => Int32 -14
       | CodeNotOfficer                      => Int32 -15
       | CodeOfficerLimitReached             => Int32 -16
+      | CodeMemberLimitReached              => Int32 -17
+      | CodeInvalidMembershipState          => Int32 -18
+      | CodeRequestNotAccepted              => Int32 -19
+      | CodeCaptainCannotLeave              => Int32 -20
+      | CodeNotCaptainOrOfficer             => Int32 -21
+      | CodeNotBankAuthority                => Int32 -22
       end
     in
     { _exception : "Error"; code : result_code }
@@ -109,6 +126,46 @@ let get_amount_or_zero =
     | None => zero
     end
 
+let get_uint128list_nth = @list_nth Uint128
+
+let get_element_amount_or_zero =
+  fun (list: List Uint128) =>
+  fun (n: Uint32) =>
+    let maybe_value = get_uint128list_nth n list in
+    match maybe_value with
+    | Some amt => amt
+    | None => zero
+    end
+
+let get_fee =
+  fun (fee_params : List Uint128) =>
+  fun (current_epoch : Uint32) =>
+    let uint32_one = Uint32 1 in
+    let uint32_two = Uint32 2 in
+    let uint32_three = Uint32 3 in
+    let fee_initial_amount = get_element_amount_or_zero fee_params uint32_zero in
+    let inflation = get_element_amount_or_zero fee_params uint32_one in
+    let alloc_captain = get_element_amount_or_zero fee_params uint32_two in
+    let alloc_officer = get_element_amount_or_zero fee_params uint32_three in
+    let allocation = FeeAllocation alloc_captain alloc_officer in
+    Fee fee_initial_amount inflation current_epoch allocation
+
+let get_fee_amount =
+  fun (fee : Fee) =>
+  fun (current_epoch : Uint32) =>
+    match fee with
+    | Fee initial_amount inflation initial_epoch allocation =>
+      let epochs_diff = builtin sub initial_epoch current_epoch in
+      let maybe_epochs_diff = builtin to_uint128 epochs_diff in
+      match maybe_epochs_diff with
+      | None =>
+        zero (* should not happen *)
+      | Some uint128_epochs_diff => 
+        let inflation_amount = builtin mul inflation uint128_epochs_diff in
+        builtin add initial_amount inflation_amount
+      end
+    end
+  
 let get_control_mode =
   fun (power : Uint32) =>
     let five = Uint32 5 in
@@ -267,8 +324,9 @@ contract GuildBank(
       field balances : Map ByStr20 Uint128
     end
   end,
-  initial_joining_fee: Uint128,
-  initial_weekly_tax: Uint128,
+  initial_epoch: Uint32,
+  initial_joining_fee: List Uint128,
+  initial_weekly_tax: List Uint128,
   initial_control_mode_power: Uint32,
   initial_members: List ByStr20,
   initial_officers: List ByStr20
@@ -277,7 +335,7 @@ with
   let officer_count = get_list_length initial_officers in
   let officer_overlimit = builtin lt max_officer_count officer_count in
   let officer_limit_ok = negb officer_overlimit in
-  
+
   let member_count = get_list_length initial_members in
   let member_overlimit = builtin lt max_member_count member_count in
   let member_limit_ok = negb member_overlimit in
@@ -299,19 +357,27 @@ field bank_version : Uint32 = guild_bank_version
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
 
-field joining_fee : Uint128 = initial_joining_fee
-field weekly_tax : Uint128 = initial_weekly_tax
+field joining_fee : Fee = get_fee initial_joining_fee initial_epoch
+field weekly_tax : Fee = get_fee initial_weekly_tax initial_epoch
+
+field last_updated_epoch : Uint32 = initial_epoch
+field current_joining_fee : Uint128 = 
+  let f = get_fee initial_joining_fee initial_epoch in
+  get_fee_amount f initial_epoch
 
 field members : Map ByStr20 Bool = list_to_map initial_members
 field officers : Map ByStr20 Bool = list_to_map initial_officers
 
-(* stores a map of joining fee paid per user *)
+(* map of users requesting to join guild, true if approved by officer/captain *)
+field member_approvals : Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* map of joining fee paid per user *)
 field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
-(* stores a map of token addresses that bank has balance of, used for migrate *)
+(* map of token addresses that bank has balance of, used for migrate *)
 field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
 
-(* stores a map of tax collected per user by epoch *)
+(* map of tax collected per user by epoch *)
 field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
 (**************************************)
@@ -337,6 +403,21 @@ procedure IsOwner(address: ByStr20)
   | None =>
     err = CodeNotOwner;
     ThrowError err
+  end
+end
+
+procedure IsNotOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+      err = CodeCaptainCannotLeave;
+      ThrowError err
+    | False => (* no-op *)
+    end
+  | None => (* no-op *)
   end
 end
 
@@ -430,6 +511,51 @@ procedure IsValidPendingTx()
   end
 end
 
+procedure IsApprovedRequest(user: ByStr20)
+  maybe_approval <- member_approvals[user];
+  match maybe_approval with
+  | Some approval =>
+    match approval with
+    | True => (* no-op *)
+    | False =>
+      err = CodeRequestNotAccepted;
+      ThrowError err
+    end
+  | None =>
+    err = CodeRequestNotAccepted;
+    ThrowError err
+   end
+end
+
+procedure IsCaptainOrOfficer(address: ByStr20)
+  current_officers <- officers;
+  maybe_captain <- contract_owner;
+  match maybe_captain with
+  | Some captain =>
+    power = get_power current_officers captain address;
+    is_no_power = builtin eq power uint32_zero;
+    match is_no_power with
+    | True =>
+      err = CodeNotCaptainOrOfficer;
+      ThrowError err
+    | False => (* no op *)
+    end
+  | None =>
+    err = CodeNotCaptainOrOfficer;
+    ThrowError err
+  end
+end
+
+procedure IsBankAuthority(address: ByStr20)
+  is_bank_authority = builtin eq bank_authority address;
+  match is_bank_authority with
+  | False =>
+    err = CodeNotBankAuthority;
+    ThrowError err
+  | True =>
+  end
+end
+
 procedure IsNotMember(user: ByStr20)
   maybe_member <- members[user];
   match maybe_member with
@@ -470,6 +596,7 @@ procedure IsOfficer(user: ByStr20)
   end
 end
 
+
 procedure ReceiveZil(amount: Uint128)
   maybe_match_amount = builtin eq amount _amount;
   match maybe_match_amount with
@@ -487,18 +614,31 @@ procedure SendZil(recipient: ByStr20, amount: Uint128)
   send msgs
 end
 
-procedure SendUpdateTokenBalance(token: ByStr20)
-  msg_to_self = {
-    _tag: "UpdateTokenBalance";
-    _recipient: _this_address;
-    _amount: zero;
-    token: token
-  };
-  msgs = one_msg msg_to_self;
-  send msgs
+(* @dev: Update tokens_held map *)
+procedure UpdateTokenBalance(
+  token: ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end
+)
+  maybe_token_balance <- & token.balances[_this_address];
+  match maybe_token_balance with
+  | Some token_balance =>
+    is_zero_balance = builtin eq token_balance zero;
+    match is_zero_balance with
+    | True => delete tokens_held[token]
+    | False => tokens_held[token] := true
+    end
+  | None => delete tokens_held[token]
+  end
 end
 
-procedure ReceiveToken(from: ByStr20, token: ByStr20, amount: Uint128)
+procedure ReceiveToken(
+  from: ByStr20,
+  token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128
+  end, 
+  amount: Uint128
+)
   msg_to_token = {
     _tag: "TransferFrom";
     _recipient: token;
@@ -510,10 +650,16 @@ procedure ReceiveToken(from: ByStr20, token: ByStr20, amount: Uint128)
   msgs = one_msg msg_to_token;
   send msgs;
 
-  SendUpdateTokenBalance token
+  UpdateTokenBalance token
 end
 
-procedure SendToken(recipient: ByStr20, token: ByStr20, amount: Uint128)
+procedure SendToken(
+  recipient: ByStr20,
+  token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128
+  end, 
+  amount: Uint128
+)
   msg_to_token = {
     _tag: "Transfer";
     _recipient: token;
@@ -524,7 +670,7 @@ procedure SendToken(recipient: ByStr20, token: ByStr20, amount: Uint128)
   msgs = one_msg msg_to_token;
   send msgs;
 
-  SendUpdateTokenBalance token
+  UpdateTokenBalance token
 end
 
 (* multi-sig authenticated operation *)
@@ -541,7 +687,13 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
 end
 
 (* multi-sig authenticated operation *)
-procedure Withdraw(recipient: ByStr20, token: ByStr20, amount: Uint128)
+procedure Withdraw(
+  recipient: ByStr20,
+  token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128
+  end, 
+  amount: Uint128
+)
   SendToken recipient token amount;
 
   e = {_eventname: "WithdrawComplete" };
@@ -645,13 +797,14 @@ procedure ResetPendingTx()
   end
 end
 
-
 procedure ReceiveTax(param: TaxParam)
-  tax_amount <- weekly_tax;
+  current_tax <- weekly_tax;
   match param with
   | TaxParam member epoch_number =>
     IsTaxable member epoch_number;
+
     huny_token <- & bank_authority.huny;
+    tax_amount = get_fee_amount current_tax epoch_number;
     ReceiveToken member huny_token tax_amount;
 
     tax_collected[epoch_number][member] := tax_amount;
@@ -673,6 +826,25 @@ procedure MigrateToken(param: MigrateParam)
   end
 end
 
+procedure UpdateEpoch()
+  last_epoch <- last_updated_epoch;
+  current_epoch <- & bank_authority.current_epoch;
+  maybe_already_updated = builtin eq last_epoch current_epoch;
+  match maybe_already_updated with
+  | True => (* no op*)
+  | False =>
+    f <- joining_fee;
+
+    new_joining_fee = get_fee_amount f current_epoch;
+    current_joining_fee := new_joining_fee;
+    last_updated_epoch := current_epoch;
+
+    e = {_eventname: "EpochUpdated"; old: last_epoch; new: current_epoch };
+    event e
+  end
+end
+
+
 
 (***************************************)
 (*             Transitions             *)
@@ -681,6 +853,7 @@ end
 (* @dev: Initiate a generic multisig transaction (depends on configuration *)
 (* could resolve immediately if in single-signature mode) *)
 transition InitiateTx(tx_params: TxParams, message: String)
+  IsCaptainOrOfficer _sender;
   IsNotPendingTx;
 
   bank_tx = BankTx message _sender tx_params; 
@@ -718,10 +891,13 @@ end
 (* @dev: Sign a multisig transaction, resolves and executes if number of *)
 (* required signing parties is met. *)
 transition SignTx()
+  IsCaptainOrOfficer _sender;
   SignPendingTx _sender
 end
 
 transition PromoteMember(member: ByStr20)
+  IsOwner _sender;
+
   IsNotOfficer member;
   IsMember member;
 
@@ -745,6 +921,8 @@ transition PromoteMember(member: ByStr20)
 end
 
 transition DemoteMember(member: ByStr20)
+  IsOwner _sender;
+  
   IsOfficer member;
 
   delete officers[member];
@@ -755,9 +933,39 @@ transition DemoteMember(member: ByStr20)
   ResetPendingTx
 end
 
+transition LeaveGuild()
+  IsNotOwner _sender;
+  IsMember _sender;
+
+  delete members[_sender];
+  e = {_eventname: "MemberLeft"; member: _sender};
+  event e;
+
+  maybe_officer <- officers[_sender];
+  match maybe_officer with
+  | Some officer =>
+    delete officers[_sender];
+    ResetPendingTx
+  | None => (* no-op *)
+  end
+end
+
+transition ApproveMember(member: ByStr20)
+  IsCaptainOrOfficer _sender;
+  IsNotMember member;
+
+  member_approvals[member] := true;
+
+  e = {_eventname: "MemberApproved"; member: _sender; approver: _sender};
+  event e
+end
+
+
 (* @dev: Charge joining fee to user, called once by user joining a guild *)
 transition JoinAndPayJoiningFee()
   IsNotMember _sender;
+  IsApprovedRequest _sender;
+  UpdateEpoch;
 
   (* add member to members *)
   members[_sender] := true;
@@ -773,24 +981,29 @@ transition JoinAndPayJoiningFee()
   | None =>
 
     (* check if joining fee is zero *)
-    current_joining_fee <- joining_fee;
-    has_joining_fee = builtin lt zero current_joining_fee;
+    fee_amount <- current_joining_fee;
+    has_joining_fee = builtin lt zero fee_amount;
     match has_joining_fee with
     | False => (* no-op - joining fee ≤ zero *)
     | True =>
-      joining_fee_paid[_sender] := current_joining_fee;
-    
+      joining_fee_paid[_sender] := fee_amount;
+
       huny_token <- & bank_authority.huny;
-      e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: current_joining_fee};
+      e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: fee_amount};
       event e;
 
-      ReceiveToken _sender huny_token current_joining_fee
+      ReceiveToken _sender huny_token fee_amount
     end
    end
 end
 
 (* @dev: Transfers specified amount of tokens to guild bank *)
-transition MakeDonation(token: ByStr20, amount: Uint128)
+transition MakeDonation(
+  token: ByStr20 with contract 
+    field balances : Map ByStr20 Uint128
+  end,
+  amount: Uint128
+)
   is_token_zil = builtin eq zero_address token;
   match is_token_zil with
   | True =>
@@ -805,12 +1018,15 @@ end
 
 (* @dev: Transfers tax from specified guild members to guild bank *)
 transition CollectTax(params: List TaxParam)
+  IsCaptainOrOfficer _sender;
+
+  UpdateEpoch;
   forall params ReceiveTax
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
 transition Migrate(recipient: ByStr20)
-  IsOwner _sender;
+  IsBankAuthority _sender;
 
   zil_balance <- _balance;
   has_no_zil_balance = builtin eq zil_balance zero;
@@ -853,27 +1069,6 @@ transition MigrateTokens(
   forall token_and_recipient_list MigrateToken
 end
 
-(* @dev: Update tokens_held map *)
-(* @dev: Only called by self, address cast workaround *)
-transition UpdateTokenBalance(
-  token: ByStr20 with contract
-    field balances: Map ByStr20 Uint128
-  end
-)
-  IsSelf _sender;
-
-  maybe_token_balance <- & token.balances[_this_address];
-  match maybe_token_balance with
-  | Some token_balance =>
-    is_zero_balance = builtin eq token_balance zero;
-    match is_zero_balance with
-    | True => delete tokens_held[token]
-    | False => tokens_held[token] := true
-    end
-  | None => delete tokens_held[token]
-  end
-end
-
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
 (* works on v8.1.0 (testnet, mainnet) but not v8.0.4 (ceres local) *)
 (* transition Migrate(recipient: ByStr20)
@@ -899,19 +1094,6 @@ end
     forall token_and_recipient_list MigrateToken
 
     // MigrateToken
-    maybe_token_contract <- & token as ByStr20 with contract
-      field balances: Map ByStr20 Uint128
-    end;
-    match maybe_token_contract with
-    | Some token_contract =>
-      maybe_token_balance <- & token_contract.balances[_this_address];
-      match maybe_token_balance with
-      | Some token_balance =>
-        SendToken recipient token token_balance
-      | None =>
-      end
-    | None =>
-    end
   end
 end *)
 

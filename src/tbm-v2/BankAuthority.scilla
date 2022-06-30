@@ -55,6 +55,7 @@ let get_amount_or_zero =
 
 contract BankAuthority(
   initial_owner: ByStr20,
+  initial_epoch_number: Uint32,
   initial_hive: ByStr20,
   huny_token: ByStr20 with contract
     field balances : Map ByStr20 Uint128
@@ -65,7 +66,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field epochs : Map Uint32 BNum = Emp Uint32 BNum
-field current_epoch : Uint32 = uint32_zero
+field current_epoch : Uint32 = initial_epoch_number
 
 field hive : ByStr20 = initial_hive
 field huny : ByStr20 with contract
@@ -119,7 +120,8 @@ end
 (*             Transitions             *)
 (***************************************)
 
-transition setEpoch(epoch_number: Uint32)
+transition SetEpoch(epoch_number: Uint32)
+  IsOwner _sender;
   current_epoch_number <- current_epoch;
   epoch_diff = builtin sub epoch_number current_epoch_number;
   is_next_epoch = builtin eq epoch_diff uint32_one;
@@ -135,7 +137,13 @@ transition setEpoch(epoch_number: Uint32)
     err = CodeWrongEpochNumber;
     ThrowError err
   end
-  
+end
+
+transition MigrateBank(bank: ByStr20, recipient: ByStr20)
+  IsOwner _sender;
+  msg = { _tag : "Migrate"; _recipient: bank; _amount: zero; recipient: recipient };
+  msgs = one_msg msg;
+  send msgs
 end
 
 (***************************************************)
