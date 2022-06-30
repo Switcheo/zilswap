@@ -844,8 +844,6 @@ procedure UpdateEpoch()
   end
 end
 
-
-
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -895,6 +893,7 @@ transition SignTx()
   SignPendingTx _sender
 end
 
+(* @dev: Promote a member from normal member to officer status *)
 transition PromoteMember(member: ByStr20)
   IsOwner _sender;
 
@@ -920,6 +919,7 @@ transition PromoteMember(member: ByStr20)
   end
 end
 
+(* @dev: Demote a member from officer to normal member status *)
 transition DemoteMember(member: ByStr20)
   IsOwner _sender;
   
@@ -933,6 +933,19 @@ transition DemoteMember(member: ByStr20)
   ResetPendingTx
 end
 
+(* @dev: Approve a user's request to join guild *)
+(* required before a member can join the guild by calling JoinAndPayJoiningFee *)
+transition ApproveMember(member: ByStr20)
+  IsCaptainOrOfficer _sender;
+  IsNotMember member;
+
+  member_approvals[member] := true;
+
+  e = {_eventname: "MemberApproved"; member: _sender; approver: _sender};
+  event e
+end
+
+(* @dev: Remove caller from the guild, cannot be called by owner *)
 transition LeaveGuild()
   IsNotOwner _sender;
   IsMember _sender;
@@ -950,18 +963,8 @@ transition LeaveGuild()
   end
 end
 
-transition ApproveMember(member: ByStr20)
-  IsCaptainOrOfficer _sender;
-  IsNotMember member;
-
-  member_approvals[member] := true;
-
-  e = {_eventname: "MemberApproved"; member: _sender; approver: _sender};
-  event e
-end
-
-
 (* @dev: Charge joining fee to user, called once by user joining a guild *)
+(* if member leaves and then eventually joins guild again, no fee is charged. *)
 transition JoinAndPayJoiningFee()
   IsNotMember _sender;
   IsApprovedRequest _sender;
