@@ -27,15 +27,19 @@ type ControlMode =
   | CaptainAndOneOfficer
   | CaptainAndTwoOfficers
 
+(* guild management fee allocation to captains and officers *)
 type FeeAllocation =
   | FeeAllocation of Uint128 Uint128 (* captain bps, officers bps *)
 
+(* fee settings for weekly tax and joining fee *)
 type Fee =
   | Fee of Uint128 Uint128 Uint32 FeeAllocation (* amount, inflation, first epoch, fee allocation *)
 
+(* all of a guild bank's configurations *)
 type GuildBankSettings =
   | GuildBankSettings of Fee Fee ControlMode (* joining fee, weekly tax, multisig control mode *)
 
+(* parameters for multisig transactions *)
 type TxParams =
   | UpdateConfigTxParams of GuildBankSettings
   | WithdrawTxParams of (* recipient, token, amount *)
@@ -45,19 +49,25 @@ type TxParams =
     end
     Uint128
   | DepositHiveTxParams of Uint128 Uint128 Uint32 (* min contribution, max token amount, deadline blocks offset *)
+  | WithdrawHiveTxParams of Uint128 Uint128 Uint128 Uint32 (* contribution, min zil amount, min token amount, deadline blocks offset *)
 
+(* multisig transaction with metadata *)
 type BankTx =
   | BankTx of String ByStr20 TxParams (* message, initiator, params *)
 
+(* represents an existing multisig transaction. consists of the transaction with a list of approvers *)
+type PendingTx =
+  | PendingTx of BankTx (List ByStr20) (* tx, approvers *)
+
+(* used for bulk collecting weekly tax *)
 type TaxParam =
   | TaxParam of ByStr20 Uint32 (* payer, epoch number *)
 
-type PendingTx =
-  | PendingTx of BankTx (List ByStr20) (* tx, approvals *)
-
+(* used for migrating funds on this contract to another guild bank contract during an upgrade *)
 type MigrateParam = 
   | MigrateParam of (ByStr20 with contract field balances: Map ByStr20 Uint128 end) ByStr20 (* token contract, recipient *)
 
+(* send token param for bulk sending tokens *)
 type SendTokenParam = 
   | SendTokenParam of ByStr20 (ByStr20 with contract field balances : Map ByStr20 Uint128 end) Uint128 (* recipient, token contract, amount *)
 
@@ -463,7 +473,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
   | BankTx message initiator params =>
     match params with
     | UpdateConfigTxParams new_settings =>
-
+      (* TODO: validate config params *)
     | WithdrawTxParams recipient token amount =>
       maybe_token_balance <- & token.balances[_this_address];
       match maybe_token_balance with
@@ -481,6 +491,9 @@ procedure IsValidBankTx(bank_tx: BankTx)
       end
 
     | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset =>
+      (* TODO: validate deposit params *)
+    | WithdrawHiveTxParams contribution min_zil_amount min_token_amount deadline_block_offset =>
+      (* TODO: validate withdraw params *)
     end
   end
 end
@@ -728,6 +741,26 @@ procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, dead
   event e
 end
 
+(* multi-sig authenticated operation *)
+procedure WithdrawHive(contribution: Uint128, min_zil_amount: Uint128, min_token_amount: Uint128, deadline_block_offset: Uint32)
+  current_block_number <- & BLOCKNUMBER;
+  deadline_block = builtin badd current_block_number deadline_block_offset;
+  hive_address <- & bank_authority.hive;
+  msg_to_hive = {
+    _tag: "RemoveLiquidity";
+    _recipient: hive_address;
+    _amount: zero;
+    amount: contribution;
+    min_zil_amount: min_zil_amount;
+    min_token_amount: min_token_amount;
+    deadline_block: deadline_block
+  };
+  msgs = one_msg msg_to_hive;
+  send msgs;
+
+  e = {_eventname: "HiveWithdrawComplete" };
+  event e
+end
 
 procedure ExecuteBankTx(bank_tx: BankTx)
   match bank_tx with
@@ -737,6 +770,8 @@ procedure ExecuteBankTx(bank_tx: BankTx)
     | WithdrawTxParams recipient token amount => Withdraw recipient token amount
     | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => 
       DepositHive min_contribution max_token_amount deadline_block_offset
+    | WithdrawHiveTxParams contribution min_zil_amount min_token_amount deadline_block_offset =>
+      WithdrawHive contribution min_zil_amount min_token_amount deadline_block_offset
     end
   end
 end
@@ -1117,34 +1152,6 @@ transition MigrateTokens(
   token_and_recipient_list = list_append_recipient token_list recipient;
   forall token_and_recipient_list MigrateToken
 end
-
-(* @dev: Migrate balance to specified contract - for contract upgrade *)
-(* works on v8.1.0 (testnet, mainnet) but not v8.0.4 (ceres local) *)
-(* transition Migrate(recipient: ByStr20)
-  IsOwner _sender;
-
-  zil_balance <- _balance;
-  has_no_zil_balance = builtin eq zil_balance zero;
-  match has_no_zil_balance with
-  | True =>
-  | False =>
-    SendZil recipient zil_balance
-  end;
-
-
-  current_tokens_held <- tokens_held;
-  token_list = map_to_list current_tokens_held;
-
-  some_token_item = get_first_addr token_list;
-  match some_token_item with
-  | None =>
-  | Some _ =>
-    token_and_recipient_list = list_append_recipient token_list recipient;
-    forall token_and_recipient_list MigrateToken
-
-    // MigrateToken
-  end
-end *)
 
 (***************************************************)
 (*              Ownership Transitions              *)
