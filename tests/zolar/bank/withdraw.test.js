@@ -1,15 +1,17 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const { ZERO_ADDRESS, ONE_HUNY, getPrivateKey, deployHuny, deployGuildBank } = require('../../../scripts/zolar/bank/deploy.js');
-const {callContract} = require('../../../scripts/call.js')
+const { ZERO_ADDRESS, ONE_HUNY, getPrivateKey, deployHuny, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
+const {callContract} = require('../../../scripts/call')
+const { getBalanceFromStates, generateErrorMsg } = require("./helper")
 
-let privateKey, address, hunyContract, bankContract, hunyAddress, bankAddress
+let privateKey, address, hunyContract, authorityContract, bankContract, hunyAddress, bankAddress
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
   hunyContract = await deployHuny()
-  bankContract = await deployGuildBank({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address })
+  authorityContract = await deployBankAuthority({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
+  bankContract = await deployGuildBank({ authorityAddress: authorityContract.address })
   hunyAddress = hunyContract.address.toLowerCase()
   bankAddress = bankContract.address.toLowerCase()
 
@@ -39,11 +41,11 @@ beforeAll(async () => {
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
 
-  await callContract(privateKey, bankContract, "PayJoiningFee", [], 0, false, false)
+  await callContract(privateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
 })
 
-test('initiate withdrawal tx after new member paid joining fee', async () => {
-  const stateBeforeTx = await hunyContract.getState()
+test('captain initiate withdrawal tx with sufficient huny in bank', async () => {
+  const hunyContractStateBeforeTx = await hunyContract.getState()
 
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
@@ -62,20 +64,18 @@ test('initiate withdrawal tx after new member paid joining fee', async () => {
   expect(txInitiateWithdrawTx.status).toEqual(2)
   expect(txInitiateWithdrawTx.receipt.success).toEqual(true)
 
-  const stateAfterTx = await hunyContract.getState()
-  const bankBalanceBeforeTx = stateBeforeTx.balances[bankAddress]
-  const bankBalanceAfterTx = parseInt(stateAfterTx.balances[bankAddress])
-  const bankWithdraw = bankBalanceBeforeTx - bankBalanceAfterTx
+  const hunyContractStateAfterTx = await hunyContract.getState()
+  const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+  const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
 
-  const memberBalanceBeforeTx = parseInt(stateBeforeTx.balances[address])
-  const memberBalanceAfterTx = parseInt(stateAfterTx.balances[address])
-  const memberReceive = memberBalanceAfterTx - memberBalanceBeforeTx
+  const bankWithdrawn = bankBalanceBeforeTx - bankBalanceAfterTx
+  const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
 
-  expect(bankWithdraw.toString()).toEqual(ONE_HUNY.toString(10))
-  expect(memberReceive.toString()).toEqual(ONE_HUNY.toString(10))
+  expect(bankWithdrawn.toString()).toEqual(ONE_HUNY.toString(10))
+  expect(captainReceived.toString()).toEqual(ONE_HUNY.toString(10))
 })
 
-test('initiate withdrawal tx with insufficient huny in bank', async () => {
+test('captain initiate withdrawal tx with insufficient huny in bank', async () => {
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -91,6 +91,6 @@ test('initiate withdrawal tx with insufficient huny in bank', async () => {
   }], 0, false, false)
 
   expect(txInitiateWithdrawTx.status).toEqual(3)
-  expect(txInitiateWithdrawTx.receipt.errors["0"]).toContain(7) // CodeInvalidTxInsufficientBalance
+  expect(txInitiateWithdrawTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(7)) // CodeInvalidTxInsufficientBalance
   expect(txInitiateWithdrawTx.receipt.success).toEqual(false)
 })
