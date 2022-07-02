@@ -5,8 +5,6 @@ const { generateFee } = require("./helper")
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
-const initialMembers = [randomAddress]
-
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase()
@@ -48,7 +46,7 @@ test('set new epoch number in Authority contract', async () => {
 
 test('deploy GuildBank contract', async () => {
   
-  bankContract = await deployGuildBank({ initialMembers, initialEpochNumber: newEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [randomAddress], initialEpochNumber: newEpochNumber, authorityAddress })
   expect(bankContract.address).toBeDefined()
 
   bankAddress = bankContract.address.toLowerCase() 
@@ -60,8 +58,8 @@ test('deploy GuildBank contract', async () => {
   expect(state.contract_owner.arguments[0]).toEqual(address)
   expect(state.control_mode.constructor).toEqual(`${bankAddress}.CaptainOnly`)
   expect(state.current_joining_fee).toEqual(ONE_HUNY.toString(10))
-  expect(state.joining_fee).toMatchObject(expectedJoiningFee) // KIV test
-  expect(state.weekly_tax).toMatchObject(expectedWeeklyTax) // KIV test
+  expect(state.joining_fee).toMatchObject(expectedJoiningFee) 
+  expect(state.weekly_tax).toMatchObject(expectedWeeklyTax) 
   expect(Object.keys(state.tokens_held).length).toEqual(0)
   
   expect(Object.keys(state.members).length).toEqual(1)
@@ -69,7 +67,6 @@ test('deploy GuildBank contract', async () => {
   
   expect(Object.keys(state.officers).length).toEqual(1)
   expect(state.officers).toHaveProperty(randomAddress)
-
 })
 
 
