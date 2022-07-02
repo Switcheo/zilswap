@@ -91,7 +91,7 @@ type Error =
   | CodeOfficerLimitReached
   | CodeMemberLimitReached
   | CodeInvalidMembershipState
-  | CodeRequestNotAccepted
+  | CodeMemberApplicationNotFound
   | CodeCaptainCannotLeave
   | CodeNotCaptainOrOfficer
   | CodeNotBankAuthority
@@ -120,7 +120,7 @@ let make_error =
       | CodeOfficerLimitReached             => Int32 -16
       | CodeMemberLimitReached              => Int32 -17
       | CodeInvalidMembershipState          => Int32 -18
-      | CodeRequestNotAccepted              => Int32 -19
+      | CodeMemberApplicationNotFound       => Int32 -19
       | CodeCaptainCannotLeave              => Int32 -20
       | CodeNotCaptainOrOfficer             => Int32 -21
       | CodeNotBankAuthority                => Int32 -22
@@ -388,8 +388,8 @@ field current_joining_fee : Uint128 =
 field members : Map ByStr20 Bool = list_to_map initial_members
 field officers : Map ByStr20 Bool = list_to_map initial_officers
 
-(* map of users requesting to join guild, true if approved by officer/captain *)
-field member_approvals : Map ByStr20 Bool = Emp ByStr20 Bool
+(* map of users requesting to join guild, can be approved by guild managers to complete join flow *)
+field joining_requests : Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* map of joining fee paid per user *)
 field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
@@ -534,18 +534,18 @@ procedure IsValidPendingTx()
   end
 end
 
-procedure IsApprovedRequest(user: ByStr20)
-  maybe_approval <- member_approvals[user];
-  match maybe_approval with
-  | Some approval =>
-    match approval with
+procedure IsApplicationActive(member: ByStr20)
+  maybe_application <- joining_requests[member];
+  match maybe_application with
+  | Some application =>
+    match application with
     | True => (* no-op *)
     | False =>
-      err = CodeRequestNotAccepted;
+      err = CodeMemberApplicationNotFound;
       ThrowError err
     end
   | None =>
-    err = CodeRequestNotAccepted;
+    err = CodeMemberApplicationNotFound;
     ThrowError err
    end
 end
@@ -929,6 +929,27 @@ end
 (*             Transitions             *)
 (***************************************)
 
+(* @dev: Request to join guild                                                        *)
+(* required before a member can join the guild by calling ApproveAndReceiveJoiningFee *)
+transition ApplyForMembership()
+  IsNotMember _sender;
+
+  joining_requests[_sender] := true;
+
+  e = {_eventname: "MemberApplicationCreated"; applicant: _sender};
+  event e
+end
+
+(* @dev: Withdraw guild membership application *)
+transition WithdrawMembershipApplication()
+  IsApplicationActive _sender;
+
+  delete joining_requests[_sender];
+
+  e = {_eventname: "MemberApplicationWithdrawn"; applicant: _sender};
+  event e
+end
+
 (* @dev: Initiate a generic multisig transaction (depends on configuration  *)
 (* could resolve immediately if in single-signature mode)                   *)
 (* @param tx_params: multisig transaction parameters                        *)
@@ -1018,17 +1039,32 @@ transition DemoteMember(member: ByStr20)
   ResetPendingTx
 end
 
-(* @dev: Approve a user's request to join guild                                 *)
-(* required before a member can join the guild by calling JoinAndPayJoiningFee  *)
-(* @param member: member to be added to approved list                           *)
-transition ApproveMember(member: ByStr20)
+(* @dev: Remove a member from the guild, can only be called by captain or *)
+(* officer. Cannot remove self.                                           *)
+(* @param member: member to be removed from guild                         *)
+transition RemoveMember(member: ByStr20)
   IsCaptainOrOfficer _sender;
-  IsNotMember member;
+  IsMember member;
+  IsNotOwner member;
 
-  member_approvals[member] := true;
+  is_removing_self = builtin eq member _sender;
+  match is_removing_self with
+  | False =>
+    delete members[member];
+    e = {_eventname: "MemberLeft"; member: member};
+    event e;
 
-  e = {_eventname: "MemberApproved"; member: member; approver: _sender};
-  event e
+    maybe_officer <- officers[member];
+    match maybe_officer with
+    | Some officer =>
+      delete officers[member];
+      ResetPendingTx
+    | None => (* no-op *)
+    end
+  | True =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
 end
 
 (* @dev: Remove caller from the guild, cannot be called by owner *)
@@ -1049,22 +1085,25 @@ transition LeaveGuild()
   end
 end
 
-(* @dev: Charge joining fee to user, called once by user joining a guild *)
+(* @dev: Approve membership application and charge joining fee to user.       *)
 (* if member leaves and then eventually joins guild again, no fee is charged. *)
-transition JoinAndPayJoiningFee()
-  IsNotMember _sender;
-  IsApprovedRequest _sender;
+(* @param member: member to be charge fee and add to guild                    *)
+transition ApproveAndReceiveJoiningFee(member: ByStr20)
+  IsNotMember member;
+  IsApplicationActive member;
   UpdateEpoch;
 
   (* add member to members *)
-  members[_sender] := true;
+  members[member] := true;
+
+  delete joining_requests[member];
 
   (* announce new membership *)
-  e = {_eventname: "MemberJoined"; member: _sender};
+  e = {_eventname: "MemberJoined"; member: member};
   event e;
 
   (* check if joining fee paid *)
-  maybe_paid_joining_fee <- joining_fee_paid[_sender];
+  maybe_paid_joining_fee <- joining_fee_paid[member];
   match maybe_paid_joining_fee with
   | Some _ => (* no-op - fee already paid previously *)
   | None =>
@@ -1075,10 +1114,10 @@ transition JoinAndPayJoiningFee()
     match has_joining_fee with
     | False => (* no-op - joining fee ≤ zero *)
     | True =>
-      joining_fee_paid[_sender] := fee_amount;
+      joining_fee_paid[member] := fee_amount;
 
       huny_token <- & bank_authority.huny;
-      e = {_eventname: "PaidJoiningFee"; member: _sender; token: huny_token; amount: fee_amount};
+      e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: fee_amount};
       event e;
 
       ReceiveToken _sender huny_token fee_amount;
@@ -1166,6 +1205,22 @@ transition MigrateTokens(
   token_and_recipient_list = list_append_recipient token_list recipient;
   forall token_and_recipient_list MigrateToken
 end
+
+(* @dev: Claim Magic Hive rewards *)
+transition ClaimHive()
+  hive_address <- & bank_authority.hive;
+  msg_to_hive = {
+    _tag: "Claim";
+    _recipient: hive_address;
+    _amount: zero
+  };
+  msgs = one_msg msg_to_hive;
+  send msgs;
+
+  e = {_eventname: "ClaimedHive"; initiator: _sender};
+  event e
+end
+
 
 (***************************************************)
 (*              Ownership Transitions              *)

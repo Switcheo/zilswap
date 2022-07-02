@@ -3,7 +3,7 @@ const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { deployContract } = require("../../deploy");
 const { default: BigNumber } = require("bignumber.js");
 const { callContract } = require("../../call");
-const { useKey } = require("../../zilliqa");
+const { useKey, zilliqa } = require("../../zilliqa");
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const randomAddress = "0xd793f378a925b9f0d3c4b6ee544d31c707899386"
@@ -62,6 +62,83 @@ const deployHuny = async () => {
   return contract;
 }
 
+const deployZilswap = async () => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile('./src/ZilSwapV1.1.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'initial_fee',
+      type: 'Uint256',
+      value: "200",
+    },
+  ]
+
+  console.info(`Deploying ZilSwap...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+}
+
+const deployHive = async ({
+  hunyAddress,
+  zilswapAddress,
+}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
+  const code = (await fs.promises.readFile('./src/tbm-v2/MagicHiveV2.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: address,
+    },
+    {
+      vname: 'initial_refinery',
+      type: 'ByStr20',
+      value: ZERO_ADDRESS,
+    },
+    {
+      vname: 'reward_start_block',
+      type: 'BNum',
+      value: blockHeight ?? "100",
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: hunyAddress,
+    },
+    {
+      vname: 'zilswap_contract',
+      type: 'ByStr20',
+      value: zilswapAddress,
+    },
+  ]
+
+  console.info(`Deploying Hive...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+}
+
 async function deployBankAuthority({
   hiveAddress,
   hunyAddress,
@@ -109,6 +186,7 @@ async function deployBankAuthority({
 async function deployGuildBank({
   authorityAddress,
   initialEpochNumber,
+  initialMembers = [],
 }) {
   const privateKey = getPrivateKey();
 
@@ -164,12 +242,12 @@ async function deployGuildBank({
     {
       vname: 'initial_members',
       type: 'List ByStr20',
-      value: [randomAddress],
+      value: initialMembers,
     },
     {
       vname: 'initial_officers',
       type: 'List ByStr20',
-      value: [randomAddress],
+      value: initialMembers,
     },
   ]
 
@@ -185,12 +263,18 @@ async function deployGuildBank({
   const hunyContract = await deployHuny();
   const hunyAddress = hunyContract.address.toLowerCase();
 
+  const zilswapContract = await deployZilswap();
+  const zilswapAddress = zilswapContract.address;
+
+  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  const hiveAddress = hiveContract.address.toLowerCase();
+
   const memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER");
   const memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
 
   const initialEpochNumber = 1;
   const newEpochNumber = 2;
-  const authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
+  const authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress });
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
@@ -198,7 +282,8 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("set epoch number tx", txSetEpochNumber.id)
 
-  const bankContract = await deployGuildBank({ initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
+  const initialMembers = [memberAddress];
+  const bankContract = await deployGuildBank({ initialMembers, initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
 
   const txSetEpochNumberAgain = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
@@ -260,15 +345,22 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("allowance", txAllowanceMember.id)
 
-  const txApproveMember = await callContract(privateKey, bankContract, "ApproveMember", [{
+  const txRemoveMember = await callContract(privateKey, bankContract, "RemoveMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  console.log("remove member", txRemoveMember.id);
+
+  const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
+  console.log("apply membership", txApplyMembership.id)
+
+  const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
     vname: "member",
     type: "ByStr20",
     value: memberAddress,
   }], 0, false, false)
   console.log("approve member", txApproveMember.id)
-
-  const txJoinAndPayJoiningFee = await callContract(memberPrivateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
-  console.log("join and pay joining fee", txJoinAndPayJoiningFee.id)
 
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
@@ -391,17 +483,6 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("collect tax tx", txCollectTax.id)
 
-  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
-    vname: "bank",
-    type: "ByStr20",
-    value: bankAddress,
-  }, {
-    vname: "recipient",
-    type: "ByStr20",
-    value: address,
-  }], 0, false, false)
-  console.log("migrate huny tx", txMigrate.id)
-
   const txPromote = await callContract(privateKey, bankContract, "PromoteMember", [{
     vname: "member",
     type: "ByStr20",
@@ -417,5 +498,20 @@ async function deployGuildBank({
   console.log("demote tx", txDemote.id)
 
   const txLeaveGuild = await callContract(memberPrivateKey, bankContract, "LeaveGuild", [], 0, false, false)
-  console.log("demote tx", txDemote.id)
+  console.log("demote tx", txLeaveGuild.id)
+
+  // will not work without adding liquidity to hive.
+  const txClaimHive = await callContract(privateKey, bankContract, "ClaimHive", [], 0, false, false)
+  console.log("claim hive tx", txClaimHive.id)
+
+  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
+    vname: "bank",
+    type: "ByStr20",
+    value: bankAddress,
+  }, {
+    vname: "recipient",
+    type: "ByStr20",
+    value: address,
+  }], 0, false, false)
+  console.log("migrate huny tx", txMigrate.id)
 })().catch(console.error).finally(() => process.exit(0));
