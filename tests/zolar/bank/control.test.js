@@ -1,10 +1,10 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const { ZERO_ADDRESS, ONE_HUNY, getPrivateKey, newEpochNumber, deployHuny, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
-const {callContract} = require('../../../scripts/call')
-const { generateErrorMsg, generatePendingTx } = require("./helper")
+const { ONE_HUNY, getPrivateKey, initialEpochNumber, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
+const {callContract} = require("../../../scripts/call")
+const { generateErrorMsg } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, hunyContract, authorityContract, bankContract, hunyAddress, bankAddress
+let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
 async function initiateUpdateControlModeTx (initiator, controlMode) {
   const txInitiateUpdateControlModeTx = await callContract(initiator, bankContract, "InitiateTx", [{
@@ -22,7 +22,7 @@ async function initiateUpdateControlModeTx (initiator, controlMode) {
           arguments: [
             ONE_HUNY.toString(10), // initial amount
             ONE_HUNY.toString(10), // inflation
-            newEpochNumber.toString(), // first epoch
+            initialEpochNumber.toString(), // first epoch
             {
               constructor: `${bankAddress}.FeeAllocation`,
               argtypes: [],
@@ -35,7 +35,7 @@ async function initiateUpdateControlModeTx (initiator, controlMode) {
           arguments: [
             ONE_HUNY.toString(10), // initial amount
             ONE_HUNY.toString(10), // inflation
-            newEpochNumber.toString(), // first epoch
+            initialEpochNumber.toString(), // first epoch
             {
               constructor: `${bankAddress}.FeeAllocation`,
               argtypes: [],
@@ -61,15 +61,24 @@ async function initiateUpdateControlModeTx (initiator, controlMode) {
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
+  
+  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
   memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
   
   hunyContract = await deployHuny()
-  authorityContract = await deployBankAuthority({ hiveAddress: ZERO_ADDRESS, hunyAddress: hunyContract.address });
-  bankContract = await deployGuildBank({ authorityAddress: authorityContract.address })
-
   hunyAddress = hunyContract.address.toLowerCase()
+
+  const zilswapContract = await deployZilswap();
+  zilswapAddress = zilswapContract.address;
+
+  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  hiveAddress = hiveContract.address.toLowerCase();
+  
+  authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
+  authorityAddress = authorityContract.address.toLowerCase()
+
+  bankContract = await deployGuildBank({ initialMembers: [], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
@@ -99,13 +108,13 @@ beforeAll(async () => {
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
 
-  const txApproveMember = await callContract(privateKey, bankContract, "ApproveMember", [{
+  const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
+
+  const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
     vname: "member",
     type: "ByStr20",
     value: memberAddress,
   }], 0, false, false)
-
-  const txJoinAndPayJoiningFee = await callContract(memberPrivateKey, bankContract, "JoinAndPayJoiningFee", [], 0, false, false)
 })
 
 afterEach(async () => {
@@ -128,7 +137,7 @@ test('sign tx with officer when controlMode = CaptainOnly', async () => {
   const bankContractStateAfterTx = await bankContract.getState()
 
   expect(bankContractStateBeforeTx.pending_tx.arguments.length).toEqual(0)
-  expect(bankContractStateBeforeTx.pending_tx.arguments[0]).toMatchObject(generatePendingTx(bankTx, signer))
+  expect(bankContractStateAfterTx.pending_tx.arguments.length).toEqual(1)
   expect(bankContractStateBeforeTx.control_mode.constructor).toEqual(bankContractStateAfterTx.control_mode.constructor)
 })
 
@@ -138,12 +147,16 @@ test('sign tx with captain after updating controlMode = CaptainAndOneOfficer', a
   // officer signs pending tx; tx approved
   const txInitiateUpdateControlMode4Tx = await initiateUpdateControlModeTx(privateKey, 'CaptainAndOneOfficer')
   const txInitiateUpdateControlMode3Tx = await initiateUpdateControlModeTx(privateKey, 'CaptainOnly')
-
-  const bankContractStateBeforeTx = await bankState.getState()
-  expect(bankContractStateBeforeTx.)
+  const bankContractStateBeforeTx = await bankContract.getState()
+  
   expect(bankContractStateBeforeTx.control_mode.constructor).toEqual(`${bankAddress}.CaptainAndOneOfficer`)
+  expect(bankContractStateBeforeTx.pending_tx.arguments.length).toEqual(1)
 
-  const txSignPendingTx = await callContract(memberPrivateKey, bankContract, "SignTx", [], 0, false, false)
+  const txOfficerSignPendingTx = await callContract(memberPrivateKey, bankContract, "SignTx", [], 0, false, false)
+  const bankContractStateAfterTx = await bankContract.getState()
+  
+  expect(bankContractStateAfterTx.control_mode.constructor).toEqual(`${bankAddress}.CaptainOnly`)
+  expect(bankContractStateAfterTx.pending_tx.arguments.length).toEqual(0)
 })
 
 test('sign tx with member', async () => {
@@ -156,7 +169,16 @@ test('sign tx with member', async () => {
     type: "ByStr20",
     value: memberAddress,
   }], 0, false, false)
+  const bankContractStateBeforeTx = await bankContract.getState()
+  
+  expect(bankContractStateBeforeTx.control_mode.constructor).toEqual(`${bankAddress}.CaptainOnly`)
+  expect(bankContractStateBeforeTx.pending_tx.arguments.length).toEqual(1)
+
   const txSignPendingTx = await callContract(memberPrivateKey, bankContract, "SignTx", [], 0, false, false)
+
+  expect(txSignPendingTx.status).toEqual(3)
+  expect(txSignPendingTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(21)) // CodeNotCaptainOrOfficer
+  expect(txSignPendingTx.receipt.success).toEqual(false)
 })
 
 
