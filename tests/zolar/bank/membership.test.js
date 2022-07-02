@@ -151,3 +151,43 @@ test('existing member attempts to apply for membership', async () => {
   expect(txApplyMembership.receipt.exceptions[0].message).toEqual(generateErrorMsg(12)) // throws CodeIsAlreadyMember (12)
   expect(txApplyMembership.receipt.success).toEqual(false)
 }) 
+
+test('promote member to officer', async () => {
+  const bankContractStateBeforeTx = await bankContract.getState()
+  const txPromote = await callContract(privateKey, bankContract, "PromoteMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  expect(bankContractStateBeforeTx.officers).not.toHaveProperty(memberAddress)
+  expect(bankContractStateAfterTx.officers).toHaveProperty(memberAddress)
+})
+
+test('demote officer to member', async () => {
+  const bankContractStateBeforeTx = await bankContract.getState()
+  const txDemote = await callContract(privateKey, bankContract, "DemoteMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  expect(bankContractStateBeforeTx.officers).toHaveProperty(memberAddress)
+  expect(bankContractStateAfterTx.officers).not.toHaveProperty(memberAddress)
+})
+
+test('remove member from guild', async () => {
+  const bankContractStateBeforeTx = await bankContract.getState()
+  const txRemoveMember = await callContract(privateKey, bankContract, "RemoveMember", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  expect(bankContractStateBeforeTx.members).toHaveProperty(memberAddress)
+  expect(bankContractStateAfterTx.members).not.toHaveProperty(memberAddress)
+})
+
