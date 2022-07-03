@@ -64,7 +64,6 @@ describe('member joins guild for the first time', () => {
 
     expect(bankContractStateBeforeTx.joining_requests).not.toHaveProperty(memberAddress)
     expect(bankContractStateAfterTx.joining_requests).toHaveProperty(memberAddress)
-    // expect(bankContractStateAfterTx.joining_requests.constructor).toEqual('True')
   })
 
   test('member automatically pays joining fee after approval', async () => {
@@ -101,7 +100,7 @@ describe('member joins guild for the first time', () => {
     expect(bankReceived.toString()).toEqual((ONE_HUNY * 0.95).toString(10))
     expect(captainReceived.toString()).toEqual((ONE_HUNY * 0.05).toString(10))
 
-    // check addition of token addr to bank contract (KIV)
+    // check addition of token addr to bank contract (KIV - tokens_held not updated)
     // expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
     // expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
   })

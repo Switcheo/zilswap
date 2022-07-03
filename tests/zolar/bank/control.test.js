@@ -1,5 +1,4 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
-const { default: BigNumber } = require("bignumber.js");
 const { ONE_HUNY, getPrivateKey, initialEpochNumber, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
 const {callContract} = require("../../../scripts/call")
 const { generateErrorMsg } = require("./helper")
@@ -78,7 +77,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [memberAddress], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
@@ -86,35 +85,6 @@ beforeAll(async () => {
     type: 'ByStr20',
     value: address,
   }], 0, false, false);
-
-  const txMintMember = await callContract(privateKey, hunyContract, "Mint", [{
-    vname: 'recipient',
-    type: 'ByStr20',
-    value: memberAddress,
-  }, {
-    vname: 'amount',
-    type: 'Uint128',
-    value: new BigNumber(1).shiftedBy(12 + 3),
-  }], 0, false, false)
-
-  // allow member to transfer token to bank (spender)
-  const txAllowanceMember = await callContract(memberPrivateKey, hunyContract, "IncreaseAllowance", [{
-    vname: 'spender',
-    type: 'ByStr20',
-    value: bankContract.address.toLowerCase(),
-  }, {
-    vname: 'amount',
-    type: 'Uint128',
-    value: new BigNumber(2).pow(64).minus(1).toString(),
-  }], 0, false, false)
-
-  const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
-
-  const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
-    vname: "member",
-    type: "ByStr20",
-    value: memberAddress,
-  }], 0, false, false)
 })
 
 afterEach(async () => {
@@ -123,15 +93,8 @@ afterEach(async () => {
 })
 
 test('sign tx with officer when controlMode = CaptainOnly', async () => {
-  // promote member to officer
   // officer initiates update guild setting tx
   // tx is pending; no change in controlMode
-  const txPromote = await callContract(privateKey, bankContract, "PromoteMember", [{
-    vname: "member",
-    type: "ByStr20",
-    value: memberAddress,
-  }], 0, false, false)
-
   const bankContractStateBeforeTx = await bankContract.getState()
   const txInitiateUpdateControlMode4Tx = await initiateUpdateControlModeTx(memberPrivateKey, 'CaptainAndOneOfficer')
   const bankContractStateAfterTx = await bankContract.getState()

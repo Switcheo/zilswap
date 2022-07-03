@@ -1,6 +1,6 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const { getPrivateKey, initialEpochNumber, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
+const { ONE_HUNY, getPrivateKey, initialEpochNumber, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
 const {callContract} = require("../../../scripts/call")
 const { getBalanceFromStates, generateErrorMsg } = require("./helper")
 
@@ -9,9 +9,6 @@ let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddr
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
   
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
@@ -34,18 +31,18 @@ beforeAll(async () => {
     value: address,
   }], 0, false, false);
 
-  const txMintMember = await callContract(privateKey, hunyContract, "Mint", [{
+  const txMintCaptain = await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
     type: 'ByStr20',
-    value: memberAddress,
+    value: address,
   }, {
     vname: 'amount',
     type: 'Uint128',
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
 
-  // allow member to transfer token to bank (spender)
-  const txAllowanceMember = await callContract(memberPrivateKey, hunyContract, "IncreaseAllowance", [{
+  // allow captain to transfer token to bank (spender)
+  const txAllowanceCaptain = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
     value: bankAddress,
@@ -55,12 +52,14 @@ beforeAll(async () => {
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
 
-  const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
-
-  const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
-    vname: "member",
+  const txMakeHunyDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
     type: "ByStr20",
-    value: memberAddress,
+    value: hunyAddress,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: ONE_HUNY.toString(10),
   }], 0, false, false)
 })
 
@@ -73,7 +72,7 @@ test('captain initiate withdrawal tx with sufficient huny in bank', async () => 
     value: {
       constructor: `${bankAddress}.WithdrawTxParams`,
       argtypes: [],
-      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
+      arguments: [address, hunyAddress, ONE_HUNY.dividedBy(2).toString(10)]
     },
   }, {
     vname: "message",
@@ -88,8 +87,8 @@ test('captain initiate withdrawal tx with sufficient huny in bank', async () => 
   const bankWithdrawn = bankBalanceBeforeTx - bankBalanceAfterTx
   const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
 
-  expect(bankWithdrawn.toString()).toEqual(new BigNumber(0.5).shiftedBy(12).toString(10))
-  expect(captainReceived.toString()).toEqual(new BigNumber(0.5).shiftedBy(12).toString(10))
+  expect(bankWithdrawn.toString()).toEqual(ONE_HUNY.dividedBy(2).toString(10))
+  expect(captainReceived.toString()).toEqual(ONE_HUNY.dividedBy(2).toString(10))
 })
 
 test('captain initiate withdrawal tx with insufficient huny in bank', async () => {
@@ -101,7 +100,7 @@ test('captain initiate withdrawal tx with insufficient huny in bank', async () =
     value: {
       constructor: `${bankAddress}.WithdrawTxParams`,
       argtypes: [],
-      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
+      arguments: [address, hunyAddress, ONE_HUNY.toString(10)]
     },
   }, {
     vname: "message",
