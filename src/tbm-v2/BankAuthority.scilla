@@ -139,9 +139,9 @@ transition SetEpoch(epoch_number: Uint32)
   end
 end
 
-transition MigrateBank(bank: ByStr20, recipient: ByStr20)
+transition MigrateBank(bank: ByStr20, token: ByStr20, recipient: ByStr20 )
   IsOwner _sender;
-  msg = { _tag : "Migrate"; _recipient: bank; _amount: zero; recipient: recipient };
+  msg = { _tag : "Migrate"; _recipient: bank; _amount: zero; token: token; recipient: recipient };
   msgs = one_msg msg;
   send msgs
 end

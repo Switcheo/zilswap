@@ -47,6 +47,22 @@ async function mintAndDonate(tokenContract) {
   }], 0, false, false)
 } 
 
+async function migrateToken(tokenAddress, recipientAddress) {
+  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [ {
+    vname: "bank",
+    type: "ByStr20",
+    value: bankAddress,
+  }, {
+    vname: "token",
+    type: "ByStr20",
+    value: tokenAddress,
+  }, {
+    vname: "recipient",
+    type: "ByStr20",
+    value: recipientAddress,
+  }], 0, false, false)
+}
+
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
@@ -72,15 +88,7 @@ test('migrate 1 token', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
   const bankContractStateBeforeTx = await bankContract.getState()
   
-  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
-    vname: "bank",
-    type: "ByStr20",
-    value: bankAddress,
-  }, {
-    vname: "recipient",
-    type: "ByStr20",
-    value: address,
-  }], 0, false, false)
+  const txMigrate = await migrateToken(hunyAddress, address)
 
   const hunyContractStateAfterTx = await hunyContract.getState()
   const bankContractStateAfterTx = await bankContract.getState()
@@ -99,10 +107,10 @@ test('migrate 1 token', async () => {
   expect(bankContractStateAfterTx.tokens_held).not.toHaveProperty(hunyAddress)
 })
 
-test('migrate 50 tokens', async () => {
+test('migrate 10 tokens', async () => {
   const tokens = []
 
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 1; i++) {
     const tokenContract = await deployHuny()
     const txMintAndDonate = await mintAndDonate(tokenContract)
     tokens.push(tokenContract) 
@@ -111,30 +119,20 @@ test('migrate 50 tokens', async () => {
   const tokenContractStatesBeforeTx = await Promise.all(tokens.map(async token => await token.getState()))
   const bankContractStateBeforeTx = await bankContract.getState()
   
-  // check bankContract.tokens_held is updated correctly 
+  // check bankContract.tokens_held is populated
   expect(Object.keys(bankContractStateBeforeTx.tokens_held).length).toEqual(tokens.length)
   expect(tokens.every(token => token.address.toLowerCase() in bankContractStateBeforeTx.tokens_held)).toEqual(true)
-
-  console.log(bankContractStateBeforeTx)
-  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [ {
-      vname: "bank",
-      type: "ByStr20",
-      value: bankAddress,
-    }, {
-      vname: "recipient",
-      type: "ByStr20",
-      value: address,
-    }], 0, false, false)
-  
-  const bankContractStateAfterTx = await bankContract.getState()
   
   for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]
-    const tokenAddress = token.address.toLowerCase()
+    const tokenContract = tokens[i]
+    const tokenAddress = tokenContract.address.toLowerCase()
     const tokenContractStateBeforeTx = tokenContractStatesBeforeTx[i]
-    const tokenContractStateAfterTx = await token.getState()
 
-      // check huny deduction for bank; huny increment for captain
+    const txMigrate = await migrateToken(tokenAddress, address)
+    const tokenContractStateAfterTx = await tokenContract.getState()
+    const bankContractStateAfterTx = await bankContract.getState()
+
+    // check huny deduction for bank; huny increment for captain
     const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, tokenContractStateBeforeTx, tokenContractStateAfterTx)
     const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, tokenContractStateBeforeTx, tokenContractStateAfterTx)
     const migratedFromBank = bankBalanceBeforeTx - bankBalanceAfterTx

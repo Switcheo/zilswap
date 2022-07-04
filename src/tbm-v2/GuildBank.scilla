@@ -1121,7 +1121,7 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
       e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: fee_amount};
       event e;
 
-      ReceiveToken _sender huny_token fee_amount;
+      ReceiveToken member huny_token fee_amount;
 
       fee_config <- joining_fee;
       PayoutManagementFee fee_config fee_amount huny_token
@@ -1160,8 +1160,9 @@ transition CollectTax(params: List TaxParam)
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
+(* @param token: token contract               *)
 (* @param recipient: contract to receive token balances               *)
-transition Migrate(recipient: ByStr20)
+transition Migrate(token: ByStr20, recipient: ByStr20)
   IsBankAuthority _sender;
 
   zil_balance <- _balance;
@@ -1172,11 +1173,8 @@ transition Migrate(recipient: ByStr20)
     SendZil recipient zil_balance
   end;
 
-  current_tokens_held <- tokens_held;
-  token_list = map_to_list current_tokens_held;
-  token_and_recipient_list = list_append_recipient token_list recipient;
-
-  forall token_and_recipient_list MigrateToken
+  param = MigrateParam token recipient;
+  MigrateToken param
 end
 
 (* @dev: Claim Magic Hive rewards *)
