@@ -381,6 +381,156 @@ procedure TransferNFT(token: NFT, from: ByStr20, to: ByStr20)
   end
 end
 
+(* To execute trade for ZRC6 tokens*)
+procedure TradeZRC6 (
+  price: Coins,
+  fee_amount: Uint128,
+  token: NFT,
+  token_contract: ByStr20 with contract
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128 
+    end,
+  buyer: ByStr20,
+  seller: ByStr20,
+  buy_cheque: Cheque,
+  sell_cheque: Cheque)
+  
+  match price with
+  | Coins denom amount =>
+    royalty_recipient <- & token_contract.royalty_recipient;
+    royalty_fee_BPS <- & token_contract.royalty_fee_bps;
+    platform_fee_receiver <- fee_address;
+    platform_fee_BPS <- platform_fee_bps;
+        
+    seller_receive_amount = builtin sub amount fee_amount;
+    royalty_receive_amount = calculate_fee amount royalty_fee_BPS;
+    platform_receive_amount = builtin sub fee_amount royalty_receive_amount;
+
+    IsValidPlatformFee amount platform_receive_amount platform_fee_BPS;
+
+    seller_receive_coins = Coins denom seller_receive_amount;
+    royalty_receive_coins = Coins denom royalty_receive_amount;
+    platform_receive_coins = Coins denom platform_receive_amount;
+    
+    (* This is just for the ExecuteTradeSuccess event *)
+    fee_receive_coins = Coins denom fee_amount;
+    
+    match denom with
+    | Zil =>
+      receiving_from_buyer = builtin eq buyer _sender;
+      match receiving_from_buyer with
+      | True =>
+      | False =>
+        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
+        (* this means that bidders that do not immediately match should always offer in wZIL *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      correct_amount = builtin eq _amount amount;
+      match correct_amount with
+      | True =>
+      | False =>
+        (* the amount of zils need to match the required amount as specified in the price exactly *)
+        (* otherwise, funds may be stuck and lost forever *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      accept
+    | _ =>
+    end;
+
+    TransferCoins seller_receive_coins buyer seller;
+    TransferCoins platform_receive_coins buyer platform_fee_receiver;
+    TransferCoins royalty_receive_coins buyer royalty_recipient;
+    TransferNFT token seller buyer;
+    
+    e = {
+      _eventname : "ExecuteTradeSuccess";
+      initiator : _sender;
+      token : token;
+      seller : seller;
+      buyer : buyer;
+      proceeds : seller_receive_coins;
+      fees: fee_receive_coins;
+      sell_cheque: sell_cheque;
+      buy_cheque: buy_cheque
+    };
+        
+    f = {
+      _eventname: "RoyaltiesTransferSuccess";
+      from: buyer;
+      royalty_recipient : royalty_recipient;
+      royalties : royalty_receive_coins;
+      platform_fee_recipient : platform_fee_receiver;
+      platform_fee : platform_receive_coins
+    };
+        
+    event e;
+    event f
+  end
+end
+
+procedure TradeNonZRC6(
+  price: Coins, 
+  fee_amount: Uint128, 
+  token: NFT, 
+  buyer: ByStr20, 
+  seller: ByStr20,
+  buy_cheque: Cheque,
+  sell_cheque: Cheque)
+  
+  match price with
+  | Coins denom amount =>
+    fee_receiver <- fee_address;
+  
+    seller_receive_amount = builtin sub amount fee_amount;
+    seller_receive_coins = Coins denom seller_receive_amount;
+    fee_receive_coins = Coins denom fee_amount;
+  
+    (* if zil (non-zrc2), do additional validation and accept amount first *)
+    match denom with
+    | Zil =>
+      receiving_from_buyer = builtin eq buyer _sender;
+      match receiving_from_buyer with
+      | True =>
+      | False =>
+        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
+        (* this means that bidders that do not immediately match should always offer in wZIL *)
+        err = CodeInvalidPrice;
+        ThrowError err
+       end;
+      correct_amount = builtin eq _amount amount;
+      match correct_amount with
+      | True =>
+      | False =>
+        (* the amount of zils need to match the required amount as specified in the price exactly *)
+        (* otherwise, funds may be stuck and lost forever *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      accept
+    | _ =>
+    end;
+  
+    TransferCoins seller_receive_coins buyer seller;
+    TransferCoins fee_receive_coins buyer fee_receiver;
+    TransferNFT token seller buyer;
+        
+    e = {
+      _eventname : "ExecuteTradeSuccess";
+      initiator : _sender;
+      token : token;
+      seller : seller;
+      buyer : buyer;
+      proceeds : seller_receive_coins;
+      fees : fee_receive_coins;
+      sell_cheque: sell_cheque;
+      buy_cheque: buy_cheque
+    };
+    event e
+  end
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -397,130 +547,9 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
     maybe_token_contract <- & token_address as ByStr20 with contract field royalty_recipient: ByStr20, field royalty_fee_bps: Uint128 end;
     match maybe_token_contract with
     | Some token_contract =>
-      match price with
-      | Coins denom amount =>
-        royalty_recipient <- & token_contract.royalty_recipient;
-        royalty_fee_BPS <- & token_contract.royalty_fee_bps;
-        platform_fee_receiver <- fee_address;
-        platform_fee_BPS <- platform_fee_bps;
-        
-        seller_receive_amount = builtin sub amount fee_amount;
-        royalty_receive_amount = calculate_fee amount royalty_fee_BPS;
-        platform_receive_amount = builtin sub fee_amount royalty_receive_amount;
-
-        IsValidPlatformFee amount platform_receive_amount platform_fee_BPS;
-
-        seller_receive_coins = Coins denom seller_receive_amount;
-        royalty_receive_coins = Coins denom royalty_receive_amount;
-        platform_receive_coins = Coins denom platform_receive_amount;
-        
-        (* This is just for the ExecuteTradeSuccess event *)
-        fee_receive_coins = Coins denom fee_amount;
-        
-        match denom with
-        | Zil =>
-          receiving_from_buyer = builtin eq buyer _sender;
-          match receiving_from_buyer with
-          | True =>
-          | False =>
-            (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
-            (* this means that bidders that do not immediately match should always offer in wZIL *)
-            err = CodeInvalidPrice;
-            ThrowError err
-          end;
-          correct_amount = builtin eq _amount amount;
-          match correct_amount with
-          | True =>
-          | False =>
-            (* the amount of zils need to match the required amount as specified in the price exactly *)
-            (* otherwise, funds may be stuck and lost forever *)
-            err = CodeInvalidPrice;
-            ThrowError err
-          end;
-          accept
-        | _ =>
-        end;
-  
-        TransferCoins seller_receive_coins buyer seller;
-        TransferCoins platform_receive_coins buyer platform_fee_receiver;
-        TransferCoins royalty_receive_coins buyer royalty_recipient;
-        TransferNFT token seller buyer;
-        
-        e = {
-          _eventname : "ExecuteTradeSuccess";
-          initiator : _sender;
-          token : token;
-          seller : seller;
-          buyer : buyer;
-          proceeds : seller_receive_coins;
-          fees: fee_receive_coins;
-          sell_cheque: sell_cheque;
-          buy_cheque: buy_cheque
-        };
-        
-        f = {
-          _eventname: "RoyaltiesTransferSuccess";
-          from: buyer;
-          royalty_recipient : royalty_recipient;
-          royalties : royalty_receive_coins;
-          platform_fee_recipient : platform_fee_receiver;
-          platform_fee : platform_receive_coins
-        };
-        
-        event e;
-        event f
-      end
+      TradeZRC6 price fee_amount token token_contract buyer seller buy_cheque sell_cheque
     | None =>
-      match price with
-      | Coins denom amount =>
-        fee_receiver <- fee_address;
-  
-        seller_receive_amount = builtin sub amount fee_amount;
-        seller_receive_coins = Coins denom seller_receive_amount;
-        fee_receive_coins = Coins denom fee_amount;
-  
-        (* if zil (non-zrc2), do additional validation and accept amount first *)
-        match denom with
-        | Zil =>
-          receiving_from_buyer = builtin eq buyer _sender;
-          match receiving_from_buyer with
-          | True =>
-          | False =>
-            (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
-            (* this means that bidders that do not immediately match should always offer in wZIL *)
-            err = CodeInvalidPrice;
-            ThrowError err
-          end;
-          correct_amount = builtin eq _amount amount;
-          match correct_amount with
-          | True =>
-          | False =>
-            (* the amount of zils need to match the required amount as specified in the price exactly *)
-            (* otherwise, funds may be stuck and lost forever *)
-            err = CodeInvalidPrice;
-            ThrowError err
-          end;
-          accept
-        | _ =>
-        end;
-  
-        TransferCoins seller_receive_coins buyer seller;
-        TransferCoins fee_receive_coins buyer fee_receiver;
-        TransferNFT token seller buyer;
-        
-        e = {
-          _eventname : "ExecuteTradeSuccess";
-          initiator : _sender;
-          token : token;
-          seller : seller;
-          buyer : buyer;
-          proceeds : seller_receive_coins;
-          fees : fee_receive_coins;
-          sell_cheque: sell_cheque;
-          buy_cheque: buy_cheque
-        };
-        event e
-      end
+      TradeNonZRC6 price fee_amount token buyer seller buy_cheque sell_cheque
     end
   end
 end
