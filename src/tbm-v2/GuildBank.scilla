@@ -643,8 +643,6 @@ procedure UpdateTokenBalance(
   end
 )
   maybe_token_balance <- & token.balances[_this_address];
-  e = {_eventname: "log"; maybe_token_balance: maybe_token_balance};
-  event e;
   match maybe_token_balance with
   | Some token_balance =>
     is_zero_balance = builtin eq token_balance zero;
