@@ -65,7 +65,7 @@ type TaxParam =
 
 (* used for migrating funds on this contract to another guild bank contract during an upgrade *)
 type MigrateParam = 
-  | MigrateParam of (ByStr20 with contract field balances: Map ByStr20 Uint128 end) ByStr20 (* token contract, recipient *)
+  | MigrateParam of ByStr20 ByStr20 (* token contract, recipient *)
 
 (* send token param for bulk sending tokens *)
 type SendTokenParam = 
@@ -269,12 +269,12 @@ let insert_tx_signer =
     end
 
 let list_append_recipient =
-  fun (token_list : List (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) => 
+  fun (token_list : List (ByStr20)) => 
   fun (recipient : ByStr20) =>
-  let fold = @list_foldl (ByStr20 with contract field balances: Map ByStr20 Uint128 end) (List MigrateParam) in
+  let fold = @list_foldl (ByStr20) (List MigrateParam) in
     let fn = 
       fun (result_list: List MigrateParam) => 
-      fun (token: (ByStr20 with contract field balances: Map ByStr20 Uint128 end)) =>
+      fun (token: (ByStr20)) =>
         let new_item = MigrateParam token recipient in
         Cons {MigrateParam} new_item result_list
     in
@@ -643,6 +643,8 @@ procedure UpdateTokenBalance(
   end
 )
   maybe_token_balance <- & token.balances[_this_address];
+  e = {_eventname: "log"; maybe_token_balance: maybe_token_balance};
+  event e;
   match maybe_token_balance with
   | Some token_balance =>
     is_zero_balance = builtin eq token_balance zero;
@@ -670,9 +672,7 @@ procedure ReceiveToken(
     amount: amount
   };
   msgs = one_msg msg_to_token;
-  send msgs;
-
-  UpdateTokenBalance token
+  send msgs
 end
 
 procedure SendToken(params: SendTokenParam)
@@ -686,9 +686,7 @@ procedure SendToken(params: SendTokenParam)
       amount: amount
     };
     msgs = one_msg msg_to_token;
-    send msgs;
-
-    UpdateTokenBalance token
+    send msgs
   end
 end
 
@@ -894,12 +892,17 @@ end
 
 procedure MigrateToken(param: MigrateParam)
   match param with
-  | MigrateParam token recipient =>
-    maybe_token_balance <- & token.balances[_this_address];
-    match maybe_token_balance with
-    | Some token_balance =>
-      params = SendTokenParam recipient token token_balance;
-      SendToken params
+  | MigrateParam token_address recipient =>
+    maybe_token <- & token_address as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+    match maybe_token with
+    | Some token =>
+      maybe_token_balance <- & token.balances[_this_address];
+      match maybe_token_balance with
+      | Some token_balance =>
+        params = SendTokenParam recipient token token_balance;
+        SendToken params
+      | None => (* no-op - should not happen *)
+      end
     | None => (* no-op - should not happen *)
     end
   end
@@ -1173,36 +1176,8 @@ transition Migrate(recipient: ByStr20)
 
   current_tokens_held <- tokens_held;
   token_list = map_to_list current_tokens_held;
-
-  some_token_item = get_first_addr token_list;
-  match some_token_item with
-  | None => (* no-op *)
-  | Some _ =>
-    msg_to_self = {
-      _tag: "MigrateTokens";
-      _recipient: _this_address;
-      _amount: zero;
-      recipient: recipient;
-      token_list: token_list
-    };
-    msgs = one_msg msg_to_self;
-    send msgs
-  end
-end
-
-(* @dev: Migrate token balance to specified contract      *)
-(* @dev: Only called by self, address cast workaround     *)
-(* @param recipient: contract to receive token balances   *)
-(* @param token_list: list of token addresses to migrate  *)
-transition MigrateTokens(
-  recipient: ByStr20,
-  token_list: List (ByStr20 with contract
-    field balances: Map ByStr20 Uint128
-  end)
-)
-  IsSelf _sender;
-
   token_and_recipient_list = list_append_recipient token_list recipient;
+
   forall token_and_recipient_list MigrateToken
 end
 
@@ -1259,7 +1234,17 @@ transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, reci
 end
 transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op - allow sending tokens to bank *)
+  maybe_token_address <- & _sender as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+  match maybe_token_address with
+  | Some token_address => UpdateTokenBalance token_address
+  | None => (* no-op *)
+  end
 end
 transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op - allow withdraw multisign tx *)
+  maybe_token_address <- & _sender as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+  match maybe_token_address with
+  | Some token_address => UpdateTokenBalance token_address
+  | None => (* no-op *)
+  end
 end
