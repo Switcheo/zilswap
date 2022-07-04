@@ -525,7 +525,6 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
   end
 end
 
-
 transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
   IsNotVoided cheque_hash;
   IsValidSignature void cheque_hash pubkey signature;
