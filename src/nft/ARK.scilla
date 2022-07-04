@@ -525,25 +525,6 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
   end
 end
 
-transition UpdatePlatformFee(new_platform_fee : Uint128)
-  IsOwner _sender;
-  current_platform_fee <- platform_fee_bps;
-  invalid_update = builtin eq new_platform_fee current_platform_fee;
-  match invalid_update with
-  | True =>
-    err = CodeInvalidFee;
-    ThrowError err
-  | False =>
-    platform_fee_bps := new_platform_fee;
-    e = {
-      _eventname : "UpdatePlatformFeeSuccess"; 
-      initiator: _sender; 
-      initial_platform_fee : current_platform_fee;
-      updated_platform_fee : new_platform_fee
-    };
-    event e
-  end
-end
 
 transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
   IsNotVoided cheque_hash;
@@ -567,6 +548,26 @@ transition SetTokenProxy(address: ByStr20)
     new_token_proxy = Some {ByStr20} address;
     token_proxy := new_token_proxy;
     e = {_eventname : "SetTokenProxySuccess"; token_proxy: address};
+    event e
+  end
+end
+
+transition UpdatePlatformFee(new_platform_fee : Uint128)
+  IsOwner _sender;
+  current_platform_fee <- platform_fee_bps;
+  invalid_update = builtin eq new_platform_fee current_platform_fee;
+  match invalid_update with
+  | True =>
+    err = CodeInvalidFee;
+    ThrowError err
+  | False =>
+    platform_fee_bps := new_platform_fee;
+    e = {
+      _eventname : "UpdatePlatformFeeSuccess"; 
+      initiator: _sender; 
+      initial_platform_fee : current_platform_fee;
+      updated_platform_fee : new_platform_fee
+    };
     event e
   end
 end
