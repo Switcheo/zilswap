@@ -612,7 +612,6 @@ transition TransferFromSuccessCallBack(from: ByStr20, recipient: ByStr20, token_
   (* no-op *)
 end
 
-
 (* @dev: Handle callback after sending ZRC-6 tokens via TransferFrom *)
 (* https://github.com/Zilliqa/ZRC/blob/main/zrcs/zrc-6.md#15-transferfrom *)
 transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
