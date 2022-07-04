@@ -111,7 +111,7 @@ test('captain initiate withdrawal tx with insufficient huny in bank', async () =
   const hunyContractStateAfterTx = await hunyContract.getState()
 
   expect(txInitiateWithdrawTx.status).toEqual(3)
-  expect(txInitiateWithdrawTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(7)) // CodeInvalidTxInsufficientBalance
+  expect(txInitiateWithdrawTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(7)) // throws CodeInvalidTxInsufficientBalance
   expect(txInitiateWithdrawTx.receipt.success).toEqual(false)
 
   // tx rollback; check NO huny deduction from bank; NO huny increment for captain

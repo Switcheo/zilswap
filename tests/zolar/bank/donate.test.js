@@ -44,7 +44,7 @@ beforeAll(async () => {
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
 
-  // allow member to transfer token to bank (spender)
+  // allow captain to transfer token to bank (spender)
   const txAllowanceCaptain = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
@@ -103,9 +103,38 @@ test('member makes huny donation', async () => {
   expect(memberDonated.toString()).toEqual(ONE_HUNY.toString(10))
   expect(bankReceived.toString()).toEqual(ONE_HUNY.toString(10))
 
-  // check addition of token addr to bank contract (KIV - tokens_held not updated)
-  // expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
-  // expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
+  // check addition of token addr to bank contract 
+  expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
+  expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
+})
+
+test('non-member makes huny donation', async () => {
+  const hunyContractStateBeforeTx = await hunyContract.getState()
+  const bankContractStateBeforeTx = await bankContract.getState()
+
+  const txLeaveGuild = await callContract(memberPrivateKey, bankContract, "LeaveGuild", [], 0, false, false)
+
+  const txMakeHunyDonation = await callContract(memberPrivateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: hunyAddress,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: ONE_HUNY.toString(10),
+  }], 0, false, false)
+
+  const hunyContractStateAfterTx = await hunyContract.getState()
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  // check huny deduction for non-member; huny increment for bank
+  const [nonMemberBalanceBeforeTx, nonMemberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+  const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+  const nonMemberDonated = nonMemberBalanceBeforeTx - nonMemberBalanceAfterTx
+  const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
+
+  expect(nonMemberDonated.toString()).toEqual(ONE_HUNY.toString(10))
+  expect(bankReceived.toString()).toEqual(ONE_HUNY.toString(10))
 })
 
 test('captain makes huny donation', async () => {
@@ -125,7 +154,7 @@ test('captain makes huny donation', async () => {
   const hunyContractStateAfterTx = await hunyContract.getState()
   const bankContractStateAfterTx = await bankContract.getState()
 
-  // check huny deduction for member; huny increment for bank
+  // check huny deduction for captain; huny increment for bank
   const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const captainDonated = captainBalanceBeforeTx - captainBalanceAfterTx
@@ -133,8 +162,4 @@ test('captain makes huny donation', async () => {
 
   expect(captainDonated.toString()).toEqual(ONE_HUNY.toString(10))
   expect(bankReceived.toString()).toEqual(ONE_HUNY.toString(10))
-
-  // check addition of token addr to bank contract (KIV - tokens_held not updated)
-  // expect(bankContractStateBeforeTx.tokens_held).toHaveProperty(hunyAddress)
-  expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
 })

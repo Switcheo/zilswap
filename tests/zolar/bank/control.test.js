@@ -140,7 +140,7 @@ test('sign tx with member', async () => {
   const txSignPendingTx = await callContract(memberPrivateKey, bankContract, "SignTx", [], 0, false, false)
 
   expect(txSignPendingTx.status).toEqual(3)
-  expect(txSignPendingTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(21)) // CodeNotCaptainOrOfficer
+  expect(txSignPendingTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(21)) // throws CodeNotCaptainOrOfficer
   expect(txSignPendingTx.receipt.success).toEqual(false)
 })
 

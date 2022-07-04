@@ -54,17 +54,9 @@ beforeAll(async () => {
     type: 'Uint128',
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
-
-  // const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
-
-  // const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
-  //   vname: "member",
-  //   type: "ByStr20",
-  //   value: memberAddress,
-  // }], 0, false, false)
 })
 
-test('captain collects tax from member that has not paid', async () => {
+test('captain collects tax from member (officer) that has not paid', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
   const bankContractStateBeforeTx = await bankContract.getState()
 
@@ -86,7 +78,7 @@ test('captain collects tax from member that has not paid', async () => {
   expect(bankContractStateAfterTx.tax_collected).toHaveProperty(initialEpochNumber.toString())
   expect(bankContractStateAfterTx.tax_collected[initialEpochNumber.toString()]).toMatchObject({[memberAddress]: ONE_HUNY.toString(10)})
 
-  // check huny deduction for member; huny increment for bank (95%), captain (5%) and officer (1% each; if any)
+  // check huny deduction for officer; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [officerBalanceBeforeTx, officerBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -97,12 +89,12 @@ test('captain collects tax from member that has not paid', async () => {
   expect(bankReceived.toString()).toEqual((ONE_HUNY * 0.94).toString(10))
   expect(captainReceived.toString()).toEqual((ONE_HUNY * 0.05).toString(10))
 
-  // check addition of token addr to bank contract (KIV - tokens_held not updated)
-  // expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
-  // expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
+  // check addition of token addr to bank contract
+  expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
+  expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
 })
 
-test('captain collects tax from member that has already paid', async () => {
+test('captain collects tax from member (officer) that has already paid', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
 
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
@@ -116,7 +108,7 @@ test('captain collects tax from member that has already paid', async () => {
   }], 0, false, false)
   
   expect(txCollectTax.status).toEqual(3)
-  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // CodeAlreadyTaxed (11)
+  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeAlreadyTaxed
   expect(txCollectTax.receipt.success).toEqual(false)
 
   const hunyContractStateAfterTx = await hunyContract.getState()

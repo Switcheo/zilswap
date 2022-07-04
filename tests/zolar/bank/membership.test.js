@@ -89,7 +89,7 @@ describe('member joins guild for the first time', () => {
     expect(Object.keys(bankContractStateAfterTx.joining_fee_paid).length).toEqual(1)
     expect(bankContractStateAfterTx.joining_fee_paid).toMatchObject({[memberAddress]: ONE_HUNY.toString(10)}) // no inflation
   
-    // check huny deduction for member; huny increment for bank (95%), captain (5%) and officer (1% each; if any)
+    // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
     const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -100,9 +100,9 @@ describe('member joins guild for the first time', () => {
     expect(bankReceived.toString()).toEqual((ONE_HUNY * 0.95).toString(10))
     expect(captainReceived.toString()).toEqual((ONE_HUNY * 0.05).toString(10))
 
-    // check addition of token addr to bank contract (KIV - tokens_held not updated)
-    // expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
-    // expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
+    // check addition of token addr to bank contract
+    expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
+    expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
   })
 })
 
@@ -147,7 +147,7 @@ test('existing member attempts to apply for membership', async () => {
   const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
 
   expect(txApplyMembership.status).toEqual(3)
-  expect(txApplyMembership.receipt.exceptions[0].message).toEqual(generateErrorMsg(12)) // throws CodeIsAlreadyMember (12)
+  expect(txApplyMembership.receipt.exceptions[0].message).toEqual(generateErrorMsg(12)) // throws CodeIsAlreadyMember
   expect(txApplyMembership.receipt.success).toEqual(false)
 }) 
 

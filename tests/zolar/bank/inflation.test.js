@@ -74,7 +74,7 @@ test('new member pays joining fee (= initial joining fee + 1 x inflation)', asyn
 
   const hunyContractStateAfterTx = await hunyContract.getState()
   
-  // check huny deduction for member; huny increment for bank (95%), captain (5%) and officer (1% each; if any)
+  // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -103,7 +103,7 @@ test("member pays weekly tax (= initial weekly tax + 1 x inflation)", async () =
   
   const hunyContractStateAfterTx = await hunyContract.getState()
 
-  // check huny deduction for member; huny increment for bank (95%), captain (5%) and officer (1% each; if any)
+  // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
