@@ -1,7 +1,7 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
-const { randomAddress, ONE_HUNY, getPrivateKey, initialEpochNumber, newEpochNumber, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank } = require("../../../scripts/zolar/bank/deploy");
 const { callContract } = require('../../../scripts/call')
-const { generateFee } = require("./helper")
+const { randomAddress, ONE_HUNY, initialEpochNumber, newEpochNumber } = require("./config");
+const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, generateFee } = require("./helper")
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 

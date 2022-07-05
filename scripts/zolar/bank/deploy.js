@@ -515,14 +515,3 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("migrate huny tx", txMigrate.id)
 })().catch(console.error).finally(() => process.exit(0));
-
-// exports.randomAddress = randomAddress
-// exports.ONE_HUNY = ONE_HUNY
-// exports.getPrivateKey = getPrivateKey
-// exports.initialEpochNumber = 1;
-// exports.newEpochNumber = 2;
-// exports.deployHuny = deployHuny
-// exports.deployZilswap = deployZilswap
-// exports.deployHive = deployHive
-// exports.deployBankAuthority = deployBankAuthority
-// exports.deployGuildBank = deployGuildBank
