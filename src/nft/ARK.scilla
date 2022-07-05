@@ -381,7 +381,7 @@ procedure TransferNFT(token: NFT, from: ByStr20, to: ByStr20)
   end
 end
 
-(* To execute trade for ZRC6 tokens*)
+(* To execute trade for ZRC6 tokens *)
 procedure TradeZRC6 (
   price: Coins,
   fee_amount: Uint128,
@@ -469,6 +469,7 @@ procedure TradeZRC6 (
   end
 end
 
+(* To execute trade for ZRC1 tokens *)
 procedure TradeZRC1(
   price: Coins, 
   fee_amount: Uint128, 
