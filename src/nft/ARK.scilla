@@ -443,7 +443,7 @@ procedure TradeZRC6 (
     TransferCoins platform_receive_coins buyer platform_fee_receiver;
     TransferCoins royalty_receive_coins buyer royalty_recipient;
     TransferNFT token seller buyer;
-    
+
     e = {
       _eventname : "ExecuteTradeSuccess";
       initiator : _sender;
@@ -455,8 +455,9 @@ procedure TradeZRC6 (
       sell_cheque: sell_cheque;
       buy_cheque: buy_cheque
     };
-        
-    f = {
+    event e;
+
+    e = {
       _eventname: "RoyaltiesTransferSuccess";
       from: buyer;
       royalty_recipient : royalty_recipient;
@@ -464,13 +465,11 @@ procedure TradeZRC6 (
       platform_fee_recipient : platform_fee_receiver;
       platform_fee : platform_receive_coins
     };
-        
-    event e;
-    event f
+    event e
   end
 end
 
-procedure TradeNonZRC6(
+procedure TradeZRC1(
   price: Coins, 
   fee_amount: Uint128, 
   token: NFT, 
@@ -549,7 +548,7 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
     | Some token_contract =>
       TradeZRC6 price fee_amount token token_contract buyer seller buy_cheque sell_cheque
     | None =>
-      TradeNonZRC6 price fee_amount token buyer seller buy_cheque sell_cheque
+      TradeZRC1 price fee_amount token buyer seller buy_cheque sell_cheque
     end
   end
 end
