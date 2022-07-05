@@ -486,7 +486,7 @@ procedure TradeNonZRC6(
     seller_receive_amount = builtin sub amount fee_amount;
     seller_receive_coins = Coins denom seller_receive_amount;
     fee_receive_coins = Coins denom fee_amount;
-  
+
     (* if zil (non-zrc2), do additional validation and accept amount first *)
     match denom with
     | Zil =>
@@ -498,7 +498,7 @@ procedure TradeNonZRC6(
         (* this means that bidders that do not immediately match should always offer in wZIL *)
         err = CodeInvalidPrice;
         ThrowError err
-       end;
+      end;
       correct_amount = builtin eq _amount amount;
       match correct_amount with
       | True =>
@@ -511,11 +511,11 @@ procedure TradeNonZRC6(
       accept
     | _ =>
     end;
-  
+
     TransferCoins seller_receive_coins buyer seller;
     TransferCoins fee_receive_coins buyer fee_receiver;
     TransferNFT token seller buyer;
-        
+
     e = {
       _eventname : "ExecuteTradeSuccess";
       initiator : _sender;
