@@ -977,7 +977,9 @@ procedure UpdateEpoch()
       Cons {Uint32} epoch_number list;
     init = Nil {Uint32};
     epoch_list = fold fn init diff_nat;
-    forall epoch_list AdvanceEpoch
+    reverse_list = @list_reverse Uint32;
+    epoch_list_reverse = reverse_list epoch_list; 
+    forall epoch_list_reverse AdvanceEpoch
   end
 end
 

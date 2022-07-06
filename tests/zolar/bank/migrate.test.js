@@ -107,10 +107,10 @@ test('migrate 1 token', async () => {
   expect(bankContractStateAfterTx.tokens_held).not.toHaveProperty(hunyAddress)
 })
 
-test('migrate 10 tokens', async () => {
+test('migrate 5 tokens', async () => {
   const tokens = []
 
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 5; i++) {
     const tokenContract = await deployHuny()
     const txMintAndDonate = await mintAndDonate(tokenContract)
     tokens.push(tokenContract) 

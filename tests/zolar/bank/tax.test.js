@@ -6,6 +6,8 @@ const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthorit
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
+const newEpochNumber = initialEpochNumber + 1
+
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
@@ -56,7 +58,29 @@ beforeAll(async () => {
   }], 0, false, false)
 })
 
-test('captain collects tax from member (officer) that has not paid', async () => {
+test('member (officer) is not required to pay tax for the first epoch (i.e. when guild is set up)', async () => {
+  const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
+    vname: "params",
+    type: `List ${bankAddress}.TaxParam`,
+    value: [{
+      constructor: `${bankAddress}.TaxParam`,
+      argtypes: [],
+      arguments: [memberAddress, (initialEpochNumber).toString()]
+    }],
+  }], 0, false, false)
+
+  expect(txCollectTax.status).toEqual(3)
+  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(23)) // throws CodeInvalidTaxParam
+  expect(txCollectTax.receipt.success).toEqual(false)
+})
+
+test('captain collects tax from member (officer) that has not paid for next epoch', async () => {
+  const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: newEpochNumber.toString(),
+  }], 0, false, false)
+  
   const hunyContractStateBeforeTx = await hunyContract.getState()
   const bankContractStateBeforeTx = await bankContract.getState()
 
@@ -66,7 +90,7 @@ test('captain collects tax from member (officer) that has not paid', async () =>
     value: [{
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [memberAddress, initialEpochNumber.toString()]
+      arguments: [memberAddress, newEpochNumber.toString()]
     }],
   }], 0, false, false)
   
@@ -74,9 +98,11 @@ test('captain collects tax from member (officer) that has not paid', async () =>
   const bankContractStateAfterTx = await bankContract.getState()
 
   // check tax_collected updated
-  expect(bankContractStateBeforeTx.tax_collected).not.toHaveProperty(initialEpochNumber.toString())
-  expect(bankContractStateAfterTx.tax_collected).toHaveProperty(initialEpochNumber.toString())
-  expect(bankContractStateAfterTx.tax_collected[initialEpochNumber.toString()]).toMatchObject({[memberAddress]: ONE_HUNY.toString(10)})
+  const weeklyTaxInflated = (ONE_HUNY).plus(ONE_HUNY)
+  
+  expect(bankContractStateBeforeTx.tax_collected).not.toHaveProperty(newEpochNumber.toString())
+  expect(bankContractStateAfterTx.tax_collected).toHaveProperty(newEpochNumber.toString())
+  expect(bankContractStateAfterTx.tax_collected[newEpochNumber.toString()]).toMatchObject({[memberAddress]: weeklyTaxInflated.toString(10)})
 
   // check huny deduction for officer; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [officerBalanceBeforeTx, officerBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -85,9 +111,9 @@ test('captain collects tax from member (officer) that has not paid', async () =>
   const officerPaid = officerBalanceBeforeTx - officerBalanceAfterTx
   const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
   const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
-  expect(officerPaid.toString()).toEqual(ONE_HUNY.minus(ONE_HUNY * 0.01).toString(10))
-  expect(bankReceived.toString()).toEqual((ONE_HUNY * 0.94).toString(10))
-  expect(captainReceived.toString()).toEqual((ONE_HUNY * 0.05).toString(10))
+  expect(officerPaid.toString()).toEqual(weeklyTaxInflated.minus(weeklyTaxInflated * 0.01).toString(10))
+  expect(bankReceived.toString()).toEqual((weeklyTaxInflated * 0.94).toString(10))
+  expect(captainReceived.toString()).toEqual((weeklyTaxInflated * 0.05).toString(10))
 
   // check addition of token addr to bank contract
   expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
@@ -103,12 +129,12 @@ test('captain collects tax from member (officer) that has already paid', async (
     value: [{
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [memberAddress, initialEpochNumber.toString()]
+      arguments: [memberAddress, newEpochNumber.toString()]
     }],
   }], 0, false, false)
   
   expect(txCollectTax.status).toEqual(3)
-  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeAlreadyTaxed
+  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeInvalidTaxParam
   expect(txCollectTax.receipt.success).toEqual(false)
 
   const hunyContractStateAfterTx = await hunyContract.getState()
