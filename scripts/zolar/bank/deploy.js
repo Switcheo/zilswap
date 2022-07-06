@@ -370,6 +370,14 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("set epoch number after member join tx", txSetEpochNumberAfter.id)
 
+  // test updating multiple epochs
+  const txSetEpochNumberAfterAgain = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: (newEpochNumber + 3).toString(),
+  }], 0, false, false)
+  console.log("set epoch number after member join again tx", txSetEpochNumberAfterAgain.id)
+
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,

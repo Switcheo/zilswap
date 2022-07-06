@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 
-import ListUtils BoolUtils
+import ListUtils BoolUtils NatUtils
 library GuildBank
 
 let true = True
@@ -923,16 +923,43 @@ procedure MigrateToken(param: MigrateParam)
   end
 end
 
-procedure RecordTaxOwed(taxOwed: TaxOwed)
-  match taxOwed with
+procedure RecordTaxOwed(tax: TaxOwed)
+  match tax with
   | TaxOwed member epoch_number amount =>
     tax_owed[epoch_number][member] := amount
   end
 end
 
+(* advance epoch to given epoch number, must be last_updated_epoch + 1  *)
+(* update joining fee if epoch has been updated                         *)
+(* record weekly taxes into tax_owed if any                             *)
+(* record weekly taxes into tax_owed if any                             *)
+procedure AdvanceEpoch(current_epoch: Uint32)
+  f <- joining_fee;
 
-(* check bank authority contract and update current epoch *)
-(* update joining fee if epoch has been updated           *)
+  new_joining_fee = get_fee_amount f current_epoch;
+  current_joining_fee := new_joining_fee;
+
+  current_members <- members;
+  members_list = map_to_list current_members;
+
+  current_tax <- weekly_tax;
+  tax_amount = get_fee_amount current_tax current_epoch;
+
+  list_convert = @list_map ByStr20 TaxOwed;
+  fn = fun (member: ByStr20) => TaxOwed member current_epoch tax_amount;
+  tax_list = list_convert fn members_list;
+  forall tax_list RecordTaxOwed;
+
+  last_updated_epoch := current_epoch;
+
+  e = {_eventname: "EpochUpdated"; epoch: current_epoch };
+  event e
+end
+
+
+(* check bank authority contract and update current epoch                     *)
+(* executes AdvanceEpoch for every epoch since last_epoch until current_epoch *)
 procedure UpdateEpoch()
   last_epoch <- last_updated_epoch;
   current_epoch <- & bank_authority.current_epoch;
@@ -940,26 +967,17 @@ procedure UpdateEpoch()
   match maybe_already_updated with
   | True => (* no op*)
   | False =>
-    f <- joining_fee;
-
-    new_joining_fee = get_fee_amount f current_epoch;
-    current_joining_fee := new_joining_fee;
-    
-    current_members <- members;
-    members_list = map_to_list current_members;
-
-    current_tax <- weekly_tax;
-    tax_amount = get_fee_amount current_tax current_epoch;
-
-    list_convert = @list_map ByStr20 TaxOwed;
-    fn = fun (member: ByStr20) => TaxOwed member current_epoch tax_amount;
-    tax_list = list_convert fn members_list;
-    forall tax_list RecordTaxOwed;
-
-    last_updated_epoch := current_epoch;
-
-    e = {_eventname: "EpochUpdated"; old: last_epoch; new: current_epoch };
-    event e
+    diff = builtin sub current_epoch last_epoch;
+    diff_nat = builtin to_nat diff;
+    fold = @nat_fold (List Uint32);
+    fn = fun (list: List Uint32) => fun (nat: Nat) => 
+      let step = nat_to_int nat in
+      let offset = builtin sub diff step in
+      let epoch_number = builtin add last_epoch offset in
+      Cons {Uint32} epoch_number list;
+    init = Nil {Uint32};
+    epoch_list = fold fn init diff_nat;
+    forall epoch_list AdvanceEpoch
   end
 end
 
@@ -995,6 +1013,8 @@ end
 transition InitiateTx(tx_params: TxParams, message: String)
   IsCaptainOrOfficer _sender;
   IsNotPendingTx;
+
+  UpdateEpoch;
 
   bank_tx = BankTx message _sender tx_params; 
   IsValidBankTx bank_tx;
@@ -1032,6 +1052,8 @@ end
 (* required signing parties is met. *)
 transition SignTx()
   IsCaptainOrOfficer _sender;
+  UpdateEpoch;
+
   SignPendingTx _sender
 end
 
@@ -1110,6 +1132,8 @@ transition LeaveGuild()
   IsNotOwner _sender;
   IsMember _sender;
 
+  UpdateEpoch;
+
   delete members[_sender];
   e = {_eventname: "MemberLeft"; member: _sender};
   event e;
@@ -1129,6 +1153,7 @@ end
 transition ApproveAndReceiveJoiningFee(member: ByStr20)
   IsNotMember member;
   IsApplicationActive member;
+
   UpdateEpoch;
 
   (* add member to members *)
