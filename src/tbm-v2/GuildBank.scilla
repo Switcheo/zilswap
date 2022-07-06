@@ -63,6 +63,10 @@ type PendingTx =
 type TaxParam =
   | TaxParam of ByStr20 Uint32 (* payer, epoch number *)
 
+(* used for recording tax owed per epoch *)
+type TaxOwed =
+  | TaxOwed of ByStr20 Uint32 Uint128 (* payer, epoch number, amount *)
+
 (* used for migrating funds on this contract to another guild bank contract during an upgrade *)
 type MigrateParam = 
   | MigrateParam of ByStr20 ByStr20 (* token contract, recipient *)
@@ -95,6 +99,7 @@ type Error =
   | CodeCaptainCannotLeave
   | CodeNotCaptainOrOfficer
   | CodeNotBankAuthority
+  | CodeInvalidTaxParam
 
 let make_error =
   fun (result : Error) =>
@@ -124,6 +129,7 @@ let make_error =
       | CodeCaptainCannotLeave              => Int32 -20
       | CodeNotCaptainOrOfficer             => Int32 -21
       | CodeNotBankAuthority                => Int32 -22
+      | CodeInvalidTaxParam                 => Int32 -23
       end
     in
     { _exception : "Error"; code : result_code }
@@ -400,6 +406,9 @@ field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
 (* map of tax collected per user by epoch *)
 field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
+(* map of tax owed per user by epoch *)
+field tax_owed : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)
@@ -512,7 +521,14 @@ procedure IsTaxable(member: ByStr20, epoch_number: Uint32)
   maybe_taxed <- tax_collected[epoch_number][member];
   match maybe_taxed with
   | None =>
-  | Some tax_amount =>
+    maybe_tax_owed <- tax_owed[epoch_number][member];
+    match maybe_tax_owed with
+    | Some tax_amount =>
+    | None => (* tax not owed by member *)
+      err = CodeInvalidTaxParam;
+      ThrowError err
+    end
+  | Some tax_amount => (* tax already collected for member in given epoch *)
     err = CodeAlreadyTaxed;
     ThrowError err
   end
@@ -880,6 +896,7 @@ procedure ReceiveTax(param: TaxParam)
     ReceiveToken member huny_token tax_amount;
 
     tax_collected[epoch_number][member] := tax_amount;
+    delete tax_owed[epoch_number][member];
 
     e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
     event e;
@@ -906,6 +923,14 @@ procedure MigrateToken(param: MigrateParam)
   end
 end
 
+procedure RecordTaxOwed(taxOwed: TaxOwed)
+  match taxOwed with
+  | TaxOwed member epoch_number amount =>
+    tax_owed[epoch_number][member] := amount
+  end
+end
+
+
 (* check bank authority contract and update current epoch *)
 (* update joining fee if epoch has been updated           *)
 procedure UpdateEpoch()
@@ -919,6 +944,18 @@ procedure UpdateEpoch()
 
     new_joining_fee = get_fee_amount f current_epoch;
     current_joining_fee := new_joining_fee;
+    
+    current_members <- members;
+    members_list = map_to_list current_members;
+
+    current_tax <- weekly_tax;
+    tax_amount = get_fee_amount current_tax current_epoch;
+
+    list_convert = @list_map ByStr20 TaxOwed;
+    fn = fun (member: ByStr20) => TaxOwed member current_epoch tax_amount;
+    tax_list = list_convert fn members_list;
+    forall tax_list RecordTaxOwed;
+
     last_updated_epoch := current_epoch;
 
     e = {_eventname: "EpochUpdated"; old: last_epoch; new: current_epoch };
@@ -1133,9 +1170,7 @@ end
 (* @param token: address of token to donate                 *)
 (* @param amount: amount of token to donate                 *)
 transition MakeDonation(
-  token: ByStr20 with contract 
-    field balances : Map ByStr20 Uint128
-  end,
+  token: ByStr20,
   amount: Uint128
 )
   is_token_zil = builtin eq zero_address token;
@@ -1143,10 +1178,14 @@ transition MakeDonation(
   | True =>
     ReceiveZil amount
   | False =>
-    ReceiveToken _sender token amount
+    maybe_token_address <- & token as ByStr20 with contract field balances : Map ByStr20 Uint128 end;
+    match maybe_token_address with
+    | Some token_address => ReceiveToken _sender token_address amount
+    | None =>
+    end
   end;
 
-  e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount };
+  e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount};
   event e
 end
 

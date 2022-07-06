@@ -284,13 +284,16 @@ async function deployGuildBank({
 
   const initialMembers = [memberAddress];
   const bankContract = await deployGuildBank({ initialMembers, initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
+  const bankAddress = bankContract.address.toLowerCase();
 
+  console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
   const txSetEpochNumberAgain = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
     value: (newEpochNumber + 1).toString(),
   }], 0, false, false)
   console.log("set epoch number again tx", txSetEpochNumberAgain.id)
+  console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
@@ -320,8 +323,6 @@ async function deployGuildBank({
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
   console.log("mint", txMintMember.id)
-
-  const bankAddress = bankContract.address.toLowerCase();
 
   const txAllowanceCaptain = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
@@ -362,6 +363,13 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("approve member", txApproveMember.id)
 
+  const txSetEpochNumberAfter = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: (newEpochNumber + 2).toString(),
+  }], 0, false, false)
+  console.log("set epoch number after member join tx", txSetEpochNumberAfter.id)
+
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -377,6 +385,7 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("initiate withdraw tx", txInitiateWithdrawTx.id)
 
+  console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
   const txInitiateUpdateGuildSettingsTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -456,29 +465,25 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("make donation huny tx", txMakeHunyDonation.id)
 
-  // temporary disable, waiting for ceres release to enable address typecast
-  // const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
-  //   vname: "token",
-  //   type: "ByStr20",
-  //   value: ZERO_ADDRESS,
-  // }, {
-  //   vname: "amount",
-  //   type: "Uint128",
-  //   value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
-  // }], 1, false, false)
-  // console.log("make donation zil tx", txMakeZilDonation.id)
+  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: ZERO_ADDRESS,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
+  }], 1, false, false)
+  console.log("make donation zil tx", txMakeZilDonation.id)
 
+  console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
     vname: "params",
     type: `List ${bankAddress}.TaxParam`,
     value: [{
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [address, newEpochNumber.toString()]
-    }, {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [address, (newEpochNumber + 1).toString()]
+      arguments: [memberAddress, (newEpochNumber + 2).toString()]
     }],
   }], 0, false, false)
   console.log("collect tax tx", txCollectTax.id)
@@ -508,6 +513,10 @@ async function deployGuildBank({
     vname: "bank",
     type: "ByStr20",
     value: bankAddress,
+  }, {
+    vname: "token",
+    type: "ByStr20",
+    value: hunyAddress,
   }, {
     vname: "recipient",
     type: "ByStr20",
