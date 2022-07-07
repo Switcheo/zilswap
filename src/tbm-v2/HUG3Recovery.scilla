@@ -99,7 +99,7 @@ field huny : ByStr20 with contract
 end = huny_token
 
 field recovery_pots : Map ByStr20 (List RecoveredHuny) = Emp ByStr20 (List RecoveredHuny)
-field recovered_pots : Map ByStr32 Bool = Emp ByStr32 Bool
+field recovered_pots : Map ByStr32 ByStr20 = Emp ByStr32 ByStr20
 
 (**************************************)
 (*             Procedures             *)
@@ -186,9 +186,11 @@ procedure EmitAddPotEvent(pot: RecoveredHuny)
   end
 end
 
-procedure EmitRecoverEvent(pot: RecoveredHuny)
+procedure InvalidateAndEmitRecovered(pot: RecoveredHuny)
   match pot with
   | RecoveredHuny recipient tx_hash mint_amt refine_amt =>
+    recovered_pots[tx_hash] := _sender;
+
     e = {_eventname: "HunyRecovered"; recipient: recipient; harvest_tx_hash: tx_hash; mint_amount: mint_amt; refine_amount: refine_amt};
     event e
   end
@@ -260,7 +262,7 @@ transition RecoverHuny(recipient: ByStr20)
     err = CodeNoUnrecoveredHuny;
     ThrowError err
   | Some user_pots =>
-    forall user_pots EmitRecoverEvent;
+    forall user_pots InvalidateAndEmitRecovered;
     combined_pot = combine_pots user_pots;
     match combined_pot with
     | Pair mint_amt refine_amt =>
