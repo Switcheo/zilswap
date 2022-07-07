@@ -1,9 +1,11 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { callContract } = require('../../../scripts/call')
-const { randomAddress, ONE_HUNY, initialEpochNumber, newEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, generateFee } = require("./helper")
+const { randomAddress, ONE_HUNY, initialEpochNumber } = require("./config");
+const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateErrorMsg } = require("./helper")
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+
+const newEpochNumber = initialEpochNumber + 1
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
@@ -33,8 +35,8 @@ test('deploy Authority contract', async () => {
   expect(state.huny).toEqual(hunyContract.address.toLowerCase())
 })
 
-test('set new epoch number in Authority contract', async () => {
-  await callContract(privateKey, authorityContract, "SetEpoch", [{
+test('set new epoch number (= intialEpoch + 1) in Authority contract', async () => {
+  const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
     value: newEpochNumber.toString(),
@@ -44,8 +46,23 @@ test('set new epoch number in Authority contract', async () => {
   expect(state.current_epoch).toEqual(newEpochNumber.toString())
 })
 
-test('deploy GuildBank contract', async () => {
+test('set new epoch number (= intialEpoch + 3) in Authority contract', async () => {
+  const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: (newEpochNumber + 2).toString(),
+  }], 0, false, false)
+
+  expect(txSetEpochNumber.status).toEqual(3)
+  expect(txSetEpochNumber.receipt.exceptions[0].message).toEqual(generateErrorMsg(5)) // throws CodeWrongEpochNumber
+  expect(txSetEpochNumber.receipt.success).toEqual(false)
   
+  const state = await authorityContract.getState()
+  expect(state.current_epoch).toEqual(newEpochNumber.toString())
+})
+
+
+test('deploy GuildBank contract', async () => {
   bankContract = await deployGuildBank({ initialMembers: [randomAddress], initialEpochNumber: newEpochNumber, authorityAddress })
   expect(bankContract.address).toBeDefined()
 

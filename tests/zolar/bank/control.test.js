@@ -52,7 +52,7 @@ async function initiateUpdateControlModeTx (initiator, controlMode) {
   }, {
     vname: "message",
     type: "String",
-    value: "Change control mode to Captain + two Officers",
+    value: `Change control mode to ${controlMode}`,
   }], 0, false, false)
   
   return txInitiateUpdateControlModeTx

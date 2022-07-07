@@ -335,8 +335,7 @@ let is_list_subset =
     let empty_list = Nil {Bool} in
     let result = fold fn empty_list candidate in
     all_true result
-
-
+    
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
@@ -892,16 +891,20 @@ procedure ReceiveTax(param: TaxParam)
     IsTaxable member epoch_number;
 
     huny_token <- & bank_authority.huny;
-    tax_amount = get_fee_amount current_tax epoch_number;
-    ReceiveToken member huny_token tax_amount;
+    maybe_tax_owed <- tax_owed[epoch_number][member];
+    match maybe_tax_owed with
+    | None => 
+      err = CodeInvalidTaxParam;
+      ThrowError err
+    | Some tax_amount =>
+      ReceiveToken member huny_token tax_amount;
+      tax_collected[epoch_number][member] := tax_amount;
+      delete tax_owed[epoch_number][member];
 
-    tax_collected[epoch_number][member] := tax_amount;
-    delete tax_owed[epoch_number][member];
-
-    e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
-    event e;
-
-    PayoutManagementFee current_tax tax_amount huny_token
+      e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
+      event e;
+      PayoutManagementFee current_tax tax_amount huny_token
+    end
   end
 end
 
@@ -977,7 +980,9 @@ procedure UpdateEpoch()
       Cons {Uint32} epoch_number list;
     init = Nil {Uint32};
     epoch_list = fold fn init diff_nat;
-    forall epoch_list AdvanceEpoch
+    reverse_list = @list_reverse Uint32;
+    epoch_list_reverse = reverse_list epoch_list; 
+    forall epoch_list_reverse AdvanceEpoch
   end
 end
 

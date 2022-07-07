@@ -2,7 +2,7 @@ const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
 const {callContract} = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates } = require("./helper")
+const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, getInflatedFeeAmt } = require("./helper")
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
@@ -54,15 +54,16 @@ beforeAll(async () => {
     type: 'Uint128',
     value: new BigNumber(2).pow(64).minus(1).toString(),
   }], 0, false, false)
+})
 
+test('new member joins guild at epoch = 2; pays joining fee (= initial joining fee + 1 x inflation)', async () => { 
+  const epoch_two = initialEpochNumber + 1
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
-    value: (initialEpochNumber + 1).toString(),
+    value: epoch_two.toString(),
   }], 0, false, false)
-})
 
-test('new member pays joining fee (= initial joining fee + 1 x inflation)', async () => { 
   const hunyContractStateBeforeTx = await hunyContract.getState()
 
   const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
@@ -73,7 +74,7 @@ test('new member pays joining fee (= initial joining fee + 1 x inflation)', asyn
   }], 0, false, false)
 
   const hunyContractStateAfterTx = await hunyContract.getState()
-  
+
   // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -82,27 +83,34 @@ test('new member pays joining fee (= initial joining fee + 1 x inflation)', asyn
   const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
   const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
 
-  const joiningFeeInflated = ONE_HUNY.plus(ONE_HUNY)
+  const joiningFeeInflated = getInflatedFeeAmt(ONE_HUNY, ONE_HUNY, initialEpochNumber, epoch_two)
   expect(memberPaid.toString()).toEqual(joiningFeeInflated.toString(10))
   expect(bankReceived.toString()).toEqual((joiningFeeInflated* 0.95).toString(10))
   expect(captainReceived.toString()).toEqual((joiningFeeInflated * 0.05).toString(10))
 })
 
-test("member pays weekly tax (= initial weekly tax + 1 x inflation)", async () => {
-  const hunyContractStateBeforeTx = await hunyContract.getState()
+test("member pays weekly tax (= initial weekly tax + 2 x inflation) in next epoch (= 3)", async () => {
+  const epoch_three = initialEpochNumber + 2
+  const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
+    vname: "epoch_number",
+    type: "Uint32",
+    value: epoch_three.toString(),
+  }], 0, false, false)
 
+  const hunyContractStateBeforeTx = await hunyContract.getState()
+  
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
     vname: "params",
     type: `List ${bankAddress}.TaxParam`,
     value: [{
       constructor: `${bankAddress}.TaxParam`,
       argtypes: [],
-      arguments: [memberAddress, (initialEpochNumber + 1).toString()]
-    }],
+      arguments: [memberAddress, (initialEpochNumber + 2).toString()]
+    },
+  ],
   }], 0, false, false)
   
   const hunyContractStateAfterTx = await hunyContract.getState()
-
   // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
   const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
@@ -111,7 +119,8 @@ test("member pays weekly tax (= initial weekly tax + 1 x inflation)", async () =
   const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
   const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
 
-  const weeklyTaxInflated = ONE_HUNY.plus(ONE_HUNY)
+  const weeklyTaxInflated = getInflatedFeeAmt(ONE_HUNY, ONE_HUNY, initialEpochNumber, epoch_three)
+  
   expect(memberPaid.toString()).toEqual(weeklyTaxInflated.toString(10))
   expect(bankReceived.toString()).toEqual((weeklyTaxInflated * 0.95).toString(10))
   expect(captainReceived.toString()).toEqual((weeklyTaxInflated * 0.05).toString(10))
