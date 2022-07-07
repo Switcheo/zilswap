@@ -283,6 +283,10 @@ const generateErrorMsg = (errorCode) => {
   return `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -${errorCode}))])`
 }
 
+const getInflatedFeeAmt = (initialAmt, inflation, initialEpoch, currentEpoch) => {
+  return initialAmt.plus(inflation * (currentEpoch - initialEpoch))
+}
+
 exports.getPrivateKey = getPrivateKey
 exports.deployHuny = deployHuny
 exports.deployZilswap = deployZilswap
@@ -292,3 +296,4 @@ exports.deployGuildBank = deployGuildBank
 exports.generateFee = generateFee
 exports.getBalanceFromStates = getBalanceFromStates
 exports.generateErrorMsg = generateErrorMsg
+exports.getInflatedFeeAmt = getInflatedFeeAmt
