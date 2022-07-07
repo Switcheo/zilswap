@@ -42,13 +42,6 @@ let one_msg =
   let nil_msg = Nil {Message} in
   Cons {Message} msg nil_msg
 
-let get_amount_or_zero =
-  fun (maybe : Option Uint128) =>
-    match maybe with
-    | Some amt => amt
-    | None => zero
-    end
-
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
