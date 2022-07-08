@@ -49,7 +49,9 @@ let one_msg =
 contract BankAuthority(
   initial_owner: ByStr20,
   initial_epoch_number: Uint32,
-  initial_hive: ByStr20,
+  initial_hive: ByStr20 with contract
+    field current_refinery : ByStr20
+  end,
   huny_token: ByStr20 with contract
     field balances : Map ByStr20 Uint128
   end
@@ -61,7 +63,9 @@ field pending_owner : Option ByStr20 = none
 field epochs : Map Uint32 BNum = Emp Uint32 BNum
 field current_epoch : Uint32 = initial_epoch_number
 
-field hive : ByStr20 = initial_hive
+field hive : ByStr20 with contract
+  field current_refinery : ByStr20
+end = initial_hive
 field huny : ByStr20 with contract
   field balances : Map ByStr20 Uint128
 end = huny_token

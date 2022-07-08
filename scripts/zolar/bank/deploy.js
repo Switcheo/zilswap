@@ -91,9 +91,42 @@ const deployZilswap = async () => {
   return contract;
 }
 
+const deployRefinery = async ({
+  hunyAddress,
+}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
+  const code = (await fs.promises.readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: address,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: hunyAddress,
+    },
+  ]
+
+  console.info(`Deploying Refinery...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+}
+
 const deployHive = async ({
   hunyAddress,
   zilswapAddress,
+  refineryAddress,
 }) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
@@ -114,7 +147,7 @@ const deployHive = async ({
     {
       vname: 'initial_refinery',
       type: 'ByStr20',
-      value: ZERO_ADDRESS,
+      value: refineryAddress,
     },
     {
       vname: 'reward_start_block',
@@ -266,7 +299,10 @@ async function deployGuildBank({
   const zilswapContract = await deployZilswap();
   const zilswapAddress = zilswapContract.address;
 
-  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  const refineryContract = await deployRefinery({ hunyAddress });
+  const refineryAddress = refineryContract.address.toLowerCase();
+
+  const hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   const hiveAddress = hiveContract.address.toLowerCase();
 
   const memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER");
@@ -355,6 +391,16 @@ async function deployGuildBank({
 
   const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
   console.log("apply membership", txApplyMembership.id)
+
+  const txRejectApplication = await callContract(privateKey, bankContract, "RejectJoinRequest", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  console.log("reject application", txRejectApplication.id)
+
+  const txApplyMembershipAgain = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
+  console.log("apply membership again", txApplyMembershipAgain.id)
 
   const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
     vname: "member",

@@ -344,7 +344,9 @@ contract GuildBank(
   initial_owner: ByStr20,
   bank_authority: ByStr20 with contract
     field current_epoch : Uint32,
-    field hive : ByStr20,
+    field hive : ByStr20 with contract
+      field current_refinery : ByStr20
+    end,
     field huny : ByStr20 with contract
       field balances : Map ByStr20 Uint128
     end
@@ -1196,6 +1198,18 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
    end
 end
 
+(* @dev: Reject membership application and remove application.  *)
+(* @param member: member whose                                  *)
+transition RejectJoinRequest(member: ByStr20)
+  IsCaptainOrOfficer _sender;
+  IsApplicationActive member;
+
+  delete joining_requests[member];
+
+  e = {_eventname: "MemberApplicationRejected"; member: member};
+  event e
+end
+
 (* @dev: Transfers specified amount of tokens to guild bank *)
 (* @param token: address of token to donate                 *)
 (* @param amount: amount of token to donate                 *)
@@ -1246,8 +1260,28 @@ transition Migrate(token: ByStr20, recipient: ByStr20)
   MigrateToken param
 end
 
+(* @dev: Claim Refinery pots *)
+transition ClaimRefinery(claim_block: BNum)
+  IsCaptainOrOfficer _sender;
+  hive <- & bank_authority.hive;
+  refinery <- & hive.current_refinery;
+
+  msg_to_refinery = {
+    _tag: "Claim";
+    _recipient: refinery;
+    _amount: zero;
+    claim_block: claim_block
+  };
+  msgs = one_msg msg_to_refinery;
+  send msgs;
+
+  e = {_eventname: "ClaimedRefinery"; initiator: _sender; claim_block: claim_block};
+  event e
+end
+
 (* @dev: Claim Magic Hive rewards *)
 transition ClaimHive()
+  IsCaptainOrOfficer _sender;
   hive_address <- & bank_authority.hive;
   msg_to_hive = {
     _tag: "Claim";
