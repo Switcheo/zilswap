@@ -220,6 +220,7 @@ async function deployGuildBank({
   authorityAddress,
   initialEpochNumber,
   initialMembers = [],
+  initialOfficers = [],
 }) {
   const privateKey = getPrivateKey();
 
@@ -280,7 +281,7 @@ async function deployGuildBank({
     {
       vname: 'initial_officers',
       type: 'List ByStr20',
-      value: initialMembers,
+      value: initialOfficers,
     },
   ]
 
@@ -318,8 +319,9 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("set epoch number tx", txSetEpochNumber.id)
 
-  const initialMembers = [memberAddress];
-  const bankContract = await deployGuildBank({ initialMembers, initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
+  const initialMembers = [address, memberAddress];
+  const initialOfficers = [memberAddress];
+  const bankContract = await deployGuildBank({ initialMembers, initialOfficers, initialEpochNumber: newEpochNumber, authorityAddress: authorityContract.address });
   const bankAddress = bankContract.address.toLowerCase();
 
   console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);

@@ -320,16 +320,21 @@ let all_true =
     let list_forall_bool = @list_forall Bool in
     list_forall_bool identity list
 
+let is_list_member =
+  fun (list : List ByStr20) =>
+  fun (candidate: ByStr20) =>
+    let check_exists = @list_exists ByStr20 in
+    let exist_fn = fun (item: ByStr20) => builtin eq item candidate in
+    check_exists exist_fn list
+
 let is_list_subset =
   fun (set : List ByStr20) =>
   fun (candidate : List ByStr20) =>
     let fold = @list_foldl ByStr20 (List Bool) in
-    let check_exists = @list_exists ByStr20 in
     let fn = 
       fun (result_list: List Bool) => 
       fun (item: ByStr20) =>
-        let exist_fn = fun (set_item: ByStr20) => builtin eq set_item item in
-        let is_element = check_exists exist_fn set in
+        let is_element = is_list_member set item in
         Cons {Bool} is_element result_list
     in
     let empty_list = Nil {Bool} in
@@ -366,14 +371,19 @@ with
   let member_count = get_list_length initial_members in
   let member_overlimit = builtin lt max_member_count member_count in
   let member_limit_ok = negb member_overlimit in
-  
-  let officer_list_ok = is_list_subset initial_officers initial_members in
+
+  let captain_is_member = is_list_member initial_members initial_owner in
+  let captain_is_officer = is_list_member initial_officers initial_owner in
+  let captain_not_officer = negb captain_is_officer in
+  let officer_list_ok = is_list_subset initial_members initial_officers in
 
   let l0 = Nil {Bool} in
   let l1 = Cons {Bool} officer_limit_ok l0 in
   let l2 = Cons {Bool} member_limit_ok l1 in
-  let l3 = Cons {Bool} officer_list_ok l2 in
-  all_true l3
+  let l3 = Cons {Bool} captain_is_member l2 in
+  let l4 = Cons {Bool} captain_not_officer l3 in
+  let l5 = Cons {Bool} officer_list_ok l4 in
+  all_true l5
 =>
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
@@ -1030,7 +1040,7 @@ transition InitiateTx(tx_params: TxParams, message: String)
   p = Some {PendingTx} new_pending_tx;
   pending_tx := p;
 
-  e = {_eventname: "TxInitiated"; initiator: _sender; pending_tx: new_pending_tx };
+  e = {_eventname: "TxInitiated"; initiator: _sender; pending_tx: new_pending_tx};
   event e;
 
   SignPendingTx _sender
@@ -1081,7 +1091,7 @@ transition PromoteMember(member: ByStr20)
   | True =>
     officers[member] := true;
 
-    e = {_eventname: "MemberPromoted"; member: _sender};
+    e = {_eventname: "MemberPromoted"; initiator: _sender; member: member};
     event e;
 
     ResetPendingTx
@@ -1100,7 +1110,7 @@ transition DemoteMember(member: ByStr20)
 
   delete officers[member];
 
-  e = {_eventname: "MemberDemoted"; member: _sender};
+  e = {_eventname: "MemberDemoted"; initiator: _sender; member: member};
   event e;
 
   ResetPendingTx
@@ -1118,7 +1128,7 @@ transition RemoveMember(member: ByStr20)
   match is_removing_self with
   | False =>
     delete members[member];
-    e = {_eventname: "MemberLeft"; member: member};
+    e = {_eventname: "MemberLeft"; initiator: _sender; member: member};
     event e;
 
     maybe_officer <- officers[member];
@@ -1142,7 +1152,7 @@ transition LeaveGuild()
   UpdateEpoch;
 
   delete members[_sender];
-  e = {_eventname: "MemberLeft"; member: _sender};
+  e = {_eventname: "MemberLeft"; initiator: _sender; member: _sender};
   event e;
 
   maybe_officer <- officers[_sender];
@@ -1169,7 +1179,7 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   delete joining_requests[member];
 
   (* announce new membership *)
-  e = {_eventname: "MemberJoined"; member: member};
+  e = {_eventname: "MemberJoined"; initiator: _sender; member: member};
   event e;
 
   (* check if joining fee paid *)
@@ -1206,7 +1216,7 @@ transition RejectJoinRequest(member: ByStr20)
 
   delete joining_requests[member];
 
-  e = {_eventname: "MemberApplicationRejected"; member: member};
+  e = {_eventname: "MemberApplicationRejected"; initiator: _sender; member: member};
   event e
 end
 
