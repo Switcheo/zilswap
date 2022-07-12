@@ -47,7 +47,6 @@ let void_prefix = "Void ARK Cheque "
 let execute = Execute
 let void = Void
 let hundred_percent_bps = Uint128 10000
-let no_one = 0x0000000000000000000000000000000000000000
 
 (* Library functions *)
 let one_msg =
@@ -413,7 +412,7 @@ procedure TradeZRC6 (
     royalty_receive_coins = Coins denom royalty_receive_amount;
     platform_receive_coins = Coins denom platform_receive_amount;
     
-    (* Total fee paid *)
+    (* This is just for the ExecuteTradeSuccess event *)
     fee_receive_coins = Coins denom fee_amount;
     
     match denom with
@@ -454,9 +453,17 @@ procedure TradeZRC6 (
       proceeds : seller_receive_coins;
       fees: fee_receive_coins;
       sell_cheque: sell_cheque;
-      buy_cheque: buy_cheque;
+      buy_cheque: buy_cheque
+    };
+    event e;
+
+    e = {
+      _eventname: "RoyaltiesTransferSuccess";
+      from: buyer;
       royalty_recipient : royalty_recipient;
-      royalties_transferred : royalty_receive_coins
+      royalties : royalty_receive_coins;
+      platform_fee_recipient : platform_fee_receiver;
+      platform_fee : platform_receive_coins
     };
     event e
   end
@@ -479,7 +486,6 @@ procedure TradeZRC1(
     seller_receive_amount = builtin sub amount fee_amount;
     seller_receive_coins = Coins denom seller_receive_amount;
     fee_receive_coins = Coins denom fee_amount;
-    zero_coins = Coins denom zero;
 
     (* if zil (non-zrc2), do additional validation and accept amount first *)
     match denom with
@@ -519,9 +525,7 @@ procedure TradeZRC1(
       proceeds : seller_receive_coins;
       fees : fee_receive_coins;
       sell_cheque: sell_cheque;
-      buy_cheque: buy_cheque;
-      royalty_recipient : no_one;
-      royalties_transferred : zero_coins
+      buy_cheque: buy_cheque
     };
     event e
   end
