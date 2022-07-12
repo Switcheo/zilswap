@@ -1168,6 +1168,7 @@ end
 (* if member leaves and then eventually joins guild again, no fee is charged. *)
 (* @param member: member to be charge fee and add to guild                    *)
 transition ApproveAndReceiveJoiningFee(member: ByStr20)
+  IsCaptainOrOfficer _sender;
   IsNotMember member;
   IsApplicationActive member;
 
