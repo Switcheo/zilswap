@@ -41,7 +41,8 @@ let true = True
 let buy = Buy
 let sell = Sell
 let zil = Zil
-let signed_message_prefix = "Zilliqa Signed Message:\n"
+let signed_message_prefix = "Zilliqa Signed Message ("
+let signed_message_suffix = "):\n"
 let execute_prefix = "Execute ARK Cheque "
 let void_prefix = "Void ARK Cheque "
 let execute = Execute
@@ -70,7 +71,7 @@ type Error =
   | CodeInvalidSide
   | CodeInvalidOwner
 
-let make_error =
+  let make_error =
   fun (result : Error) =>
     let result_code =
       match result with
@@ -147,7 +148,8 @@ let calculate_fee =
 contract ARK
 (
   contract_owner: ByStr20,
-  initial_fee_address: ByStr20
+  initial_fee_address: ByStr20,
+  chain_id: Uint32
 )
 
 (* Mutable fields *)
@@ -157,7 +159,7 @@ field pending_owner : Option ByStr20 = none
 
 field token_proxy : Option ByStr20 = none
 field fee_address : ByStr20 = initial_fee_address
-field voided_cheques : Map ByStr32 Bool = Emp ByStr32 Bool
+field voided_cheques : Map ByStr33 Map ByStr32 Bool = Emp ByStr33 Map ByStr32 Bool
 
 field platform_fee_bps : Uint128 = Uint128 200 
 
@@ -268,8 +270,8 @@ procedure IsValidSide(s1: Side, s2: Side)
   end
 end
 
-procedure IsNotVoided(cheque_hash: ByStr32)
-  cheque_voided <- exists voided_cheques[cheque_hash];
+procedure IsNotVoided(cheque_hash: ByStr32, pubkey: ByStr33)
+  cheque_voided <- exists voided_cheques[pubkey][cheque_hash];
   match cheque_voided with
   | False =>
   | True =>
@@ -284,8 +286,12 @@ procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33
   (* prefix it with action text to disambiguate message type *)
   action_prefix = get_action_prefix action;
   action_string = builtin concat action_prefix hex_hash;
+  (* construct signed message header *)
+  chain_id_string = builtin to_string chain_id;
+  message_header = builtin concat signed_message_prefix chain_id_string;
+  message_header = builtin concat message_header signed_message_suffix;
   (* prefix with generic zilliqa signed message header *)
-  message_string = builtin concat signed_message_prefix action_string;
+  message_string = builtin concat message_header action_string;
   (* hash the message to the signed data *)
   signed_hash = builtin sha256hash message_string;
   signed_data = builtin to_bystr signed_hash;
@@ -321,11 +327,11 @@ procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128
     IsNotExpired expiry;
 
     cheque_hash = get_cheque_hash _this_address direction token price fee_amount expiry nonce;
-    IsNotVoided cheque_hash;
+    IsNotVoided cheque_hash pubkey;
     IsValidSignature execute cheque_hash pubkey signature;
 
     (* consume cheque by voiding it *)
-    voided_cheques[cheque_hash] := true
+    voided_cheques[pubkey][cheque_hash] := true
   end
 end
 
@@ -551,10 +557,10 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
 end
 
 transition VoidCheque(cheque_hash: ByStr32, pubkey: ByStr33, signature: ByStr64)
-  IsNotVoided cheque_hash;
+  IsNotVoided cheque_hash pubkey;
   IsValidSignature void cheque_hash pubkey signature;
 
-  voided_cheques[cheque_hash] := true;
+  voided_cheques[pubkey][cheque_hash] := true;
   from = builtin schnorr_get_address pubkey;
   e = {_eventname : "VoidChequeSuccess"; initiator : _sender; sender : from; cheque_hash : cheque_hash };
   event e
