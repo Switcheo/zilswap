@@ -1,0 +1,381 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+
+library TBMFeeDistributor
+
+(* [start] DistributorLib.scillib [start] *)
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+(* Error events *)
+type Error =
+| CodeNotOwner
+| CodeNotPendingOwner
+| CodePendingOwnerNotEmpty
+| CodeInvalidEpoch
+| CodeInvalidProof
+| CodeAlreadyClaimed
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner              => Int32 -1
+      | CodeNotPendingOwner       => Int32 -2
+      | CodePendingOwnerNotEmpty  => Int32 -3
+      | CodeInvalidEpoch          => Int32 -4
+      | CodeInvalidProof          => Int32 -5
+      | CodeAlreadyClaimed        => Int32 -6
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+type DistributionLeaf =
+| DistributionLeaf of ByStr20 Uint128 (* account, amount *)
+
+type Claim =
+| Claim of Uint32 DistributionLeaf (List ByStr32) (* epoch number, leaf, proof path as a list of hashes *)
+
+let hash_leaf =
+  fun (d : DistributionLeaf) =>
+    match d with
+    | DistributionLeaf account amount =>
+      let amt_hash = builtin sha256hash amount in
+      let bytes = builtin concat account amt_hash in
+      builtin sha256hash bytes
+    end
+
+let bystr32_lt =
+  fun (h1 : ByStr32) =>
+  fun (h2 : ByStr32) =>
+    let h1int = builtin to_uint256 h1 in
+    let h2int = builtin to_uint256 h2 in
+    builtin lt h1int h2int
+
+let hash_leaves =
+  fun (h1 : ByStr32) =>
+  fun (h2 : ByStr32) =>
+    let less = bystr32_lt h1 h2 in
+    match less with
+    | True =>
+      let bytes = builtin concat h1 h2 in
+      builtin sha256hash bytes
+    | False =>
+      let bytes = builtin concat h2 h1 in
+      builtin sha256hash bytes
+    end
+
+let zero = Uint128 0
+let one = Uint32 1
+let yes = True
+let none = None {ByStr20}
+
+(* [end] DistributorLib.scillib [end] *)
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract TBMFeeDistributor
+(
+  token_contract : ByStr20,
+  init_owner : ByStr20
+)
+
+(* Mutable fields *)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} init_owner
+field pending_owner : Option ByStr20 = none
+
+field merkle_roots : Map Uint32 ByStr32 (* epoch num -> merkle root *)
+  = Emp Uint32 ByStr32
+
+field claimed_leafs : Map Uint32 (Map ByStr32 Bool) (* epoch num -> leaf hash -> True *)
+  = Emp Uint32 (Map ByStr32 Bool)
+
+field next_epoch_number : Uint32 = Uint32 0
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsUnclaimed(epoch_number: Uint32, leaf_hash: ByStr32)
+  claimed <- claimed_leafs[epoch_number][leaf_hash];
+  match claimed with
+  | None =>
+  | Some true =>
+    err = CodeAlreadyClaimed;
+    ThrowError err
+  end
+end
+
+procedure IsValidEpochToSet(epoch_number: Uint32)
+  next <- next_epoch_number;
+  is_valid_epoch = builtin eq epoch_number next;
+  match is_valid_epoch with
+  | True => (* noop *)
+  | False =>
+    err = CodeInvalidEpoch;
+    ThrowError err
+  end
+end
+
+procedure VerifyInclusion(epoch_number: Uint32, leaf_hash: ByStr32, proof: List ByStr32)
+  maybe_root <- merkle_roots[epoch_number];
+  match maybe_root with
+  | None =>
+    err = CodeInvalidEpoch;
+    ThrowError err
+  | Some root =>
+    proof_root =
+      let hash_list = @list_foldl ByStr32 ByStr32 in
+      hash_list hash_leaves leaf_hash proof;
+    valid_root = builtin eq root proof_root;
+    match valid_root with
+    | False =>
+      err = CodeInvalidProof;
+      ThrowError err
+    | True => (* ok *)
+    end
+  end
+end
+
+procedure ValidateAndMarkClaim(claim: Claim)
+  match claim with
+  | Claim epoch_number leaf proof =>
+    match leaf with
+    | DistributionLeaf account amount =>
+      leaf_hash = hash_leaf leaf;
+
+      IsUnclaimed epoch_number leaf_hash;
+      VerifyInclusion epoch_number leaf_hash proof;
+
+      claimed_leafs[epoch_number][leaf_hash] := yes;
+      e = {_eventname : "Claimed"; epoch_number: epoch_number; data : leaf};
+      event e
+    end
+  end
+end
+
+procedure Distribute(recipient: ByStr20, amount: Uint128)
+  msg_to_token = {_tag : "Transfer"; _recipient : token_contract; _amount : zero;
+                  to : recipient; amount : amount};
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Claims from multiple epochs for a single account by providing proofs of inclusion.       *)
+(* @param amount: The amount of tokens to claim.                                                  *)
+(* @param claims: The claim data, which contains the epoch_number, amount and proof for the claim *)
+transition ClaimMulti(
+  account: ByStr20,
+  claims: List (Pair (Pair Uint32 Uint128) (List ByStr32)) (* ((epoch_number : Uint32, amount : Uint128), proof: List ByStr32) *)
+)
+  (* construct claim ADT list *)
+  c =
+    let map_fn = fun (claim: Pair (Pair Uint32 Uint128) (List ByStr32)) =>
+      match claim with
+      | Pair data proof =>
+        match data with
+        | Pair epoch_number amount =>
+          let leaf = DistributionLeaf account amount in
+          Claim epoch_number leaf proof
+        end
+      end in
+    let map = @list_map (Pair (Pair Uint32 Uint128) (List ByStr32)) Claim in
+    map map_fn claims;
+
+  (* check and mark all claims *)
+  forall c ValidateAndMarkClaim;
+
+  (* compute total *)
+  total =
+    let fold_fn = fun (t : Uint128) => fun (claim: Pair (Pair Uint32 Uint128) (List ByStr32)) =>
+      match claim with
+      | Pair data proof =>
+        match data with
+        | Pair epoch_number amount =>
+          builtin add t amount
+        end
+      end in
+    let fold = @list_foldl (Pair (Pair Uint32 Uint128) (List ByStr32)) Uint128 in
+    fold fold_fn zero claims;
+
+  (* distribute all at once *)
+  Distribute account total
+end
+
+(* @dev: Claims from a distribution for an epoch by providing proof of inclusion.               *)
+(* @param claim: The claim data, which contains the epoch number, leaf and proof for the claim. *)
+transition Claim(claim: Claim)
+  (* check and mark the claim *)
+  ValidateAndMarkClaim claim;
+
+  (* distribute the amount *)
+  match claim with
+  | Claim epoch_number leaf proof =>
+    match leaf with
+    | DistributionLeaf account amount =>
+      Distribute account amount
+    end
+  end
+end
+
+(* @dev: Sets the distribution merkle roots and claimed data for the next available epoch from a legacy distributor contract. Only can be called by the contract_owner. *)
+(* @param _merkle_roots: The map of merkle roots by epoch number *)
+(* @param _claimed_leafs: The map of claimed leafs by epoch number and address *)
+transition MigrateData(
+  legacy_contract: ByStr20 with contract
+    field merkle_roots: Map Uint32 ByStr32,
+    field claimed_leafs: Map Uint32 (Map ByStr32 Bool)
+  end
+)
+  IsOwner _sender;
+
+  epoch_number <- next_epoch_number;
+
+  maybe_root <- & legacy_contract.merkle_roots[epoch_number];
+  match maybe_root with
+  | None =>
+    err = CodeInvalidEpoch;
+    ThrowError err
+  | Some root =>
+    maybe_leafs <- & legacy_contract.claimed_leafs[epoch_number];
+    match maybe_leafs with
+    | None =>
+      err = CodeInvalidEpoch;
+      ThrowError err
+    | Some leafs =>
+      merkle_roots[epoch_number] := root;
+      claimed_leafs[epoch_number] := leafs
+    end
+  end;
+
+  new_epoch_number = builtin add one epoch_number;
+  next_epoch_number := new_epoch_number;
+
+  e = {_eventname : "DataMigrated"; epoch_number: epoch_number};
+  event e
+end
+
+(* @dev: Sets the distribution merkle root for the epoch. Only can be called by the contract_owner. Epochs must be set in order. *)
+(* @param epoch_number: The epoch number for this distribution.                                                                  *)
+(* @param merkle_root: The root of the merkle tree for this distribution.                                                        *)
+transition SetMerkleRoot(epoch_number: Uint32, merkle_root: ByStr32)
+  IsOwner _sender;
+  IsValidEpochToSet epoch_number;
+  merkle_roots[epoch_number] := merkle_root;
+  new_epoch_number = builtin add one epoch_number;
+  next_epoch_number := new_epoch_number;
+  e = {_eventname : "MerkleRootSet"; epoch_number : epoch_number; merkle_root : merkle_root};
+  event e
+end
+
+(* @dev: Removes the contract_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  contract_owner := none;
+  e = {_eventname : "OwnershipRevoked"; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition TransferSuccessCallBack(
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
+
+transition RecipientAcceptTransfer(
+  sender : ByStr20,
+  recipient : ByStr20,
+  amount : Uint128
+)
+end
