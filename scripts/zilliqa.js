@@ -1,4 +1,4 @@
-
+require('dotenv').config()
 const { Zilliqa } = require('@zilliqa-js/zilliqa')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { bytes } = require('@zilliqa-js/util')

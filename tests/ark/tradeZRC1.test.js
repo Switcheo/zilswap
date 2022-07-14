@@ -81,7 +81,7 @@ async function deployARK(privateKey, {
   if (!feeReceiver) feeReceiver = getAddressFromPrivateKey(privateKey).toLowerCase()
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/nft/ARK.scilla')).toString()
+  const code = (await readFile('./src/nft/ARKv2.scilla')).toString()
   console.log("network", network, chainId)
   const init = [
     // this parameter is mandatory for all init arrays
@@ -99,6 +99,11 @@ async function deployARK(privateKey, {
       vname: 'initial_fee_address',
       type: 'ByStr20',
       value: feeReceiver,
+    },
+    {
+      vname: 'chain_id',
+      type: 'Uint32',
+      value: chainId.toString(),
     },
   ]
 
@@ -278,13 +283,12 @@ let sellerChequeHash, buyerChequeHash
 const signCheque = (isBuyer) => {
   const user = isBuyer ? buyer : seller
   const chequeHash = `0x${getChequeHash(isBuyer)}`
-  const message = `Zilliqa Signed Message:\nExecute ARK Cheque ${chequeHash}`
+  const message = `Zilliqa Signed Message (${chainId}):\nExecute ARK Cheque ${chequeHash}`
   const messageHash = crypto.createHash('sha256').update(message, 'utf8').digest('hex')
   const buffer = Buffer.from(messageHash, 'hex')
   const signature = `0x${sign(buffer, user.key, user.pubKey)}`
   if (isBuyer) buyerChequeHash = chequeHash
   else sellerChequeHash = chequeHash
-
   return signature
 }
 
@@ -366,15 +370,19 @@ describe('ARK ExecuteTrade', () => {
     const state = await ark.getState()
     expect(state).toEqual(expect.objectContaining({
       voided_cheques: {
-        [sellerChequeHash]: {
-          argtypes: [],
-          arguments: [],
-          constructor: 'True',
+        [`0x${seller.pubKey}`]: {
+          [sellerChequeHash]: {
+            argtypes: [],
+            arguments: [],
+            constructor: 'True',
+          },
         },
-        [buyerChequeHash]: {
-          argtypes: [],
-          arguments: [],
-          constructor: 'True',
+        [`0x${buyer.pubKey}`]: {
+          [buyerChequeHash]: {
+            argtypes: [],
+            arguments: [],
+            constructor: 'True',
+          },
         },
       },
     }))
