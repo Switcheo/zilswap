@@ -1324,6 +1324,8 @@ end
 (* @param new_owner: Address of the new contract_owner.                                                                                    *)
 transition TransferOwnership(new_owner: ByStr20)
   IsOwner _sender;
+  IsMember new_owner;
+  
   o = Some {ByStr20} new_owner;
   pending_owner := o;
   e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
@@ -1333,10 +1335,19 @@ end
 (* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
 transition AcceptOwnership()
   IsPendingOwner _sender;
+  IsMember _sender;
+
   previous_contract_owner <- contract_owner;
   o = Some {ByStr20} _sender;
   contract_owner := o;
   pending_owner := none;
+  
+  maybe_officer <- officers[_sender];
+  match maybe_officer with
+  | Some officer => delete officers[_sender]
+  | None =>
+  end;
+
   e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
   event e;
 
