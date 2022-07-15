@@ -63,7 +63,7 @@ async function deployTbmFeeDistributor({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/TbmFeeDistributor.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/tbm/TbmFeeDistributor.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
