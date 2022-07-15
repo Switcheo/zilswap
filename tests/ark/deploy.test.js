@@ -30,6 +30,7 @@ test('deploy ARK successfully', async () => {
       "arguments": [],
       "constructor": "None",
     },
+    "platform_fee_bps": "200",
     "token_proxy": {
       "argtypes": ["ByStr20"],
       "arguments": [tokenProxy.address.toLowerCase()],
