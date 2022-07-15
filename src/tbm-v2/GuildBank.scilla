@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 
-import ListUtils BoolUtils NatUtils
+import ListUtils BoolUtils NatUtils IntUtils
 library GuildBank
 
 let true = True
@@ -100,6 +100,7 @@ type Error =
   | CodeNotCaptainOrOfficer
   | CodeNotBankAuthority
   | CodeInvalidTaxParam
+  | CodeInvalidEpoch
 
 let make_error =
   fun (result : Error) =>
@@ -130,6 +131,7 @@ let make_error =
       | CodeNotCaptainOrOfficer             => Int32 -21
       | CodeNotBankAuthority                => Int32 -22
       | CodeInvalidTaxParam                 => Int32 -23
+      | CodeInvalidEpoch                    => Int32 -24
       end
     in
     { _exception : "Error"; code : result_code }
@@ -982,19 +984,26 @@ procedure UpdateEpoch()
   match maybe_already_updated with
   | True => (* no op*)
   | False =>
-    diff = builtin sub current_epoch last_epoch;
-    diff_nat = builtin to_nat diff;
-    fold = @nat_fold (List Uint32);
-    fn = fun (list: List Uint32) => fun (nat: Nat) => 
-      let step = nat_to_int nat in
-      let offset = builtin sub diff step in
-      let epoch_number = builtin add last_epoch offset in
-      Cons {Uint32} epoch_number list;
-    init = Nil {Uint32};
-    epoch_list = fold fn init diff_nat;
-    reverse_list = @list_reverse Uint32;
-    epoch_list_reverse = reverse_list epoch_list; 
-    forall epoch_list_reverse AdvanceEpoch
+    epoch_valid = uint32_le last_epoch current_epoch;
+    match epoch_valid with
+    | False => 
+      err = CodeInvalidEpoch;
+      ThrowError err
+    | True =>  
+      diff = builtin sub current_epoch last_epoch;
+      diff_nat = builtin to_nat diff;
+      fold = @nat_fold (List Uint32);
+      fn = fun (list: List Uint32) => fun (nat: Nat)  => 
+        let step = nat_to_int nat in
+        let offset = builtin sub diff step in
+        let epoch_number = builtin add last_epoch   offset in
+        Cons {Uint32} epoch_number list;
+      init = Nil {Uint32};
+      epoch_list = fold fn init diff_nat;
+      reverse_list = @list_reverse Uint32;
+      epoch_list_reverse = reverse_list epoch_list; 
+      forall epoch_list_reverse AdvanceEpoch
+    end
   end
 end
 
