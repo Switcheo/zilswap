@@ -47,6 +47,8 @@ let execute_prefix = "Execute ARK Cheque "
 let void_prefix = "Void ARK Cheque "
 let execute = Execute
 let void = Void
+let hundred_percent_bps = Uint128 10000
+let no_one = 0x0000000000000000000000000000000000000000
 
 (* Library functions *)
 let one_msg =
@@ -132,6 +134,13 @@ let get_cheque_hash =
     let p5 = builtin concat p4 nonce_hash in
     builtin sha256hash p5
 
+(* https://github.com/Zilliqa/ZRC/blob/main/zrcs/zrc-6.md#b-mutable-fields *)
+let calculate_fee = 
+  fun (amount: Uint128) =>
+  fun (fee_bps: Uint128) =>
+    let portions = builtin div hundred_percent_bps fee_bps in
+    builtin div amount portions
+    
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
@@ -151,6 +160,8 @@ field pending_owner : Option ByStr20 = none
 field token_proxy : Option ByStr20 = none
 field fee_address : ByStr20 = initial_fee_address
 field voided_cheques : Map ByStr33 Map ByStr32 Bool = Emp ByStr33 Map ByStr32 Bool
+
+field platform_fee_bps : Uint128 = Uint128 200 
 
 (**************************************)
 (*             Procedures             *)
@@ -295,6 +306,19 @@ procedure IsValidSignature(action: Action, cheque_hash: ByStr32, pubkey: ByStr33
   end
 end
 
+procedure IsValidPlatformFee (total_amount: Uint128, platform_fee: Uint128, fee_bps: Uint128)
+  (* Check should be 1 less than check_platform_fee *)
+  check = calculate_fee total_amount fee_bps;
+  check_platform_fee = builtin lt check platform_fee;
+  match check_platform_fee with
+  | True =>
+    (*  no-op  *)
+  | False =>
+  err = CodeInvalidFee;
+  ThrowError err
+  end
+end
+
 procedure ValidateAndConsumeCheque(token: NFT, price: Coins, fee_amount: Uint128, valid_direction: Side, cheque: Cheque)
   match cheque with
   | Cheque direction expiry nonce pubkey signature =>
@@ -364,24 +388,104 @@ procedure TransferNFT(token: NFT, from: ByStr20, to: ByStr20)
   end
 end
 
-(***************************************)
-(*             Transitions             *)
-(***************************************)
+(* To execute trade for ZRC6 tokens *)
+procedure TradeZRC6 (
+  price: Coins,
+  fee_amount: Uint128,
+  token: NFT,
+  token_contract: ByStr20 with contract
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128 
+    end,
+  buyer: ByStr20,
+  seller: ByStr20,
+  buy_cheque: Cheque,
+  sell_cheque: Cheque)
+  
+  match price with
+  | Coins denom amount =>
+    royalty_recipient <- & token_contract.royalty_recipient;
+    royalty_fee_BPS <- & token_contract.royalty_fee_bps;
+    platform_fee_receiver <- fee_address;
+    platform_fee_BPS <- platform_fee_bps;
+        
+    seller_receive_amount = builtin sub amount fee_amount;
+    royalty_receive_amount = calculate_fee amount royalty_fee_BPS;
+    platform_receive_amount = builtin sub fee_amount royalty_receive_amount;
 
-transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheque: Cheque, buy_cheque: Cheque)
-  ValidateAndConsumeCheque token price fee_amount sell sell_cheque;
-  ValidateAndConsumeCheque token price zero buy buy_cheque;
-  IsValidFee price fee_amount;
+    IsValidPlatformFee amount platform_receive_amount platform_fee_BPS;
 
+    seller_receive_coins = Coins denom seller_receive_amount;
+    royalty_receive_coins = Coins denom royalty_receive_amount;
+    platform_receive_coins = Coins denom platform_receive_amount;
+    
+    (* Total fee paid *)
+    fee_receive_coins = Coins denom fee_amount;
+    
+    match denom with
+    | Zil =>
+      receiving_from_buyer = builtin eq buyer _sender;
+      match receiving_from_buyer with
+      | True =>
+      | False =>
+        (* if the executor is not the buyer, we cannot receive zil, it must be wrapped for pre-approval *)
+        (* this means that bidders that do not immediately match should always offer in wZIL *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      correct_amount = builtin eq _amount amount;
+      match correct_amount with
+      | True =>
+      | False =>
+        (* the amount of zils need to match the required amount as specified in the price exactly *)
+        (* otherwise, funds may be stuck and lost forever *)
+        err = CodeInvalidPrice;
+        ThrowError err
+      end;
+      accept
+    | _ =>
+    end;
+
+    TransferCoins seller_receive_coins buyer seller;
+    TransferCoins platform_receive_coins buyer platform_fee_receiver;
+    TransferCoins royalty_receive_coins buyer royalty_recipient;
+    TransferNFT token seller buyer;
+
+    e = {
+      _eventname : "ExecuteTradeSuccess";
+      initiator : _sender;
+      token : token;
+      seller : seller;
+      buyer : buyer;
+      proceeds : seller_receive_coins;
+      fees: fee_receive_coins;
+      sell_cheque: sell_cheque;
+      buy_cheque: buy_cheque;
+      royalty_recipient : royalty_recipient;
+      royalties_transferred : royalty_receive_coins
+    };
+    event e
+  end
+end
+
+(* To execute trade for ZRC1 tokens *)
+procedure TradeZRC1(
+  price: Coins, 
+  fee_amount: Uint128, 
+  token: NFT, 
+  buyer: ByStr20, 
+  seller: ByStr20,
+  buy_cheque: Cheque,
+  sell_cheque: Cheque)
+  
   match price with
   | Coins denom amount =>
     fee_receiver <- fee_address;
-    seller = get_account sell_cheque;
-    buyer = get_account buy_cheque;
-
+  
     seller_receive_amount = builtin sub amount fee_amount;
     seller_receive_coins = Coins denom seller_receive_amount;
     fee_receive_coins = Coins denom fee_amount;
+    zero_coins = Coins denom zero;
 
     (* if zil (non-zrc2), do additional validation and accept amount first *)
     match denom with
@@ -421,9 +525,34 @@ transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheq
       proceeds : seller_receive_coins;
       fees : fee_receive_coins;
       sell_cheque: sell_cheque;
-      buy_cheque: buy_cheque
+      buy_cheque: buy_cheque;
+      royalty_recipient : no_one;
+      royalties_transferred : zero_coins
     };
     event e
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition ExecuteTrade(token: NFT, price: Coins, fee_amount: Uint128, sell_cheque: Cheque, buy_cheque: Cheque)
+  ValidateAndConsumeCheque token price fee_amount sell sell_cheque;
+  ValidateAndConsumeCheque token price zero buy buy_cheque;
+  IsValidFee price fee_amount;
+  seller = get_account sell_cheque;
+  buyer = get_account buy_cheque;
+  
+  match token with
+  | NFT token_address token_id =>
+    maybe_token_contract <- & token_address as ByStr20 with contract field royalty_recipient: ByStr20, field royalty_fee_bps: Uint128 end;
+    match maybe_token_contract with
+    | Some token_contract =>
+      TradeZRC6 price fee_amount token token_contract buyer seller buy_cheque sell_cheque
+    | None =>
+      TradeZRC1 price fee_amount token buyer seller buy_cheque sell_cheque
+    end
   end
 end
 
@@ -449,6 +578,26 @@ transition SetTokenProxy(address: ByStr20)
     new_token_proxy = Some {ByStr20} address;
     token_proxy := new_token_proxy;
     e = {_eventname : "SetTokenProxySuccess"; token_proxy: address};
+    event e
+  end
+end
+
+transition UpdatePlatformFee(new_platform_fee : Uint128)
+  IsOwner _sender;
+  current_platform_fee <- platform_fee_bps;
+  invalid_update = builtin eq new_platform_fee current_platform_fee;
+  match invalid_update with
+  | True =>
+    err = CodeInvalidFee;
+    ThrowError err
+  | False =>
+    platform_fee_bps := new_platform_fee;
+    e = {
+      _eventname : "UpdatePlatformFeeSuccess"; 
+      initiator: _sender; 
+      initial_platform_fee : current_platform_fee;
+      updated_platform_fee : new_platform_fee
+    };
     event e
   end
 end
@@ -494,8 +643,8 @@ transition TransferFromSuccessCallBack(from: ByStr20, recipient: ByStr20, token_
   (* no-op *)
 end
 
-
 (* @dev: Handle callback after sending ZRC-6 tokens via TransferFrom *)
+(* https://github.com/Zilliqa/ZRC/blob/main/zrcs/zrc-6.md#15-transferfrom *)
 transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
   (* no-op *)
 end
