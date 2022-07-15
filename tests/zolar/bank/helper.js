@@ -178,10 +178,12 @@ const deployBankAuthority = async ({
   return contract;
 };
 
+
 const deployGuildBank = async ({
   authorityAddress,
   initialEpochNumber,
   initialMembers = [],
+  initialOfficers = [],
 }) => {
   const privateKey = getPrivateKey();
 
@@ -242,7 +244,7 @@ const deployGuildBank = async ({
     {
       vname: 'initial_officers',
       type: 'List ByStr20',
-      value: initialMembers,
+      value: initialOfficers,
     },
   ]
 

@@ -4,7 +4,7 @@ const {callContract} = require("../../../scripts/call");
 const { ZERO_ADDRESS, ONE_HUNY, initialEpochNumber } = require("./config");
 const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates } = require("./helper")
 
-let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
@@ -25,7 +25,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [memberAddress], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address, memberAddress], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{

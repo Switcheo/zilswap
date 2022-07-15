@@ -4,7 +4,7 @@ const {callContract} = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
 const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
 
-let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
@@ -25,7 +25,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
@@ -190,3 +190,17 @@ test('remove member from guild', async () => {
   expect(bankContractStateAfterTx.members).not.toHaveProperty(memberAddress)
 })
 
+test(`reject member's join request`, async () => {
+  const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
+  const bankContractStateBeforeTx = await bankContract.getState()
+  
+  const txRejectMember = await callContract(privateKey, bankContract, "RejectJoinRequest", [{
+    vname: "member",
+    type: "ByStr20",
+    value: memberAddress,
+  }], 0, false, false)
+  const bankContractStateAfterTx = await bankContract.getState()
+  
+  expect(bankContractStateBeforeTx.joining_requests).toHaveProperty(memberAddress)
+  expect(bankContractStateAfterTx.joining_requests).not.toHaveProperty(memberAddress)
+})

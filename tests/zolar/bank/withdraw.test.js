@@ -22,7 +22,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{

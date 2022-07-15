@@ -4,7 +4,7 @@ const {callContract} = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
 const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg, getInflatedFeeAmt } = require("./helper")
 
-let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
 async function initiateUpdateWeeklyTaxTx (initiator, {initialAmt, inflation, firstEpoch, captainAlloc, officerAlloc}) {
   const txInitiateUpdateWeeklyTaxTx = await callContract(initiator, bankContract, "InitiateTx", [{
@@ -78,7 +78,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [memberAddress], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address, memberAddress], initialOfficers: [memberAddress], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{

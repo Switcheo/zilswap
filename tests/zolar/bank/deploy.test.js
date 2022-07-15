@@ -63,7 +63,7 @@ test('set new epoch number (= intialEpoch + 3) in Authority contract', async () 
 
 
 test('deploy GuildBank contract', async () => {
-  bankContract = await deployGuildBank({ initialMembers: [randomAddress], initialEpochNumber: newEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address, randomAddress], initialEpochNumber: newEpochNumber, authorityAddress })
   expect(bankContract.address).toBeDefined()
 
   bankAddress = bankContract.address.toLowerCase() 
@@ -79,11 +79,9 @@ test('deploy GuildBank contract', async () => {
   expect(state.weekly_tax).toMatchObject(expectedWeeklyTax) 
   expect(Object.keys(state.tokens_held).length).toEqual(0)
   
-  expect(Object.keys(state.members).length).toEqual(1)
+  expect(Object.keys(state.members).length).toEqual(2)
+  expect(state.members).toHaveProperty(address)
   expect(state.members).toHaveProperty(randomAddress)
   
-  expect(Object.keys(state.officers).length).toEqual(1)
-  expect(state.officers).toHaveProperty(randomAddress)
+  expect(Object.keys(state.officers).length).toEqual(0)
 })
-
-
