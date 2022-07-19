@@ -53,7 +53,8 @@ contract BankAuthority(
     field current_refinery : ByStr20
   end,
   huny_token: ByStr20 with contract
-    field balances : Map ByStr20 Uint128
+    field balances : Map ByStr20 Uint128,
+    field allowances : Map ByStr20 (Map ByStr20 Uint128)
   end
 )
 
@@ -67,7 +68,8 @@ field hive : ByStr20 with contract
   field current_refinery : ByStr20
 end = initial_hive
 field huny : ByStr20 with contract
-  field balances : Map ByStr20 Uint128
+  field balances : Map ByStr20 Uint128,
+  field allowances : Map ByStr20 (Map ByStr20 Uint128)
 end = huny_token
 
 (**************************************)

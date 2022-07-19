@@ -355,7 +355,8 @@ contract GuildBank(
       field current_refinery : ByStr20
     end,
     field huny : ByStr20 with contract
-      field balances : Map ByStr20 Uint128
+      field balances : Map ByStr20 Uint128,
+      field allowances : Map ByStr20 (Map ByStr20 Uint128)
     end
   end,
   initial_epoch: Uint32,
@@ -683,6 +684,25 @@ procedure UpdateTokenBalance(
   end
 end
 
+procedure IncreaseAllowance(spender: ByStr20, required_amount : Uint128)
+  huny_token <- & bank_authority.huny;
+  a <- & huny_token.allowances[_this_address][spender];
+
+  allowance = get_amount_or_zero a;
+  need_increase = builtin lt allowance required_amount;
+  match need_increase with
+  | False => (* no-op *)
+  | True =>
+    increase_amount = builtin sub required_amount allowance;
+    msg_to_token = {
+      _tag : "IncreaseAllowance"; _recipient : huny_token; _amount : zero;
+      spender : spender; amount : increase_amount
+    };
+    msg = one_msg msg_to_token;
+    send msg
+  end
+end
+
 procedure ReceiveToken(
   from: ByStr20,
   token: ByStr20 with contract
@@ -747,13 +767,15 @@ end
 
 (* multi-sig authenticated operation *)
 procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, deadline_block_offset: Uint32)
+  hive_address <- & bank_authority.hive;
+  IncreaseAllowance hive_address max_token_amount;
+
   current_block_number <- & BLOCKNUMBER;
   deadline_block = builtin badd current_block_number deadline_block_offset;
-  hive_address <- & bank_authority.hive;
   msg_to_hive = {
     _tag: "AddLiquidity";
     _recipient: hive_address;
-    _amount: zero;
+    _amount: _amount;
     min_contribution_amount: min_contribution;
     max_token_amount: max_token_amount;
     deadline_block: deadline_block
@@ -1315,20 +1337,6 @@ transition ClaimHive()
   event e
 end
 
-transition IncreaseAllowance(spender: ByStr20, amount: Uint128)
-  IsOwner _sender;
-  huny_token <- & bank_authority.huny;
-
-  msg_to_token = {
-    _tag: "IncreaseAllowance";
-    _recipient: huny_token;
-    _amount: zero;
-    spender: spender;
-    amount: amount
-  };
-  msgs = one_msg msg_to_token;
-  send msgs
-end
 (***************************************************)
 (*              Ownership Transitions              *)
 (***************************************************)
@@ -1390,4 +1398,11 @@ transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: 
   | Some token_address => UpdateTokenBalance token_address
   | None => (* no-op *)
   end
+end
+transition AddFunds()
+  (* allow receiving of ZIL from Zilswap *)
+  accept
+end
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op - allow receiving HUNY from Zilswap *)
 end
