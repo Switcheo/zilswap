@@ -1315,7 +1315,20 @@ transition ClaimHive()
   event e
 end
 
+transition IncreaseAllowance(spender: ByStr20, amount: Uint128)
+  IsOwner _sender;
+  huny_token <- & bank_authority.huny;
 
+  msg_to_token = {
+    _tag: "IncreaseAllowance";
+    _recipient: huny_token;
+    _amount: zero;
+    spender: spender;
+    amount: amount
+  };
+  msgs = one_msg msg_to_token;
+  send msgs
+end
 (***************************************************)
 (*              Ownership Transitions              *)
 (***************************************************)
