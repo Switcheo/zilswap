@@ -1406,3 +1406,7 @@ end
 transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
   (* no-op - allow receiving HUNY from Zilswap *)
 end
+(* receive minted huny *)
+transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
