@@ -1400,13 +1400,13 @@ transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: 
   end
 end
 transition AddFunds()
-  (* allow receiving of ZIL from Zilswap *)
+  (* allow receiving of ZIL from Hive *)
   accept
 end
 transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
-  (* no-op - allow receiving HUNY from Zilswap *)
+  (* no-op - allow receiving HUNY from token contract *)
 end
 (* receive minted huny *)
 transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
-  (* no-op *)
+  (* no-op - allow receiving HUNY from refinery *)
 end
