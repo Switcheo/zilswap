@@ -218,7 +218,7 @@ let get_required_power =
       end
 
 let get_power = 
-  fun (officers : Map ByStr20 Bool) =>
+  fun (officers : Map ByStr20 Uint32) =>
   fun (captain : ByStr20) =>
   fun (member : ByStr20) =>
     let maybe_officer = builtin get officers member in
@@ -234,7 +234,7 @@ let get_power =
 
 let get_current_power =
   fun (signers : List ByStr20) =>
-  fun (officers : Map ByStr20 Bool) =>
+  fun (officers : Map ByStr20 Uint32) =>
   fun (captain : ByStr20) =>
     let fold = @list_foldl ByStr20 Uint32 in
     let fn = 
@@ -290,29 +290,30 @@ let list_append_recipient =
     fold fn empty_list token_list
 
 let map_to_list =
-  fun (tokens_held : Map ByStr20 Bool) => 
-    let fold = @list_foldl (Pair ByStr20 Bool) (List ByStr20) in
+  fun (address_map : Map ByStr20 Uint32) => 
+    let fold = @list_foldl (Pair ByStr20 Uint32) (List ByStr20) in
     let fn = 
       fun (result_list: List ByStr20) => 
-      fun (token_pair: Pair ByStr20 Bool) =>
+      fun (token_pair: Pair ByStr20 Uint32) =>
         match token_pair with
           | Pair token _ =>
             Cons {ByStr20} token result_list
         end
     in
-    let token_list = builtin to_list tokens_held in
+    let address_list = builtin to_list address_map in
     let empty_list = Nil {ByStr20} in
-    fold fn empty_list token_list
+    fold fn empty_list address_list
 
 let list_to_map =
   fun (list : List ByStr20) => 
-    let fold = @list_foldl (ByStr20) (Map ByStr20 Bool) in
+  fun (value : Uint32) => 
+    let fold = @list_foldl (ByStr20) (Map ByStr20 Uint32) in
     let fn = 
-      fun (result_map: Map ByStr20 Bool) => 
+      fun (result_map: Map ByStr20 Uint32) => 
       fun (item: ByStr20) =>
-        builtin put result_map item true
+        builtin put result_map item value
     in
-    let empty_map = Emp ByStr20 Bool in
+    let empty_map = Emp ByStr20 Uint32 in
     fold fn empty_map list
 
 (* returns True if all items in the list is True *)
@@ -405,8 +406,8 @@ field current_joining_fee : Uint128 =
   let f = get_fee initial_joining_fee initial_epoch in
   get_fee_amount f initial_epoch
 
-field members : Map ByStr20 Bool = list_to_map initial_members
-field officers : Map ByStr20 Bool = list_to_map initial_officers
+field members : Map ByStr20 Uint32 = list_to_map initial_members initial_epoch
+field officers : Map ByStr20 Uint32 = list_to_map initial_officers initial_epoch
 
 (* map of users requesting to join guild, can be approved by guild managers to complete join flow *)
 field joining_requests : Map ByStr20 Bool = Emp ByStr20 Bool
@@ -1113,6 +1114,8 @@ transition PromoteMember(member: ByStr20)
   IsNotOfficer member;
   IsMember member;
 
+  UpdateEpoch;
+
   current_officers <- officers;
   officer_list = map_to_list current_officers;
   officer_count = get_list_length officer_list;
@@ -1120,7 +1123,8 @@ transition PromoteMember(member: ByStr20)
   has_officer_capacity = builtin lt officer_count max_officer_count;
   match has_officer_capacity with
   | True =>
-    officers[member] := true;
+    current_epoch <- last_updated_epoch;
+    officers[member] := current_epoch;
 
     e = {_eventname: "MemberPromoted"; initiator: _sender; member: member};
     event e;
@@ -1206,7 +1210,8 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   UpdateEpoch;
 
   (* add member to members *)
-  members[member] := true;
+  current_epoch <- last_updated_epoch;
+  members[member] := current_epoch;
 
   delete joining_requests[member];
 
