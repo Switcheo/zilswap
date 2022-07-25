@@ -134,11 +134,11 @@ const deployHive = async ({
   return contract;
 }
 
-const deployBankAuthority = async ({
+async function deployBankAuthority({
   hiveAddress,
   hunyAddress,
-  initialEpochNumber,
-})=> {
+  initialEpochNumber
+}) {
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
@@ -159,6 +159,11 @@ const deployBankAuthority = async ({
       vname: 'initial_epoch_number',
       type: 'Uint32',
       value: initialEpochNumber.toString(),
+    },
+    {
+      vname: 'initial_service_fee',
+      type: 'Uint128',
+      value: ONE_HUNY.toString(10),
     },
     {
       vname: 'initial_hive',

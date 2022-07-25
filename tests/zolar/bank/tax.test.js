@@ -282,7 +282,7 @@ test('epoch advances (= 4); member is charged with updated tax for current epoch
   const bankContractStateAfterTx = await bankContract.getState()
 
   // check tax_collected updated
-  const weeklyTaxInflated = getInflatedFeeAmt(ONE_HUNY.plus(ONE_HUNY), ONE_HUNY, initialEpochNumber, epoch_four)
+  const weeklyTaxInflated = getInflatedFeeAmt(ONE_HUNY, ONE_HUNY, initialEpochNumber, epoch_four)
   
   expect(bankContractStateBeforeTx.tax_collected).not.toHaveProperty(epoch_four.toString())
   expect(bankContractStateAfterTx.tax_collected).toHaveProperty(epoch_four.toString())

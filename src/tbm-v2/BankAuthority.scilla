@@ -49,6 +49,7 @@ let one_msg =
 contract BankAuthority(
   initial_owner: ByStr20,
   initial_epoch_number: Uint32,
+  initial_service_fee: Uint128,
   initial_hive: ByStr20 with contract
     field current_refinery : ByStr20
   end,
@@ -63,6 +64,8 @@ field pending_owner : Option ByStr20 = none
 
 field epochs : Map Uint32 BNum = Emp Uint32 BNum
 field current_epoch : Uint32 = initial_epoch_number
+
+field service_fee: Uint128 = initial_service_fee
 
 field hive : ByStr20 with contract
   field current_refinery : ByStr20
@@ -145,6 +148,25 @@ transition MigrateBank(bank: ByStr20, token: ByStr20, recipient: ByStr20 )
   send msgs
 end
 
+transition ProcessBankUpdate() 
+  huny_address <- huny;
+  current_service_fee <- service_fee;
+  msg_to_huny = {
+    _tag: "Burn";
+    _recipient: huny_address;
+    _amount: zero;
+    burn_account: _sender;
+    amount: current_service_fee
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+transition UpdateServiceFee(amount: Uint128) 
+  service_fee := amount;
+  e = {_eventname : "ServiceFeeUpdated"; service_fee : amount};
+  event e
+end
 (***************************************************)
 (*              Ownership Transitions              *)
 (***************************************************)
@@ -182,5 +204,8 @@ transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, reci
   (* no-op *)
 end
 transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end

@@ -740,6 +740,14 @@ end
 
 (* multi-sig authenticated operation *)
 procedure UpdateGuildSettings(settings: GuildBankSettings)
+  msg_to_authority = {
+    _tag: "ProcessBankUpdate"; 
+    _recipient: bank_authority; 
+    _amount: zero 
+  };
+  msgs = one_msg msg_to_authority;
+  send msgs;
+
   match settings with
   | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
     joining_fee := new_joining_fee;

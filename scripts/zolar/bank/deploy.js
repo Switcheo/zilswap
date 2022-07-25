@@ -175,7 +175,7 @@ const deployHive = async ({
 async function deployBankAuthority({
   hiveAddress,
   hunyAddress,
-  initialEpochNumber,
+  initialEpochNumber
 }) {
   const privateKey = getPrivateKey();
 
@@ -197,6 +197,11 @@ async function deployBankAuthority({
       vname: 'initial_epoch_number',
       type: 'Uint32',
       value: initialEpochNumber.toString(),
+    },
+    {
+      vname: 'initial_service_fee',
+      type: 'Uint128',
+      value: ONE_HUNY.toString(10),
     },
     {
       vname: 'initial_hive',
@@ -333,12 +338,19 @@ async function deployGuildBank({
   console.log("set epoch number again tx", txSetEpochNumberAgain.id)
   console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
 
-  const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
+  const txAddMinterAuthority = await callContract(privateKey, hunyContract, "AddMinter", [{
+    vname: 'minter',
+    type: 'ByStr20',
+    value: authorityContract.address,
+  }], 0, false, false);
+  console.log("add bank authority as minter", txAddMinterAuthority.id)
+  
+  const txAddMinterCaptain = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
     value: address,
   }], 0, false, false);
-  console.log("add minter", txAddMinter.id)
+  console.log("add captain as minter", txAddMinterCaptain.id)
 
   const txMintCaptain = await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
