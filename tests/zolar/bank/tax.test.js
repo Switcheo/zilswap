@@ -6,6 +6,10 @@ const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthorit
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
+const epoch_two = initialEpochNumber + 1
+const epoch_three = epoch_two + 1
+const epoch_four = epoch_three + 1
+
 async function initiateUpdateWeeklyTaxTx (initiator, {initialAmt, inflation, firstEpoch, captainAlloc, officerAlloc}) {
   const txInitiateUpdateWeeklyTaxTx = await callContract(initiator, bankContract, "InitiateTx", [{
     vname: "tx_params",
@@ -126,8 +130,6 @@ test('member (officer) is not required to pay tax for the first epoch (= 1)', as
 })
 
 test('epoch advances (= 2); captain collects tax from member (officer) that has not paid', async () => {
-  const epoch_two = initialEpochNumber + 1
-
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
@@ -174,7 +176,6 @@ test('epoch advances (= 2); captain collects tax from member (officer) that has 
 })
 
 test('captain collects tax from member (officer) that has already paid for current epoch (= 2)', async () => {
-  const epoch_two = initialEpochNumber + 1
   const hunyContractStateBeforeTx = await hunyContract.getState()
 
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
@@ -203,7 +204,6 @@ test('captain collects tax from member (officer) that has already paid for curre
 })
 
 test('epoch advances (= 3); captain updates weekly tax and member is charged with prev tax (before update) for current epoch', async () => {
-  const epoch_three = initialEpochNumber + 2
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
@@ -258,7 +258,6 @@ test('epoch advances (= 3); captain updates weekly tax and member is charged wit
 })
 
 test('epoch advances (= 4); member is charged with updated tax for current epoch', async () => {
-  const epoch_four = initialEpochNumber + 3
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
@@ -301,4 +300,35 @@ test('epoch advances (= 4); member is charged with updated tax for current epoch
 
   // check addition of token addr to bank contract
   expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
+})
+
+test("collectTax reaches MaxDepthError at 3 TaxParams", async() => {
+  // advance epoch 20 times; push taxParm into args
+  const taxList = []
+  for (let i = 0; i < 3; i++) {
+    const currentEpoch = (await authorityContract.getState()).current_epoch
+    const newEpoch = parseInt(currentEpoch) + 1
+    const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
+      vname: "epoch_number",
+      type: "Uint32",
+      value: newEpoch.toString(),
+    }], 0, false, false)
+    
+    const taxParam = {
+      constructor: `${bankAddress}.TaxParam`,
+      argtypes: [],
+      arguments: [memberAddress, newEpoch.toString()]
+    }
+    taxList.push(taxParam)
+  }
+
+  const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
+    vname: "params",
+    type: `List ${bankAddress}.TaxParam`,
+    value: taxList,
+  }], 0, false, false)
+  console.log("txCollectTax id ", txCollectTax.id)
+
+  expect(txCollectTax.status).toEqual(3)
+  expect(txCollectTax.receipt.success).toEqual(false)
 })
