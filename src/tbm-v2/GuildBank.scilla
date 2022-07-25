@@ -1229,7 +1229,7 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
     fee_amount <- current_joining_fee;
     has_joining_fee = builtin lt zero fee_amount;
     match has_joining_fee with
-    | False => (* no-op - joining fee ≤ zero *)
+    | False => (* no-op - joining fee less than eq zero *)
     | True =>
       joining_fee_paid[member] := fee_amount;
 
