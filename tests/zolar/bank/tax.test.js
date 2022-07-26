@@ -302,10 +302,10 @@ test('epoch advances (= 4); member is charged with updated tax for current epoch
   expect(bankContractStateAfterTx.tokens_held).toHaveProperty(hunyAddress)
 })
 
-test("collectTax reaches MaxDepthError at 3 TaxParams", async() => {
+test("collectTax reaches MaxDepthError at 6 TaxParams", async() => {
   // advance epoch 20 times; push taxParm into args
   const taxList = []
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 6; i++) {
     const currentEpoch = (await authorityContract.getState()).current_epoch
     const newEpoch = parseInt(currentEpoch) + 1
     const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{

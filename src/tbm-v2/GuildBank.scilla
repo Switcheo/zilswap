@@ -424,6 +424,9 @@ field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20
 (* map of tax owed per user by epoch *)
 field tax_owed : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
 
+(* map of unpaid management allocated to officers and captain *)
+field management_fees : Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)
@@ -897,8 +900,54 @@ procedure ResetPendingTx()
   end
 end
 
-(* payout to captain and officers according to allocation *)
-procedure PayoutManagementFee(
+procedure FlushAllocations(param: Pair ByStr20 (ByStr20 with contract field balances: Map ByStr20 Uint128 end))
+  match param with
+  | Pair recipient token =>
+    maybe_amount <- management_fees[recipient][token];
+    amount = get_amount_or_zero maybe_amount;
+    has_amount = builtin lt zero amount;
+    match has_amount with
+    | True =>
+      param = SendTokenParam recipient token amount;
+      delete management_fees[recipient][token];
+      SendToken param
+    | False => (* no-op *)
+    end
+  end
+end
+
+procedure FlushManagementFees(token: ByStr20 with contract field balances: Map ByStr20 Uint128 end)
+  maybe_captain <- contract_owner;
+  match maybe_captain with
+  | None =>
+  | Some captain =>
+    captain_param = Pair {ByStr20 (ByStr20 with contract field balances: Map ByStr20 Uint128 end)} captain token;
+    FlushAllocations captain_param
+  end;
+  
+  current_officers <- officers;
+  officer_list = map_to_list current_officers;
+
+  map_send_params = @list_map ByStr20 (Pair ByStr20 (ByStr20 with contract field balances: Map ByStr20 Uint128 end));
+  fn = fun (officer: ByStr20) => Pair {ByStr20 (ByStr20 with contract field balances: Map ByStr20 Uint128 end)} officer token;
+  param_list = map_send_params fn officer_list;
+
+  forall param_list FlushAllocations
+end
+
+
+procedure AllocateFee(param: SendTokenParam)
+  match param with
+  | SendTokenParam recipient token amount =>
+    maybe_fee_allocated <- management_fees[recipient][token];
+    current_fee_allocated = get_amount_or_zero maybe_fee_allocated;
+    new_fee_allocated = builtin add current_fee_allocated amount;
+    management_fees[recipient][token] := new_fee_allocated
+  end
+end
+
+(* allocate fees to captain and officers according to config *)
+procedure AllocateManagementFee(
   fee: Fee,
   gross_amount: Uint128,
   token: ByStr20 with contract field balances: Map ByStr20 Uint128 end
@@ -914,20 +963,19 @@ procedure PayoutManagementFee(
       map_send_params = @list_map ByStr20 SendTokenParam;
       fn = fun (officer: ByStr20) => SendTokenParam officer token officer_amount;
       param_list = map_send_params fn officer_list;
-      forall param_list SendToken;
+      forall param_list AllocateFee;
 
       maybe_captain <- contract_owner;
       match maybe_captain with
       | Some captain =>
         captain_amount = get_amount_portion gross_amount captain_bps;
         params = SendTokenParam captain token captain_amount;
-        SendToken params
+        AllocateFee params
       | None =>
       end
     end
   end
 end
-
 
 procedure ReceiveTax(param: TaxParam)
   current_tax <- weekly_tax;
@@ -948,7 +996,7 @@ procedure ReceiveTax(param: TaxParam)
 
       e = {_eventname: "TaxCollected"; payer: member; tax_amount: tax_amount; epoch_number: epoch_number };
       event e;
-      PayoutManagementFee current_tax tax_amount huny_token
+      AllocateManagementFee current_tax tax_amount huny_token
     end
   end
 end
@@ -1248,7 +1296,8 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
       ReceiveToken member huny_token fee_amount;
 
       fee_config <- joining_fee;
-      PayoutManagementFee fee_config fee_amount huny_token
+      AllocateManagementFee fee_config fee_amount huny_token;
+      FlushManagementFees huny_token
     end
    end
 end
@@ -1294,7 +1343,10 @@ transition CollectTax(params: List TaxParam)
   IsCaptainOrOfficer _sender;
 
   UpdateEpoch;
-  forall params ReceiveTax
+  forall params ReceiveTax;
+
+  token <- & bank_authority.huny;
+  FlushManagementFees token
 end
 
 (* @dev: Migrate balance to specified contract - for contract upgrade *)
