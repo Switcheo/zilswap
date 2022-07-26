@@ -11,7 +11,7 @@ let true = True
 let false = False
 let zero = Uint128 0
 let one = Uint128 1
-let thousand = Uint128 1000
+let hundred_percent_bps = Uint128 10000
 let uint32_zero = Uint32 0
 let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
@@ -159,6 +159,7 @@ let get_element_amount_or_zero =
     | None => zero
     end
 
+(* convert initialization fee_params list to fee config *)
 let get_fee =
   fun (fee_params : List Uint128) =>
   fun (current_epoch : Uint32) =>
@@ -172,6 +173,7 @@ let get_fee =
     let allocation = FeeAllocation alloc_captain alloc_officer in
     Fee fee_initial_amount inflation current_epoch allocation
 
+(* returns fee at current_epoch given the fee config *)
 let get_fee_amount =
   fun (fee : Fee) =>
   fun (current_epoch : Uint32) =>
@@ -188,12 +190,14 @@ let get_fee_amount =
       end
     end
 
+(* returns result of amount * bps *)
 let get_amount_portion = 
   fun (amount : Uint128) =>
   fun (portion_bps : Uint128) =>
-    let product = builtin mul amount portion_bps in
-    builtin div product thousand
-  
+    let portions = builtin div hundred_percent_bps portion_bps in
+    builtin div amount portions
+
+(* look up ControlMode based on provided signing power *)
 let get_control_mode =
   fun (power : Uint32) =>
     let five = Uint32 5 in
@@ -209,6 +213,7 @@ let get_control_mode =
       end
     end
 
+(* look up signing power requirement based on ControlMode *)
 let get_required_power =
   fun (mode : ControlMode) =>
       match mode with
@@ -217,6 +222,7 @@ let get_required_power =
       | CaptainAndTwoOfficers   => Uint32 5
       end
 
+(* returns Uint32 representation of provided member's signing power *)
 let get_power = 
   fun (officers : Map ByStr20 Uint32) =>
   fun (captain : ByStr20) =>
@@ -232,6 +238,7 @@ let get_power =
       end
     end
 
+(* returns Uint32 representation of combined signers power *)
 let get_current_power =
   fun (signers : List ByStr20) =>
   fun (officers : Map ByStr20 Uint32) =>
@@ -246,27 +253,18 @@ let get_current_power =
     let uint32_zero = Uint32 0 in
     fold fn uint32_zero signers
 
-let get_first_addr = 
-  fun (addr_list : List ByStr20) =>
-    let fn = @list_head ByStr20 in
-    fn addr_list
-
-let get_addr =
-  fun (addr_list : List ByStr20) =>
-  fun (target : ByStr20) =>
-    let find = @list_find ByStr20 in
-    let fn = fun (addr: ByStr20) => builtin eq target addr in
-    find fn addr_list
-
+(* returns length of given list *)
 let get_list_length = 
   fun (list : List ByStr20) =>
     let fn = @list_length ByStr20 in fn list
   
+(* create empty PendingTx with given BankTx *)
 let create_pending_tx = 
   fun (tx : BankTx) => 
     let empty_list = Nil {ByStr20} in
     PendingTx tx empty_list
 
+(* appends an address to PendingTx approvers *)
 let insert_tx_signer = 
   fun (tx : PendingTx) => 
   fun (signer : ByStr20) =>
@@ -276,19 +274,7 @@ let insert_tx_signer =
       PendingTx bank_tx new_signers
     end
 
-let list_append_recipient =
-  fun (token_list : List (ByStr20)) => 
-  fun (recipient : ByStr20) =>
-  let fold = @list_foldl (ByStr20) (List MigrateParam) in
-    let fn = 
-      fun (result_list: List MigrateParam) => 
-      fun (token: (ByStr20)) =>
-        let new_item = MigrateParam token recipient in
-        Cons {MigrateParam} new_item result_list
-    in
-    let empty_list = Nil {MigrateParam} in
-    fold fn empty_list token_list
-
+(* convert a map to list of pairs *)
 let map_to_list =
   fun (address_map : Map ByStr20 Uint32) => 
     let fold = @list_foldl (Pair ByStr20 Uint32) (List ByStr20) in
@@ -304,6 +290,7 @@ let map_to_list =
     let empty_list = Nil {ByStr20} in
     fold fn empty_list address_list
 
+(* convert a ByStr20 list and a given value to a map of { ByStr20 : value } *)
 let list_to_map =
   fun (list : List ByStr20) => 
   fun (value : Uint32) => 
@@ -323,6 +310,7 @@ let all_true =
     let list_forall_bool = @list_forall Bool in
     list_forall_bool identity list
 
+(* returns True if candidate is a member of list *)
 let is_list_member =
   fun (list : List ByStr20) =>
   fun (candidate: ByStr20) =>
@@ -330,6 +318,7 @@ let is_list_member =
     let exist_fn = fun (item: ByStr20) => builtin eq item candidate in
     check_exists exist_fn list
 
+(* returns True if candidate list is a subset of set list *)
 let is_list_subset =
   fun (set : List ByStr20) =>
   fun (candidate : List ByStr20) =>
