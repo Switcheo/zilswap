@@ -344,7 +344,7 @@ async function deployGuildBank({
     value: authorityContract.address,
   }], 0, false, false);
   console.log("add bank authority as minter", txAddMinterAuthority.id)
-  
+
   const txAddMinterCaptain = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
@@ -577,7 +577,29 @@ async function deployGuildBank({
   const txClaimHive = await callContract(privateKey, bankContract, "ClaimHive", [], 0, false, false)
   console.log("claim hive tx", txClaimHive.id)
 
+  const epoch = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch;
+  const members = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "members")).result.members;
+  const officers = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "officers")).result.officers;
+  const newBankContract = await deployGuildBank({
+    initialMembers: Object.keys(members),
+    initialOfficers: Object.keys(officers),
+    initialEpochNumber: epoch,
+    authorityAddress: authorityContract.address
+  });
+  const newBankAddress = newBankContract.address.toLowerCase();
+
   const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
+    vname: "old_bank",
+    type: "ByStr20",
+    value: bankAddress,
+  }, {
+    vname: "new_bank",
+    type: "ByStr20",
+    value: newBankAddress,
+  }], 0, false, false)
+  console.log("migrate bank tx", txMigrate.id)
+
+  const txMigrateHuny = await callContract(privateKey, authorityContract, "MigrateBankToken", [{
     vname: "bank",
     type: "ByStr20",
     value: bankAddress,
@@ -585,10 +607,6 @@ async function deployGuildBank({
     vname: "token",
     type: "ByStr20",
     value: hunyAddress,
-  }, {
-    vname: "recipient",
-    type: "ByStr20",
-    value: address,
   }], 0, false, false)
-  console.log("migrate huny tx", txMigrate.id)
+  console.log("migrate huny tx", txMigrateHuny.id)
 })().catch(console.error).finally(() => process.exit(0));

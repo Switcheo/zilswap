@@ -101,6 +101,8 @@ type Error =
   | CodeNotBankAuthority
   | CodeInvalidTaxParam
   | CodeInvalidEpoch
+  | CodeAlreadyMigrated
+  | CodeNotMigrated
 
 let make_error =
   fun (result : Error) =>
@@ -132,6 +134,8 @@ let make_error =
       | CodeNotBankAuthority                => Int32 -22
       | CodeInvalidTaxParam                 => Int32 -23
       | CodeInvalidEpoch                    => Int32 -24
+      | CodeAlreadyMigrated                 => Int32 -25
+      | CodeNotMigrated                     => Int32 -26
       end
     in
     { _exception : "Error"; code : result_code }
@@ -383,6 +387,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field bank_version : Uint32 = guild_bank_version
+field migrated_to_bank : Option ByStr20 = none
 
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
@@ -599,6 +604,26 @@ procedure IsBankAuthority(address: ByStr20)
     err = CodeNotBankAuthority;
     ThrowError err
   | True =>
+  end
+end
+
+procedure IsNotMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+    err = CodeIsAlreadyMember;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+  | None =>
+    err = CodeNotMember;
+    ThrowError err
   end
 end
 
@@ -990,24 +1015,6 @@ procedure ReceiveTax(param: TaxParam)
   end
 end
 
-procedure MigrateToken(param: MigrateParam)
-  match param with
-  | MigrateParam token_address recipient =>
-    maybe_token <- & token_address as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
-    match maybe_token with
-    | Some token =>
-      maybe_token_balance <- & token.balances[_this_address];
-      match maybe_token_balance with
-      | Some token_balance =>
-        params = SendTokenParam recipient token token_balance;
-        SendToken params
-      | None => (* no-op - should not happen *)
-      end
-    | None => (* no-op - should not happen *)
-    end
-  end
-end
-
 procedure RecordTaxOwed(tax: TaxOwed)
   match tax with
   | TaxOwed member epoch_number amount =>
@@ -1046,6 +1053,8 @@ end
 (* check bank authority contract and update current epoch                     *)
 (* executes AdvanceEpoch for every epoch since last_epoch until current_epoch *)
 procedure UpdateEpoch()
+  IsNotMigrated;
+
   last_epoch <- last_updated_epoch;
   current_epoch <- & bank_authority.current_epoch;
   maybe_already_updated = builtin eq last_epoch current_epoch;
@@ -1082,6 +1091,7 @@ end
 (* @dev: Request to join guild                                                        *)
 (* required before a member can join the guild by calling ApproveAndReceiveJoiningFee *)
 transition ApplyForMembership()
+  IsNotMigrated;
   IsNotMember _sender;
 
   joining_requests[_sender] := true;
@@ -1092,6 +1102,7 @@ end
 
 (* @dev: Withdraw guild membership application *)
 transition WithdrawMembershipApplication()
+  IsNotMigrated;
   IsApplicationActive _sender;
 
   delete joining_requests[_sender];
@@ -1154,6 +1165,7 @@ end
 (* @dev: Promote a member from normal member to officer status *)
 (* @param member: member to be promoted                        *)
 transition PromoteMember(member: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
 
   IsNotOfficer member;
@@ -1184,6 +1196,7 @@ end
 (* @dev: Demote a member from officer to normal member status *)
 (* @param member: member to be demoted                        *)
 transition DemoteMember(member: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
   
   IsOfficer member;
@@ -1200,6 +1213,7 @@ end
 (* officer. Cannot remove self.                                           *)
 (* @param member: member to be removed from guild                         *)
 transition RemoveMember(member: ByStr20)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
   IsMember member;
   IsNotOwner member;
@@ -1294,6 +1308,7 @@ end
 (* @dev: Reject membership application and remove application.  *)
 (* @param member: member whose                                  *)
 transition RejectJoinRequest(member: ByStr20)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
   IsApplicationActive member;
 
@@ -1306,10 +1321,8 @@ end
 (* @dev: Transfers specified amount of tokens to guild bank *)
 (* @param token: address of token to donate                 *)
 (* @param amount: amount of token to donate                 *)
-transition MakeDonation(
-  token: ByStr20,
-  amount: Uint128
-)
+transition MakeDonation(token: ByStr20, amount: Uint128)
+  IsNotMigrated;
   is_token_zil = builtin eq zero_address token;
   match is_token_zil with
   | True =>
@@ -1338,22 +1351,56 @@ transition CollectTax(params: List TaxParam)
   FlushManagementFees token
 end
 
-(* @dev: Migrate balance to specified contract - for contract upgrade *)
-(* @param token: token contract               *)
-(* @param recipient: contract to receive token balances               *)
-transition Migrate(token: ByStr20, recipient: ByStr20)
+(* @dev: Migrate current bank contract state to new bank - for contract upgrade *)
+(* @param new_bank: new bank contract                                           *)
+transition MigrateBank(new_bank: ByStr20)
   IsBankAuthority _sender;
+  IsNotMigrated;
 
-  zil_balance <- _balance;
-  has_no_zil_balance = builtin eq zil_balance zero;
-  match has_no_zil_balance with
-  | True =>
-  | False =>
-    SendZil recipient zil_balance
-  end;
+  option_new_bank = Some {ByStr20} new_bank;
+  migrated_to_bank := option_new_bank;
 
-  param = MigrateParam token recipient;
-  MigrateToken param
+  e = {_eventname: "BankMigrated"; initiator: _sender; new_bank: new_bank};
+  event e
+end
+
+(* @dev: Migrate balance to specified contract - for contract upgrade *)
+(* @param token: token contract                                       *)
+transition MigrateToken(token: ByStr20)
+  IsBankAuthority _sender;
+  IsMigrated;
+
+  maybe_migrated <- migrated_to_bank;
+
+  match maybe_migrated with
+  | None =>
+  | Some recipient =>
+    is_token_zil = builtin eq token zero_address;
+    match is_token_zil with
+    | True =>
+      zil_balance <- _balance;
+      has_no_zil_balance = builtin eq zil_balance zero;
+      match has_no_zil_balance with
+      | True =>
+      | False =>
+        SendZil recipient zil_balance
+      end
+    | False =>
+      param = MigrateParam token recipient;
+      maybe_token <- & token as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+      match maybe_token with
+      | Some token =>
+        maybe_token_balance <- & token.balances[_this_address];
+        match maybe_token_balance with
+        | Some token_balance =>
+          params = SendTokenParam recipient token token_balance;
+          SendToken params
+        | None => (* no-op - should not happen *)
+        end
+      | None => (* no-op - should not happen *)
+      end
+    end
+  end
 end
 
 (* @dev: Claim Refinery pots *)
