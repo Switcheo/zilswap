@@ -1,10 +1,10 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
 const {callContract} = require("../../../scripts/call");
-const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
+const { initialEpochNumber } = require("./config");
+const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateErrorMsg } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
@@ -12,17 +12,24 @@ beforeAll(async () => {
   
   memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
   memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
-  
+
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-
-  const zilswapContract = await deployZilswap();
+  
+  zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
-  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  refineryContract = await deployRefinery({ hunyAddress });
+  refineryAddress = refineryContract.address.toLowerCase();
+
+  hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
   
-  authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
+  authorityContract = await deployBankAuthority({ 
+    initialEpochNumber, 
+    hiveAddress, 
+    hunyAddress 
+  })
   authorityAddress = authorityContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{

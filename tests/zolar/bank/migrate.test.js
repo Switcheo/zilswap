@@ -1,10 +1,14 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const {callContract} = require("../../../scripts/call");
-const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates } = require("./helper")
+const { callContract } = require("../../../scripts/call");
+const { zilliqa } = require("../../../scripts/zilliqa");
+const { ZERO_ADDRESS, ONE_HUNY, initialEpochNumber } = require("./config");
+const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, newBankAddress, hunyContract, authorityContract, bankContract, newBankContract
+
+const ZERO_IN_QA = (0).toString(10)
+const ONE_THOUSAND_IN_QA = new BigNumber(1).shiftedBy(12 + 3).toString(10)
 
 async function mintAndDonate(tokenContract) {
   tokenAddress = tokenContract.address.toLowerCase()
@@ -47,103 +51,139 @@ async function mintAndDonate(tokenContract) {
   }], 0, false, false)
 } 
 
-async function migrateToken(tokenAddress, recipientAddress) {
-  const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [ {
+async function migrateToken(senderAddress, tokenAddress) {
+  const txMigrateToken = await callContract(privateKey, authorityContract, "MigrateBankToken", [ {
     vname: "bank",
     type: "ByStr20",
-    value: bankAddress,
+    value: senderAddress,
   }, {
     vname: "token",
     type: "ByStr20",
     value: tokenAddress,
-  }, {
-    vname: "recipient",
-    type: "ByStr20",
-    value: recipientAddress,
   }], 0, false, false)
+
+  return txMigrateToken
 }
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
   
+  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
+  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-
-  const zilswapContract = await deployZilswap();
+  
+  zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
-  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  refineryContract = await deployRefinery({ hunyAddress });
+  refineryAddress = refineryContract.address.toLowerCase();
+
+  hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
   
-  authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
+  authorityContract = await deployBankAuthority({ 
+    initialEpochNumber, 
+    hiveAddress, 
+    hunyAddress 
+  })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [address], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ 
+    initialMembers: [address], 
+    initialEpochNumber, 
+    authorityAddress 
+  })
   bankAddress = bankContract.address.toLowerCase()
+
+  const txMintAndDonate = await mintAndDonate(hunyContract)
+
+  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: ZERO_ADDRESS,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: ONE_THOUSAND_IN_QA, // 1000 ZIL
+  }], 1000, false, false)
+  console.log("make donation zil tx", txMakeZilDonation.id)
 })
 
-test('migrate 1 token', async () => {
-  const txMintAndDonate = await mintAndDonate(hunyContract) 
+test('migrate bank', async() => {
+  const epoch = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch;
+  const members = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "members")).result.members;
+  const officers = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "officers")).result.officers;
+  
+  newBankContract = await deployGuildBank({
+    initialMembers: Object.keys(members),
+    initialOfficers: Object.keys(officers),
+    initialEpochNumber: epoch,
+    authorityAddress
+  });
+
+  newBankAddress = newBankContract.address.toLowerCase();
+
+  const bankContractStateBeforeTx = await bankContract.getState()
+
+  const txMigrateBank = await callContract(privateKey, authorityContract, "MigrateBank", [{
+    vname: "old_bank",
+    type: "ByStr20",
+    value: bankAddress,
+  }, {
+    vname: "new_bank",
+    type: "ByStr20",
+    value: newBankAddress,
+  }], 0, false, false)
+  console.log("migrate bank tx", txMigrateBank.id)
+
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  expect(bankContractStateBeforeTx.migrated_to_bank.arguments.length === 0)
+  expect(bankContractStateAfterTx.migrated_to_bank.arguments.length === 1)
+  expect(bankContractStateAfterTx.migrated_to_bank.arguments[0] === newBankAddress)
+})
+
+test('migrate 1 token to new bank', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
   const bankContractStateBeforeTx = await bankContract.getState()
   
-  const txMigrate = await migrateToken(hunyAddress, address)
-
+  const txMigrateToken = await migrateToken(bankAddress, hunyAddress)
+  console.log('txMigrateToken id ', txMigrateToken.id)
+  
   const hunyContractStateAfterTx = await hunyContract.getState()
   const bankContractStateAfterTx = await bankContract.getState()
 
-  // check huny deduction for bank; huny increment for captain
+  // check token deduction for old bank; huny increment for new bank
   const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
-  const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+  const [newBankBalanceBeforeTx, newBankBalanceAfterTx] = getBalanceFromStates(newBankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+
   const migratedFromBank = bankBalanceBeforeTx - bankBalanceAfterTx
-  const migratedToCaptain = captainBalanceAfterTx - captainBalanceBeforeTx
+  const migratedToNewBank = newBankBalanceAfterTx - newBankBalanceBeforeTx
 
   expect(migratedFromBank.toString()).toEqual(ONE_HUNY.toString(10))
-  expect(migratedToCaptain.toString()).toEqual(ONE_HUNY.toString(10))
+  expect(migratedToNewBank.toString()).toEqual(ONE_HUNY.toString(10))
 
   // check removal of token addr from bank contract
   expect(bankContractStateBeforeTx.tokens_held).toHaveProperty(hunyAddress)
   expect(bankContractStateAfterTx.tokens_held).not.toHaveProperty(hunyAddress)
 })
 
-test('migrate 5 tokens', async () => {
-  const tokens = []
-
-  for (let i = 0; i < 5; i++) {
-    const tokenContract = await deployHuny()
-    const txMintAndDonate = await mintAndDonate(tokenContract)
-    tokens.push(tokenContract) 
-  }
-
-  const tokenContractStatesBeforeTx = await Promise.all(tokens.map(async token => await token.getState()))
+test('migrate zil to new bank', async () => {
   const bankContractStateBeforeTx = await bankContract.getState()
+  const newBankContractStateBeforeTx = await newBankContract.getState()
+
+  const txMigrateToken = await migrateToken(bankAddress, ZERO_ADDRESS)
+  console.log('txMigrateToken id ', txMigrateToken.id)
+
+  const bankContractStateAfterTx = await bankContract.getState()
+  const newBankContractStateAfterTx = await newBankContract.getState()
+
+  expect(bankContractStateBeforeTx._balance).toEqual(ONE_THOUSAND_IN_QA)
+  expect(bankContractStateAfterTx._balance).toEqual(ZERO_IN_QA)
   
-  // check bankContract.tokens_held is populated
-  expect(Object.keys(bankContractStateBeforeTx.tokens_held).length).toEqual(tokens.length)
-  expect(tokens.every(token => token.address.toLowerCase() in bankContractStateBeforeTx.tokens_held)).toEqual(true)
-  
-  for (let i = 0; i < tokens.length; i++) {
-    const tokenContract = tokens[i]
-    const tokenAddress = tokenContract.address.toLowerCase()
-    const tokenContractStateBeforeTx = tokenContractStatesBeforeTx[i]
-
-    const txMigrate = await migrateToken(tokenAddress, address)
-    const tokenContractStateAfterTx = await tokenContract.getState()
-    const bankContractStateAfterTx = await bankContract.getState()
-
-    // check huny deduction for bank; huny increment for captain
-    const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, tokenContractStateBeforeTx, tokenContractStateAfterTx)
-    const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, tokenContractStateBeforeTx, tokenContractStateAfterTx)
-    const migratedFromBank = bankBalanceBeforeTx - bankBalanceAfterTx
-    const migratedToCaptain = captainBalanceAfterTx - captainBalanceBeforeTx
-
-    // check huny deduction for bank; huny increment for captain
-    expect(migratedFromBank.toString()).toEqual(ONE_HUNY.toString(10))
-    expect(migratedToCaptain.toString()).toEqual(ONE_HUNY.toString(10))
-
-    // check removal of token addr from bank contract
-    expect(bankContractStateBeforeTx.tokens_held).toHaveProperty(tokenAddress)
-    expect(bankContractStateAfterTx.tokens_held).not.toHaveProperty(tokenAddress)
-  }
+  expect(newBankContractStateBeforeTx._balance).toEqual(ZERO_IN_QA)
+  expect(newBankContractStateAfterTx._balance).toEqual(ONE_THOUSAND_IN_QA)
 })

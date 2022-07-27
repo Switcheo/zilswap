@@ -2,7 +2,7 @@ const fs = require("fs");
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { deployContract } = require("../../../scripts/deploy");
 const { zilliqa } = require("../../../scripts/zilliqa");
-const { ZERO_ADDRESS, ONE_HUNY } = require("./config");
+const { ZERO_ADDRESS, ONE_HUNY, HUNDRED_PERCENT_BPS } = require("./config");
 
 const getPrivateKey = (key = "PRIVATE_KEY") => {
   const privateKey = process.env[key];
@@ -86,9 +86,42 @@ const deployZilswap = async () => {
   return contract;
 }
 
+const deployRefinery = async ({
+  hunyAddress,
+}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
+  const code = (await fs.promises.readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: address,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: hunyAddress,
+    },
+  ]
+
+  console.info(`Deploying Refinery...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+}
+
 const deployHive = async ({
   hunyAddress,
   zilswapAddress,
+  refineryAddress
 }) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
@@ -109,7 +142,7 @@ const deployHive = async ({
     {
       vname: 'initial_refinery',
       type: 'ByStr20',
-      value: ZERO_ADDRESS,
+      value: refineryAddress,
     },
     {
       vname: 'reward_start_block',
@@ -286,21 +319,31 @@ const getBalanceFromStates = (address, stateBeforeTx, stateAfterTx) => {
   return [balanceBeforeTx, balanceAfterTx]
 }
 
+const getAllocationFee = (allocationBps, totalTaxedAmt) => {
+  const portion = Math.floor(HUNDRED_PERCENT_BPS / allocationBps)
+  const allocationFee = Math.floor(totalTaxedAmt / portion)
+  return allocationFee
+}
+
 const generateErrorMsg = (errorCode) => {
   return `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -${errorCode}))])`
 }
 
 const getInflatedFeeAmt = (initialAmt, inflation, initialEpoch, currentEpoch) => {
-  return initialAmt.plus(inflation * (currentEpoch - initialEpoch))
+  const inflatedAmt = inflation.multipliedBy(currentEpoch - initialEpoch)
+  const totalAmt = initialAmt.plus(inflatedAmt)
+  return parseInt(totalAmt)
 }
 
 exports.getPrivateKey = getPrivateKey
 exports.deployHuny = deployHuny
 exports.deployZilswap = deployZilswap
+exports.deployRefinery = deployRefinery
 exports.deployHive = deployHive
 exports.deployBankAuthority = deployBankAuthority
 exports.deployGuildBank = deployGuildBank
 exports.generateFee = generateFee
 exports.getBalanceFromStates = getBalanceFromStates
+exports.getAllocationFee = getAllocationFee
 exports.generateErrorMsg = generateErrorMsg
 exports.getInflatedFeeAmt = getInflatedFeeAmt

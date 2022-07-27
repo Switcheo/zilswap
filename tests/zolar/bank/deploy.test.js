@@ -1,7 +1,7 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { callContract } = require('../../../scripts/call')
 const { randomAddress, ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateErrorMsg } = require("./helper")
+const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateErrorMsg } = require("./helper")
 
 let privateKey, address, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
 
@@ -17,7 +17,10 @@ beforeAll(async () => {
   const zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
-  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  const refineryContract = await deployRefinery({ hunyAddress });
+  refineryAddress = refineryContract.address.toLowerCase();
+
+  const hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
 })
 

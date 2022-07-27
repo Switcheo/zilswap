@@ -595,6 +595,11 @@ async function deployGuildBank({
   const epoch = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch;
   const members = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "members")).result.members;
   const officers = (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "officers")).result.officers;
+  
+  console.log('epoch', epoch)
+  console.log('members list', members)
+  console.log('officers list', officers)
+
   const newBankContract = await deployGuildBank({
     initialMembers: Object.keys(members),
     initialOfficers: Object.keys(officers),
