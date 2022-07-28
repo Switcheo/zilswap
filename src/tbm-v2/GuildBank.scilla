@@ -48,7 +48,7 @@ type TxParams =
       field balances : Map ByStr20 Uint128
     end
     Uint128
-  | DepositHiveTxParams of Uint128 Uint128 Uint32 (* min contribution, max token amount, deadline blocks offset *)
+  | DepositHiveTxParams of Uint128 Uint128 Uint128 Uint32 (* min contribution, zil amount, max token amount, deadline blocks offset *)
   | WithdrawHiveTxParams of Uint128 Uint128 Uint128 Uint32 (* contribution, min zil amount, min token amount, deadline blocks offset *)
 
 (* multisig transaction with metadata *)
@@ -511,7 +511,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
         ThrowError err
       end
 
-    | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset =>
+    | DepositHiveTxParams min_contribution zil_amount max_token_amount deadline_block_offset =>
       (* TODO: validate deposit params *)
     | WithdrawHiveTxParams contribution min_zil_amount min_token_amount deadline_block_offset =>
       (* TODO: validate withdraw params *)
@@ -611,7 +611,7 @@ procedure IsNotMigrated()
   maybe_migrated_bank <- migrated_to_bank;
   match maybe_migrated_bank with
   | Some address =>
-    err = CodeIsAlreadyMember;
+    err = CodeAlreadyMigrated;
     ThrowError err
   | None =>
   end
@@ -622,7 +622,7 @@ procedure IsMigrated()
   match maybe_migrated_bank with
   | Some address =>
   | None =>
-    err = CodeNotMember;
+    err = CodeNotMigrated;
     ThrowError err
   end
 end
@@ -792,7 +792,7 @@ procedure Withdraw(
 end
 
 (* multi-sig authenticated operation *)
-procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, deadline_block_offset: Uint32)
+procedure DepositHive(min_contribution: Uint128, zil_amount: Uint128, max_token_amount: Uint128, deadline_block_offset: Uint32)
   hive_address <- & bank_authority.hive;
   IncreaseAllowance hive_address max_token_amount;
 
@@ -801,7 +801,7 @@ procedure DepositHive(min_contribution: Uint128, max_token_amount: Uint128, dead
   msg_to_hive = {
     _tag: "AddLiquidity";
     _recipient: hive_address;
-    _amount: _amount;
+    _amount: zil_amount;
     min_contribution_amount: min_contribution;
     max_token_amount: max_token_amount;
     deadline_block: deadline_block
@@ -841,8 +841,8 @@ procedure ExecuteBankTx(bank_tx: BankTx)
     match tx_params with
     | UpdateConfigTxParams new_settings => UpdateGuildSettings new_settings
     | WithdrawTxParams recipient token amount => Withdraw recipient token amount
-    | DepositHiveTxParams min_contribution max_token_amount deadline_block_offset => 
-      DepositHive min_contribution max_token_amount deadline_block_offset
+    | DepositHiveTxParams min_contribution zil_amount max_token_amount deadline_block_offset => 
+      DepositHive min_contribution zil_amount max_token_amount deadline_block_offset
     | WithdrawHiveTxParams contribution min_zil_amount min_token_amount deadline_block_offset =>
       WithdrawHive contribution min_zil_amount min_token_amount deadline_block_offset
     end
@@ -922,9 +922,9 @@ procedure FlushAllocations(param: Pair ByStr20 (ByStr20 with contract field bala
     has_amount = builtin lt zero amount;
     match has_amount with
     | True =>
-      param = SendTokenParam recipient token amount;
+      send_param = SendTokenParam recipient token amount;
       delete management_fees[recipient][token];
-      SendToken param
+      SendToken send_param
     | False => (* no-op *)
     end
   end
@@ -1389,11 +1389,11 @@ transition MigrateToken(token: ByStr20)
       param = MigrateParam token recipient;
       maybe_token <- & token as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
       match maybe_token with
-      | Some token =>
-        maybe_token_balance <- & token.balances[_this_address];
+      | Some token_contract =>
+        maybe_token_balance <- & token_contract.balances[_this_address];
         match maybe_token_balance with
         | Some token_balance =>
-          params = SendTokenParam recipient token token_balance;
+          params = SendTokenParam recipient token_contract token_balance;
           SendToken params
         | None => (* no-op - should not happen *)
         end

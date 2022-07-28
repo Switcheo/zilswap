@@ -12,6 +12,7 @@ const fs = require('fs');
 
   const oldBankContract = zilliqa.contracts.at(process.env.BANK_CONTRACT_HASH);
   const bankAuthorityAddress = process.env.BANK_AUTHORITY_CONTRACT_HASH;
+  const newBankAuthority = "0x6bb576106da2962aa428448529dfc56afcb77aa8";
 
   const { last_updated_epoch } = await oldBankContract.getSubState("last_updated_epoch");
   const { control_mode } = await oldBankContract.getSubState("control_mode");
@@ -52,7 +53,7 @@ const fs = require('fs');
     {
       vname: 'bank_authority',
       type: 'ByStr20',
-      value: bankAuthorityAddress,
+      value: newBankAuthority,
     },
     {
       vname: 'initial_joining_fee',
@@ -114,54 +115,14 @@ const fs = require('fs');
     gasPrice: new BN(minGasPrice.result),
     gasLimit: Long.fromNumber(20000),
   };
-  // const txMigrate = await callContract(privateKey, authorityContract, "MigrateBank", [{
-  //   vname: "old_bank",
-  //   type: "ByStr20",
-  //   value: bankAddress,
-  // }, {
-  //   vname: "new_bank",
-  //   type: "ByStr20",
-  //   value: newBankAddress,
-  // }], 0, false, false)
-  // console.log("migrate bank tx", txMigrate.id)
 
-  // const txMigrateHuny = await callContract(privateKey, authorityContract, "MigrateBankToken", [{
-  //   vname: "bank",
-  //   type: "ByStr20",
-  //   value: bankAddress,
-  // }, {
-  //   vname: "token",
-  //   type: "ByStr20",
-  //   value: hunyAddress,
-  // }], 0, false, false)
-  // console.log("migrate huny tx", txMigrateHuny.id)
-
-  const txList = [new Transaction({
-    ...params,
-    toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
-    data: JSON.stringify({
-      _tag: "MigrateBank",
-      params: [{
-        vname: 'old_bank',
-        type: 'ByStr20',
-        value: oldBankContract.address,
-      }, {
-        vname: 'new_bank',
-        type: 'ByStr20',
-        value: newBankContract.address,
-      }],
-    }),
-  },
-    zilliqa.provider,
-    TxStatus.Initialised,
-    true,
-  )];
+  const txList = [];
   for (const token of tokens) {
     const tx = new Transaction({
       ...params,
       toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
       data: JSON.stringify({
-        _tag: "MigrateBankToken",
+        _tag: "MigrateBank",
         params: [{
           vname: 'bank',
           type: 'ByStr20',
@@ -170,6 +131,10 @@ const fs = require('fs');
           vname: 'token',
           type: 'ByStr20',
           value: token,
+        }, {
+          vname: 'recipient',
+          type: 'ByStr20',
+          value: newBankContract.address,
         }],
       }),
     },
