@@ -438,6 +438,28 @@ async function deployGuildBank({
   }], 0, false, false)
   console.log("set epoch number after member join again tx", txSetEpochNumberAfterAgain.id)
 
+  const txMakeHunyDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: hunyAddress,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: ONE_HUNY.toString(10),
+  }], 0, false, false)
+  console.log("make donation huny tx", txMakeHunyDonation.id)
+
+  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
+    vname: "token",
+    type: "ByStr20",
+    value: ZERO_ADDRESS,
+  }, {
+    vname: "amount",
+    type: "Uint128",
+    value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
+  }], 1, false, false)
+  console.log("make donation zil tx", txMakeZilDonation.id)
+
   const txInitiateWithdrawTx = await callContract(privateKey, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -451,7 +473,22 @@ async function deployGuildBank({
     type: "String",
     value: "New withdraw request",
   }], 0, false, false)
-  console.log("initiate withdraw tx", txInitiateWithdrawTx.id)
+  console.log("initiate withdraw huny tx", txInitiateWithdrawTx.id)
+
+  const txInitiateWithdrawZilTx = await callContract(privateKey, bankContract, "InitiateTx", [{
+    vname: "tx_params",
+    type: `${bankAddress}.TxParams`,
+    value: {
+      constructor: `${bankAddress}.WithdrawTxParams`,
+      argtypes: [],
+      arguments: [address, ZERO_ADDRESS, new BigNumber(1).shiftedBy(12).toString(10)]
+    },
+  }, {
+    vname: "message",
+    type: "String",
+    value: "New withdraw request",
+  }], 0, false, false)
+  console.log("initiate withdraw zil tx", txInitiateWithdrawZilTx.id)
 
   console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
   const txInitiateUpdateGuildSettingsTx = await callContract(privateKey, bankContract, "InitiateTx", [{
@@ -510,7 +547,7 @@ async function deployGuildBank({
     value: {
       constructor: `${bankAddress}.WithdrawTxParams`,
       argtypes: [],
-      arguments: [address, hunyAddress, new BigNumber(0.5).shiftedBy(12).toString(10)]
+      arguments: [address, hunyAddress, new BigNumber(0.1).shiftedBy(12).toString(10)]
     },
   }, {
     vname: "message",
@@ -521,28 +558,6 @@ async function deployGuildBank({
 
   const txCancelTx = await callContract(privateKey, bankContract, "CancelTx", [], 0, false, false)
   console.log("initiate cancel tx", txCancelTx.id)
-
-  const txMakeHunyDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
-    vname: "token",
-    type: "ByStr20",
-    value: hunyAddress,
-  }, {
-    vname: "amount",
-    type: "Uint128",
-    value: ONE_HUNY.toString(10),
-  }], 0, false, false)
-  console.log("make donation huny tx", txMakeHunyDonation.id)
-
-  const txMakeZilDonation = await callContract(privateKey, bankContract, "MakeDonation", [{
-    vname: "token",
-    type: "ByStr20",
-    value: ZERO_ADDRESS,
-  }, {
-    vname: "amount",
-    type: "Uint128",
-    value: new BigNumber(1).shiftedBy(12).toString(10), // 1 ZIL
-  }], 1, false, false)
-  console.log("make donation zil tx", txMakeZilDonation.id)
 
   console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
