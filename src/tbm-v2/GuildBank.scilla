@@ -42,12 +42,7 @@ type GuildBankSettings =
 (* parameters for multisig transactions *)
 type TxParams =
   | UpdateConfigTxParams of GuildBankSettings
-  | WithdrawTxParams of (* recipient, token, amount *)
-    ByStr20
-    ByStr20 with contract 
-      field balances : Map ByStr20 Uint128
-    end
-    Uint128
+  | WithdrawTxParams of ByStr20 ByStr20 Uint128 (* recipient, token, amount *)
   | DepositHiveTxParams of Uint128 Uint128 Uint128 Uint32 (* min contribution, zil amount, max token amount, deadline blocks offset *)
   | WithdrawHiveTxParams of Uint128 Uint128 Uint128 Uint32 (* contribution, min zil amount, min token amount, deadline blocks offset *)
 
@@ -496,19 +491,40 @@ procedure IsValidBankTx(bank_tx: BankTx)
     | UpdateConfigTxParams new_settings =>
       (* TODO: validate config params *)
     | WithdrawTxParams recipient token amount =>
-      maybe_token_balance <- & token.balances[_this_address];
-      match maybe_token_balance with
-      | Some token_balance =>
-        maybe_insufficient_balance = builtin lt token_balance amount;
+      maybe_zil = builtin eq token zero_address;
+      match maybe_zil with
+      | True =>
+        zil_balance <- _balance;
+        maybe_insufficient_balance = builtin lt zil_balance amount;
         match maybe_insufficient_balance with
         | False => (* no-op - balance is sufficient *)
         | True =>
           err = CodeInvalidTxInsufficientBalance;
           ThrowError err
         end
-      | None =>
-        err = CodeInvalidTxInsufficientBalance;
-        ThrowError err
+      | False =>
+        maybe_token_contract <- & token as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+        match maybe_token_contract with
+        | Some token_contract =>
+          maybe_token_balance <- & token_contract.balances[_this_address];
+          match maybe_token_balance with
+          | Some token_balance =>
+            maybe_insufficient_balance = builtin lt token_balance amount;
+            match maybe_insufficient_balance with
+            | False => (* no-op - balance is sufficient *)
+            | True =>
+              err = CodeInvalidTxInsufficientBalance;
+              ThrowError err
+            end
+          | None =>
+            err = CodeInvalidTxInsufficientBalance;
+            ThrowError err
+          end
+        | None =>
+          err = CodeInvalidTxInsufficientBalance;
+          ThrowError err
+        end
+        
       end
 
     | DepositHiveTxParams min_contribution zil_amount max_token_amount deadline_block_offset =>
@@ -777,17 +793,22 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
 end
 
 (* multi-sig authenticated operation *)
-procedure Withdraw(
-  recipient: ByStr20,
-  token: ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end, 
-  amount: Uint128
-)
-  params = SendTokenParam recipient token amount;
-  SendToken params;
+procedure Withdraw(recipient: ByStr20, token: ByStr20, amount: Uint128)
+  maybe_zil = builtin eq token zero_address;
+  match maybe_zil with
+  | True =>
+    SendZil recipient amount
+  | False =>
+    maybe_token_contract <- & token as ByStr20 with contract field balances: Map ByStr20 Uint128 end;
+    match maybe_token_contract with
+    | Some token_contract =>
+      params = SendTokenParam recipient token_contract amount;
+      SendToken params
+    | None =>
+    end
+  end;
 
-  e = {_eventname: "WithdrawComplete" };
+  e = {_eventname: "WithdrawComplete"; token: token; recipient: recipient; amount: amount};
   event e
 end
 
