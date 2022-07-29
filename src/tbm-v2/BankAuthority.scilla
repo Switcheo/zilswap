@@ -133,7 +133,7 @@ transition SetEpoch(epoch_number: Uint32)
     current_block <- & BLOCKNUMBER;
     epochs[epoch_number] := current_block;
 
-    e = {_eventname: "EpochStarted"};
+    e = {_eventname: "EpochStarted"; epoch: epoch_number};
     event e
   | False =>
     err = CodeWrongEpochNumber;
