@@ -23,6 +23,7 @@ type Error =
 | CodeInvalidEpoch
 | CodeInvalidProof
 | CodeAlreadyClaimed
+| CodeNotOperator
 
 let make_error =
   fun (result : Error) =>
@@ -34,6 +35,7 @@ let make_error =
       | CodeInvalidEpoch          => Int32 -4
       | CodeInvalidProof          => Int32 -5
       | CodeAlreadyClaimed        => Int32 -6
+      | CodeNotOperator           => Int32 -7
       end
     in
     { _exception : "Error"; code : result_code }
@@ -43,6 +45,18 @@ type DistributionLeaf =
 
 type Claim =
 | Claim of Uint32 DistributionLeaf (List ByStr32) (* epoch number, leaf, proof path as a list of hashes *)
+
+let zero = Uint128 0
+let one = Uint32 1
+let yes = True
+let none = None {ByStr20}
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
 
 let hash_leaf =
   fun (d : DistributionLeaf) =>
@@ -73,11 +87,6 @@ let hash_leaves =
       builtin sha256hash bytes
     end
 
-let zero = Uint128 0
-let one = Uint32 1
-let yes = True
-let none = None {ByStr20}
-
 (* [end] DistributorLib.scillib [end] *)
 
 (***************************************************)
@@ -86,14 +95,19 @@ let none = None {ByStr20}
 
 contract TBMFeeDistributor
 (
-  token_contract : ByStr20,
-  init_owner : ByStr20
+  token_contract : ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  init_owner : ByStr20,
+  init_operator : ByStr20
 )
 
 (* Mutable fields *)
 
 field contract_owner : Option ByStr20 = Some {ByStr20} init_owner
 field pending_owner : Option ByStr20 = none
+
+field operator : ByStr20 = init_operator
 
 field merkle_roots : Map Uint32 ByStr32 (* epoch num -> merkle root *)
   = Emp Uint32 ByStr32
@@ -125,6 +139,17 @@ procedure IsOwner(address: ByStr20)
     end
   | None =>
     err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsOperator(address: ByStr20)
+  current_operator <- operator;
+  is_operator = builtin eq current_operator address;
+  match is_operator with
+  | True =>
+  | False =>
+    err = CodeNotOperator;
     ThrowError err
   end
 end
@@ -323,13 +348,34 @@ end
 (* @param epoch_number: The epoch number for this distribution.                                                                  *)
 (* @param merkle_root: The root of the merkle tree for this distribution.                                                        *)
 transition SetMerkleRoot(epoch_number: Uint32, merkle_root: ByStr32)
-  IsOwner _sender;
+  IsOperator _sender;
   IsValidEpochToSet epoch_number;
   merkle_roots[epoch_number] := merkle_root;
   new_epoch_number = builtin add one epoch_number;
   next_epoch_number := new_epoch_number;
   e = {_eventname : "MerkleRootSet"; epoch_number : epoch_number; merkle_root : merkle_root};
   event e
+end
+
+(* @dev: Transfers all tokens to contract owner. Must be called by contract owner. *)
+transition EmergencyWithdraw()
+  IsOwner _sender;
+
+  maybe_token_balance <- & token_contract.balances[_this_address];
+  amount = get_amount_or_zero maybe_token_balance;
+  msg_to_token = {_tag : "Transfer"; _recipient : token_contract; _amount : zero;
+                  to : _sender; amount : amount};
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+(* @dev: Update operator. Must be called by owner *)
+transition SetOperator(new_operator: ByStr20)
+  IsOwner _sender;
+
+  operator := new_operator;
+  
+  e = {_eventname : "OperatorUpdated"; operator : new_operator}
 end
 
 (* @dev: Removes the contract_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)

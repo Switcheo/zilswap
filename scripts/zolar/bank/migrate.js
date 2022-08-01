@@ -5,6 +5,7 @@ const { zilliqa, VERSION } = require('../../zilliqa');
 const { deployContract } = require("../../deploy");
 const fs = require('fs');
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 ;
 (async () => {
   const privateKey = process.env.PRIVATE_KEY
@@ -12,7 +13,7 @@ const fs = require('fs');
 
   const oldBankContract = zilliqa.contracts.at(process.env.BANK_CONTRACT_HASH);
   const bankAuthorityAddress = process.env.BANK_AUTHORITY_CONTRACT_HASH;
-  const newBankAuthority = "0x6bb576106da2962aa428448529dfc56afcb77aa8";
+  const newBankAuthority = "0x3df1646babde0e94e50e31ee94f152fe476eefa6";
 
   const { last_updated_epoch } = await oldBankContract.getSubState("last_updated_epoch");
   const { control_mode } = await oldBankContract.getSubState("control_mode");
@@ -116,13 +117,51 @@ const fs = require('fs');
     gasLimit: Long.fromNumber(20000),
   };
 
-  const txList = [];
+  const txList = [new Transaction({
+      ...params,
+      toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
+      data: JSON.stringify({
+        _tag: "MigrateBank",
+        params: [{
+          vname: 'old_bank',
+          type: 'ByStr20',
+          value: oldBankContract.address,
+        }, {
+          vname: 'new_bank',
+          type: 'ByStr20',
+          value: newBankContract.address,
+        }],
+      }),
+    },
+      zilliqa.provider,
+      TxStatus.Initialised,
+      true,
+    ), new Transaction({
+      ...params,
+      toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
+      data: JSON.stringify({
+        _tag: "MigrateBankToken",
+        params: [{
+          vname: 'bank',
+          type: 'ByStr20',
+          value: oldBankContract.address,
+        }, {
+          vname: 'token',
+          type: 'ByStr20',
+          value: ZERO_ADDRESS,
+        }],
+      }),
+    },
+      zilliqa.provider,
+      TxStatus.Initialised,
+      true,
+    )];
   for (const token of tokens) {
     const tx = new Transaction({
       ...params,
       toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
       data: JSON.stringify({
-        _tag: "MigrateBank",
+        _tag: "MigrateBankToken",
         params: [{
           vname: 'bank',
           type: 'ByStr20',
@@ -131,10 +170,6 @@ const fs = require('fs');
           vname: 'token',
           type: 'ByStr20',
           value: token,
-        }, {
-          vname: 'recipient',
-          type: 'ByStr20',
-          value: newBankContract.address,
         }],
       }),
     },

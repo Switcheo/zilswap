@@ -59,6 +59,7 @@ const deployHuny = async () => {
 
 async function deployTbmFeeDistributor({
   hunyAddress,
+  operatorAddress,
 }) {
   const privateKey = getPrivateKey();
 
@@ -81,6 +82,11 @@ async function deployTbmFeeDistributor({
       type: 'ByStr20',
       value: `${address}`,
     },
+    {
+      vname: 'init_operator',
+      type: 'ByStr20',
+      value: `${operatorAddress}`,
+    },
   ]
 
   console.info(`Deploying TbmFeeDistributor...`)
@@ -92,10 +98,14 @@ async function deployTbmFeeDistributor({
 (async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
+
+  const operatorKey = getPrivateKey("PRIVATE_KEY_MEMBER");
+  const operatorAddress = getAddressFromPrivateKey(operatorKey).toLowerCase();
+
   const hunyContract = await deployHuny();
   const hunyAddress = hunyContract.address.toLowerCase();
 
-  const tbmFeeDistributorContract = await deployTbmFeeDistributor({ hunyAddress });
+  const tbmFeeDistributorContract = await deployTbmFeeDistributor({ hunyAddress, operatorAddress: address });
   const tbmFeeDistributorAddress = tbmFeeDistributorContract.address.toLowerCase();
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
@@ -127,6 +137,13 @@ async function deployTbmFeeDistributor({
   }], 0, false, false)
   console.log("mint", txTransferDistributor.id)
 
+  const txSetOperator = await callContract(privateKey, tbmFeeDistributorContract, "SetOperator", [{
+    vname: "new_operator",
+    type: "ByStr32",
+    value: operatorAddress,
+  }], 0, false, false)
+  console.log("set operator tx", txSetOperator.id)
+
   const root = "0x6913a68bcddb84c0bd1f73cfe2c0d12e2362ccf7321c8627771af7d6f8cbb147"
   const proof = [
     "0xc3db0b62c8f1ce2e7337bd7897501098320393e8bc5691e42f427a3e8227631f",
@@ -145,7 +162,7 @@ async function deployTbmFeeDistributor({
   const recipientAddress = "0x0007a8f9c4abe135a717d2eeab3af16799b4d42a";
   const amount = "874861852123";
 
-  const txSetMerkleRoot = await callContract(privateKey, tbmFeeDistributorContract, "SetMerkleRoot", [{
+  const txSetMerkleRoot = await callContract(operatorKey, tbmFeeDistributorContract, "SetMerkleRoot", [{
     vname: "epoch_number",
     type: "Uint32",
     value: epochNumber,
@@ -157,21 +174,21 @@ async function deployTbmFeeDistributor({
   console.log("set merkle root tx", txSetMerkleRoot.id)
 
   const txClaimLeaf = await callContract(privateKey, tbmFeeDistributorContract, "ClaimMulti", [{
-      vname: "account",
-      type: "ByStr20",
-      value: recipientAddress,
-    }, {
-      vname: "claims",
-      type: "List (Pair (Pair Uint32 Uint128) (List ByStr32))",
-      value: [{
+    vname: "account",
+    type: "ByStr20",
+    value: recipientAddress,
+  }, {
+    vname: "claims",
+    type: "List (Pair (Pair Uint32 Uint128) (List ByStr32))",
+    value: [{
+      constructor: "Pair",
+      argtypes: ["Pair Uint32 Uint128", "List ByStr32"],
+      arguments: [{
         constructor: "Pair",
-        argtypes: ["Pair Uint32 Uint128", "List ByStr32"],
-        arguments: [{
-          constructor: "Pair",
-          argtypes: ["Uint32", "Uint128"],
-          arguments: [epochNumber, amount]
-        }, proof]
-      }],
+        argtypes: ["Uint32", "Uint128"],
+        arguments: [epochNumber, amount]
+      }, proof]
+    }],
 
     // vname: "claim",
     // type: `${tbmFeeDistributorAddress}.Claim`,
@@ -189,4 +206,7 @@ async function deployTbmFeeDistributor({
     // },
   }], 0, false, false)
   console.log("claim leaf tx", txClaimLeaf.id)
+
+  const txEmergencyWithdraw = await callContract(privateKey, tbmFeeDistributorContract, "EmergencyWithdraw", [], 0, false, false);
+  console.log("emergency withdraw tx", txEmergencyWithdraw.id)
 })().catch(console.error).finally(() => process.exit(0));
