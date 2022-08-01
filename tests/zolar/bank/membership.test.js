@@ -2,9 +2,9 @@ const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
 const {callContract} = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
+const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, getAllocationFee, generateErrorMsg } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, authorityContract, bankContract
+let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
@@ -12,20 +12,31 @@ beforeAll(async () => {
   
   memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
   memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
-  
+
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-
-  const zilswapContract = await deployZilswap();
+  
+  zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
-  const hiveContract = await deployHive({ hunyAddress, zilswapAddress });
+  refineryContract = await deployRefinery({ hunyAddress });
+  refineryAddress = refineryContract.address.toLowerCase();
+
+  hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
   
-  authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
+  authorityContract = await deployBankAuthority({ 
+    initialEpochNumber, 
+    hiveAddress, 
+    hunyAddress 
+  })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [address], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ 
+    initialMembers: [address], 
+    initialEpochNumber: initialEpochNumber, 
+    authorityAddress 
+  })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
@@ -88,17 +99,23 @@ describe('member joins guild for the first time', () => {
     expect(Object.keys(bankContractStateBeforeTx.joining_fee_paid).length).toEqual(0)
     expect(Object.keys(bankContractStateAfterTx.joining_fee_paid).length).toEqual(1)
     expect(bankContractStateAfterTx.joining_fee_paid).toMatchObject({[memberAddress]: ONE_HUNY.toString(10)}) // no inflation
-  
+    
+    const joiningFee = parseInt(ONE_HUNY) 
+    const captainAllocationFee = getAllocationFee(50, joiningFee)
+    const officerAllocationFee = getAllocationFee(10, joiningFee)
+
     // check huny deduction for member; huny increment for bank (capped 95%), captain (5%) and officer (1% each; if any)
+    const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
-    const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
+    
+    const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
     const memberPaid = memberBalanceBeforeTx - memberBalanceAfterTx
     const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
-    const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
-    expect(memberPaid.toString()).toEqual(ONE_HUNY.toString(10))
-    expect(bankReceived.toString()).toEqual((ONE_HUNY * 0.95).toString(10))
-    expect(captainReceived.toString()).toEqual((ONE_HUNY * 0.05).toString(10))
+
+    expect(captainReceived).toEqual(captainAllocationFee)
+    expect(memberPaid).toEqual(joiningFee)
+    expect(bankReceived).toEqual(joiningFee - captainAllocationFee)
 
     // check addition of token addr to bank contract
     expect(bankContractStateBeforeTx.tokens_held).not.toHaveProperty(hunyAddress)
