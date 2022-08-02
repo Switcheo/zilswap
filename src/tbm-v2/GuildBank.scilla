@@ -1186,8 +1186,8 @@ end
 (* @dev: Promote a member from normal member to officer status *)
 (* @param member: member to be promoted                        *)
 transition PromoteMember(member: ByStr20)
-  IsNotMigrated;
   IsOwner _sender;
+  IsNotOwner member;
 
   IsNotOfficer member;
   IsMember member;
