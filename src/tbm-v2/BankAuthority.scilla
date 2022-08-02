@@ -155,7 +155,7 @@ transition MigrateBankToken(bank: ByStr20, token: ByStr20)
   send msgs
 end
 
-transition ProcessBankUpdate() 
+transition ProcessBankUpdate()
   huny_address <- huny;
   current_service_fee <- service_fee;
   msg_to_huny = {
@@ -169,7 +169,8 @@ transition ProcessBankUpdate()
   send msgs
 end
 
-transition UpdateServiceFee(amount: Uint128) 
+transition UpdateServiceFee(amount: Uint128)
+  IsOwner _sender;
   service_fee := amount;
   e = {_eventname : "ServiceFeeUpdated"; service_fee : amount};
   event e
