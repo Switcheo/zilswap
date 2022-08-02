@@ -51,7 +51,8 @@ contract BankAuthority(
   initial_epoch_number: Uint32,
   initial_service_fee: Uint128,
   initial_hive: ByStr20 with contract
-    field current_refinery : ByStr20
+    field current_refinery : ByStr20,
+    field balances : Map ByStr20 Uint128
   end,
   huny_token: ByStr20 with contract
     field balances : Map ByStr20 Uint128,
@@ -68,7 +69,8 @@ field current_epoch : Uint32 = initial_epoch_number
 field service_fee: Uint128 = initial_service_fee
 
 field hive : ByStr20 with contract
-  field current_refinery : ByStr20
+  field current_refinery : ByStr20,
+  field balances : Map ByStr20 Uint128
 end = initial_hive
 field huny : ByStr20 with contract
   field balances : Map ByStr20 Uint128,

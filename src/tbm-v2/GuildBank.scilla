@@ -99,6 +99,7 @@ type Error =
   | CodeAlreadyMigrated
   | CodeNotMigrated
   | CodeNotMigratedToSelf
+  | CodeHiveNotEmpty
 
 let make_error =
   fun (result : Error) =>
@@ -133,6 +134,7 @@ let make_error =
       | CodeAlreadyMigrated                 => Int32 -25
       | CodeNotMigrated                     => Int32 -26
       | CodeNotMigratedToSelf               => Int32 -27
+      | CodeHiveNotEmpty                    => Int32 -30
       end
     in
     { _exception : "Error"; code : result_code }
@@ -349,7 +351,8 @@ contract GuildBank(
   bank_authority: ByStr20 with contract
     field current_epoch : Uint32,
     field hive : ByStr20 with contract
-      field current_refinery : ByStr20
+      field current_refinery : ByStr20,
+      field balances : Map ByStr20 Uint128
     end,
     field huny : ByStr20 with contract
       field balances : Map ByStr20 Uint128,
@@ -497,7 +500,6 @@ procedure IsValidBankTx(bank_tx: BankTx)
   | BankTx message initiator params =>
     match params with
     | UpdateConfigTxParams new_settings =>
-      (* TODO: validate config params *)
     | WithdrawTxParams recipient token amount =>
       maybe_zil = builtin eq token zero_address;
       match maybe_zil with
@@ -536,9 +538,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
       end
 
     | DepositHiveTxParams min_contribution zil_amount max_token_amount deadline_block_offset =>
-      (* TODO: validate deposit params *)
     | WithdrawHiveTxParams contribution min_zil_amount min_token_amount deadline_block_offset =>
-      (* TODO: validate withdraw params *)
     end
   end
 end
@@ -647,6 +647,19 @@ procedure IsMigrated()
   | Some address =>
   | None =>
     err = CodeNotMigrated;
+    ThrowError err
+  end
+end
+
+procedure IsHiveEmpty()
+  hive <- & bank_authority.hive;
+  maybe_hive_balance <- & hive.balances[_this_address];
+  hive_balance = get_amount_or_zero maybe_hive_balance;
+  has_hive_balance = builtin lt zero hive_balance;
+  match has_hive_balance with
+  | False =>
+  | True =>
+    err = CodeHiveNotEmpty;
     ThrowError err
   end
 end
@@ -1385,6 +1398,7 @@ end
 transition MigrateBank(new_bank: ByStr20)
   IsBankAuthority _sender;
   IsNotMigrated;
+  IsHiveEmpty;
 
   option_new_bank = Some {ByStr20} new_bank;
   migrated_to_bank := option_new_bank;
