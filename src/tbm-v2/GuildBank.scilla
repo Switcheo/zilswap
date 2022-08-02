@@ -100,6 +100,7 @@ type Error =
   | CodeNotMigrated
   | CodeNotMigratedToSelf
   | CodeHiveNotEmpty
+  | CodeInvalidBankTx
 
 let make_error =
   fun (result : Error) =>
@@ -135,6 +136,7 @@ let make_error =
       | CodeNotMigrated                     => Int32 -26
       | CodeNotMigratedToSelf               => Int32 -27
       | CodeHiveNotEmpty                    => Int32 -30
+      | CodeInvalidBankTx                   => Int32 -31
       end
     in
     { _exception : "Error"; code : result_code }
@@ -495,11 +497,48 @@ procedure IsSelf(address: ByStr20)
   end
 end
 
+procedure IsValidAllocation(allocation: FeeAllocation)
+  match allocation with
+  | FeeAllocation captain_bps officer_bps =>
+    total_allocation = builtin add captain_bps officer_bps;
+    is_invalid_allocation = builtin lt hundred_percent_bps total_allocation;
+    match is_invalid_allocation with
+    | True =>
+      err = CodeInvalidBankTx;
+      ThrowError err
+    | False =>
+    end
+  end
+end
+
+
+procedure IsValidFee(fee: Fee)
+  match fee with
+  | Fee amount inflation first_epoch allocation =>
+    current_epoch <- last_updated_epoch;
+    is_invalid_epoch = builtin lt current_epoch first_epoch;
+    match is_invalid_epoch with
+    | True =>
+      err = CodeInvalidBankTx;
+      ThrowError err
+    | False =>
+    end;
+
+    IsValidAllocation allocation
+  end
+end
+
+
 procedure IsValidBankTx(bank_tx: BankTx)
   match bank_tx with
   | BankTx message initiator params =>
     match params with
     | UpdateConfigTxParams new_settings =>
+      match new_settings with
+      | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+        IsValidFee new_joining_fee;
+        IsValidFee new_weekly_tax
+      end
     | WithdrawTxParams recipient token amount =>
       maybe_zil = builtin eq token zero_address;
       match maybe_zil with
