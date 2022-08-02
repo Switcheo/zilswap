@@ -313,7 +313,7 @@ const generateFee = (bankAddress, initialAmt, inflationAmt, currentEpoch, captai
 }
 
 const getBalanceFromStates = (address, stateBeforeTx, stateAfterTx) => {
-  const balanceBeforeTx = parseInt(stateBeforeTx.balances[address] ?? "0" )
+  const balanceBeforeTx = parseInt(stateBeforeTx.balances[address] ?? "0")
   const balanceAfterTx = parseInt(stateAfterTx.balances[address] ?? "0")
 
   return [balanceBeforeTx, balanceAfterTx]
@@ -335,6 +335,24 @@ const getInflatedFeeAmt = (initialAmt, inflation, initialEpoch, currentEpoch) =>
   return parseInt(totalAmt)
 }
 
+const matchObject = (objectOne, objectTwo) => {
+  if (typeof objectOne !== 'object' || typeof objectTwo !== 'object') return objectOne === objectTwo
+
+  let match = Object.keys(objectOne).length === Object.keys(objectTwo).length
+  if (!match) return match
+  for (const key of Object.keys(objectOne)) {
+    const innerObjectOne = objectOne[key]
+    const innerObjectTwo = objectTwo[key]
+    match = match && matchObject(innerObjectOne, innerObjectTwo)
+    if (!match) break
+  }
+  return match
+}
+
+const getSubState = (key, stateBefore, stateAfter) => {
+  return [stateBefore[key], stateAfter[key]]
+}
+
 exports.getPrivateKey = getPrivateKey
 exports.deployHuny = deployHuny
 exports.deployZilswap = deployZilswap
@@ -347,3 +365,5 @@ exports.getBalanceFromStates = getBalanceFromStates
 exports.getAllocationFee = getAllocationFee
 exports.generateErrorMsg = generateErrorMsg
 exports.getInflatedFeeAmt = getInflatedFeeAmt
+exports.matchObject = matchObject
+exports.getSubState = getSubState
