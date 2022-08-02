@@ -11,9 +11,9 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   const privateKey = process.env.PRIVATE_KEY
   if (!privateKey) throw new Error('PRIVATE_KEY env var missing!')
 
-  const oldBankContract = zilliqa.contracts.at(process.env.BANK_CONTRACT_HASH);
-  const bankAuthorityAddress = process.env.BANK_AUTHORITY_CONTRACT_HASH;
-  const newBankAuthority = "0x3df1646babde0e94e50e31ee94f152fe476eefa6";
+  const oldBankContract = zilliqa.contracts.at("0x13c96bb095ba5d4d663ddd8572577f09c12a86d5");
+  const bankAuthorityAddress = "0x156b4a899b251cd58ff4e518941255f25fb07b7d";
+  const newBankAuthority = "0x156b4a899b251cd58ff4e518941255f25fb07b7d";
 
   const { last_updated_epoch } = await oldBankContract.getSubState("last_updated_epoch");
   const { control_mode } = await oldBankContract.getSubState("control_mode");

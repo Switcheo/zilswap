@@ -500,7 +500,8 @@ end
 procedure IsValidAllocation(allocation: FeeAllocation)
   match allocation with
   | FeeAllocation captain_bps officer_bps =>
-    total_allocation = builtin add captain_bps officer_bps;
+    total_officer_bps = builtin add officer_bps officer_bps;
+    total_allocation = builtin add captain_bps total_officer_bps;
     is_invalid_allocation = builtin lt hundred_percent_bps total_allocation;
     match is_invalid_allocation with
     | True =>
