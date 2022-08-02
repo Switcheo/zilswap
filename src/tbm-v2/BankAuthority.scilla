@@ -145,6 +145,10 @@ transition MigrateBank(old_bank: ByStr20, new_bank: ByStr20)
   IsOwner _sender;
   msg = { _tag : "MigrateBank"; _recipient: old_bank; _amount: zero; new_bank: new_bank};
   msgs = one_msg msg;
+  send msgs;
+
+  msg = { _tag : "MigrateData"; _recipient: new_bank; _amount: zero; legacy_contract: old_bank};
+  msgs = one_msg msg;
   send msgs
 end
 

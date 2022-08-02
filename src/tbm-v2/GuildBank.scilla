@@ -98,6 +98,7 @@ type Error =
   | CodeInvalidEpoch
   | CodeAlreadyMigrated
   | CodeNotMigrated
+  | CodeNotMigratedToSelf
 
 let make_error =
   fun (result : Error) =>
@@ -131,6 +132,7 @@ let make_error =
       | CodeInvalidEpoch                    => Int32 -24
       | CodeAlreadyMigrated                 => Int32 -25
       | CodeNotMigrated                     => Int32 -26
+      | CodeNotMigratedToSelf               => Int32 -27
       end
     in
     { _exception : "Error"; code : result_code }
@@ -1382,6 +1384,53 @@ transition MigrateBank(new_bank: ByStr20)
   migrated_to_bank := option_new_bank;
 
   e = {_eventname: "BankMigrated"; initiator: _sender; new_bank: new_bank};
+  event e
+end
+
+transition MigrateData(
+  legacy_contract: ByStr20 with contract
+    field migrated_to_bank : Option ByStr20,
+    field last_updated_epoch : Uint32,
+    field joining_requests : Map ByStr20 Bool,
+    field joining_fee_paid : Map ByStr20 Uint128,
+    field tax_collected : Map Uint32 (Map ByStr20 Uint128),
+    field tax_owed : Map Uint32 (Map ByStr20 Uint128)
+  end
+)
+  IsBankAuthority _sender;
+  IsNotMigrated;
+
+  maybe_migrated_to_bank <- & legacy_contract.migrated_to_bank;
+  match maybe_migrated_to_bank with
+  | Some migrated_to_bank =>
+    is_migrated_to_self = builtin eq migrated_to_bank _this_address;
+    match is_migrated_to_self with
+    | False =>
+      err = CodeNotMigratedToSelf;
+      ThrowError err
+    | True => (* validation ok *)
+    end
+  | None =>
+    err = CodeNotMigratedToSelf;
+    ThrowError err
+  end;
+
+  legacy_last_updated_epoch <- & legacy_contract.last_updated_epoch;
+  last_updated_epoch := legacy_last_updated_epoch;
+
+  legacy_joining_requests <- & legacy_contract.joining_requests;
+  joining_requests := legacy_joining_requests;
+
+  legacy_joining_fee_paid <- & legacy_contract.joining_fee_paid;
+  joining_fee_paid := legacy_joining_fee_paid;
+
+  legacy_tax_collected <- & legacy_contract.tax_collected;
+  tax_collected := legacy_tax_collected;
+
+  legacy_tax_owed <- & legacy_contract.tax_owed;
+  tax_owed := legacy_tax_owed;
+
+  e = {_eventname : "DataMigrated", legacy_contract : legacy_contract};
   event e
 end
 
