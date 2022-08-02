@@ -195,8 +195,14 @@ let get_fee_amount =
 let get_amount_portion = 
   fun (amount : Uint128) =>
   fun (portion_bps : Uint128) =>
-    let portions = builtin div hundred_percent_bps portion_bps in
-    builtin div amount portions
+  let is_zero = builtin eq portion_bps zero in
+    match is_zero with
+    | True => zero
+    | False =>
+      let portions = builtin div hundred_percent_bps portion_bps in
+      builtin div amount portions
+    end
+  
 
 (* look up ControlMode based on provided signing power *)
 let get_control_mode =
@@ -1402,8 +1408,8 @@ transition MigrateData(
 
   maybe_migrated_to_bank <- & legacy_contract.migrated_to_bank;
   match maybe_migrated_to_bank with
-  | Some migrated_to_bank =>
-    is_migrated_to_self = builtin eq migrated_to_bank _this_address;
+  | Some migrated_to =>
+    is_migrated_to_self = builtin eq migrated_to _this_address;
     match is_migrated_to_self with
     | False =>
       err = CodeNotMigratedToSelf;
@@ -1430,7 +1436,7 @@ transition MigrateData(
   legacy_tax_owed <- & legacy_contract.tax_owed;
   tax_owed := legacy_tax_owed;
 
-  e = {_eventname : "DataMigrated", legacy_contract : legacy_contract};
+  e = {_eventname : "DataMigrated"; legacy_contract : legacy_contract};
   event e
 end
 
