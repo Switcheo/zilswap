@@ -191,8 +191,6 @@ test('migrate bank', async () => {
 
   const bankContractStateAfterTx = await bankContract.getState()
   const newBankContractStateAfterTx = await newBankContract.getState()
-  console.log('bankContractStateAfterTx', bankContractStateAfterTx)
-  console.log('newBankContractStateAfterTx', newBankContractStateAfterTx)
 
   expect(bankContractStateBeforeTx.migrated_to_bank.arguments.length === 0)
   expect(bankContractStateAfterTx.migrated_to_bank.arguments.length === 1)

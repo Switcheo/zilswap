@@ -1,74 +1,31 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const {callContract} = require("../../../scripts/call");
+const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
+const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, getBalanceFromStates, generateErrorMsg, } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
-async function initiateUpdateControlModeTx (initiator, controlMode) {
-  const txInitiateUpdateControlModeTx = await callContract(initiator, bankContract, "InitiateTx", [{
-    vname: "tx_params",
-    type: `${bankAddress}.TxParams`,
-    value: {
-      constructor: `${bankAddress}.UpdateConfigTxParams`,
-      argtypes: [],
-      arguments: [{
-        constructor: `${bankAddress}.GuildBankSettings`,
-        argtypes: [],
-        arguments: [{
-          constructor: `${bankAddress}.Fee`,
-          argtypes: [],
-          arguments: [
-            ONE_HUNY.toString(10), // initial amount
-            ONE_HUNY.toString(10), // inflation
-            initialEpochNumber.toString(), // first epoch
-            {
-              constructor: `${bankAddress}.FeeAllocation`,
-              argtypes: [],
-              arguments: ["50", "10"],
-            }, // fee allocation
-          ],
-        }, {
-          constructor: `${bankAddress}.Fee`,
-          argtypes: [],
-          arguments: [
-            ONE_HUNY.toString(10), // initial amount
-            ONE_HUNY.toString(10), // inflation
-            initialEpochNumber.toString(), // first epoch
-            {
-              constructor: `${bankAddress}.FeeAllocation`,
-              argtypes: [],
-              arguments: ["50", "10"],
-            }, // fee allocation
-          ],
-        }, {
-          constructor: `${bankAddress}.${controlMode}`,
-          argtypes: [],
-          arguments: [],
-        },
-        ],
-      }],
-    },
-  }, {
-    vname: "message",
-    type: "String",
-    value: `Change control mode to ${controlMode}`,
-  }], 0, false, false)
-  
+let joiningFee, weeklyTax
+
+async function initiateUpdateControlModeTx(initiatorPrivateKey, control) {
+  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control)
+
+  const txInitiateUpdateControlModeTx = await callContract(initiatorPrivateKey, bankContract, "InitiateTx", args, 0, false, false)
+
   return txInitiateUpdateControlModeTx
 }
 
 beforeAll(async () => {
   privateKey = getPrivateKey();
   address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
+
   memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
   memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -77,28 +34,46 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber: initialEpochNumber, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber: initialEpochNumber,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ 
-    initialMembers: [address, memberAddress], 
-    initialOfficers: [memberAddress], 
-    initialEpochNumber, 
-    authorityAddress 
+  bankContract = await deployGuildBank({
+    initialMembers: [address, memberAddress],
+    initialOfficers: [memberAddress],
+    initialEpochNumber,
+    authorityAddress
   })
   bankAddress = bankContract.address.toLowerCase()
+
+  joiningFee = generateFee(
+    bankAddress,
+    ONE_HUNY.toString(10),
+    ONE_HUNY.toString(10),
+    initialEpochNumber.toString(),
+    "50",
+    "10"
+  )
+
+  weeklyTax = generateFee(
+    bankAddress,
+    ONE_HUNY.toString(10),
+    ONE_HUNY.toString(10),
+    initialEpochNumber.toString(),
+    "50",
+    "10"
+  )
 
   const txAddMinterCaptain = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
     type: 'ByStr20',
     value: address,
-  }], 0, false, false);
-  
+  }], 0, false, false)
+
   const txMintCaptain = await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
     type: 'ByStr20',
@@ -109,7 +84,7 @@ beforeAll(async () => {
     value: new BigNumber(1).shiftedBy(12 + 3),
   }], 0, false, false)
 
-    // allow captain to transfer token to bank (spender)
+  // allow captain to transfer token to bank (spender)
   const txAllowanceCaptain = await callContract(privateKey, hunyContract, "IncreaseAllowance", [{
     vname: 'spender',
     type: 'ByStr20',
@@ -162,7 +137,7 @@ test('sign tx with captain after updating controlMode = CaptainAndOneOfficer', a
   const txInitiateUpdateControlMode3Tx = await initiateUpdateControlModeTx(privateKey, 'CaptainOnly')
   const hunyContractStateBeforeTx = await hunyContract.getState()
   const bankContractStateBeforeTx = await bankContract.getState()
-  
+
   expect(bankContractStateBeforeTx.control_mode.constructor).toEqual(`${bankAddress}.CaptainAndOneOfficer`)
   expect(bankContractStateBeforeTx.pending_tx.arguments.length).toEqual(1)
 
@@ -190,7 +165,7 @@ test('sign tx with member', async () => {
     value: memberAddress,
   }], 0, false, false)
   const bankContractStateBeforeTx = await bankContract.getState()
-  
+
   expect(bankContractStateBeforeTx.control_mode.constructor).toEqual(`${bankAddress}.CaptainOnly`)
   expect(bankContractStateBeforeTx.pending_tx.arguments.length).toEqual(1)
 

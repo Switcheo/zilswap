@@ -2,7 +2,7 @@ const fs = require("fs");
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { deployContract } = require("../../../scripts/deploy");
 const { zilliqa } = require("../../../scripts/zilliqa");
-const { ZERO_ADDRESS, ONE_HUNY, HUNDRED_PERCENT_BPS } = require("./config");
+const { ONE_HUNY, HUNDRED_PERCENT_BPS } = require("./config");
 
 const getPrivateKey = (key = "PRIVATE_KEY") => {
   const privateKey = process.env[key];
@@ -312,6 +312,36 @@ const generateFee = (bankAddress, initialAmt, inflationAmt, currentEpoch, captai
   }
 }
 
+function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control) {
+  const controlMode = {
+    constructor: `${bankAddress}.${control}`,
+    argtypes: [],
+    arguments: [],
+  }
+
+  const args = [{
+    vname: "tx_params",
+    type: `${bankAddress}.TxParams`,
+    value: {
+      constructor: `${bankAddress}.UpdateConfigTxParams`,
+      argtypes: [],
+      arguments: [{
+        constructor: `${bankAddress}.GuildBankSettings`,
+        argtypes: [],
+        arguments: [
+          joiningFee, weeklyTax, controlMode
+        ],
+      }],
+    },
+  }, {
+    vname: "message",
+    type: "String",
+    value: `Update guild bank setting`,
+  }]
+
+  return args
+}
+
 const getBalanceFromStates = (address, stateBeforeTx, stateAfterTx) => {
   const balanceBeforeTx = parseInt(stateBeforeTx.balances[address] ?? "0")
   const balanceAfterTx = parseInt(stateAfterTx.balances[address] ?? "0")
@@ -361,6 +391,7 @@ exports.deployHive = deployHive
 exports.deployBankAuthority = deployBankAuthority
 exports.deployGuildBank = deployGuildBank
 exports.generateFee = generateFee
+exports.generateUpdateBankSettingArgs = generateUpdateBankSettingArgs
 exports.getBalanceFromStates = getBalanceFromStates
 exports.getAllocationFee = getAllocationFee
 exports.generateErrorMsg = generateErrorMsg
