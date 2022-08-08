@@ -1,0 +1,225 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils BoolUtils
+library BankAuthority
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let uint32_zero = Uint32 0
+let uint32_one = Uint32 1
+let none = None {ByStr20}
+let zero_address = 0x0000000000000000000000000000000000000000
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotSelf
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeWrongEpochNumber
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                        => Int32 -1
+      | CodeNotSelf                         => Int32 -2
+      | CodeNotPendingOwner                 => Int32 -3
+      | CodePendingOwnerNotEmpty            => Int32 -4
+      | CodeWrongEpochNumber                => Int32 -5
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract BankAuthority(
+  initial_owner: ByStr20,
+  initial_epoch_number: Uint32,
+  initial_service_fee: Uint128,
+  initial_hive: ByStr20 with contract
+    field current_refinery : ByStr20,
+    field balances : Map ByStr20 Uint128
+  end,
+  huny_token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128,
+    field allowances : Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field epochs : Map Uint32 BNum = Emp Uint32 BNum
+field current_epoch : Uint32 = initial_epoch_number
+
+field service_fee: Uint128 = initial_service_fee
+
+field hive : ByStr20 with contract
+  field current_refinery : ByStr20,
+  field balances : Map ByStr20 Uint128
+end = initial_hive
+field huny : ByStr20 with contract
+  field balances : Map ByStr20 Uint128,
+  field allowances : Map ByStr20 (Map ByStr20 Uint128)
+end = huny_token
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition SetEpoch(epoch_number: Uint32)
+  IsOwner _sender;
+  current_epoch_number <- current_epoch;
+  epoch_diff = builtin sub epoch_number current_epoch_number;
+  is_next_epoch = builtin eq epoch_diff uint32_one;
+  match is_next_epoch with
+  | True =>
+    current_epoch := epoch_number;
+    current_block <- & BLOCKNUMBER;
+    epochs[epoch_number] := current_block;
+
+    e = {_eventname: "EpochStarted"; epoch: epoch_number};
+    event e
+  | False =>
+    err = CodeWrongEpochNumber;
+    ThrowError err
+  end
+end
+
+transition MigrateBank(old_bank: ByStr20, new_bank: ByStr20)
+  IsOwner _sender;
+  msg = { _tag : "MigrateBank"; _recipient: old_bank; _amount: zero; new_bank: new_bank};
+  msgs = one_msg msg;
+  send msgs;
+
+  msg = { _tag : "MigrateData"; _recipient: new_bank; _amount: zero; legacy_contract: old_bank};
+  msgs = one_msg msg;
+  send msgs
+end
+
+transition MigrateBankToken(bank: ByStr20, token: ByStr20)
+  IsOwner _sender;
+  msg = { _tag : "MigrateToken"; _recipient: bank; _amount: zero; token: token};
+  msgs = one_msg msg;
+  send msgs
+end
+
+transition ProcessBankUpdate()
+  huny_address <- huny;
+  current_service_fee <- service_fee;
+  msg_to_huny = {
+    _tag: "Burn";
+    _recipient: huny_address;
+    _amount: zero;
+    burn_account: _sender;
+    amount: current_service_fee
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+transition UpdateServiceFee(amount: Uint128)
+  IsOwner _sender;
+  service_fee := amount;
+  e = {_eventname : "ServiceFeeUpdated"; service_fee : amount};
+  event e
+end
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+(* receive fee/tax *)
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end

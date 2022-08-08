@@ -1,0 +1,1 @@
+(* Burner contract that burns all huny it receives to avoid extra Minter approvals *)

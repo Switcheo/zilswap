@@ -2,6 +2,7 @@
 const { Zilliqa } = require('@zilliqa-js/zilliqa')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { bytes } = require('@zilliqa-js/util')
+require('dotenv').config()
 
 const useKey = (privateKey) => {
   const address = getAddressFromPrivateKey(privateKey)

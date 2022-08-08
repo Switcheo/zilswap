@@ -1,0 +1,312 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils BoolUtils
+library HUG3Recovery
+
+let zero = Uint128 0
+let one = Uint128 1
+let none = None {ByStr20}
+
+type RecoveredHuny =
+  | RecoveredHuny of ByStr20 ByStr32 Uint128 Uint128 (* recipient, txHash, mint, refinery *)
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotSelf
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotOracle
+  | CodeAlreadyRecovered
+  | CodeAlreadyRegistered
+  | CodeNoUnrecoveredHuny
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                        => Int32 -1
+      | CodeNotSelf                         => Int32 -2
+      | CodeNotPendingOwner                 => Int32 -3
+      | CodePendingOwnerNotEmpty            => Int32 -4
+      | CodeNotOracle                       => Int32 -5
+      | CodeAlreadyRecovered                => Int32 -6
+      | CodeAlreadyRegistered               => Int32 -7
+      | CodeNoUnrecoveredHuny               => Int32 -8
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let find_pot = 
+  fun (list : List RecoveredHuny) =>
+  fun (target_hash : ByStr32) =>
+    let find = @list_find RecoveredHuny in
+    let fn = fun (pot : RecoveredHuny) =>
+      match pot with
+      | RecoveredHuny recipient tx_hash mint refinery => builtin eq tx_hash target_hash
+      end
+    in
+    find fn list
+
+let combine_pots = 
+  fun (list : List RecoveredHuny) =>
+    let fold = @list_foldl RecoveredHuny (Pair Uint128 Uint128) in
+    let fn = fun (combined_pot: Pair Uint128 Uint128) => fun (pot: RecoveredHuny) =>
+      match combined_pot with
+      | Pair mint_amt refine_amt =>
+        match pot with
+        | RecoveredHuny recipient tx_hash pot_mint_amt pot_refine_amt =>
+          let new_mint_amt = builtin add mint_amt pot_mint_amt in
+          let new_refine_amt = builtin add refine_amt pot_refine_amt in
+          Pair {Uint128 Uint128} new_mint_amt new_refine_amt
+        end
+      end
+    in
+    let init = Pair {Uint128 Uint128} zero zero in
+    fold fn init list
+      
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract HUG3Recovery(
+  initial_owner: ByStr20,
+  initial_oracle: ByStr20,
+  initial_refinery: ByStr20,
+  huny_token: ByStr20 with contract
+    field balances : Map ByStr20 Uint128
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+field current_oracle : ByStr20 = initial_oracle
+field current_refinery : ByStr20 = initial_refinery
+
+field refinery : ByStr20 = initial_refinery
+field huny : ByStr20 with contract
+  field balances : Map ByStr20 Uint128
+end = huny_token
+
+field recovery_pots : Map ByStr20 (List RecoveredHuny) = Emp ByStr20 (List RecoveredHuny)
+field recovered_pots : Map ByStr32 ByStr20 = Emp ByStr32 ByStr20
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsOracle(address: ByStr20)
+  oracle <- current_oracle;
+  is_oracle = builtin eq oracle address;
+  match is_oracle with
+  | True =>
+  | False =>
+    err = CodeNotOracle;
+    ThrowError err
+  end
+end
+
+procedure IsUnrecognizedTx(recipient: ByStr20, tx_hash: ByStr32)
+  maybe_recovered <- recovered_pots[tx_hash];
+  match maybe_recovered with
+  | Some recovered =>
+    err = CodeAlreadyRecovered;
+    ThrowError err
+  | None =>
+  end;
+
+  maybe_user_pots <- recovery_pots[recipient];
+  match maybe_user_pots with
+  | Some user_pots =>
+    maybe_registered = find_pot user_pots tx_hash;
+    match maybe_registered with
+    | Some registered =>
+      err = CodeAlreadyRegistered;
+      ThrowError err
+    | None =>
+    end
+  | None =>
+  end
+end
+
+procedure EmitAddPotEvent(pot: RecoveredHuny)
+  match pot with
+  | RecoveredHuny recipient tx_hash mint_amt refine_amt =>
+    e = {_eventname: "HunyRecoveryRegistered"; recipient: recipient; harvest_tx_hash: tx_hash; mint_amount: mint_amt; refine_amount: refine_amt};
+    event e
+  end
+end
+
+procedure InvalidateAndEmitRecovered(pot: RecoveredHuny)
+  match pot with
+  | RecoveredHuny recipient tx_hash mint_amt refine_amt =>
+    recovered_pots[tx_hash] := _sender;
+
+    e = {_eventname: "HunyRecovered"; recipient: recipient; harvest_tx_hash: tx_hash; mint_amount: mint_amt; refine_amount: refine_amt};
+    event e
+  end
+end
+
+procedure RecoverMint(amount: Uint128, to: ByStr20)
+  huny_address <- huny;
+  msg_to_huny = {
+    _tag: "Mint";
+    _recipient: huny_address;
+    _amount: zero;
+    recipient: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_huny;
+  send msgs
+end
+
+procedure RecoverRefine(amount: Uint128, to: ByStr20)
+  refinery_address <- refinery;
+  msg_to_refinery = {
+    _tag: "Refine";
+    _recipient: refinery_address;
+    _amount: zero;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_refinery;
+  send msgs
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+
+(* @dev: Sets the RNG oracle address. Can be overriden at any time. *)
+transition SetOracle(oracle : ByStr20)
+  IsOwner _sender;
+  current_oracle := oracle;
+  e = {_eventname : "OracleSet"; oracle : oracle};
+  event e
+end
+
+transition AddRecoveredHuny(pot: RecoveredHuny)
+  IsOracle _sender;
+  match pot with
+  | RecoveredHuny recipient tx_hash mint_amt refinery_amt =>
+    IsUnrecognizedTx recipient tx_hash;
+
+    maybe_user_pots <- recovery_pots[recipient];
+    user_pots = 
+      match maybe_user_pots with
+      | Some pots => pots
+      | None => Nil {RecoveredHuny}
+      end;
+    
+    new_user_pots = Cons {RecoveredHuny} pot user_pots;
+    recovery_pots[recipient] := new_user_pots;
+
+    EmitAddPotEvent pot
+  end
+end
+
+transition RecoverHuny(recipient: ByStr20)
+  maybe_user_pots <- recovery_pots[recipient];
+  match maybe_user_pots with
+  | None =>
+    err = CodeNoUnrecoveredHuny;
+    ThrowError err
+  | Some user_pots =>
+    forall user_pots InvalidateAndEmitRecovered;
+    combined_pot = combine_pots user_pots;
+    match combined_pot with
+    | Pair mint_amt refine_amt =>
+      RecoverMint mint_amt recipient;
+      RecoverRefine refine_amt recipient;
+
+      delete recovery_pots[recipient]
+    end
+  end
+end
+
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end

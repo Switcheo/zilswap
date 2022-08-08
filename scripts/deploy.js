@@ -4,7 +4,7 @@ const BigNumber = require('bignumber.js')
 const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long } = require('@zilliqa-js/util')
-const { callContract, nextBlock } = require('./call.js')
+const { callContract, nextBlock, getState } = require('./call.js')
 const { compress } = require('./compile')
 const { VERSION, zilliqa, useKey, chainId, network } = require('./zilliqa')
 
@@ -151,11 +151,285 @@ async function deployNonFungibleToken(
   return deployContract(privateKey, code, init)
 }
 
-async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
+async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.NFT_CONTRACT_HASH) {
   if (useExisting) {
     return getContract(privateKey, useExisting)
   }
   return deployNonFungibleToken(privateKey, params)
+}
+
+async function deployBearV2(
+  privateKey, { name = 'NFT', symbol: _symbol = null, initialBaseUri = `` }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+  const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/Metazoa.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+    {
+      vname: 'initial_base_uri',
+      type: 'String',
+      value: `${initialBaseUri}`,
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+  ]
+
+  console.info(`Deploying Bear V2 NFT...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useBearV2(privateKey, params = {}, useExisting = process.env.METAZOA_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployBearV2(privateKey, params)
+}
+
+async function deployHuny(
+  privateKey, { name = 'Huny Token', symbol: _symbol = null, decimals = 12, initSupply = 0 }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+  const symbol = _symbol || `HUNY-${randomHex(4).toUpperCase()}`
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+    {
+      vname: 'decimals',
+      type: 'Uint32',
+      value: `${decimals}`,
+    },
+    {
+      vname: 'init_supply',
+      type: 'Uint128',
+      value: `${initSupply}`,
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+  ]
+
+  console.info(`Deploying Huny Token...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useHuny(privateKey, params = {}, useExisting = process.env.HUNY_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployHuny(privateKey, params)
+}
+
+async function deployTranscendenceMinter(
+  privateKey, { owner = null, tbmv1 = null, tbmv2 = null }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Check for dependent contracts
+  if (!tbmv1 || !tbmv2) {
+    throw new Error('tbmv1 and tbmv2 must be provided to TranscendenceMinter')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/TranscendenceMinter.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'tbm_address',
+      type: 'ByStr20',
+      value: tbmv1.address,
+    },
+    {
+      vname: 'nft_address',
+      type: 'ByStr20',
+      value: tbmv2.address,
+    },
+    {
+      vname: 'max_supply',
+      type: 'Uint128',
+      value: "3",
+    },
+  ]
+
+  console.info(`Deploying TranscendenceMinter...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useTranscendenceMinter(privateKey, params = {}, useExisting = process.env.TRANSCENDENCE_MINTER_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployTranscendenceMinter(privateKey, params)
+}
+
+async function deployRefinery(
+  privateKey, { owner = null, huny = null }
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!huny) huny = (await useHuny(privateKey))[0]
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: huny.address,
+    },
+  ]
+
+  console.info(`Deploying Refinery...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useRefinery(privateKey, params = {}, useExisting = process.env.REFINERY_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployRefinery(privateKey, params)
+}
+
+async function deployMagicHive(
+  privateKey, { owner = null, refinery = null, huny = null, zilswap = null, rewardStartBlock = '0' }
+) {
+
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!huny) huny = (await useHuny(privateKey))[0]
+  if (!refinery) refinery = (await useRefinery(privateKey, { huny }))
+  if (!zilswap) zilswap = (await useZilswap(privateKey))[0]
+
+  // Load code and contract initialization variables
+  const code = (await readFile('./src/tbm-v2/MagicHive.scilla')).toString()
+  const init = [
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'initial_owner',
+      type: 'ByStr20',
+      value: owner,
+    },
+    {
+      vname: 'initial_refinery',
+      type: 'ByStr20',
+      value: refinery.address,
+    },
+    {
+      vname: 'huny_token',
+      type: 'ByStr20',
+      value: huny.address,
+    },
+    {
+      vname: 'zilswap_contract',
+      type: 'ByStr20',
+      value: zilswap.address,
+    },
+    {
+      vname: 'reward_start_block',
+      type: 'BNum',
+      value: rewardStartBlock.toString(),
+    },
+  ]
+
+  console.info(`Deploying MagicHive...`)
+  return deployContract(privateKey, code, init)
+}
+
+async function useMagicHive(privateKey, params = {}, useExisting = process.env.MAGIC_HIVE_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployMagicHive(privateKey, params)
 }
 
 async function deployZilswap(privateKey, { fee = null, owner = null }, version = 'V1.1') {
@@ -191,10 +465,14 @@ async function deployZilswap(privateKey, { fee = null, owner = null }, version =
 
   console.info(`Deploying zilswap...`)
   const result = await deployContract(privateKey, code, init)
+  let [contract, state] = result
 
-  if (version === 'V1.1') await callContract(privateKey, result[0], 'Initialize', [], 0, false, false)
+  if (version === 'V1.1') {
+    await callContract(privateKey, contract, 'Initialize', [], 0, false, false)
+    state = await contract.getState()
+  }
 
-  return result
+  return [contract, state]
 }
 
 async function useZilswap(privateKey, params = {}, useExisting = process.env.CONTRACT_HASH) {
@@ -435,27 +713,27 @@ async function deployContract(privateKey, code, init) {
   // Deploy contract
   const compressedCode = compress(code)
   const contract = zilliqa.contracts.new(compressedCode, init)
-  const [deployTx, token] = await contract.deploy(
+  const [deployTx, s] = await contract.deployWithoutConfirm(
     {
       version: VERSION,
       amount: new BN(0),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(80000),
     },
-    33,
-    1000,
     false,
   )
 
   // Check for txn acceptance
   if (!deployTx.id) {
-    throw new Error(JSON.stringify(token.error || 'Failed to get tx id!', null, 2))
+    throw new Error(JSON.stringify(s.error || 'Failed to get tx id!', null, 2))
   }
   console.info(`Deployment transaction id: ${deployTx.id}`)
 
+  const confirmedTx = await deployTx.confirm(deployTx.id, 33, 1000);
+
   // Check for txn execution success
-  if (!deployTx.txParams.receipt.success) {
-    const errors = deployTx.txParams.receipt.errors
+  if (!confirmedTx.txParams.receipt.success) {
+    const errors = confirmedTx.txParams.receipt.errors
     const errMsgs = errors
       ? Object.keys(errors).reduce((acc, depth) => {
         const errorMsgList = errors[depth].map(num => TransactionError[num])
@@ -466,13 +744,13 @@ async function deployContract(privateKey, code, init) {
   }
 
   // Print txn receipt
-  console.log(`Deployment transaction receipt:\n${JSON.stringify(deployTx.txParams.receipt)}`)
+  console.log(`Deployment transaction receipt:\n${JSON.stringify(confirmedTx.txParams.receipt)}`)
   await nextBlock()
 
   // Refetch contract
-  console.info(`The contract address is: ${token.address}`)
+  console.info(`The contract address is: ${s.address}`)
   // console.log('Refetching contract state...')
-  const deployedContract = zilliqa.contracts.at(token.address)
+  const deployedContract = zilliqa.contracts.at(s.address)
   const state = await deployedContract.getState()
 
   // Print contract state
@@ -501,3 +779,13 @@ exports.deployARK = deployARK
 exports.useFungibleToken = useFungibleToken
 exports.useNonFungibleToken = useNonFungibleToken
 exports.useZilswap = useZilswap
+exports.deployBearV2 = deployBearV2
+exports.useBearV2 = useBearV2
+exports.deployHuny = deployHuny
+exports.useHuny = useHuny
+exports.deployTranscendenceMinter = deployTranscendenceMinter
+exports.useTranscendenceMinter = useTranscendenceMinter
+exports.deployRefinery = deployRefinery
+exports.useRefinery = useRefinery
+exports.deployMagicHive = deployMagicHive
+exports.useMagicHive = useMagicHive

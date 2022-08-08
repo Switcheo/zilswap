@@ -11,10 +11,10 @@
     "test": "jest -i"
   },
   "dependencies": {
-    "@zilliqa-js/zilliqa": "^1.0.0",
+    "@zilliqa-js/zilliqa": "^3.3.4",
     "bignumber.js": "^9.0.0",
     "bn.js": "^5.1.2",
-    "dotenv": "^8.2.0",
+    "dotenv": "^10.0.0",
     "tslib": "^2.0.1"
   },
   "devDependencies": {
