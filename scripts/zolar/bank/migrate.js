@@ -38,7 +38,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   console.log("members", members);
   console.log("officers", officers);
 
-  const code = (await fs.promises.readFile('./src/zolar/GuildBank.scilla')).toString()
+  const file = './src/zolar/GuildBank.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -99,7 +99,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   ]
 
   console.info(`Deploying new GuildBank...`)
-  const [newBankContract] = await deployContract(privateKey, code, init)
+  const [newBankContract] = await deployContract(privateKey, file, init)
 
   const { tokens_held: tokensHeld } = await oldBankContract.getSubState("tokens_held");
 

@@ -4,11 +4,9 @@ const BigNumber = require('bignumber.js')
 const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { BN, Long } = require('@zilliqa-js/util')
-const { callContract, nextBlock, getState } = require('./call.js')
-const { compress } = require('./compile')
-const { VERSION, zilliqa, useKey, chainId, network } = require('./zilliqa')
-
-const readFile = util.promisify(fs.readFile)
+const { callContract, nextBlock } = require('./call.js')
+const { compile } = require('./compile')
+const { VERSION, zilliqa, useKey, chainId } = require('./zilliqa')
 
 async function deployFungibleToken(
   privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('1000000000000000000000') } = {}
@@ -22,8 +20,8 @@ async function deployFungibleToken(
   const address = getAddressFromPrivateKey(privateKey)
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/FungibleToken.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/FungibleToken.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -59,7 +57,7 @@ async function deployFungibleToken(
   ];
 
   console.info(`Deploying fungible token ${symbol}...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useFungibleToken(privateKey, params = undefined, approveContractAddress = null, useExisting = process.env.TOKEN_HASH) {
@@ -106,8 +104,8 @@ async function deployNonFungibleToken(
   const address = getAddressFromPrivateKey(privateKey)
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm/TheBearMarket.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/tbm/TheBearMarket.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -148,7 +146,7 @@ async function deployNonFungibleToken(
   ]
 
   console.info(`Deploying non-fungible token...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useNonFungibleToken(privateKey, params = {}, useExisting = process.env.NFT_CONTRACT_HASH) {
@@ -170,8 +168,8 @@ async function deployBearV2(
   const address = getAddressFromPrivateKey(privateKey)
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zolar/Metazoa.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zolar/Metazoa.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -202,7 +200,7 @@ async function deployBearV2(
   ]
 
   console.info(`Deploying Bear V2 NFT...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useBearV2(privateKey, params = {}, useExisting = process.env.METAZOA_CONTRACT_HASH) {
@@ -224,8 +222,8 @@ async function deployHuny(
   const address = getAddressFromPrivateKey(privateKey)
   const symbol = _symbol || `HUNY-${randomHex(4).toUpperCase()}`
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zolar/Huny.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zolar/Huny.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -261,7 +259,7 @@ async function deployHuny(
   ]
 
   console.info(`Deploying Huny Token...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useHuny(privateKey, params = {}, useExisting = process.env.HUNY_CONTRACT_HASH) {
@@ -287,8 +285,8 @@ async function deployTranscendenceMinter(
   // Default vars
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zolar/TranscendenceMinter.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zolar/TranscendenceMinter.scilla'
   const init = [
     {
       vname: '_scilla_version',
@@ -318,7 +316,7 @@ async function deployTranscendenceMinter(
   ]
 
   console.info(`Deploying TranscendenceMinter...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useTranscendenceMinter(privateKey, params = {}, useExisting = process.env.TRANSCENDENCE_MINTER_CONTRACT_HASH) {
@@ -340,8 +338,8 @@ async function deployRefinery(
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
   if (!huny) huny = (await useHuny(privateKey))[0]
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zolar/Refinery.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zolar/Refinery.scilla'
   const init = [
     {
       vname: '_scilla_version',
@@ -361,7 +359,7 @@ async function deployRefinery(
   ]
 
   console.info(`Deploying Refinery...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useRefinery(privateKey, params = {}, useExisting = process.env.REFINERY_CONTRACT_HASH) {
@@ -386,8 +384,8 @@ async function deployMagicHive(
   if (!refinery) refinery = (await useRefinery(privateKey, { huny }))
   if (!zilswap) zilswap = (await useZilswap(privateKey))[0]
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zolar/MagicHive.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zolar/MagicHive.scilla'
   const init = [
     {
       vname: '_scilla_version',
@@ -422,7 +420,7 @@ async function deployMagicHive(
   ]
 
   console.info(`Deploying MagicHive...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function useMagicHive(privateKey, params = {}, useExisting = process.env.MAGIC_HIVE_CONTRACT_HASH) {
@@ -442,8 +440,8 @@ async function deployZilswap(privateKey, { fee = null, owner = null }, version =
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
   if (!fee) fee = '30'
 
-  // Load code and contract initialization variables
-  const code = (await readFile(`./src/zilswap-v1/ZilSwap${version}.scilla`)).toString()
+  // Load file and contract initialization variables
+  const file = `./src/zilswap-v1/ZilSwap${version}.scilla`
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -464,7 +462,7 @@ async function deployZilswap(privateKey, { fee = null, owner = null }, version =
   ];
 
   console.info(`Deploying zilswap...`)
-  const result = await deployContract(privateKey, code, init)
+  const result = await deployContract(privateKey, file, init)
   let [contract, state] = result
 
   if (version === 'V1.1') {
@@ -482,6 +480,133 @@ async function useZilswap(privateKey, params = {}, useExisting = process.env.CON
   return deployZilswap(privateKey, params)
 }
 
+
+async function deployZilswapV2Router(privateKey, { governor = null } = {}) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!governor) governor = getAddressFromPrivateKey(privateKey).toLowerCase()
+
+  // Load file and contract initialization variables
+  const file = `./src/zilswap-v2/ZilSwapRouter.scilla`
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'init_governor',
+      type: 'ByStr20',
+      value: governor,
+    },
+  ];
+  console.log(init)
+
+  console.info(`Deploying zilswap-v2 router...`)
+  return deployContract(privateKey, file, init)
+}
+
+async function useZilswapV2Router(privateKey, params = {}, useExisting = process.env.ZILSWAP_V2_ROUTER_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployZilswapV2Router(privateKey, params)
+}
+
+async function deployZilswapV2Pool(privateKey, { owner = null, factory = null, token0 = null, token1 = null, init_amp_bps = '10000', name, symbol } = {}) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!factory) factory = useZilSwapV2Router(privateKey)
+  if (!token0) token0 = useFungibleToken(privateKey)
+  if (!token1) token1 = useFungibleToken(privateKey)
+  if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
+
+  if (!name || !symbol) {
+    const t0State = await token0.getInit()
+    const t1State = await token1.getInit()
+    const pair = `${t0State.find(i => i.vname == 'symbol').value}-${t1State.find(i => i.vname == 'symbol').value}`
+    if (!name) name = `ZilSwap V2 ${pair} LP Token`
+    if (!symbol) symbol = `ZWAPv2LP.${pair}`
+  }
+
+  // Load file and contract initialization variables
+  const file = `./src/zilswap-v2/ZilSwapPool.scilla`
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'init_token0',
+      type: 'ByStr20',
+      value: token0.address.toLowerCase(),
+    },
+    {
+      vname: 'init_token1',
+      type: 'ByStr20',
+      value: token1.address.toLowerCase(),
+    },
+    {
+      vname: 'init_factory',
+      type: 'ByStr20',
+      value: factory.address.toLowerCase(),
+    },
+    {
+      vname: 'init_amp_bps',
+      type: 'Uint128',
+      value: init_amp_bps,
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: factory.address.toLowerCase(),
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: name,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: symbol,
+    },
+    {
+      vname: 'decimals',
+      type: 'Uint32',
+      value: '12',
+    },
+    {
+      vname: 'init_supply',
+      type: 'Uint128',
+      value: '0',
+    },
+  ];
+  console.log(init)
+
+  console.info(`Deploying zilswap-v2 pool...`)
+  return deployContract(privateKey, file, init)
+}
+
+async function useZilswapV2Pool(privateKey, params = {}, useExisting = process.env.ZILSWAP_V2_POOL_CONTRACT_HASH) {
+  if (useExisting) {
+    return getContract(privateKey, useExisting)
+  }
+  return deployZilswapV2Pool(privateKey, params)
+}
+
 async function deploySeedLP(privateKey, {
   owner = null,
   tokenAddress,
@@ -495,8 +620,8 @@ async function deploySeedLP(privateKey, {
   // Default vars
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zilo/ZILOSeedLP.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zilo/ZILOSeedLP.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -522,7 +647,7 @@ async function deploySeedLP(privateKey, {
   ];
 
   console.info(`Deploying ZILO Seed LP...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function deployZILO(privateKey, {
@@ -544,8 +669,8 @@ async function deployZILO(privateKey, {
     throw new Error('No private key was provided!')
   }
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/zilo/ZILO.scilla')).toString()
+  // Load file and contract initialization variables
+  const file = './src/zilo/ZILO.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -616,7 +741,7 @@ async function deployZILO(privateKey, {
   ];
 
   console.info(`Deploying ZILO...`)
-  return deployContract(privateKey, code, init)
+  return deployContract(privateKey, file, init)
 }
 
 async function deployARK(privateKey, {
@@ -632,9 +757,8 @@ async function deployARK(privateKey, {
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
   if (!feeReceiver) feeReceiver = getAddressFromPrivateKey(privateKey).toLowerCase()
 
-  // Load code and contract initialization variables
-  const code = (await readFile('./src/arky/ARKv2.scilla')).toString()
-  console.log("network", network, chainId)
+  // Load file and contract initialization variables
+  const file = './src/arky/ARKv2.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -659,11 +783,11 @@ async function deployARK(privateKey, {
     },
   ];
 
-  console.info(`Deploying ARK...`)
-  const ark = (await deployContract(privateKey, code, init))[0]
+  console.info(`Deploying ARKY...`)
+  const ark = (await deployContract(privateKey, file, init))[0]
 
   // ARK requires a token proxy
-  const code2 = (await readFile('./src/arky/TokenProxy.scilla')).toString()
+  const file2 = './src/arky/TokenProxy.scilla'
   const init2 = [
     // this parameter is mandatory for all init arrays
     {
@@ -678,8 +802,8 @@ async function deployARK(privateKey, {
     },
   ];
 
-  console.info(`Deploying and setting ARK ZRC-2 Token Proxy...`)
-  const tokenProxy = (await deployContract(privateKey, code2, init2))[0]
+  console.info(`Deploying and setting ARKY ZRC-2 Token Proxy...`)
+  const tokenProxy = (await deployContract(privateKey, file2, init2))[0]
 
   // Set ARK's token proxy
   await callContract(
@@ -698,7 +822,7 @@ async function deployARK(privateKey, {
   return [ark, await ark.getState(), tokenProxy, await tokenProxy.getState()]
 }
 
-async function deployContract(privateKey, code, init) {
+async function deployContract(privateKey, file, init) {
   useKey(privateKey)
 
   // Check for account
@@ -711,7 +835,7 @@ async function deployContract(privateKey, code, init) {
   const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
 
   // Deploy contract
-  const compressedCode = compress(code)
+  const compressedCode = await compile(file)
   const contract = zilliqa.contracts.new(compressedCode, init)
   const [deployTx, s] = await contract.deployWithoutConfirm(
     {
@@ -733,14 +857,14 @@ async function deployContract(privateKey, code, init) {
 
   // Check for txn execution success
   if (!confirmedTx.txParams.receipt.success) {
-    const errors = confirmedTx.txParams.receipt.errors
-    const errMsgs = errors
-      ? Object.keys(errors).reduce((acc, depth) => {
+    const errors = confirmedTx.txParams.receipt.errors || {}
+    const errMsgs = JSON.stringify(
+        Object.keys(errors).reduce((acc, depth) => {
         const errorMsgList = errors[depth].map(num => TransactionError[num])
         return { ...acc, [depth]: errorMsgList }
-      }, {})
-      : 'Failed to deploy contract!'
-    throw new Error(JSON.stringify(errMsgs, null, 2))
+      }, {}))
+    const error = `Failed to deploy contract at ${file}!\n${errMsgs}`
+    throw new Error(error)
   }
 
   // Print txn receipt
@@ -772,20 +896,27 @@ const randomHex = size => [...Array(size)].map(() => Math.floor(Math.random() * 
 exports.deployContract = deployContract
 exports.deployFungibleToken = deployFungibleToken
 exports.deployNonFungibleToken = deployNonFungibleToken
+exports.useFungibleToken = useFungibleToken
+exports.useNonFungibleToken = useNonFungibleToken
+
 exports.deployZilswap = deployZilswap
+exports.deployZilswapV2Router = deployZilswapV2Router
+exports.deployZilswapV2Pool = deployZilswapV2Pool
+exports.useZilswap = useZilswap
+exports.useZilswapV2Router = useZilswapV2Router
+exports.useZilswapV2Pool = useZilswapV2Pool
+
 exports.deployZILO = deployZILO
 exports.deploySeedLP = deploySeedLP
 exports.deployARK = deployARK
-exports.useFungibleToken = useFungibleToken
-exports.useNonFungibleToken = useNonFungibleToken
-exports.useZilswap = useZilswap
+
 exports.deployBearV2 = deployBearV2
-exports.useBearV2 = useBearV2
 exports.deployHuny = deployHuny
-exports.useHuny = useHuny
 exports.deployTranscendenceMinter = deployTranscendenceMinter
-exports.useTranscendenceMinter = useTranscendenceMinter
-exports.deployRefinery = deployRefinery
-exports.useRefinery = useRefinery
 exports.deployMagicHive = deployMagicHive
+exports.deployRefinery = deployRefinery
+exports.useBearV2 = useBearV2
+exports.useHuny = useHuny
+exports.useTranscendenceMinter = useTranscendenceMinter
+exports.useRefinery = useRefinery
 exports.useMagicHive = useMagicHive

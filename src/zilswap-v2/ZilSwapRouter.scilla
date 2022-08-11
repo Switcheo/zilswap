@@ -1,0 +1,163 @@
+scilla_version 0
+
+import ListUtils
+library ZilSwapRouter
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let zero_amount = Uint128 0
+let minimum_liquidity = Uint128 1000
+let bps = Uint128 10000
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let msgs_tmp = one_msg msg2 in
+  Cons {Message} msg1 msgs_tmp
+
+let list_exists_bystr20 = @list_exists ByStr20
+
+let list_or_empty =
+  fun (maybe_list : Option (List ByStr20)) =>
+  match maybe_list with
+  | Some list => list
+  | None => Nil {ByStr20}
+  end
+
+let add_once =
+  fun (list : List ByStr20) =>
+  fun (item : ByStr20) =>
+    let f = fun (i : ByStr20) => builtin eq i item in
+    let e = list_exists_bystr20 f list in
+    match e with
+    | True => list
+    | False => Cons {ByStr20} item list
+    end
+
+(* Error events *)
+type Error =
+| CodeNotSelf
+| CodeDuplicateUnamplifiedPool
+
+let make_error =
+fun (result : Error) =>
+  let result_code =
+    match result with
+    | CodeNotSelf                   => Int32 -1
+    | CodeDuplicateUnamplifiedPool  => Int32 -2
+    end
+  in
+  { _exception : "Error"; code : result_code }
+
+contract ZilSwapRouter
+(
+  init_governor : ByStr20
+)
+
+field governor : ByStr20 = init_governor
+field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount
+
+field all_pools : List ByStr20 = Nil {ByStr20}
+field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
+field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map ByStr20 ByStr20)
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+(* @dev: zrc-2 *)
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+
+procedure IsSelf(address : ByStr20)
+  is_self = builtin eq _this_address address;
+  match is_self with
+  | True =>
+  | False =>
+    err = CodeNotSelf;
+    ThrowError err
+  end
+end
+
+procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
+  p <- pools[tokenA][tokenB];
+  list = list_or_empty p;
+  p_new = add_once list pool;
+  pools[tokenA][tokenB] := p_new
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition AddPool(
+  pool : ByStr20 with contract
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field factory : ByStr20 with contract
+      field fee_configuration : Pair ByStr20 Uint128
+    end,
+    field amp_bps : Uint128
+  end
+)
+  (* validate factory *)
+  f <- & pool.factory;
+  IsSelf f;
+
+  (* TODO: not possible now as init var cannot be fetched *)
+  (* validate name and symbol *)
+  (* t0 <- & pool.token0;
+  symbol <- & t0 as ByStr20 with contract field symbol : String end;
+  match symbol with
+  | Some _ =>
+  | None =>
+    err = CodeNotSelf;
+    ThrowError err
+  end *)
+
+  (* populate pool mapping for both directions *)
+  token0 <- & pool.token0;
+  token1 <- & pool.token1;
+  AddOnceToPools token0 token1 pool;
+  AddOnceToPools token1 token0 pool;
+
+  amp_bps <- & pool.amp_bps;
+  is_unamplified = builtin eq bps amp_bps;
+  match is_unamplified with
+  | False =>
+  | True =>
+    (* only allow one umaplified pool *)
+    is_exists <- exists unamplified_pools[token0][token1];
+    match is_exists with
+    | False =>
+    | True =>
+      err = CodeDuplicateUnamplifiedPool;
+      ThrowError err
+    end;
+    unamplified_pools[token0][token1] := pool;
+    unamplified_pools[token1][token0] := pool
+  end;
+
+  ap <- all_pools;
+  new_ap = add_once ap pool;
+  all_pools := new_ap
+
+  (*
+    TODO: emit PoolCreated(token0, token1, pool, ampBps, allPools.length);
+  *)
+end
