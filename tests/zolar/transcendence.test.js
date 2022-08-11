@@ -61,7 +61,7 @@ const mintToUser = async (userKey, userAddress, count) => {
   expect(approveTx.status).toEqual(2)
 }
 
-test('tbm-v2 TranscendenceMinter success', async () => {
+test('zolar TranscendenceMinter success', async () => {
   const whitelistTx = await callContract(key, contract, 'SetWhitelist', [{
     vname: 'list',
     type: 'List (Pair ByStr20 Uint32)',
@@ -100,7 +100,7 @@ test('tbm-v2 TranscendenceMinter success', async () => {
   expect(tx.status).toEqual(2)
 })
 
-test('tbm-v2 TranscendenceMinter mint not active transcend', async () => {
+test('zolar TranscendenceMinter mint not active transcend', async () => {
   const tx = await callContract(user1Key, contract, 'Transcend', [
     {
       vname: 'to',
@@ -117,7 +117,7 @@ test('tbm-v2 TranscendenceMinter mint not active transcend', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
 })
 
-test('tbm-v2 TranscendenceMinter mint disabled transcend', async () => {
+test('zolar TranscendenceMinter mint disabled transcend', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -147,7 +147,7 @@ test('tbm-v2 TranscendenceMinter mint disabled transcend', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
 })
 
-test('tbm-v2 TranscendenceMinter mint transcend before start block', async () => {
+test('zolar TranscendenceMinter mint transcend before start block', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -174,7 +174,7 @@ test('tbm-v2 TranscendenceMinter mint transcend before start block', async () =>
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
 })
 
-test('tbm-v2 TranscendenceMinter mint not inactive enable', async () => {
+test('zolar TranscendenceMinter mint not inactive enable', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -197,13 +197,13 @@ test('tbm-v2 TranscendenceMinter mint not inactive enable', async () => {
   expect(JSON.stringify(renableMintTx.receipt.exceptions)).toContain("code : (Int32 -8)") // CodeMintNotInactive
 })
 
-test('tbm-v2 TranscendenceMinter mint not active disable', async () => {
+test('zolar TranscendenceMinter mint not active disable', async () => {
   const disableMintTx = await callContract(key, contract, 'DisableMint', [], 0, false, false)
   expect(disableMintTx.status).toEqual(3)
   expect(JSON.stringify(disableMintTx.receipt.exceptions)).toContain("code : (Int32 -7)") // CodeMintNotActive
 })
 
-test('tbm-v2 TranscendenceMinter no whitelist', async () => {
+test('zolar TranscendenceMinter no whitelist', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -230,7 +230,7 @@ test('tbm-v2 TranscendenceMinter no whitelist', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeExceededWhitelistedQuantity
 })
 
-test('tbm-v2 TranscendenceMinter exceed whitelist', async () => {
+test('zolar TranscendenceMinter exceed whitelist', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -270,7 +270,7 @@ test('tbm-v2 TranscendenceMinter exceed whitelist', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeExceededWhitelistedQuantity
 })
 
-test('tbm-v2 TranscendenceMinter minted full', async () => {
+test('zolar TranscendenceMinter minted full', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -325,7 +325,7 @@ test('tbm-v2 TranscendenceMinter minted full', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -6)") // CodeExceededWhitelistedQuantity
 })
 
-test('tbm-v2 TranscendenceMinter not token owner', async () => {
+test('zolar TranscendenceMinter not token owner', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {
@@ -365,7 +365,7 @@ test('tbm-v2 TranscendenceMinter not token owner', async () => {
   expect(JSON.stringify(tx.receipt.exceptions)).toContain("code : (Int32 -3)") // CodeNotTokenOwner
 })
 
-test('tbm-v2 TranscendenceMinter exceed supply', async () => {
+test('zolar TranscendenceMinter exceed supply', async () => {
   const blkNumber = await getBlockNum();
   const enableMintTx = await callContract(key, contract, 'EnableMint', [
     {

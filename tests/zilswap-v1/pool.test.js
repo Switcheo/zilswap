@@ -1,6 +1,6 @@
-const { getDefaultAccount } = require('../scripts/account.js')
-const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
-const { callContract } = require('../scripts/call.js')
+const { getDefaultAccount } = require('../../scripts/account.js')
+const { useFungibleToken, useZilswap } = require('../../scripts/deploy.js')
+const { callContract } = require('../../scripts/call.js')
 
 test('zilswap addLiquidity and removeLiquidity', async () => {
   const { key, address: owner } = getDefaultAccount()

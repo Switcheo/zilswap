@@ -1,5 +1,5 @@
-const { getDefaultAccount } = require('../scripts/account.js');
-const { deployZilswap, deployNonFungibleToken } = require('../scripts/deploy.js');
+const { getDefaultAccount } = require('../../scripts/account.js');
+const { deployZilswap, deployNonFungibleToken } = require('../../scripts/deploy.js');
 
 test('deploy Zilswap', async () => {
   const { key, address: owner } = getDefaultAccount()

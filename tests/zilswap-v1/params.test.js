@@ -1,7 +1,7 @@
 
-const { createRandomAccount } = require('../scripts/account.js')
-const { callContract } = require('../scripts/call.js')
-const { useZilswap } = require('../scripts/deploy.js')
+const { createRandomAccount } = require('../../scripts/account.js')
+const { callContract } = require('../../scripts/call.js')
+const { useZilswap } = require('../../scripts/deploy.js')
 
 let key, contract
 beforeAll(async () => {

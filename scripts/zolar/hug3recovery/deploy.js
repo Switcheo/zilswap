@@ -19,7 +19,7 @@ const getPrivateKey = (key = "PRIVATE_KEY") => {
 const deployHuny = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/Huny.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -66,7 +66,7 @@ const deployRefinery = async ({
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
-  const code = (await fs.promises.readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/Refinery.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -100,7 +100,7 @@ async function deployRecovery({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/HUG3Recovery.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/HUG3Recovery.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {

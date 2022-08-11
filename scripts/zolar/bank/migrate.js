@@ -38,7 +38,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   console.log("members", members);
   console.log("officers", officers);
 
-  const code = (await fs.promises.readFile('./src/tbm-v2/GuildBank.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/GuildBank.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {

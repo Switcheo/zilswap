@@ -16,7 +16,7 @@ const getPrivateKey = (key = "PRIVATE_KEY") => {
 const deployHuny = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/Huny.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -60,7 +60,7 @@ const deployHuny = async () => {
 const deployZilswap = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/ZilSwapV1.1.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zilswap-v1/ZilSwapV1.1.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -92,7 +92,7 @@ const deployRefinery = async ({
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
-  const code = (await fs.promises.readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/Refinery.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -126,7 +126,7 @@ const deployHive = async ({
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
-  const code = (await fs.promises.readFile('./src/tbm-v2/MagicHiveV2.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/MagicHiveV2.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -175,7 +175,7 @@ async function deployBankAuthority({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/BankAuthority.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/BankAuthority.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -226,7 +226,7 @@ const deployGuildBank = async ({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/GuildBank.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/GuildBank.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {

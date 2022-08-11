@@ -16,7 +16,7 @@ const getPrivateKey = (key = "PRIVATE_KEY") => {
 const deployHuny = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const code = (await fs.promises.readFile('./src/zolar/Huny.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {

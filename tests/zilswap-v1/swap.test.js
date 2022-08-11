@@ -1,8 +1,8 @@
 const { units } = require('@zilliqa-js/util')
 const BigNumber = require('bignumber.js')
-const { createRandomAccount } = require('../scripts/account.js')
-const { callContract, getState } = require('../scripts/call.js')
-const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
+const { createRandomAccount } = require('../../scripts/account.js')
+const { callContract, getState } = require('../../scripts/call.js')
+const { useFungibleToken, useZilswap } = require('../../scripts/deploy.js')
 
 const zilAmount = 100000 // x = 100000
 const tokenAmount = '500000000' // y1 = 500

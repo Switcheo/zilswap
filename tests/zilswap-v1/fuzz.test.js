@@ -1,7 +1,7 @@
 const { BigNumber } = require('bignumber.js')
-const { createRandomAccount } = require('../scripts/account.js')
-const { callContract, getBalance } = require('../scripts/call.js')
-const { useFungibleToken, useZilswap } = require('../scripts/deploy.js')
+const { createRandomAccount } = require('../../scripts/account.js')
+const { callContract, getBalance } = require('../../scripts/call.js')
+const { useFungibleToken, useZilswap } = require('../../scripts/deploy.js')
 
 // initial ratios
 const NUM_ACTIONS = 10 // 5000

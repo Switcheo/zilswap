@@ -4,7 +4,7 @@ const util = require('util')
 const readFile = util.promisify(fs.readFile)
 
 async function compile() {
-  const code = (await readFile('./src/ZilSwap.scilla')).toString()
+  const code = (await readFile('./src/zilswap-v1/ZilSwap.scilla')).toString()
   return compress(code)
 }
 

@@ -9,7 +9,7 @@ beforeAll(async () => {
   [contract, _] = await useBearV2(key, { owner }, null)
 })
 
-test('tbm-v2 mint, pause, unpause', async () => {
+test('zolar mint, pause, unpause', async () => {
   const txn2 = await callContract(key, contract, 'Mint', [
     {
       vname: 'to',
@@ -59,7 +59,7 @@ test('tbm-v2 mint, pause, unpause', async () => {
   expect(txn6.status).toEqual(2)
 })
 
-test('tbm-v2 SetTokenTraits', async () => {
+test('zolar SetTokenTraits', async () => {
   const tx1 = await callContract(key, contract, 'Mint', [
     {
       vname: 'to',
@@ -94,8 +94,8 @@ test('tbm-v2 SetTokenTraits', async () => {
   expect(tx2.status).toEqual(2)
 })
 
-test('tbm-v2 giveaway minter', async () => {
-  const gmCode = await fs.readFileSync('./src/tbm-v2/GiveawayMinterV2.scilla')
+test('zolar giveaway minter', async () => {
+  const gmCode = await fs.readFileSync('./src/zolar/GiveawayMinterV2.scilla')
   const [gmContract, gmState] = await deployContract(key, gmCode.toString("utf8"), [
     {
       vname: '_scilla_version',

@@ -171,7 +171,7 @@ async function deployBearV2(
   const symbol = _symbol || `TEST-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/Metazoa.scilla')).toString()
+  const code = (await readFile('./src/zolar/Metazoa.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -225,7 +225,7 @@ async function deployHuny(
   const symbol = _symbol || `HUNY-${randomHex(4).toUpperCase()}`
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/Huny.scilla')).toString()
+  const code = (await readFile('./src/zolar/Huny.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -288,7 +288,7 @@ async function deployTranscendenceMinter(
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/TranscendenceMinter.scilla')).toString()
+  const code = (await readFile('./src/zolar/TranscendenceMinter.scilla')).toString()
   const init = [
     {
       vname: '_scilla_version',
@@ -341,7 +341,7 @@ async function deployRefinery(
   if (!huny) huny = (await useHuny(privateKey))[0]
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/Refinery.scilla')).toString()
+  const code = (await readFile('./src/zolar/Refinery.scilla')).toString()
   const init = [
     {
       vname: '_scilla_version',
@@ -387,7 +387,7 @@ async function deployMagicHive(
   if (!zilswap) zilswap = (await useZilswap(privateKey))[0]
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/tbm-v2/MagicHive.scilla')).toString()
+  const code = (await readFile('./src/zolar/MagicHive.scilla')).toString()
   const init = [
     {
       vname: '_scilla_version',
@@ -443,7 +443,7 @@ async function deployZilswap(privateKey, { fee = null, owner = null }, version =
   if (!fee) fee = '30'
 
   // Load code and contract initialization variables
-  const code = (await readFile(`./src/ZilSwap${version}.scilla`)).toString()
+  const code = (await readFile(`./src/zilswap-v1/ZilSwap${version}.scilla`)).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -496,7 +496,7 @@ async function deploySeedLP(privateKey, {
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/ZILOSeedLP.scilla')).toString()
+  const code = (await readFile('./src/zilo/ZILOSeedLP.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -545,7 +545,7 @@ async function deployZILO(privateKey, {
   }
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/ZILO.scilla')).toString()
+  const code = (await readFile('./src/zilo/ZILO.scilla')).toString()
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -633,7 +633,7 @@ async function deployARK(privateKey, {
   if (!feeReceiver) feeReceiver = getAddressFromPrivateKey(privateKey).toLowerCase()
 
   // Load code and contract initialization variables
-  const code = (await readFile('./src/nft/ARKv2.scilla')).toString()
+  const code = (await readFile('./src/arky/ARKv2.scilla')).toString()
   console.log("network", network, chainId)
   const init = [
     // this parameter is mandatory for all init arrays
@@ -663,7 +663,7 @@ async function deployARK(privateKey, {
   const ark = (await deployContract(privateKey, code, init))[0]
 
   // ARK requires a token proxy
-  const code2 = (await readFile('./src/nft/TokenProxy.scilla')).toString()
+  const code2 = (await readFile('./src/arky/TokenProxy.scilla')).toString()
   const init2 = [
     // this parameter is mandatory for all init arrays
     {

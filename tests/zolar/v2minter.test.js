@@ -11,8 +11,8 @@ beforeAll(async () => {
   [contract, _] = await useBearV2(key, { owner }, null)
 })
 
-test('tbm-v2 sale minter', async () => {
-  const smCode = await fs.readFileSync('./src/tbm-v2/V2Minter.scilla')
+test('zolar sale minter', async () => {
+  const smCode = await fs.readFileSync('./src/zolar/V2Minter.scilla')
   const [smContract, smState] = await deployContract(key, smCode.toString("utf8"), [
     {
       vname: '_scilla_version',
