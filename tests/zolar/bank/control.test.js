@@ -1,8 +1,8 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
 const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, getBalanceFromStates, generateErrorMsg, } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, getBalanceFromStates, generateErrorMsg, } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
@@ -17,11 +17,8 @@ async function initiateUpdateControlModeTx(initiatorPrivateKey, control) {
 }
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ;({key: privateKey, address} = getDefaultAccount())
+  ;({key: memberPrivateKey, address: memberAddress} = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()

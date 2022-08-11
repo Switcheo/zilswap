@@ -1,7 +1,7 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
+const { getDefaultAccount } = require('../../../scripts/account');
 const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, generateErrorMsg, } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, generateErrorMsg, } = require("./helper")
 
 let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
@@ -17,8 +17,7 @@ async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
 }
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
+  ;({key: privateKey, address} = getDefaultAccount())
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
