@@ -33,11 +33,11 @@ type FeeAllocation =
 
 (* fee settings for weekly tax and joining fee *)
 type Fee =
-  | Fee of Uint128 Uint128 Uint32 FeeAllocation (* amount, inflation, first epoch, fee allocation *)
+  | Fee of Uint128 FeeAllocation (* amount, fee allocation *)
 
 (* all of a guild bank's configurations *)
 type GuildBankSettings =
-  | GuildBankSettings of Fee Fee ControlMode (* joining fee, weekly tax, multisig control mode *)
+  | GuildBankSettings of Fee Fee Uint128 ControlMode (* joining fee, weekly tax, max tax increment, multisig control mode *)
 
 (* parameters for multisig transactions *)
 type TxParams =
@@ -101,6 +101,8 @@ type Error =
   | CodeNotMigratedToSelf
   | CodeHiveNotEmpty
   | CodeInvalidBankTx
+  | CodeTaxNotApproved
+  | CodeTaxIncrementOverLimit
 
 let make_error =
   fun (result : Error) =>
@@ -137,6 +139,8 @@ let make_error =
       | CodeNotMigratedToSelf               => Int32 -27
       | CodeHiveNotEmpty                    => Int32 -30
       | CodeInvalidBankTx                   => Int32 -31
+      | CodeTaxNotApproved                  => Int32 -32
+      | CodeTaxIncrementOverLimit           => Int32 -33
       end
     in
     { _exception : "Error"; code : result_code }
@@ -167,33 +171,50 @@ let get_element_amount_or_zero =
 (* convert initialization fee_params list to fee config *)
 let get_fee =
   fun (fee_params : List Uint128) =>
-  fun (current_epoch : Uint32) =>
     let uint32_one = Uint32 1 in
     let uint32_two = Uint32 2 in
-    let uint32_three = Uint32 3 in
     let fee_initial_amount = get_element_amount_or_zero fee_params uint32_zero in
-    let inflation = get_element_amount_or_zero fee_params uint32_one in
-    let alloc_captain = get_element_amount_or_zero fee_params uint32_two in
-    let alloc_officer = get_element_amount_or_zero fee_params uint32_three in
+    let alloc_captain = get_element_amount_or_zero fee_params uint32_one in
+    let alloc_officer = get_element_amount_or_zero fee_params uint32_two in
     let allocation = FeeAllocation alloc_captain alloc_officer in
-    Fee fee_initial_amount inflation current_epoch allocation
+    Fee fee_initial_amount allocation
 
-(* returns fee at current_epoch given the fee config *)
-let get_fee_amount =
-  fun (fee : Fee) =>
-  fun (current_epoch : Uint32) =>
-    match fee with
-    | Fee initial_amount inflation initial_epoch allocation =>
-      let epochs_diff = builtin sub current_epoch initial_epoch in
-      let maybe_epochs_diff = builtin to_uint128 epochs_diff in
-      match maybe_epochs_diff with
-      | None =>
-        zero (* should not happen *)
-      | Some uint128_epochs_diff => 
-        let inflation_amount = builtin mul inflation uint128_epochs_diff in
-        builtin add initial_amount inflation_amount
+(* returns fee amount the fee config *)
+let get_fee_amount = fun (f : Fee) => match f with | Fee amount _ => amount end
+
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+(* compares fee *)
+let is_fee_eq = 
+  fun (lhs_fee: Fee) =>
+  fun (rhs_fee: Fee) =>
+    match lhs_fee with
+    | Fee lhs_amount lhs_alloc =>
+      match lhs_alloc with
+      | FeeAllocation lhs_captain_bps lhs_officer_bps =>
+        match rhs_fee with
+        | Fee rhs_amount rhs_alloc =>
+          match rhs_alloc with
+          | FeeAllocation rhs_captain_bps rhs_officer_bps =>
+            let amount_eq = builtin eq lhs_amount rhs_amount in
+            let captain_bps_eq = builtin eq lhs_captain_bps rhs_captain_bps in
+            let officer_bps_eq = builtin eq lhs_officer_bps rhs_officer_bps in
+
+            let l0 = Nil {Bool} in
+            let l1 = Cons {Bool} amount_eq l0 in
+            let l2 = Cons {Bool} captain_bps_eq l1 in
+            let l3 = Cons {Bool} officer_bps_eq l2 in
+            all_true l3
+          end
+        end
       end
     end
+    
 
 (* returns result of amount * bps *)
 let get_amount_portion = 
@@ -314,13 +335,6 @@ let list_to_map =
     let empty_map = Emp ByStr20 Uint32 in
     fold fn empty_map list
 
-(* returns True if all items in the list is True *)
-let all_true =
-  fun (list : List Bool) =>
-    let identity = fun (a: Bool) => a in
-    let list_forall_bool = @list_forall Bool in
-    list_forall_bool identity list
-
 (* returns True if candidate is a member of list *)
 let is_list_member =
   fun (list : List ByStr20) =>
@@ -364,6 +378,7 @@ contract GuildBank(
   initial_epoch: Uint32,
   initial_joining_fee: List Uint128,
   initial_weekly_tax: List Uint128,
+  initial_tax_increment_limit: Uint128,
   initial_control_mode_power: Uint32,
   initial_members: List ByStr20,
   initial_officers: List ByStr20
@@ -400,13 +415,12 @@ field migrated_to_bank : Option ByStr20 = none
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
 
-field joining_fee : Fee = get_fee initial_joining_fee initial_epoch
-field weekly_tax : Fee = get_fee initial_weekly_tax initial_epoch
+field joining_fee : Fee = get_fee initial_joining_fee
+field weekly_tax : Fee = get_fee initial_weekly_tax
+field tax_increment_limit : Uint128 = initial_tax_increment_limit
 
 field last_updated_epoch : Uint32 = initial_epoch
-field current_joining_fee : Uint128 = 
-  let f = get_fee initial_joining_fee initial_epoch in
-  get_fee_amount f initial_epoch
+field current_joining_fee : Uint128 = get_element_amount_or_zero initial_joining_fee uint32_zero
 
 field members : Map ByStr20 Uint32 = list_to_map initial_members initial_epoch
 field officers : Map ByStr20 Uint32 = list_to_map initial_officers initial_epoch
@@ -419,6 +433,9 @@ field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (* map of token addresses that bank has balance of, used for migrate *)
 field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* map of accounts who approved for tax collection *)
+field tax_approved : Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* map of tax collected per user by epoch *)
 field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
@@ -515,16 +532,7 @@ end
 
 procedure IsValidFee(fee: Fee)
   match fee with
-  | Fee amount inflation first_epoch allocation =>
-    current_epoch <- last_updated_epoch;
-    is_invalid_epoch = builtin lt current_epoch first_epoch;
-    match is_invalid_epoch with
-    | True =>
-      err = CodeInvalidBankTx;
-      ThrowError err
-    | False =>
-    end;
-
+  | Fee amount allocation =>
     IsValidAllocation allocation
   end
 end
@@ -536,7 +544,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
     match params with
     | UpdateConfigTxParams new_settings =>
       match new_settings with
-      | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+      | GuildBankSettings new_joining_fee new_weekly_tax tax_increment_limit new_control_mode =>
         IsValidFee new_joining_fee;
         IsValidFee new_weekly_tax
       end
@@ -594,6 +602,14 @@ procedure IsNotPendingTx()
 end
 
 procedure IsTaxable(member: ByStr20, epoch_number: Uint32)
+  maybe_approved <- tax_approved[member];
+  match maybe_approved with
+  | Some _ => (* no-op *)
+  | None =>
+    err = CodeTaxNotApproved;
+    ThrowError err
+  end;
+
   maybe_taxed <- tax_collected[epoch_number][member];
   match maybe_taxed with
   | None =>
@@ -843,9 +859,36 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
   send msgs;
 
   match settings with
-  | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+  | GuildBankSettings new_joining_fee new_weekly_tax new_tax_increment_limit new_control_mode =>
+    current_weekly_tax <- weekly_tax;
+    weekly_tax_unchanged = is_fee_eq new_weekly_tax current_weekly_tax;
+    match weekly_tax_unchanged with
+    | True =>
+    | False =>
+      increment_limit <- tax_increment_limit;
+      old_tax = get_fee_amount current_weekly_tax;
+      new_tax = get_fee_amount new_weekly_tax;
+      postive_increment = builtin lt old_tax new_tax;
+      match postive_increment with
+      | False =>
+      | True =>
+        increment = builtin sub new_tax old_tax;
+        is_over_limit = builtin lt increment_limit increment;
+        match is_over_limit with
+        | False =>
+        | True =>
+          err = CodeTaxIncrementOverLimit;
+          ThrowError err
+        end;
+
+        empty_map = Emp ByStr20 Bool;
+        tax_approved := empty_map
+      end
+    end;
+
     joining_fee := new_joining_fee;
     weekly_tax := new_weekly_tax;
+    tax_increment_limit := new_tax_increment_limit;
     control_mode := new_control_mode;
 
     e = {_eventname: "BankSettingsUpdated"; settings: settings };
@@ -1049,7 +1092,7 @@ procedure AllocateManagementFee(
   token: ByStr20 with contract field balances: Map ByStr20 Uint128 end
 )
   match fee with
-  | Fee _ _ _ allocation =>
+  | Fee _ allocation =>
     match allocation with
     | FeeAllocation captain_bps officer_bps =>
       current_officers <- officers;
@@ -1107,18 +1150,17 @@ end
 (* advance epoch to given epoch number, must be last_updated_epoch + 1  *)
 (* update joining fee if epoch has been updated                         *)
 (* record weekly taxes into tax_owed if any                             *)
-(* record weekly taxes into tax_owed if any                             *)
 procedure AdvanceEpoch(current_epoch: Uint32)
   f <- joining_fee;
 
-  new_joining_fee = get_fee_amount f current_epoch;
+  new_joining_fee = get_fee_amount f;
   current_joining_fee := new_joining_fee;
 
   current_members <- members;
   members_list = map_to_list current_members;
 
   current_tax <- weekly_tax;
-  tax_amount = get_fee_amount current_tax current_epoch;
+  tax_amount = get_fee_amount current_tax;
 
   list_convert = @list_map ByStr20 TaxOwed;
   fn = fun (member: ByStr20) => TaxOwed member current_epoch tax_amount;
@@ -1419,6 +1461,19 @@ transition MakeDonation(token: ByStr20, amount: Uint128)
 
   e = {_eventname: "DonationReceived"; initiator: _sender; token: token; amount: amount};
   event e
+end
+
+(* @dev: Approves tax collection for sender. Tax cannot be collected    *)
+(* without this approval first.                                         *)
+transition ApproveTaxCollection()
+  IsMember _sender;
+  
+  maybe_approved <- tax_approved[_sender];
+  match maybe_approved with
+  | Some _ =>
+  | None =>
+    tax_approved[_sender] := true
+  end
 end
 
 (* @dev: Transfers tax from specified guild members to guild bank       *)
