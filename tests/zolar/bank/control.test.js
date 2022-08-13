@@ -9,7 +9,7 @@ let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refine
 let joiningFee, weeklyTax
 
 async function initiateUpdateControlModeTx(initiatorPrivateKey, control) {
-  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control)
+  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, ONE_HUNY, control)
 
   const txInitiateUpdateControlModeTx = await callContract(initiatorPrivateKey, bankContract, "InitiateTx", args, 0, false, false)
 
@@ -50,8 +50,6 @@ beforeAll(async () => {
   joiningFee = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    initialEpochNumber.toString(),
     "50",
     "10"
   )
@@ -59,8 +57,6 @@ beforeAll(async () => {
   weeklyTax = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    initialEpochNumber.toString(),
     "50",
     "10"
   )

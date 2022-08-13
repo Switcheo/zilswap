@@ -249,7 +249,6 @@ const deployGuildBank = async ({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
@@ -259,10 +258,14 @@ const deployGuildBank = async ({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
+    },
+    {
+      vname: 'initial_tax_increment_limit',
+      type: 'Uint128',
+      value: ONE_HUNY.toString(10),
     },
     {
       vname: 'initial_epoch',
@@ -292,13 +295,11 @@ const deployGuildBank = async ({
   return contract;
 };
 
-const generateFee = (bankAddress, initialAmt, inflationAmt, currentEpoch, captainAlloc, officerAlloc) => {
+const generateFee = (bankAddress, initialAmt, captainAlloc, officerAlloc) => {
   return {
     argtypes: [],
     arguments: [
       initialAmt,
-      inflationAmt,
-      currentEpoch,
       {
         argtypes: [],
         arguments: [
@@ -312,7 +313,7 @@ const generateFee = (bankAddress, initialAmt, inflationAmt, currentEpoch, captai
   }
 }
 
-function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control) {
+function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, taxIncrementLimit, control) {
   const controlMode = {
     constructor: `${bankAddress}.${control}`,
     argtypes: [],
@@ -329,7 +330,7 @@ function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, contr
         constructor: `${bankAddress}.GuildBankSettings`,
         argtypes: [],
         arguments: [
-          joiningFee, weeklyTax, controlMode
+          joiningFee, weeklyTax, taxIncrementLimit.toString(10), controlMode
         ],
       }],
     },
@@ -357,12 +358,6 @@ const getAllocationFee = (allocationBps, totalTaxedAmt) => {
 
 const generateErrorMsg = (errorCode) => {
   return `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -${errorCode}))])`
-}
-
-const getInflatedFeeAmt = (initialAmt, inflation, initialEpoch, currentEpoch) => {
-  const inflatedAmt = inflation.multipliedBy(currentEpoch - initialEpoch)
-  const totalAmt = initialAmt.plus(inflatedAmt)
-  return parseInt(totalAmt)
 }
 
 const matchObject = (objectOne, objectTwo) => {
@@ -394,6 +389,5 @@ exports.generateUpdateBankSettingArgs = generateUpdateBankSettingArgs
 exports.getBalanceFromStates = getBalanceFromStates
 exports.getAllocationFee = getAllocationFee
 exports.generateErrorMsg = generateErrorMsg
-exports.getInflatedFeeAmt = getInflatedFeeAmt
 exports.matchObject = matchObject
 exports.getSubState = getSubState

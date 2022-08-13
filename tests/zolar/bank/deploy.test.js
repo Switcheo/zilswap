@@ -71,8 +71,8 @@ test('deploy GuildBank contract', async () => {
   bankAddress = bankContract.address.toLowerCase() 
   const state = await bankContract.getState()
   
-  const expectedJoiningFee = generateFee(bankAddress, ONE_HUNY.toString(10), ONE_HUNY.toString(10), newEpochNumber.toString(), "50", "10")
-  const expectedWeeklyTax = generateFee(bankAddress, ONE_HUNY.toString(10), ONE_HUNY.toString(10), newEpochNumber.toString(), "50", "10")
+  const expectedJoiningFee = generateFee(bankAddress, ONE_HUNY.toString(10), "50", "10")
+  const expectedWeeklyTax = generateFee(bankAddress, ONE_HUNY.toString(10), "50", "10")
 
   expect(state.contract_owner.arguments[0]).toEqual(address)
   expect(state.control_mode.constructor).toEqual(`${bankAddress}.CaptainOnly`)
