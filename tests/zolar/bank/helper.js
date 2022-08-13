@@ -383,7 +383,6 @@ const getSubState = (key, stateBefore, stateAfter) => {
   return [stateBefore[key], stateAfter[key]]
 }
 
-exports.getPrivateKey = getPrivateKey
 exports.deployHuny = deployHuny
 exports.deployZilswap = deployZilswap
 exports.deployRefinery = deployRefinery

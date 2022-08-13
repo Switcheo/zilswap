@@ -1,17 +1,13 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
+const { getDefaultAccount } = require('../../../scripts/account');
 const {callContract} = require("../../../scripts/call");
 const { ZERO_ADDRESS, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, zilswapContract, refineryContract, hiveContract, authorityContract, bankContract
+let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, zilswapContract, refineryContract, hiveContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ;({key: privateKey, address} = getDefaultAccount())
   
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
@@ -28,7 +24,7 @@ beforeAll(async () => {
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ initialMembers: [address, memberAddress], initialOfficers: [memberAddress], initialEpochNumber, authorityAddress })
+  bankContract = await deployGuildBank({ initialMembers: [address], initialOfficers: [], initialEpochNumber, authorityAddress })
   bankAddress = bankContract.address.toLowerCase()
 
   const txAddMinterCaptain = await callContract(privateKey, hunyContract, "AddMinter", [{
