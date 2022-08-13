@@ -263,11 +263,6 @@ const deployGuildBank = async ({
       ],
     },
     {
-      vname: 'initial_tax_increment_limit',
-      type: 'Uint128',
-      value: ONE_HUNY.toString(10),
-    },
-    {
       vname: 'initial_epoch',
       type: 'Uint32',
       value: initialEpochNumber.toString(),
@@ -313,7 +308,7 @@ const generateFee = (bankAddress, initialAmt, captainAlloc, officerAlloc) => {
   }
 }
 
-function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, taxIncrementLimit, control) {
+function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control) {
   const controlMode = {
     constructor: `${bankAddress}.${control}`,
     argtypes: [],
@@ -330,7 +325,7 @@ function generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, taxIn
         constructor: `${bankAddress}.GuildBankSettings`,
         argtypes: [],
         arguments: [
-          joiningFee, weeklyTax, taxIncrementLimit.toString(10), controlMode
+          joiningFee, weeklyTax, controlMode
         ],
       }],
     },

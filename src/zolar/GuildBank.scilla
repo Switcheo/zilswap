@@ -37,7 +37,7 @@ type Fee =
 
 (* all of a guild bank's configurations *)
 type GuildBankSettings =
-  | GuildBankSettings of Fee Fee Uint128 ControlMode (* joining fee, weekly tax, max tax increment, multisig control mode *)
+  | GuildBankSettings of Fee Fee ControlMode (* joining fee, weekly tax, multisig control mode *)
 
 (* parameters for multisig transactions *)
 type TxParams =
@@ -102,7 +102,6 @@ type Error =
   | CodeHiveNotEmpty
   | CodeInvalidBankTx
   | CodeTaxNotApproved
-  | CodeTaxIncrementOverLimit
 
 let make_error =
   fun (result : Error) =>
@@ -140,7 +139,6 @@ let make_error =
       | CodeHiveNotEmpty                    => Int32 -30
       | CodeInvalidBankTx                   => Int32 -31
       | CodeTaxNotApproved                  => Int32 -32
-      | CodeTaxIncrementOverLimit           => Int32 -33
       end
     in
     { _exception : "Error"; code : result_code }
@@ -378,7 +376,6 @@ contract GuildBank(
   initial_epoch: Uint32,
   initial_joining_fee: List Uint128,
   initial_weekly_tax: List Uint128,
-  initial_tax_increment_limit: Uint128,
   initial_control_mode_power: Uint32,
   initial_members: List ByStr20,
   initial_officers: List ByStr20
@@ -417,7 +414,6 @@ field pending_tx : Option PendingTx = None {PendingTx}
 
 field joining_fee : Fee = get_fee initial_joining_fee
 field weekly_tax : Fee = get_fee initial_weekly_tax
-field tax_increment_limit : Uint128 = initial_tax_increment_limit
 
 field last_updated_epoch : Uint32 = initial_epoch
 field current_joining_fee : Uint128 = get_element_amount_or_zero initial_joining_fee uint32_zero
@@ -544,7 +540,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
     match params with
     | UpdateConfigTxParams new_settings =>
       match new_settings with
-      | GuildBankSettings new_joining_fee new_weekly_tax tax_increment_limit new_control_mode =>
+      | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
         IsValidFee new_joining_fee;
         IsValidFee new_weekly_tax
       end
@@ -859,28 +855,18 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
   send msgs;
 
   match settings with
-  | GuildBankSettings new_joining_fee new_weekly_tax new_tax_increment_limit new_control_mode =>
+  | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
     current_weekly_tax <- weekly_tax;
     weekly_tax_unchanged = is_fee_eq new_weekly_tax current_weekly_tax;
     match weekly_tax_unchanged with
     | True =>
     | False =>
-      increment_limit <- tax_increment_limit;
       old_tax = get_fee_amount current_weekly_tax;
       new_tax = get_fee_amount new_weekly_tax;
       postive_increment = builtin lt old_tax new_tax;
       match postive_increment with
       | False =>
       | True =>
-        increment = builtin sub new_tax old_tax;
-        is_over_limit = builtin lt increment_limit increment;
-        match is_over_limit with
-        | False =>
-        | True =>
-          err = CodeTaxIncrementOverLimit;
-          ThrowError err
-        end;
-
         empty_map = Emp ByStr20 Bool;
         tax_approved := empty_map
       end
@@ -888,7 +874,6 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
 
     joining_fee := new_joining_fee;
     weekly_tax := new_weekly_tax;
-    tax_increment_limit := new_tax_increment_limit;
     control_mode := new_control_mode;
 
     e = {_eventname: "BankSettingsUpdated"; settings: settings };
@@ -1346,6 +1331,7 @@ transition RemoveMember(member: ByStr20)
   match is_removing_self with
   | False =>
     delete members[member];
+    delete tax_approved[member];
     e = {_eventname: "MemberLeft"; initiator: _sender; member: member};
     event e;
 
@@ -1370,6 +1356,7 @@ transition LeaveGuild()
   UpdateEpoch;
 
   delete members[_sender];
+  delete tax_approved[_sender];
   e = {_eventname: "MemberLeft"; initiator: _sender; member: _sender};
   event e;
 

@@ -9,7 +9,7 @@ const FIRST_EPOCH = initialEpochNumber
 const CONTROL_MODE = "CaptainOnly"
 
 async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
-  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, ONE_HUNY, CONTROL_MODE)
+  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, CONTROL_MODE)
 
   const txInitiateUpdateFeeTx = await callContract(initiatorPrivateKey, bankContract, "InitiateTx", args, 0, false, false)
 

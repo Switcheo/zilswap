@@ -17,7 +17,7 @@ const epoch_seven = epoch_six + 1
 
 const OFFICER_COUNT = 2
 
-async function initiateUpdateWeeklyTaxTx(initiator, { initialAmt, taxIncrementLimit, captainAlloc, officerAlloc }) {
+async function initiateUpdateWeeklyTaxTx(initiator, { initialAmt, captainAlloc, officerAlloc }) {
   const txInitiateUpdateWeeklyTaxTx = await callContract(initiator, bankContract, "InitiateTx", [{
     vname: "tx_params",
     type: `${bankAddress}.TxParams`,
@@ -49,7 +49,7 @@ async function initiateUpdateWeeklyTaxTx(initiator, { initialAmt, taxIncrementLi
               arguments: [captainAlloc, officerAlloc],
             }, // fee allocation
           ],
-        }, taxIncrementLimit, {
+        }, {
           constructor: `${bankAddress}.CaptainOnly`,
           argtypes: [],
           arguments: [],
@@ -288,7 +288,6 @@ test('epoch advances to epoch_three. captain updates weekly tax and member is ch
   const newInitialAmt = ONE_HUNY.plus(ONE_HUNY)
   const newWeeklyTaxConfig = {
     initialAmt: newInitialAmt.toString(),
-    taxIncrementLimit: ONE_HUNY.toString(),
     captainAlloc: "50",
     officerAlloc: "10"
   }

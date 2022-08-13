@@ -267,11 +267,6 @@ async function deployGuildBank({
       ],
     },
     {
-      vname: 'initial_tax_increment_limit',
-      type: 'Uint128',
-      value: ONE_HUNY.toString(10),
-    },
-    {
       vname: 'initial_epoch',
       type: 'Uint32',
       value: initialEpochNumber.toString(),
@@ -525,7 +520,7 @@ async function deployGuildBank({
               arguments: ["50", "10"],
             }, // fee allocation
           ],
-        }, ONE_HUNY.toString(10), {
+        }, {
           constructor: `${bankAddress}.CaptainAndTwoOfficers`,
           argtypes: [],
           arguments: [],

@@ -9,7 +9,7 @@ let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refine
 let joiningFee, weeklyTax
 
 async function initiateUpdateControlModeTx(initiatorPrivateKey, control) {
-  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, ONE_HUNY, control)
+  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, control)
 
   const txInitiateUpdateControlModeTx = await callContract(initiatorPrivateKey, bankContract, "InitiateTx", args, 0, false, false)
 
