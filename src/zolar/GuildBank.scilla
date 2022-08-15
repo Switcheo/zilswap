@@ -510,6 +510,26 @@ procedure IsSelf(address: ByStr20)
   end
 end
 
+procedure IsNotMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+    err = CodeAlreadyMigrated;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+  | None =>
+    err = CodeNotMigrated;
+    ThrowError err
+  end
+end
+
 procedure IsValidAllocation(allocation: FeeAllocation)
   match allocation with
   | FeeAllocation captain_bps officer_bps =>
@@ -524,7 +544,6 @@ procedure IsValidAllocation(allocation: FeeAllocation)
     end
   end
 end
-
 
 procedure IsValidFee(fee: Fee)
   match fee with
@@ -541,6 +560,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
     | UpdateConfigTxParams new_settings =>
       match new_settings with
       | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+        IsNotMigrated;
         IsValidFee new_joining_fee;
         IsValidFee new_weekly_tax
       end
@@ -680,26 +700,6 @@ procedure IsBankAuthority(address: ByStr20)
     err = CodeNotBankAuthority;
     ThrowError err
   | True =>
-  end
-end
-
-procedure IsNotMigrated()
-  maybe_migrated_bank <- migrated_to_bank;
-  match maybe_migrated_bank with
-  | Some address =>
-    err = CodeAlreadyMigrated;
-    ThrowError err
-  | None =>
-  end
-end
-
-procedure IsMigrated()
-  maybe_migrated_bank <- migrated_to_bank;
-  match maybe_migrated_bank with
-  | Some address =>
-  | None =>
-    err = CodeNotMigrated;
-    ThrowError err
   end
 end
 
@@ -1162,8 +1162,6 @@ end
 (* check bank authority contract and update current epoch                     *)
 (* executes AdvanceEpoch for every epoch since last_epoch until current_epoch *)
 procedure UpdateEpoch()
-  IsNotMigrated;
-
   last_epoch <- last_updated_epoch;
   current_epoch <- & bank_authority.current_epoch;
   maybe_already_updated = builtin eq last_epoch current_epoch;
@@ -1274,6 +1272,7 @@ end
 (* @dev: Promote a member from normal member to officer status *)
 (* @param member: member to be promoted                        *)
 transition PromoteMember(member: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
   IsNotOwner member;
 
@@ -1350,6 +1349,7 @@ end
 
 (* @dev: Remove caller from the guild, cannot be called by owner *)
 transition LeaveGuild()
+  IsNotMigrated;
   IsNotOwner _sender;
   IsMember _sender;
 
@@ -1373,6 +1373,7 @@ end
 (* if member leaves and then eventually joins guild again, no fee is charged. *)
 (* @param member: member to be charge fee and add to guild                    *)
 transition ApproveAndReceiveJoiningFee(member: ByStr20)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
   IsNotMember member;
   IsApplicationActive member;
@@ -1453,6 +1454,7 @@ end
 (* @dev: Approves tax collection for sender. Tax cannot be collected    *)
 (* without this approval first.                                         *)
 transition ApproveTaxCollection()
+  IsNotMigrated;
   IsMember _sender;
   
   maybe_approved <- tax_approved[_sender];
@@ -1466,6 +1468,7 @@ end
 (* @dev: Transfers tax from specified guild members to guild bank       *)
 (* @param params: list of member and epoch number to collect taxes for  *)
 transition CollectTax(params: List TaxParam)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
 
   UpdateEpoch;
@@ -1617,6 +1620,7 @@ end
 (* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
 (* @param new_owner: Address of the new contract_owner.                                                                                    *)
 transition TransferOwnership(new_owner: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
   IsMember new_owner;
   
@@ -1628,6 +1632,7 @@ end
 
 (* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
 transition AcceptOwnership()
+  IsNotMigrated;
   IsPendingOwner _sender;
   IsMember _sender;
 
