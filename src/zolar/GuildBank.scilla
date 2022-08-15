@@ -17,7 +17,7 @@ let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
 
 (* sets to contract substate bank_version *)
-let guild_bank_version = Uint32 1
+let guild_bank_version = Uint32 2
 
 let max_officer_count = Uint32 2
 let max_member_count = Uint32 30
@@ -422,7 +422,7 @@ field members : Map ByStr20 Uint32 = list_to_map initial_members initial_epoch
 field officers : Map ByStr20 Uint32 = list_to_map initial_officers initial_epoch
 
 (* map of users requesting to join guild, can be approved by guild managers to complete join flow *)
-field joining_requests : Map ByStr20 Bool = Emp ByStr20 Bool
+field joining_requests : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (* map of joining fee paid per user *)
 field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
@@ -661,13 +661,7 @@ end
 procedure IsApplicationActive(member: ByStr20)
   maybe_application <- joining_requests[member];
   match maybe_application with
-  | Some application =>
-    match application with
-    | True => (* no-op *)
-    | False =>
-      err = CodeMemberApplicationNotFound;
-      ThrowError err
-    end
+  | Some _ =>
   | None =>
     err = CodeMemberApplicationNotFound;
     ThrowError err
@@ -1201,9 +1195,10 @@ transition ApplyForMembership()
   IsNotMigrated;
   IsNotMember _sender;
 
-  joining_requests[_sender] := true;
+  fee <- current_joining_fee;
+  joining_requests[_sender] := fee;
 
-  e = {_eventname: "MemberApplicationCreated"; applicant: _sender};
+  e = {_eventname: "MemberApplicationCreated"; applicant: _sender; joining_fee: fee};
   event e
 end
 
@@ -1384,11 +1379,16 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   current_epoch <- last_updated_epoch;
   members[member] := current_epoch;
 
-  delete joining_requests[member];
-
   (* announce new membership *)
   e = {_eventname: "MemberJoined"; initiator: _sender; member: member};
   event e;
+
+  f <- joining_requests[member];
+  payable_joining_fee = match f with 
+    | Some fee => fee
+    | None => zero (* not possible with IsApplicationActive check above *)
+  end;
+  delete joining_requests[member];
 
   (* check if joining fee paid *)
   maybe_paid_joining_fee <- joining_fee_paid[member];
@@ -1397,21 +1397,20 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   | None =>
 
     (* check if joining fee is zero *)
-    fee_amount <- current_joining_fee;
-    has_joining_fee = builtin lt zero fee_amount;
+    has_joining_fee = builtin lt zero payable_joining_fee;
     match has_joining_fee with
     | False => (* no-op - joining fee less than eq zero *)
     | True =>
-      joining_fee_paid[member] := fee_amount;
+      joining_fee_paid[member] := payable_joining_fee;
 
       huny_token <- & bank_authority.huny;
-      e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: fee_amount};
+      e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: payable_joining_fee};
       event e;
 
-      ReceiveToken member huny_token fee_amount;
+      ReceiveToken member huny_token payable_joining_fee;
 
       fee_config <- joining_fee;
-      AllocateManagementFee fee_config fee_amount huny_token;
+      AllocateManagementFee fee_config payable_joining_fee huny_token;
       FlushManagementFees huny_token
     end
    end
@@ -1496,7 +1495,7 @@ transition MigrateData(
   legacy_contract: ByStr20 with contract
     field migrated_to_bank : Option ByStr20,
     field last_updated_epoch : Uint32,
-    field joining_requests : Map ByStr20 Bool,
+    (* field joining_requests : Map ByStr20 Bool, *)
     field joining_fee_paid : Map ByStr20 Uint128,
     field tax_collected : Map Uint32 (Map ByStr20 Uint128),
     field tax_owed : Map Uint32 (Map ByStr20 Uint128)
@@ -1523,8 +1522,8 @@ transition MigrateData(
   legacy_last_updated_epoch <- & legacy_contract.last_updated_epoch;
   last_updated_epoch := legacy_last_updated_epoch;
 
-  legacy_joining_requests <- & legacy_contract.joining_requests;
-  joining_requests := legacy_joining_requests;
+(*  legacy_joining_requests <- & legacy_contract.joining_requests;*)
+(*  joining_requests := legacy_joining_requests;*)
 
   legacy_joining_fee_paid <- & legacy_contract.joining_fee_paid;
   joining_fee_paid := legacy_joining_fee_paid;
