@@ -249,7 +249,6 @@ const deployGuildBank = async ({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
@@ -259,7 +258,6 @@ const deployGuildBank = async ({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
@@ -292,13 +290,11 @@ const deployGuildBank = async ({
   return contract;
 };
 
-const generateFee = (bankAddress, initialAmt, inflationAmt, currentEpoch, captainAlloc, officerAlloc) => {
+const generateFee = (bankAddress, initialAmt, captainAlloc, officerAlloc) => {
   return {
     argtypes: [],
     arguments: [
       initialAmt,
-      inflationAmt,
-      currentEpoch,
       {
         argtypes: [],
         arguments: [
@@ -359,12 +355,6 @@ const generateErrorMsg = (errorCode) => {
   return `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -${errorCode}))])`
 }
 
-const getInflatedFeeAmt = (initialAmt, inflation, initialEpoch, currentEpoch) => {
-  const inflatedAmt = inflation.multipliedBy(currentEpoch - initialEpoch)
-  const totalAmt = initialAmt.plus(inflatedAmt)
-  return parseInt(totalAmt)
-}
-
 const matchObject = (objectOne, objectTwo) => {
   if (typeof objectOne !== 'object' || typeof objectTwo !== 'object') return objectOne === objectTwo
 
@@ -394,6 +384,5 @@ exports.generateUpdateBankSettingArgs = generateUpdateBankSettingArgs
 exports.getBalanceFromStates = getBalanceFromStates
 exports.getAllocationFee = getAllocationFee
 exports.generateErrorMsg = generateErrorMsg
-exports.getInflatedFeeAmt = getInflatedFeeAmt
 exports.matchObject = matchObject
 exports.getSubState = getSubState

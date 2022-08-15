@@ -17,7 +17,7 @@ let none = None {ByStr20}
 let zero_address = 0x0000000000000000000000000000000000000000
 
 (* sets to contract substate bank_version *)
-let guild_bank_version = Uint32 1
+let guild_bank_version = Uint32 2
 
 let max_officer_count = Uint32 2
 let max_member_count = Uint32 30
@@ -33,7 +33,7 @@ type FeeAllocation =
 
 (* fee settings for weekly tax and joining fee *)
 type Fee =
-  | Fee of Uint128 Uint128 Uint32 FeeAllocation (* amount, inflation, first epoch, fee allocation *)
+  | Fee of Uint128 FeeAllocation (* amount, fee allocation *)
 
 (* all of a guild bank's configurations *)
 type GuildBankSettings =
@@ -101,6 +101,7 @@ type Error =
   | CodeNotMigratedToSelf
   | CodeHiveNotEmpty
   | CodeInvalidBankTx
+  | CodeTaxNotApproved
 
 let make_error =
   fun (result : Error) =>
@@ -137,6 +138,7 @@ let make_error =
       | CodeNotMigratedToSelf               => Int32 -27
       | CodeHiveNotEmpty                    => Int32 -30
       | CodeInvalidBankTx                   => Int32 -31
+      | CodeTaxNotApproved                  => Int32 -32
       end
     in
     { _exception : "Error"; code : result_code }
@@ -167,33 +169,50 @@ let get_element_amount_or_zero =
 (* convert initialization fee_params list to fee config *)
 let get_fee =
   fun (fee_params : List Uint128) =>
-  fun (current_epoch : Uint32) =>
     let uint32_one = Uint32 1 in
     let uint32_two = Uint32 2 in
-    let uint32_three = Uint32 3 in
     let fee_initial_amount = get_element_amount_or_zero fee_params uint32_zero in
-    let inflation = get_element_amount_or_zero fee_params uint32_one in
-    let alloc_captain = get_element_amount_or_zero fee_params uint32_two in
-    let alloc_officer = get_element_amount_or_zero fee_params uint32_three in
+    let alloc_captain = get_element_amount_or_zero fee_params uint32_one in
+    let alloc_officer = get_element_amount_or_zero fee_params uint32_two in
     let allocation = FeeAllocation alloc_captain alloc_officer in
-    Fee fee_initial_amount inflation current_epoch allocation
+    Fee fee_initial_amount allocation
 
-(* returns fee at current_epoch given the fee config *)
-let get_fee_amount =
-  fun (fee : Fee) =>
-  fun (current_epoch : Uint32) =>
-    match fee with
-    | Fee initial_amount inflation initial_epoch allocation =>
-      let epochs_diff = builtin sub current_epoch initial_epoch in
-      let maybe_epochs_diff = builtin to_uint128 epochs_diff in
-      match maybe_epochs_diff with
-      | None =>
-        zero (* should not happen *)
-      | Some uint128_epochs_diff => 
-        let inflation_amount = builtin mul inflation uint128_epochs_diff in
-        builtin add initial_amount inflation_amount
+(* returns fee amount the fee config *)
+let get_fee_amount = fun (f : Fee) => match f with | Fee amount _ => amount end
+
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+(* compares fee *)
+let is_fee_eq = 
+  fun (lhs_fee: Fee) =>
+  fun (rhs_fee: Fee) =>
+    match lhs_fee with
+    | Fee lhs_amount lhs_alloc =>
+      match lhs_alloc with
+      | FeeAllocation lhs_captain_bps lhs_officer_bps =>
+        match rhs_fee with
+        | Fee rhs_amount rhs_alloc =>
+          match rhs_alloc with
+          | FeeAllocation rhs_captain_bps rhs_officer_bps =>
+            let amount_eq = builtin eq lhs_amount rhs_amount in
+            let captain_bps_eq = builtin eq lhs_captain_bps rhs_captain_bps in
+            let officer_bps_eq = builtin eq lhs_officer_bps rhs_officer_bps in
+
+            let l0 = Nil {Bool} in
+            let l1 = Cons {Bool} amount_eq l0 in
+            let l2 = Cons {Bool} captain_bps_eq l1 in
+            let l3 = Cons {Bool} officer_bps_eq l2 in
+            all_true l3
+          end
+        end
       end
     end
+    
 
 (* returns result of amount * bps *)
 let get_amount_portion = 
@@ -314,13 +333,6 @@ let list_to_map =
     let empty_map = Emp ByStr20 Uint32 in
     fold fn empty_map list
 
-(* returns True if all items in the list is True *)
-let all_true =
-  fun (list : List Bool) =>
-    let identity = fun (a: Bool) => a in
-    let list_forall_bool = @list_forall Bool in
-    list_forall_bool identity list
-
 (* returns True if candidate is a member of list *)
 let is_list_member =
   fun (list : List ByStr20) =>
@@ -400,25 +412,26 @@ field migrated_to_bank : Option ByStr20 = none
 field control_mode : ControlMode = get_control_mode initial_control_mode_power
 field pending_tx : Option PendingTx = None {PendingTx}
 
-field joining_fee : Fee = get_fee initial_joining_fee initial_epoch
-field weekly_tax : Fee = get_fee initial_weekly_tax initial_epoch
+field joining_fee : Fee = get_fee initial_joining_fee
+field weekly_tax : Fee = get_fee initial_weekly_tax
 
 field last_updated_epoch : Uint32 = initial_epoch
-field current_joining_fee : Uint128 = 
-  let f = get_fee initial_joining_fee initial_epoch in
-  get_fee_amount f initial_epoch
+field current_joining_fee : Uint128 = get_element_amount_or_zero initial_joining_fee uint32_zero
 
 field members : Map ByStr20 Uint32 = list_to_map initial_members initial_epoch
 field officers : Map ByStr20 Uint32 = list_to_map initial_officers initial_epoch
 
 (* map of users requesting to join guild, can be approved by guild managers to complete join flow *)
-field joining_requests : Map ByStr20 Bool = Emp ByStr20 Bool
+field joining_requests : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (* map of joining fee paid per user *)
 field joining_fee_paid : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (* map of token addresses that bank has balance of, used for migrate *)
 field tokens_held : Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* map of accounts who approved for tax collection *)
+field tax_approved : Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* map of tax collected per user by epoch *)
 field tax_collected : Map Uint32 (Map ByStr20 Uint128) = Emp Uint32 (Map ByStr20 Uint128)
@@ -497,6 +510,26 @@ procedure IsSelf(address: ByStr20)
   end
 end
 
+procedure IsNotMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+    err = CodeAlreadyMigrated;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure IsMigrated()
+  maybe_migrated_bank <- migrated_to_bank;
+  match maybe_migrated_bank with
+  | Some address =>
+  | None =>
+    err = CodeNotMigrated;
+    ThrowError err
+  end
+end
+
 procedure IsValidAllocation(allocation: FeeAllocation)
   match allocation with
   | FeeAllocation captain_bps officer_bps =>
@@ -512,19 +545,9 @@ procedure IsValidAllocation(allocation: FeeAllocation)
   end
 end
 
-
 procedure IsValidFee(fee: Fee)
   match fee with
-  | Fee amount inflation first_epoch allocation =>
-    current_epoch <- last_updated_epoch;
-    is_invalid_epoch = builtin lt current_epoch first_epoch;
-    match is_invalid_epoch with
-    | True =>
-      err = CodeInvalidBankTx;
-      ThrowError err
-    | False =>
-    end;
-
+  | Fee amount allocation =>
     IsValidAllocation allocation
   end
 end
@@ -537,6 +560,7 @@ procedure IsValidBankTx(bank_tx: BankTx)
     | UpdateConfigTxParams new_settings =>
       match new_settings with
       | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+        IsNotMigrated;
         IsValidFee new_joining_fee;
         IsValidFee new_weekly_tax
       end
@@ -594,6 +618,14 @@ procedure IsNotPendingTx()
 end
 
 procedure IsTaxable(member: ByStr20, epoch_number: Uint32)
+  maybe_approved <- tax_approved[member];
+  match maybe_approved with
+  | Some _ => (* no-op *)
+  | None =>
+    err = CodeTaxNotApproved;
+    ThrowError err
+  end;
+
   maybe_taxed <- tax_collected[epoch_number][member];
   match maybe_taxed with
   | None =>
@@ -629,13 +661,7 @@ end
 procedure IsApplicationActive(member: ByStr20)
   maybe_application <- joining_requests[member];
   match maybe_application with
-  | Some application =>
-    match application with
-    | True => (* no-op *)
-    | False =>
-      err = CodeMemberApplicationNotFound;
-      ThrowError err
-    end
+  | Some _ =>
   | None =>
     err = CodeMemberApplicationNotFound;
     ThrowError err
@@ -668,26 +694,6 @@ procedure IsBankAuthority(address: ByStr20)
     err = CodeNotBankAuthority;
     ThrowError err
   | True =>
-  end
-end
-
-procedure IsNotMigrated()
-  maybe_migrated_bank <- migrated_to_bank;
-  match maybe_migrated_bank with
-  | Some address =>
-    err = CodeAlreadyMigrated;
-    ThrowError err
-  | None =>
-  end
-end
-
-procedure IsMigrated()
-  maybe_migrated_bank <- migrated_to_bank;
-  match maybe_migrated_bank with
-  | Some address =>
-  | None =>
-    err = CodeNotMigrated;
-    ThrowError err
   end
 end
 
@@ -844,6 +850,22 @@ procedure UpdateGuildSettings(settings: GuildBankSettings)
 
   match settings with
   | GuildBankSettings new_joining_fee new_weekly_tax new_control_mode =>
+    current_weekly_tax <- weekly_tax;
+    weekly_tax_unchanged = is_fee_eq new_weekly_tax current_weekly_tax;
+    match weekly_tax_unchanged with
+    | True =>
+    | False =>
+      old_tax = get_fee_amount current_weekly_tax;
+      new_tax = get_fee_amount new_weekly_tax;
+      postive_increment = builtin lt old_tax new_tax;
+      match postive_increment with
+      | False =>
+      | True =>
+        empty_map = Emp ByStr20 Bool;
+        tax_approved := empty_map
+      end
+    end;
+
     joining_fee := new_joining_fee;
     weekly_tax := new_weekly_tax;
     control_mode := new_control_mode;
@@ -1049,7 +1071,7 @@ procedure AllocateManagementFee(
   token: ByStr20 with contract field balances: Map ByStr20 Uint128 end
 )
   match fee with
-  | Fee _ _ _ allocation =>
+  | Fee _ allocation =>
     match allocation with
     | FeeAllocation captain_bps officer_bps =>
       current_officers <- officers;
@@ -1107,18 +1129,17 @@ end
 (* advance epoch to given epoch number, must be last_updated_epoch + 1  *)
 (* update joining fee if epoch has been updated                         *)
 (* record weekly taxes into tax_owed if any                             *)
-(* record weekly taxes into tax_owed if any                             *)
 procedure AdvanceEpoch(current_epoch: Uint32)
   f <- joining_fee;
 
-  new_joining_fee = get_fee_amount f current_epoch;
+  new_joining_fee = get_fee_amount f;
   current_joining_fee := new_joining_fee;
 
   current_members <- members;
   members_list = map_to_list current_members;
 
   current_tax <- weekly_tax;
-  tax_amount = get_fee_amount current_tax current_epoch;
+  tax_amount = get_fee_amount current_tax;
 
   list_convert = @list_map ByStr20 TaxOwed;
   fn = fun (member: ByStr20) => TaxOwed member current_epoch tax_amount;
@@ -1135,8 +1156,6 @@ end
 (* check bank authority contract and update current epoch                     *)
 (* executes AdvanceEpoch for every epoch since last_epoch until current_epoch *)
 procedure UpdateEpoch()
-  IsNotMigrated;
-
   last_epoch <- last_updated_epoch;
   current_epoch <- & bank_authority.current_epoch;
   maybe_already_updated = builtin eq last_epoch current_epoch;
@@ -1176,9 +1195,10 @@ transition ApplyForMembership()
   IsNotMigrated;
   IsNotMember _sender;
 
-  joining_requests[_sender] := true;
+  fee <- current_joining_fee;
+  joining_requests[_sender] := fee;
 
-  e = {_eventname: "MemberApplicationCreated"; applicant: _sender};
+  e = {_eventname: "MemberApplicationCreated"; applicant: _sender; joining_fee: fee};
   event e
 end
 
@@ -1247,6 +1267,7 @@ end
 (* @dev: Promote a member from normal member to officer status *)
 (* @param member: member to be promoted                        *)
 transition PromoteMember(member: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
   IsNotOwner member;
 
@@ -1304,6 +1325,7 @@ transition RemoveMember(member: ByStr20)
   match is_removing_self with
   | False =>
     delete members[member];
+    delete tax_approved[member];
     e = {_eventname: "MemberLeft"; initiator: _sender; member: member};
     event e;
 
@@ -1322,12 +1344,14 @@ end
 
 (* @dev: Remove caller from the guild, cannot be called by owner *)
 transition LeaveGuild()
+  IsNotMigrated;
   IsNotOwner _sender;
   IsMember _sender;
 
   UpdateEpoch;
 
   delete members[_sender];
+  delete tax_approved[_sender];
   e = {_eventname: "MemberLeft"; initiator: _sender; member: _sender};
   event e;
 
@@ -1344,6 +1368,7 @@ end
 (* if member leaves and then eventually joins guild again, no fee is charged. *)
 (* @param member: member to be charge fee and add to guild                    *)
 transition ApproveAndReceiveJoiningFee(member: ByStr20)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
   IsNotMember member;
   IsApplicationActive member;
@@ -1354,11 +1379,16 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   current_epoch <- last_updated_epoch;
   members[member] := current_epoch;
 
-  delete joining_requests[member];
-
   (* announce new membership *)
   e = {_eventname: "MemberJoined"; initiator: _sender; member: member};
   event e;
+
+  f <- joining_requests[member];
+  payable_joining_fee = match f with 
+    | Some fee => fee
+    | None => zero (* not possible with IsApplicationActive check above *)
+  end;
+  delete joining_requests[member];
 
   (* check if joining fee paid *)
   maybe_paid_joining_fee <- joining_fee_paid[member];
@@ -1367,21 +1397,20 @@ transition ApproveAndReceiveJoiningFee(member: ByStr20)
   | None =>
 
     (* check if joining fee is zero *)
-    fee_amount <- current_joining_fee;
-    has_joining_fee = builtin lt zero fee_amount;
+    has_joining_fee = builtin lt zero payable_joining_fee;
     match has_joining_fee with
     | False => (* no-op - joining fee less than eq zero *)
     | True =>
-      joining_fee_paid[member] := fee_amount;
+      joining_fee_paid[member] := payable_joining_fee;
 
       huny_token <- & bank_authority.huny;
-      e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: fee_amount};
+      e = {_eventname: "PaidJoiningFee"; member: member; token: huny_token; amount: payable_joining_fee};
       event e;
 
-      ReceiveToken member huny_token fee_amount;
+      ReceiveToken member huny_token payable_joining_fee;
 
       fee_config <- joining_fee;
-      AllocateManagementFee fee_config fee_amount huny_token;
+      AllocateManagementFee fee_config payable_joining_fee huny_token;
       FlushManagementFees huny_token
     end
    end
@@ -1421,9 +1450,24 @@ transition MakeDonation(token: ByStr20, amount: Uint128)
   event e
 end
 
+(* @dev: Approves tax collection for sender. Tax cannot be collected    *)
+(* without this approval first.                                         *)
+transition ApproveTaxCollection()
+  IsNotMigrated;
+  IsMember _sender;
+  
+  maybe_approved <- tax_approved[_sender];
+  match maybe_approved with
+  | Some _ =>
+  | None =>
+    tax_approved[_sender] := true
+  end
+end
+
 (* @dev: Transfers tax from specified guild members to guild bank       *)
 (* @param params: list of member and epoch number to collect taxes for  *)
 transition CollectTax(params: List TaxParam)
+  IsNotMigrated;
   IsCaptainOrOfficer _sender;
 
   UpdateEpoch;
@@ -1451,7 +1495,7 @@ transition MigrateData(
   legacy_contract: ByStr20 with contract
     field migrated_to_bank : Option ByStr20,
     field last_updated_epoch : Uint32,
-    field joining_requests : Map ByStr20 Bool,
+    (* field joining_requests : Map ByStr20 Bool, *)
     field joining_fee_paid : Map ByStr20 Uint128,
     field tax_collected : Map Uint32 (Map ByStr20 Uint128),
     field tax_owed : Map Uint32 (Map ByStr20 Uint128)
@@ -1478,8 +1522,8 @@ transition MigrateData(
   legacy_last_updated_epoch <- & legacy_contract.last_updated_epoch;
   last_updated_epoch := legacy_last_updated_epoch;
 
-  legacy_joining_requests <- & legacy_contract.joining_requests;
-  joining_requests := legacy_joining_requests;
+(*  legacy_joining_requests <- & legacy_contract.joining_requests;*)
+(*  joining_requests := legacy_joining_requests;*)
 
   legacy_joining_fee_paid <- & legacy_contract.joining_fee_paid;
   joining_fee_paid := legacy_joining_fee_paid;
@@ -1575,6 +1619,7 @@ end
 (* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
 (* @param new_owner: Address of the new contract_owner.                                                                                    *)
 transition TransferOwnership(new_owner: ByStr20)
+  IsNotMigrated;
   IsOwner _sender;
   IsMember new_owner;
   
@@ -1586,6 +1631,7 @@ end
 
 (* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
 transition AcceptOwnership()
+  IsNotMigrated;
   IsPendingOwner _sender;
   IsMember _sender;
 

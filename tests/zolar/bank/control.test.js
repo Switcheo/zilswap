@@ -50,8 +50,6 @@ beforeAll(async () => {
   joiningFee = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    initialEpochNumber.toString(),
     "50",
     "10"
   )
@@ -59,8 +57,6 @@ beforeAll(async () => {
   weeklyTax = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    initialEpochNumber.toString(),
     "50",
     "10"
   )
