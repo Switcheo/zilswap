@@ -711,8 +711,8 @@ async function deployContract(privateKey, code, init) {
   const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
 
   // Deploy contract
-  const compressedCode = compress(code)
-  const contract = zilliqa.contracts.new(compressedCode, init)
+  // const compressedCode = compress(code)
+  const contract = zilliqa.contracts.new(code, init)
   const [deployTx, s] = await contract.deployWithoutConfirm(
     {
       version: VERSION,
