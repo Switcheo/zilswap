@@ -1,18 +1,18 @@
 const { default: BigNumber } = require("bignumber.js");
 const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
-const {callContract} = require("../../../scripts/call");
+const { callContract } = require("../../../scripts/call");
 const { initialEpochNumber } = require("./config");
 const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateErrorMsg } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  ;({key: privateKey, address} = getDefaultAccount())
-  ;({key: memberPrivateKey, address: memberAddress} = await createRandomAccount(privateKey, '1000'))
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -21,11 +21,11 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
@@ -62,14 +62,14 @@ describe('throws error when initial_epoch > current_epoch', () => {
     const invalidEpoch = initialEpochNumber + 1
     bankContract = await deployGuildBank({ initialMembers: [address], initialEpochNumber: invalidEpoch, authorityAddress })
     bankAddress = bankContract.address.toLowerCase()
-    
+
     const state = await bankContract.getState()
     expect(state.last_updated_epoch).toEqual(invalidEpoch.toString())
   })
 
   test('throws error when approving join request', async () => {
     const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
-    
+
     const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
       vname: "member",
       type: "ByStr20",
@@ -79,5 +79,5 @@ describe('throws error when initial_epoch > current_epoch', () => {
     expect(txApproveMember.status).toEqual(3)
     expect(txApproveMember.receipt.exceptions[0].message).toEqual(generateErrorMsg(24)) // throws CodeInvalidEpoch
     expect(txApproveMember.receipt.success).toEqual(false)
-  })  
+  })
 })

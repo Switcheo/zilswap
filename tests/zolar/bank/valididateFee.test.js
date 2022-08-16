@@ -5,7 +5,6 @@ const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthori
 
 let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
-const FIRST_EPOCH = initialEpochNumber
 const CONTROL_MODE = "CaptainOnly"
 
 async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
@@ -17,7 +16,7 @@ async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
 }
 
 beforeAll(async () => {
-  ;({key: privateKey, address} = getDefaultAccount())
+  ; ({ key: privateKey, address } = getDefaultAccount())
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
@@ -32,7 +31,7 @@ beforeAll(async () => {
   hiveAddress = hiveContract.address.toLowerCase();
 
   authorityContract = await deployBankAuthority({
-    initialEpochNumber: initialEpochNumber,
+    initialEpochNumber,
     hiveAddress,
     hunyAddress
   })
