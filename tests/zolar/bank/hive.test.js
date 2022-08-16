@@ -1,17 +1,17 @@
 const { default: BigNumber } = require("bignumber.js");
 const { getDefaultAccount } = require('../../../scripts/account');
-const {callContract} = require("../../../scripts/call");
+const { callContract } = require("../../../scripts/call");
 const { ZERO_ADDRESS, initialEpochNumber } = require("./config");
 const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank } = require("./helper")
 
 let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, hunyContract, zilswapContract, refineryContract, hiveContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  ;({key: privateKey, address} = getDefaultAccount())
-  
+  ; ({ key: privateKey, address } = getDefaultAccount())
+
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -20,7 +20,7 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
+
   authorityContract = await deployBankAuthority({ initialEpochNumber, hiveAddress, hunyAddress })
   authorityAddress = authorityContract.address.toLowerCase()
 
@@ -32,7 +32,7 @@ beforeAll(async () => {
     type: 'ByStr20',
     value: address,
   }], 0, false, false);
-  
+
   const txMintCaptain = await callContract(privateKey, hunyContract, "Mint", [{
     vname: 'recipient',
     type: 'ByStr20',
@@ -128,9 +128,9 @@ test('withdraw hive', async () => {
       constructor: `${bankAddress}.WithdrawHiveTxParams`,
       argtypes: [],
       arguments: [
-        new BigNumber(500).shiftedBy(12).toString(10), 
-        new BigNumber(1).shiftedBy(12).toString(10), 
-        new BigNumber(1).shiftedBy(12).toString(10), 
+        new BigNumber(500).shiftedBy(12).toString(10),
+        new BigNumber(1).shiftedBy(12).toString(10),
+        new BigNumber(1).shiftedBy(12).toString(10),
         "5"]
     },
   }, {
@@ -144,7 +144,7 @@ test('withdraw hive', async () => {
   expect(txInitiateWithdrawHive.receipt.success).toEqual(true)
 })
 
-test('claim hive', async() => {
+test('claim hive', async () => {
   const claimHiveTx = await callContract(privateKey, bankContract, "ClaimHive", [], 0, false, false)
   console.log("claimHiveTx id ", claimHiveTx.id)
 
@@ -152,7 +152,7 @@ test('claim hive', async() => {
   expect(claimHiveTx.receipt.success).toEqual(true)
 })
 
-test('claim refinery', async() => {
+test('claim refinery', async () => {
   const refineryStateBeforeTx = await refineryContract.getState()
   console.log('refineryStateBeforeTx ', refineryStateBeforeTx)
   const bnum = Object.keys(refineryStateBeforeTx.refining[bankAddress])[0]
@@ -163,7 +163,7 @@ test('claim refinery', async() => {
     value: bnum,
   }], 0, false, false)
   console.log("claimRefineryTx id ", claimRefineryTx.id)
-  
+
   expect(claimRefineryTx.status).toEqual(2)
   expect(claimRefineryTx.receipt.success).toEqual(true)
 })

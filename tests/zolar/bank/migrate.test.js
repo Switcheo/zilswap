@@ -66,8 +66,8 @@ async function migrateToken(senderAddress, tokenAddress) {
 }
 
 beforeAll(async () => {
-  ;({key: privateKey, address} = getDefaultAccount())
-  ;({key: memberPrivateKey, address: memberAddress} = await createRandomAccount(privateKey, '1000'))
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
