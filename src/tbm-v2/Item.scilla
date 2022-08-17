@@ -470,6 +470,7 @@ end
 (* - `token_id` must exist. Otherwise, it must throw `TokenNotFoundError` *)
 (* - `_sender` must be a token owner or an operator. Otherwise, it must throw `NotOwnerOrOperatorError` *)
 procedure BurnToken(token_id: Uint256)
+  RequireItemNotEquipped token_id;
   (* Check if token exists *)
   maybe_token_owner <- token_owners[token_id];
   match maybe_token_owner with
@@ -481,6 +482,7 @@ procedure BurnToken(token_id: Uint256)
     (* Destroy existing token *)
     delete token_owners[token_id];
     delete spenders[token_id];
+    delete token_uris[token_id];
 
     (* subtract one from the balance *)
     UpdateBalance sub_operation token_owner;
