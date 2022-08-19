@@ -1,0 +1,511 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+library ZolarResourceShop
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let two = Uint128 2
+let none = None {ByStr20}
+let empty = ""
+let hundred_percent_bps = Uint128 10000
+let hundred = Uint128 100
+let empty_pair = Pair {Uint128 Uint128} zero zero
+let zero_address = 0x0000000000000000000000000000000000000000
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotEmporium
+  | CodeItemNotFound
+  | CodeItemTooExpensive
+  | CodeCannotAchieveSellPrice
+  | CodeInvalidQuantity
+  | CodeInvalidPaymentItem
+
+type CraftingCost =
+  | CraftingCost of ByStr20 Uint128 (Option (List (Pair String String))) (* item token address, quantity, item traits *)
+
+type Item =
+  | Item of String ByStr20 (List (Pair String String)) (List CraftingCost) (* item name, item token address, traits item token address *)
+
+type PaymentItem =
+  | PaymentItem of ByStr20 Uint256 (* item token address, item id *)
+
+let no_item = None {Item}
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                          => Int32 -1
+      | CodeNotPendingOwner                   => Int32 -2
+      | CodePendingOwnerNotEmpty              => Int32 -3
+      | CodeNotEmporium                       => Int32 -4
+      | CodeItemNotFound                      => Int32 -5
+      | CodeItemTooExpensive                  => Int32 -6
+      | CodeCannotAchieveSellPrice            => Int32 -7
+      | CodeInvalidQuantity                   => Int32 -8
+      | CodeInvalidPaymentItem                => Int32 -8
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let nil_msg = Nil {Message} in
+  let list = Cons {Message} msg1 nil_msg in
+  Cons {Message} msg2 list
+
+let three_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  let nil_msg = Nil {Message} in
+  let l1 = Cons {Message} msg1 nil_msg in
+  let l2 = Cons {Message} msg2 l1 in
+  Cons {Message} msg3 l2
+
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+let is_trait_found =
+  fun (list : List (Pair String String)) =>
+  fun (candidate: Pair String String) =>
+    let check_exists = @list_exists (Pair String String) in
+    let exist_fn = fun (item: Pair String String) => 
+        match item with
+        | Pair item_key item_value =>
+          match candidate with
+          | Pair candidate_key candidate_value =>
+            let keq = builtin eq item_key candidate_key in
+            let veq = builtin eq item_value candidate_value in
+            let l0 = Nil {Bool} in
+            let l1 = Cons {Bool} keq l0 in
+            let l2 = Cons {Bool} veq l1 in
+            all_true l2
+          end
+        end
+      in
+    check_exists exist_fn list
+
+let is_traits_exist =
+  fun (set : List (Pair String String)) =>
+  fun (candidate : List (Pair String String)) =>
+    let fold = @list_foldl (Pair String String) (List Bool) in
+    let fn = 
+      fun (result_list: List Bool) => 
+      fun (item: Pair String String) =>
+        let is_element = is_trait_found set item in
+        Cons {Bool} is_element result_list
+    in
+    let empty_list = Nil {Bool} in
+    let result = fold fn empty_list candidate in
+    all_true result
+  
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
+let subtract_or_zero =
+  fun (amount : Uint128) =>
+  fun (subtrahend : Uint128) =>
+    let is_negative = builtin lt amount subtrahend in
+    match is_negative with
+    | True => amount
+    | False => builtin sub amount subtrahend
+    end
+
+let multiply_bps =
+  fun (amount : Uint128) =>
+  fun (portion_bps : Uint128) =>
+    let is_zero = builtin eq portion_bps zero in
+    match is_zero with
+    | True => zero
+    | False =>
+      let p = builtin mul amount portion_bps in
+      builtin div p hundred_percent_bps
+    end
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarResourceShop(
+  initial_owner: ByStr20,
+  emporium: ByStr20,
+  huny_token: ByStr20  with contract (* this contract must be a minter to burn *)
+    field total_supply : Uint128
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field items : Map Uint128 Item = Emp Uint128 Item
+field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_purchase, net_inflation) *)
+field adding_item : Option Item = no_item
+field selling_item : Option Item = no_item
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsEmporium(address: ByStr20)
+  is_emporium = builtin eq emporium address;
+  match is_emporium with
+  | True =>
+  | False =>
+    err = CodeNotEmporium;
+    ThrowError err
+  end
+end
+
+procedure IsValidQuantity(quantity: Uint128)
+  is_valid = builtin lt zero quantity;
+  match is_valid with
+  | True =>
+  | False =>
+    err = CodeInvalidQuantity;
+    ThrowError err
+  end
+end
+
+procedure VerifyItemTraits(required_traits: List (Pair String String), token_address: ByStr20, token_id: Uint256)
+  maybe_token_contract <- & token_address as ByStr20 with contract
+    field traits : Map Uint256 (List (Pair String String))
+  end;
+  match maybe_token_contract with
+  | None =>
+    err = CodeInvalidPaymentItem;
+    ThrowError err
+  | Some token_contract =>
+    maybe_traits <- & token_contract.traits[token_id];
+    match maybe_traits with
+    | None => 
+      err = CodeInvalidPaymentItem;
+      ThrowError err
+    | Some traits =>
+      ok = is_traits_exist required_traits traits;
+      match ok with
+      | False =>
+        err = CodeInvalidPaymentItem;
+        ThrowError err
+      | True => (* ok *)
+      end
+    end
+  end
+end
+
+procedure VerifyTokenAddress(lhs: ByStr20, rhs: ByStr20)
+  is_same_address = builtin eq lhs rhs;
+  match is_same_address with
+  | True => 
+  | False =>
+    err = CodeInvalidPaymentItem;
+    ThrowError err
+  end
+end
+
+procedure ReceiveZRC6(token_address: ByStr20, token_id: Uint256)
+  msg_to_token = {
+    _tag: "TransferFrom";
+    _recipient: token_address;
+    _amount: zero;
+    to: _this_address;
+    token_id: token_id
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+procedure ReceiveZRC2(token_address: ByStr20, quantity: Uint128, purchaser: ByStr20)
+  is_huny_address = builtin eq token_address huny_token;
+  msg = match is_huny_address with
+    | True => {
+        _tag: "TransferToken";
+        _recipient: emporium;
+        _amount: zero;
+        token: huny_token;
+        from: purchaser;
+        amount: quantity
+      }
+    | False => {
+        _tag: "TransferFrom";
+        _recipient: token_address;
+        _amount: zero;
+        from: _sender;
+        to: _this_address;
+        amount: quantity
+      }
+    end;
+
+  msgs = one_msg msg;
+  send msgs
+end
+
+procedure VerifyAndReceiveCraftingCost(purchaser: ByStr20, crafting_cost: CraftingCost, payment_item: PaymentItem)
+  match crafting_cost with
+  | CraftingCost token_address quantity maybe_item_traits  =>
+    match payment_item with
+    | PaymentItem pay_token_address token_id  =>
+      VerifyTokenAddress pay_token_address token_address;
+
+      match maybe_item_traits with
+      | Some item_traits =>
+        (* zrc6 token cost*)
+        VerifyItemTraits item_traits token_address token_id;
+        ReceiveZRC6 token_address token_id
+      | None =>
+        (* zrc2 token cost *)
+        ReceiveZRC2 token_address quantity purchaser
+      end
+    end
+  end
+end
+
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+(* @param max_price: maximum price to pay *)
+(* @param purchase_data: extra purchase data for events *)
+(* @param purchaser: buyer of purchased item *)
+transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: String, purchaser: ByStr20)
+  IsEmporium _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    maybe_quantity = builtin to_uint128 purchase_data;
+
+    quantity = match maybe_quantity with
+    | Some q => q
+    | None => zero
+    end;
+    
+    IsValidQuantity quantity;
+
+    match item with
+    | Item name token_address traits crafting_costs  =>
+      (* TODO *)
+    end
+  end
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Adds an item to the store and lists it on z grand emporium. *)
+transition AddItem(
+  item_name: String, 
+  token_address: ByStr20,
+  traits: List (Pair String String),
+  cost: List CraftingCost
+)
+  IsOwner _sender;
+
+  item = let i = Item item_name token_address traits cost in Some {Item} i;
+  adding_item := item;
+
+  msg_to_emporium = {
+    _tag: "ListItem";
+    _recipient: emporium;
+    _amount: zero;
+    item_name: item_name
+  };
+  msgs = one_msg msg_to_emporium;
+  send msgs
+end
+
+(* @dev: Removes an item from the store and delists it from z grand emporium. *)
+transition RemoveItem(item_id: Uint128)
+  IsOwner _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e;
+
+    msg_to_emporium = {
+      _tag: "DelistItem";
+      _recipient: emporium;
+      _amount: zero;
+      item_id: item_id
+    };
+    msgs = one_msg msg_to_emporium;
+    send msgs
+  end
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  maybe_item <- selling_item;
+  match maybe_item with
+  | None => (* no-op: not selling item, ignore *)
+  | Some item =>
+    token_address = match item with
+      | Item _ token_address _ _ => token_address
+    end;
+    is_recieving_resource = builtin eq token_address _sender;
+    match is_recieving_resource with
+    | False => (* no-op: ignore not sold token *)
+    | True =>
+      msg_to_resource = {
+        _tag: "Burn";
+        _recipient: token_address;
+        _amount: zero;
+        burn_account: _this_address;
+        amount: amount
+      };
+     
+      msgs = one_msg msg_to_resource;
+      send msgs 
+    end
+  end
+end
+
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+  msg_to_token = {
+    _tag: "BurnToken";
+    _recipient: _sender;
+    _amount: zero;
+    token_id: token_id
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs 
+end
+
+transition ListItemSuccess(item_id: Uint128, item_name: String)
+  IsEmporium _sender;
+  maybe_item <- adding_item;
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    items[item_id] := item;
+    adding_item := no_item;
+    e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
+    event e
+  end
+end
+
+(* burn huny *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* sell resource *)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* sell resource *)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* mint resource *)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+

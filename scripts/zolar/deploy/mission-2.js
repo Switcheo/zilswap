@@ -43,7 +43,7 @@ const deployResource = async (resource, {
 }) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile(`./src/zolar/resource/ZolarReosource.scilla`)).toString()
+  const code = (await fs.promises.readFile(`./src/zolar/resource/ZolarResource.scilla`)).toString()
   const init = [
     param("_scilla_version", "Uint32", "0"),
     param("name", "String", name),

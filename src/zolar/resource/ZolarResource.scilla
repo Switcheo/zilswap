@@ -4,7 +4,7 @@ scilla_version 0
 (*               Associated library                *)
 (***************************************************)
 import IntUtils
-library ZolarReosource
+library ZolarResource
 
 let one_msg =
   fun (msg : Message) =>
@@ -61,7 +61,7 @@ let get_val =
 (*             The contract definition             *)
 (***************************************************)
 
-contract ZolarReosource
+contract ZolarResource
 (
   name : String,
   symbol: String,
