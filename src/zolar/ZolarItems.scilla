@@ -4,7 +4,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils ListUtils IntUtils
+import BoolUtils ListUtils IntUtils NatUtils
 library Item
 
 type Operation =
@@ -43,6 +43,9 @@ let get_bal =
     | Some bal => bal
     end
 
+type TransferItemParams =
+  | TransferItemParams of Uint256 Uint256 ByStr20 (* parent_token_id, item_id, parent_contract *)
+
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -67,8 +70,9 @@ type Error =
   | ItemEquippedError
   | ItemNotEquippedError
   | ItemWrongParentError
-  | MetazoaNotFoundError
+  | ParentTokenNotFoundError
   | NotRootOwnerError
+  | InvalidParentContractError
 
 let make_error =
   fun (result: Error) =>
@@ -96,8 +100,9 @@ let make_error =
       | ItemEquippedError                  => Int32 -20
       | ItemNotEquippedError               => Int32 -21
       | ItemWrongParentError               => Int32 -22
-      | MetazoaNotFoundError               => Int32 -23
+      | ParentTokenNotFoundError           => Int32 -23
       | NotRootOwnerError                  => Int32 -24
+      | InvalidParentContractError         => Int32 -25
       end
     in
     { _exception: "Error"; code: result_code }
@@ -111,9 +116,6 @@ contract Item
   initial_contract_owner: ByStr20,
   (* Initial Base URI. e.g. `https://creatures-api.zilliqa.com/api/creature/` *)
   initial_base_uri: String,
-  metazoa_contract: ByStr20 with contract
-    field token_owners : Map Uint256 ByStr20
-  end,
   name: String,
   symbol: String
 )
@@ -167,8 +169,8 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 (* Mapping from token ID to its owner *)
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
-(* Mapping of item id to its respective metazoa parent *)
-field equipped_items: Map Uint256 Uint256 = Emp Uint256 Uint256 
+(* Mapping of item id to its respective parent token*)
+field equipped_items: Map Uint256 Pair Uint256 ByStr20 = Emp Uint256 Pair Uint256 ByStr20
 
 (* The total number of tokens minted *)
 field token_id_count: Uint256 = Uint256 0
@@ -190,6 +192,10 @@ field spenders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping from token owner to operators authorized by the token owner *)
 field operators: Map ByStr20 (Map ByStr20 Bool) = Emp ByStr20 (Map ByStr20 Bool)
+
+(* Generic on-chain traits *)
+(* field traits: Map Uint256 (Map ByStr20 ByStr20) = Emp Uint256 (Map ByStr20 ByStr20) *)
+field traits: Map Uint256 (List (Pair String String)) = Emp Uint256 (List (Pair String String))
 
 (* Emit Errors *)
 procedure Throw(error: Error)
@@ -241,17 +247,25 @@ procedure RequireValidItem(token_id: Uint256)
   end
 end
 
-procedure RequireValidMetazoa(token_id: Uint256)
-  maybe_token <- & metazoa_contract.token_owners[token_id];
+procedure RequireValidParentToken(
+  token_id: Uint256,
+  token_contract: ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20
+  end)
+  maybe_token <- & token_contract.token_owners[token_id];
   match maybe_token with
   | Some token =>
   | None =>
-    error = MetazoaNotFoundError;
+    error = ParentTokenNotFoundError;
     Throw error
   end
 end
 
-procedure RequireRootOwner(item_id: Uint256)
+procedure RequireRootOwner(
+  item_id: Uint256,
+  token_contract: ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20
+  end)
   maybe_token_owner <- token_owners[item_id];
   match maybe_token_owner with
   | None =>
@@ -269,18 +283,21 @@ procedure RequireRootOwner(item_id: Uint256)
         Throw error
       end
     | Some item_equipped =>
-      maybe_root_owner <- & metazoa_contract.token_owners[item_equipped];
-      match maybe_root_owner with
-      | None =>
-        error = MetazoaNotFoundError;
-        Throw error
-      | Some root_owner =>        
-        is_root_owner = builtin eq root_owner _sender;
-        match is_root_owner with
-        | True =>
-        | False =>
-          error = NotRootOwnerError;
+      match item_equipped with
+      | Pair parent_token_id parent_contract =>
+        maybe_root_owner <- & token_contract.token_owners[parent_token_id];
+        match maybe_root_owner with
+        | None =>
+          error = ParentTokenNotFoundError;
           Throw error
+        | Some root_owner =>        
+          is_root_owner = builtin eq root_owner _sender;
+          match is_root_owner with
+          | True =>
+          | False =>
+            error = NotRootOwnerError;
+            Throw error
+          end
         end
       end
     end
@@ -356,33 +373,31 @@ procedure ValidateOwnership(
   end
 end
 
-(* validates that the tx sender is the owner of the metazoa *)
-procedure ValidateMetazoaOwnership(token_id: Uint256)
-  ValidateOwnership token_id metazoa_contract
-end
-
-procedure RequireItemEquipped(metazoa_id: Uint256, item_id: Uint256)
-  maybe_metazoa_parent <- equipped_items[item_id];
-  match maybe_metazoa_parent with
+procedure RequireItemEquipped(parent_token_id: Uint256, item_id: Uint256)
+  maybe_parent <- equipped_items[item_id];
+  match maybe_parent with
   | None =>
     err = ItemNotEquippedError;
     Throw err
-  | Some metazoa_parent =>
-    is_correct_parent = builtin eq metazoa_id metazoa_parent;
-    match is_correct_parent with
-    | True =>
-    | False =>
-      err = ItemWrongParentError;
-      Throw err
+  | Some parent =>
+    match parent with
+    | Pair token_id _ =>
+      is_correct_parent = builtin eq parent_token_id token_id;
+      match is_correct_parent with
+      | True =>
+      | False =>
+        err = ItemWrongParentError;
+        Throw err
+      end
     end
   end
 end
 
 procedure RequireItemNotEquipped(item_id: Uint256)
-  maybe_metazoa_parent <- equipped_items[item_id];
-  match maybe_metazoa_parent with
+  maybe_parent <- equipped_items[item_id];
+  match maybe_parent with
   | None =>
-  | Some metazoa_parent =>
+  | Some parent =>
     err = ItemEquippedError;
     Throw err
   end
@@ -471,6 +486,22 @@ procedure MintToken(to: ByStr20)
   total_supply := new_supply
 end
 
+procedure SetTraits(
+  token_id: Uint256,
+  proposed_traits: List (Pair String String)
+)
+  RequireContractOwner;
+
+  maybe_token_owner <- token_owners[token_id];
+  match maybe_token_owner with
+  | None =>
+    error = TokenNotFoundError;
+    Throw error
+  | Some token_owner =>
+    traits[token_id] := proposed_traits
+  end
+end
+
 procedure SetTokenURI(token_id: Uint256, token_uri: String)
   is_empty_string = builtin eq token_uri empty_string;
   match is_empty_string with 
@@ -487,6 +518,13 @@ procedure HandleMint(info: Pair ByStr20 String)
     MintToken to;
     token_id <- token_id_count;
     SetTokenURI token_id token_uri
+  end
+end
+
+procedure HandleSetTraits(token_id_proposed_traits_pair: Pair (Uint256) (List(Pair String String)))
+  match token_id_proposed_traits_pair with
+  | Pair token_id proposed_traits =>
+    SetTraits token_id proposed_traits
   end
 end
 
@@ -555,46 +593,63 @@ procedure HandleTransfer(info: Pair ByStr20 Uint256)
 end
 
 procedure TransferItemToParent(
-  to_metazoa_id: Uint256,
-  item_id: Uint256
+  to_token_id: Uint256,
+  item_id: Uint256,
+  to_contract: ByStr20
 )
-  RequireNotPaused;
-  RequireValidItem item_id;
-  RequireValidMetazoa to_metazoa_id;
-  RequireRootOwner item_id;
-  ValidateMetazoaOwnership to_metazoa_id;
-  RequireItemNotEquipped item_id;
+  maybe_token_contract <- & to_contract as ByStr20 with contract field token_owners : Map Uint256 ByStr20 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidParentContractError;
+    Throw error
+  | Some token_contract =>
+    RequireNotPaused;
+    RequireValidItem item_id;
+    RequireValidParentToken to_token_id token_contract;
+    RequireRootOwner item_id token_contract;
+    ValidateOwnership to_token_id token_contract;
+    RequireItemNotEquipped item_id;
 
-  equipped_items[item_id] := to_metazoa_id;
-  token_owners[item_id] := zero_address
-end
-
-procedure TransferItemFromParent(
-  from_metazoa_id: Uint256,
-  item_id: Uint256
-)
-  RequireNotPaused;
-  RequireValidItem item_id;
-  RequireValidMetazoa from_metazoa_id;
-  RequireRootOwner item_id;
-  ValidateMetazoaOwnership from_metazoa_id;
-  RequireItemEquipped from_metazoa_id item_id;
-
-  delete equipped_items[item_id];
-  token_owners[item_id] := _sender
-end
-
-procedure HandleTransferItemToParent(to_metazoa_id_item_id_pair: Pair Uint256 Uint256)
-  match to_metazoa_id_item_id_pair with
-  | Pair to_metazoa_id item_id =>
-  TransferItemToParent to_metazoa_id item_id
+    new_equip_item = Pair {Uint256 ByStr20} to_token_id to_contract;
+    equipped_items[item_id] := new_equip_item;
+    token_owners[item_id] := zero_address
   end
 end
 
-procedure HandleTransferItemFromParent(from_metazoa_id_item_id_pair: Pair Uint256 Uint256)
-  match from_metazoa_id_item_id_pair with
-  | Pair from_metazoa_id item_id =>
-  TransferItemFromParent from_metazoa_id item_id
+procedure TransferItemFromParent(
+  from_token_id: Uint256,
+  item_id: Uint256,
+  from_contract: ByStr20
+)
+  maybe_token_contract <- & from_contract as ByStr20 with contract field token_owners : Map Uint256 ByStr20 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidParentContractError;
+    Throw error
+  | Some token_contract =>
+    RequireNotPaused;
+    RequireValidItem item_id;
+    RequireValidParentToken from_token_id token_contract;
+    RequireRootOwner item_id token_contract;
+    ValidateOwnership from_token_id token_contract;
+    RequireItemEquipped from_token_id item_id;
+
+    delete equipped_items[item_id];
+    token_owners[item_id] := _sender
+  end
+end
+
+procedure HandleTransferItemToParent(to_token_id_item_id_to_contract: TransferItemParams)
+  match to_token_id_item_id_to_contract with
+  | TransferItemParams to_token_id item_id to_contract =>
+    TransferItemToParent to_token_id item_id to_contract
+  end
+end
+
+procedure HandleTransferItemFromParent(from_token_id_item_id_from_contract: TransferItemParams)
+  match from_token_id_item_id_from_contract with
+  | TransferItemParams from_token_id item_id from_contract =>
+    TransferItemFromParent from_token_id item_id from_contract
   end
 end
 
@@ -673,6 +728,60 @@ transition SetBaseURI(uri: String)
   msgs = one_msg msg_to_sender;
   send msgs  
 end
+
+(* @dev: Update the traits of a given token_id     *)
+(* param: token_id - Unique ID of the NFT          *)
+(* param: proposed_traits   - A map of the traits  *)
+transition SetTokenTraits(
+  token_id: Uint256,
+  proposed_traits: List (Pair String String)
+)
+  SetTraits token_id proposed_traits;
+  e = {
+    _eventname: "SetTokenTraits";
+    token_id: token_id;
+    traits: proposed_traits
+  };
+  event e
+end
+
+transition MintAndSetTraits(
+  to: ByStr20,
+  token_uri: String,
+  proposed_traits: List (Pair String String)
+)
+  RequireNotPaused;
+  MintToken to;
+  token_id <- token_id_count;
+  SetTokenURI token_id token_uri;
+
+  SetTraits token_id proposed_traits;
+
+  e = {
+    _eventname: "MintAndSetTraits";
+    to: to;
+    token_id: token_id;
+    token_uri: token_uri;
+    traits: proposed_traits
+  };
+  event e;
+
+  msg_to_recipient = {
+    _tag: "ZRC6_RecipientAcceptMint";
+    _recipient: to;
+    _amount: Uint128 0
+  };
+  msg_to_sender = {
+    _tag: "ZRC6_MintCallback";
+    _recipient: _sender;
+    _amount: Uint128 0;
+    to: to;
+    token_id: token_id;
+    token_uri: token_uri
+  };
+  msgs = two_msgs msg_to_recipient msg_to_sender;
+  send msgs
+end         
 
 (* Mints a token with a specific `token_uri` and transfers it to `to`. *)
 (* Pass empty string to `token_uri` to use the concatenated token URI. i.e. `<base_uri><token_id>`. *)
@@ -946,55 +1055,57 @@ transition AddOperator(operator: ByStr20)
 end
 
 transition TransferToParent(
-  to_metazoa_id: Uint256,
-  item_id: Uint256
+  to_token_id: Uint256,
+  item_id: Uint256,
+  to_contract: ByStr20
 )
-  TransferItemToParent to_metazoa_id item_id;
+  TransferItemToParent to_token_id item_id to_contract;
 
   e = {
     _eventname: "TransferToParent";
     sender: _sender;
-    metazoaId: to_metazoa_id;
+    to_token_id: to_token_id;
     item_id: item_id
   };
   event e
 end
 
 transition BatchTransferToParent(
-  to_metazoa_id_item_id_pair_list: List (Pair Uint256 Uint256)
+  to_token_id_item_id_to_contract_list: List (TransferItemParams)
 )
-  forall to_metazoa_id_item_id_pair_list HandleTransferItemToParent;
+  forall to_token_id_item_id_to_contract_list HandleTransferItemToParent;
   e = {
     _eventname: "BatchTransferToParent";
     sender: _sender;
-    to_metazoa_id_item_id_pair_list: to_metazoa_id_item_id_pair_list
+    to_token_id_item_id_to_contract_list: to_token_id_item_id_to_contract_list
   };
   event e
 end
 
 transition TransferFromParent(
-  from_metazoa_id: Uint256,
-  item_id: Uint256
+  from_token_id: Uint256,
+  item_id: Uint256,
+  from_contract: ByStr20
 )
-  TransferItemFromParent from_metazoa_id item_id;  
+  TransferItemFromParent from_token_id item_id from_contract;  
 
   e = {
     _eventname: "TransferFromParent";
     sender: _sender;
-    metazoaId: from_metazoa_id;
+    from_token_id: from_token_id;
     item_id: item_id
   };
   event e
 end
 
 transition BatchTransferFromParent(
-  from_metazoa_id_item_id_pair_list: List (Pair Uint256 Uint256)
+  from_token_id_item_id_from_contract_list: List (TransferItemParams)
 )
-  forall from_metazoa_id_item_id_pair_list HandleTransferItemFromParent;
+  forall from_token_id_item_id_from_contract_list HandleTransferItemFromParent;
   e = {
     _eventname: "BatchTransferFromParent";
     sender: _sender;
-    from_metazoa_id_item_id_pair_list: from_metazoa_id_item_id_pair_list
+    from_token_id_item_id_from_contract_list: from_token_id_item_id_from_contract_list
   };
   event e
 end
