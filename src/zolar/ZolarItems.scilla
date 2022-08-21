@@ -46,6 +46,9 @@ let get_bal =
 type TransferItemParams =
   | TransferItemParams of Uint256 Uint256 ByStr20 (* parent_token_id, item_id, parent_contract *)
 
+type MintAndSetTraitsParams =
+  | MintAndSetTraitsParams of ByStr20 String (List (Pair String String)) (* to, token_uri, proposed_traits *)
+
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -170,7 +173,7 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping of item id to its respective parent token*)
-field equipped_items: Map Uint256 Pair Uint256 ByStr20 = Emp Uint256 Pair Uint256 ByStr20
+field parent_owners: Map Uint256 Pair ByStr20 Uint256 = Emp Uint256 Pair ByStr20 Uint256
 
 (* The total number of tokens minted *)
 field token_id_count: Uint256 = Uint256 0
@@ -261,6 +264,44 @@ procedure RequireValidParentToken(
   end
 end
 
+(* procedure RequireRootOwner(
+  item_id: Uint256,
+  token_contract_address: ByStr20
+)
+  maybe_token_contract <- & token_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidParentContractError;
+    Throw error
+  | Some token_contract =>
+    maybe_token_owner <- & token_contract.token_owners[item_id];
+    match maybe_token_owner with
+    | None =>
+      error = TokenNotFoundError;
+      Throw error
+    | Some token_owner =>
+      maybe_token_owned <- & token_contract.parent_owners[item_id];
+      match maybe_token_owned with
+      | None =>
+        is_root_owner = builtin eq token_owner _sender;
+        match is_root_owner with
+        | True =>
+        | False =>
+          error = NotRootOwnerError;
+          Throw error
+        end
+      | Some token_owned =>
+        match token_owned with
+        | Pair parent_contract parent_token_id =>
+          RequireRootOwner parent_token_id parent_contract
+        end
+      end
+    end
+  end
+end *)
+
 procedure RequireRootOwner(
   item_id: Uint256,
   token_contract: ByStr20 with contract
@@ -272,7 +313,7 @@ procedure RequireRootOwner(
     error = TokenNotFoundError;
     Throw error
   | Some token_owner =>
-    maybe_item_equipped <- equipped_items[item_id];
+    maybe_item_equipped <- parent_owners[item_id];
     match maybe_item_equipped with
     | None =>
       is_root_owner = builtin eq token_owner _sender;
@@ -284,20 +325,20 @@ procedure RequireRootOwner(
       end
     | Some item_equipped =>
       match item_equipped with
-      | Pair parent_token_id parent_contract =>
+      | Pair parent_contract parent_token_id =>
         maybe_root_owner <- & token_contract.token_owners[parent_token_id];
         match maybe_root_owner with
         | None =>
           error = ParentTokenNotFoundError;
           Throw error
-        | Some root_owner =>        
+        | Some root_owner =>
           is_root_owner = builtin eq root_owner _sender;
           match is_root_owner with
           | True =>
           | False =>
             error = NotRootOwnerError;
             Throw error
-          end
+          end     
         end
       end
     end
@@ -374,14 +415,14 @@ procedure ValidateOwnership(
 end
 
 procedure RequireItemEquipped(parent_token_id: Uint256, item_id: Uint256)
-  maybe_parent <- equipped_items[item_id];
+  maybe_parent <- parent_owners[item_id];
   match maybe_parent with
   | None =>
     err = ItemNotEquippedError;
     Throw err
   | Some parent =>
     match parent with
-    | Pair token_id _ =>
+    | Pair _ token_id =>
       is_correct_parent = builtin eq parent_token_id token_id;
       match is_correct_parent with
       | True =>
@@ -394,7 +435,7 @@ procedure RequireItemEquipped(parent_token_id: Uint256, item_id: Uint256)
 end
 
 procedure RequireItemNotEquipped(item_id: Uint256)
-  maybe_parent <- equipped_items[item_id];
+  maybe_parent <- parent_owners[item_id];
   match maybe_parent with
   | None =>
   | Some parent =>
@@ -486,6 +527,33 @@ procedure MintToken(to: ByStr20)
   total_supply := new_supply
 end
 
+procedure MintTokenAndSetTraits(
+  to: ByStr20,
+  proposed_traits: List (Pair String String)
+)
+  RequireValidDestination to;
+  RequireContractOwner;
+  IsMinter _sender;
+
+  (* generate ID *)
+  current_token_id_count <- token_id_count;
+  new_token_id_count = builtin add current_token_id_count one;
+  token_id_count := new_token_id_count;
+  token_id = new_token_id_count;
+
+  (* mint a new token and set its traits*)
+  token_owners[token_id] := to;
+  traits[token_id] := proposed_traits;
+
+  (* add one to the token owner balance *)
+  UpdateBalance add_operation to;
+  
+  (* add one to the total supply *)
+  current_supply <- total_supply;
+  new_supply = builtin add current_supply one;
+  total_supply := new_supply
+end
+
 procedure SetTraits(
   token_id: Uint256,
   proposed_traits: List (Pair String String)
@@ -521,10 +589,19 @@ procedure HandleMint(info: Pair ByStr20 String)
   end
 end
 
-procedure HandleSetTraits(token_id_proposed_traits_pair: Pair (Uint256) (List(Pair String String)))
+procedure HandleSetTraits(token_id_proposed_traits_pair: Pair Uint256 (List (Pair String String)))
   match token_id_proposed_traits_pair with
   | Pair token_id proposed_traits =>
     SetTraits token_id proposed_traits
+  end
+end
+
+procedure HandleMintAndSetTraits(to_token_uri_proposed_traits: MintAndSetTraitsParams)
+  match to_token_uri_proposed_traits with
+  | MintAndSetTraitsParams to token_uri proposed_traits =>
+    MintTokenAndSetTraits to proposed_traits;
+    token_id <- token_id_count;
+    SetTokenURI token_id token_uri
   end
 end
 
@@ -592,6 +669,15 @@ procedure HandleTransfer(info: Pair ByStr20 Uint256)
   end
 end
 
+procedure RequireItemNotParent(
+  to_token_id: Uint256,
+  item_id: Uint256,
+  to_contract: ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20
+  end
+)
+end
+
 procedure TransferItemToParent(
   to_token_id: Uint256,
   item_id: Uint256,
@@ -606,12 +692,13 @@ procedure TransferItemToParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken to_token_id token_contract;
-    RequireRootOwner item_id token_contract;
-    ValidateOwnership to_token_id token_contract;
     RequireItemNotEquipped item_id;
+    RequireItemNotParent to_token_id item_id token_contract;
+    RequireRootOwner item_id token_contract;
+    RequireRootOwner to_token_id token_contract;
 
-    new_equip_item = Pair {Uint256 ByStr20} to_token_id to_contract;
-    equipped_items[item_id] := new_equip_item;
+    new_equip_item = Pair {ByStr20 Uint256} to_contract to_token_id;
+    parent_owners[item_id] := new_equip_item;
     token_owners[item_id] := zero_address
   end
 end
@@ -630,11 +717,11 @@ procedure TransferItemFromParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken from_token_id token_contract;
-    RequireRootOwner item_id token_contract;
-    ValidateOwnership from_token_id token_contract;
     RequireItemEquipped from_token_id item_id;
+    RequireRootOwner item_id token_contract;
+    RequireRootOwner from_token_id token_contract;
 
-    delete equipped_items[item_id];
+    delete parent_owners[item_id];
     token_owners[item_id] := _sender
   end
 end
@@ -745,17 +832,26 @@ transition SetTokenTraits(
   event e
 end
 
+transition BatchSetTokenTraits(
+  token_id_proposed_traits_pair_list : List (Pair Uint256 (List (Pair String String)))
+)
+  forall token_id_proposed_traits_pair_list HandleSetTraits;
+  e = {
+    _eventname: "BatchSetTokenTraits";
+    token_id_proposed_traits_pair_list: token_id_proposed_traits_pair_list
+  };
+  event e
+end
+
 transition MintAndSetTraits(
   to: ByStr20,
   token_uri: String,
   proposed_traits: List (Pair String String)
 )
   RequireNotPaused;
-  MintToken to;
+  MintTokenAndSetTraits to proposed_traits;
   token_id <- token_id_count;
   SetTokenURI token_id token_uri;
-
-  SetTraits token_id proposed_traits;
 
   e = {
     _eventname: "MintAndSetTraits";
@@ -782,6 +878,31 @@ transition MintAndSetTraits(
   msgs = two_msgs msg_to_recipient msg_to_sender;
   send msgs
 end         
+
+transition BatchMintAndSetTraits(
+  to_token_uri_proposed_traits_list: List (MintAndSetTraitsParams)
+)
+  RequireNotPaused;
+  cur_id <- token_id_count;
+  start_id = builtin add cur_id one;
+  forall to_token_uri_proposed_traits_list HandleMintAndSetTraits;
+  end_id <- token_id_count;
+
+  e = {
+    _eventname: "BatchMintAndSetTraits";
+    to_token_uri_proposed_traits_list: to_token_uri_proposed_traits_list;
+    start_id: start_id;
+    end_id: end_id
+  };
+  event e;
+  msg_to_sender = {
+    _tag: "ZRC6_BatchMintCallback";
+    _recipient: _sender;
+    _amount: Uint128 0
+  };
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
 
 (* Mints a token with a specific `token_uri` and transfers it to `to`. *)
 (* Pass empty string to `token_uri` to use the concatenated token URI. i.e. `<base_uri><token_id>`. *)
