@@ -355,23 +355,6 @@ transition PurchaseItem(item_id: Uint128, payment_items: List PaymentItem)
   end
 end
 
-(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
-(* @param item_id: the id of the item to purchase *)
-transition SellItem(item_id: Uint128, min_price: Uint128, token_id: Uint256)
-  maybe_item <- items[item_id];
-  match maybe_item with
-  | None =>
-    err = CodeItemNotFound;
-    ThrowError err
-  | Some item =>
-    match item with
-    | Item name token_address traits crafting_costs  =>
-      ReceiveZRC6 token_address token_id
-    end
-  end
-end
-
-
 (***************************************************)
 (*              Ownership Transitions              *)
 (***************************************************)
