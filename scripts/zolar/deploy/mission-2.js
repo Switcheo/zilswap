@@ -34,7 +34,7 @@ const deployHunyToken = async ({
   }], 0, false, false);
 
   return contract;
-}
+};
 
 const deployResource = async (resource, {
   name,
@@ -63,7 +63,7 @@ const deployResource = async (resource, {
   }], 0, false, false);
 
   return contract;
-}
+};
 
 const deployItems = async ({
 } = {}) => {
@@ -88,7 +88,7 @@ const deployItems = async ({
   }], 0, false, false);
 
   return contract;
-}
+};
 
 const deployGemRefinery = async ({
   itemsAddress,
@@ -107,15 +107,8 @@ const deployGemRefinery = async ({
 
   console.info(`Deploying ZolarItems...`)
   const [contract] = await deployContract(privateKey, code, init)
-
-  await callContract(privateKey, contract, "AddMinter", [{
-    vname: 'minter',
-    type: 'ByStr20',
-    value: address,
-  }], 0, false, false);
-
   return contract;
-}
+};
 
 const deployEmporium = async () => {
   const privateKey = getPrivateKey();
@@ -129,7 +122,7 @@ const deployEmporium = async () => {
   console.info(`Deploying Emporium...`)
   const [contract] = await deployContract(privateKey, code, init)
   return contract;
-}
+};
 
 const deployResourceStore = async ({ emporium, huny_token }) => {
   const privateKey = getPrivateKey();
@@ -145,8 +138,9 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
   console.info(`Deploying Resource Store...`)
   const [contract] = await deployContract(privateKey, code, init)
   return contract;
-}
+};
 
+;
 (async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
