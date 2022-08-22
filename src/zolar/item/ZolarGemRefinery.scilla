@@ -33,6 +33,7 @@ type Error =
   | CodeNotOwnedGem
   | CodeInvalidGeodeAmount
   | CodeInvalidRefinement
+  | CodeInvalidAffinity
 
 let make_error =
   fun (result : Error) =>
@@ -44,6 +45,7 @@ let make_error =
       | CodeNotOwnedGem                       => Int32 -4
       | CodeInvalidGeodeAmount                => Int32 -5
       | CodeInvalidRefinement                 => Int32 -6
+      | CodeInvalidAffinity                   => Int32 -7
       end
     in
     { _exception : "Error"; code : result_code }
@@ -79,13 +81,20 @@ let map_gem_traits =
 let map_mint_traits = 
   fun (gems_traits: List (List (Pair String String))) =>
   fun (recipient: ByStr20) =>
-  let fold = @list_map (List (Pair String String)) (Pair (Pair ByStr20 String) (List (Pair String String))) in
-  let fn = 
-    fun (traits: List (Pair String String)) =>
-      let mint_param = Pair {ByStr20 String} recipient empty in
-      Pair {(Pair ByStr20 String) (List (Pair String String))} mint_param traits
-  in
-  fold fn gems_traits
+    let fold = @list_map (List (Pair String String)) (Pair (Pair ByStr20 String) (List (Pair String String))) in
+    let fn = 
+      fun (traits: List (Pair String String)) =>
+        let mint_param = Pair {ByStr20 String} recipient empty in
+        Pair {(Pair ByStr20 String) (List (Pair String String))} mint_param traits
+    in
+    fold fn gems_traits
+
+let affinity_exist = 
+  fun (affinity: String) =>
+  fun (list: List String) =>
+    let exist = @list_exists String in
+    let fn = fun (aff: String) => builtin eq aff affinity in
+    exist fn list
 
 (***************************************************)
 (*             The contract definition             *)
@@ -97,7 +106,8 @@ contract ZolarGemRefinery(
     field token_owners : Map Uint256 ByStr20,
     field parent_owners : Map Uint256 Pair ByStr20 Uint256
   end,
-  initial_geode_address : ByStr20
+  initial_geode_address : ByStr20,
+  initial_gem_affinities : List String
 )
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
@@ -109,6 +119,7 @@ field items_address : ByStr20 with contract
 end = initial_items_address
 
 field geode_address : ByStr20 = initial_geode_address
+field gem_affinities : List String = initial_gem_affinities
 
 field refinements : Map Uint256 OngoingRefinement = Emp Uint256 OngoingRefinement
 field next_refinement_id : Uint256 = uint256_zero
@@ -155,6 +166,18 @@ procedure IsPendingOwner(address: ByStr20)
     ThrowError err
   end
 end
+
+procedure VerifyAffinity(affinity: String)
+  current_gem_affinities <- gem_affinities;
+  maybe_exist = affinity_exist affinity current_gem_affinities;
+  match maybe_exist with
+  | True =>
+  | False =>
+    err = CodeInvalidAffinity;
+    ThrowError err
+  end
+end
+
 
 procedure VerifyOwnership(token_id: Uint256)
   items_contract <- items_address;
@@ -215,6 +238,7 @@ transition BeginGeodeRefinement(quantity: Uint128)
 end
 
 transition ConcludeGeodeRefinement(refinement_id: Uint256, gems: List String)
+  forall gems VerifyAffinity;
   maybe_ongoing_refinement <- refinements[refinement_id];
   match maybe_ongoing_refinement with
   | None =>

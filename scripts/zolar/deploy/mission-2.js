@@ -102,6 +102,7 @@ const deployGemRefinery = async ({
     param("initial_owner", "ByStr20", address),
     param("initial_items_address", "ByStr20", itemsAddress),
     param("initial_geode_address", "ByStr20", geodeAddress),
+    param("initial_gem_affinities", "List String", ["INT"]),
   ]
 
   console.info(`Deploying ZolarItems...`)
@@ -266,7 +267,7 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
 
   const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeGeodeRefinement", [
     param('refinement_id', 'Uint256', "0"),
-    param('gems', 'List String', ["Int"]),
+    param('gems', 'List String', ["INT"]),
   ], 0, false, false)
   console.log("conclude refinement", txConcludeRefine.id);
 })();
