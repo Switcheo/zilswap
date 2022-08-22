@@ -5,7 +5,7 @@ scilla_version 0
 (***************************************************)
 
 import ListUtils
-library ZolarResourceShop
+library ZolarOMGShop
 
 let true = True
 let false = False
@@ -40,8 +40,6 @@ type Item =
 type PaymentItem =
   | PaymentItem of ByStr20 Uint256 (* item token address, item id *)
 
-let no_item = None {Item}
-
 let make_error =
   fun (result : Error) =>
     let result_code =
@@ -58,6 +56,11 @@ let make_error =
       end
     in
     { _exception : "Error"; code : result_code }
+
+let no_item = None {Item}
+let len_payment_items = @list_length PaymentItem
+let len_crafting_costs = @list_length CraftingCost
+let zipper = @list_zip CraftingCost PaymentItem
 
 let one_msg =
   fun (msg : Message) =>
@@ -153,12 +156,8 @@ let multiply_bps =
 (*             The contract definition             *)
 (***************************************************)
 
-contract ZolarResourceShop(
-  initial_owner: ByStr20,
-  emporium: ByStr20,
-  huny_token: ByStr20  with contract (* this contract must be a minter to burn *)
-    field total_supply : Uint128
-  end
+contract ZolarOMGShop(
+  initial_owner: ByStr20
 )
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
@@ -166,8 +165,7 @@ field pending_owner : Option ByStr20 = none
 
 field items : Map Uint128 Item = Emp Uint128 Item
 field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_purchase, net_inflation) *)
-field adding_item : Option Item = no_item
-field selling_item : Option Item = no_item
+field next_item_id : Uint128 = zero
 
 (**************************************)
 (*             Procedures             *)
@@ -208,16 +206,6 @@ procedure IsPendingOwner(address: ByStr20)
     end
   | None =>
     err = CodeNotPendingOwner;
-    ThrowError err
-  end
-end
-
-procedure IsEmporium(address: ByStr20)
-  is_emporium = builtin eq emporium address;
-  match is_emporium with
-  | True =>
-  | False =>
-    err = CodeNotEmporium;
     ThrowError err
   end
 end
@@ -282,48 +270,67 @@ procedure ReceiveZRC6(token_address: ByStr20, token_id: Uint256)
 end
 
 procedure ReceiveZRC2(token_address: ByStr20, quantity: Uint128, purchaser: ByStr20)
-  is_huny_address = builtin eq token_address huny_token;
-  msg = match is_huny_address with
-    | True => {
-        _tag: "TransferToken";
-        _recipient: emporium;
-        _amount: zero;
-        token: huny_token;
-        from: purchaser;
-        amount: quantity
-      }
-    | False => {
-        _tag: "TransferFrom";
-        _recipient: token_address;
-        _amount: zero;
-        from: _sender;
-        to: _this_address;
-        amount: quantity
-      }
-    end;
+  msg = {
+    _tag: "TransferFrom";
+    _recipient: token_address;
+    _amount: zero;
+    from: _sender;
+    to: _this_address;
+    amount: quantity
+  };
 
   msgs = one_msg msg;
   send msgs
 end
 
-procedure VerifyAndReceiveCraftingCost(purchaser: ByStr20, crafting_cost: CraftingCost, payment_item: PaymentItem)
-  match crafting_cost with
-  | CraftingCost token_address quantity maybe_item_traits  =>
-    match payment_item with
-    | PaymentItem pay_token_address token_id  =>
-      VerifyTokenAddress pay_token_address token_address;
-
-      match maybe_item_traits with
-      | Some item_traits =>
-        (* zrc6 token cost*)
-        VerifyItemTraits item_traits token_address token_id;
-        ReceiveZRC6 token_address token_id
-      | None =>
-        (* zrc2 token cost *)
-        ReceiveZRC2 token_address quantity purchaser
+procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
+  match pair with
+  | Pair crafting_cost payment_item =>
+    match crafting_cost with
+    | CraftingCost token_address quantity maybe_item_traits  =>
+      match payment_item with
+      | PaymentItem pay_token_address token_id  =>
+        VerifyTokenAddress pay_token_address token_address;
+        match maybe_item_traits with
+        | Some item_traits =>
+          (* zrc6 token cost*)
+          VerifyItemTraits item_traits token_address token_id;
+          ReceiveZRC6 token_address token_id
+        | None =>
+          (* zrc2 token cost *)
+          ReceiveZRC2 token_address quantity _sender
+        end
       end
     end
   end
+end
+
+procedure VerifyAndReceivePayment(crafting_costs: List CraftingCost, payment_items: List PaymentItem)
+  count_crafting_costs = len_crafting_costs crafting_costs;
+  count_payment_items = len_payment_items payment_items;
+  is_same_count = builtin eq count_crafting_costs count_payment_items;
+  match is_same_count with
+  | True =>
+  | False =>
+    err = CodeItemNotFound; (* TODO: new error *)
+    ThrowError err
+  end;
+
+  pairs = zipper crafting_costs payment_items;
+  forall pairs VerifyAndReceiveCraftingCost
+end
+
+procedure MintItem(token_address: ByStr20, traits: List (Pair String String))
+  msg_to_items = {
+    _tag: "MintAndSetTraits";
+    _recipient: token_address;
+    _amount: zero;
+    to: _sender;
+    token_uri: empty;
+    proposed_traits: traits
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
 end
 
 
@@ -333,32 +340,37 @@ end
 
 (* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
 (* @param item_id: the id of the item to purchase *)
-(* @param max_price: maximum price to pay *)
-(* @param purchase_data: extra purchase data for events *)
-(* @param purchaser: buyer of purchased item *)
-transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: String, purchaser: ByStr20)
-  IsEmporium _sender;
+transition PurchaseItem(item_id: Uint128, payment_items: List PaymentItem)
   maybe_item <- items[item_id];
   match maybe_item with
   | None =>
     err = CodeItemNotFound;
     ThrowError err
   | Some item =>
-    maybe_quantity = builtin to_uint128 purchase_data;
-
-    quantity = match maybe_quantity with
-    | Some q => q
-    | None => zero
-    end;
-    
-    IsValidQuantity quantity;
-
     match item with
     | Item name token_address traits crafting_costs  =>
-      (* TODO *)
+      VerifyAndReceivePayment crafting_costs payment_items;
+      MintItem token_address traits
     end
   end
 end
+
+(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+transition SellItem(item_id: Uint128, min_price: Uint128, token_id: Uint256)
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    match item with
+    | Item name token_address traits crafting_costs  =>
+      ReceiveZRC6 token_address token_id
+    end
+  end
+end
+
 
 (***************************************************)
 (*              Ownership Transitions              *)
@@ -394,17 +406,15 @@ transition AddItem(
 )
   IsOwner _sender;
 
-  item = let i = Item item_name token_address traits cost in Some {Item} i;
-  adding_item := item;
+  item_id <- next_item_id;
+  item = Item item_name token_address traits cost;
+  items[item_id] := item;
 
-  msg_to_emporium = {
-    _tag: "ListItem";
-    _recipient: emporium;
-    _amount: zero;
-    item_name: item_name
-  };
-  msgs = one_msg msg_to_emporium;
-  send msgs
+  n = builtin add item_id one;
+  next_item_id := n;
+
+  e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
+  event e
 end
 
 (* @dev: Removes an item from the store and delists it from z grand emporium. *)
@@ -416,19 +426,7 @@ transition RemoveItem(item_id: Uint128)
     err = CodeItemNotFound;
     ThrowError err
   | Some item =>
-    delete items[item_id];
-
-    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
-    event e;
-
-    msg_to_emporium = {
-      _tag: "DelistItem";
-      _recipient: emporium;
-      _amount: zero;
-      item_id: item_id
-    };
-    msgs = one_msg msg_to_emporium;
-    send msgs
+    delete items[item_id]
   end
 end
 
@@ -437,29 +435,16 @@ end
 (***************************************)
 
 transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
-  maybe_item <- selling_item;
-  match maybe_item with
-  | None => (* no-op: not selling item, ignore *)
-  | Some item =>
-    token_address = match item with
-      | Item _ token_address _ _ => token_address
-    end;
-    is_recieving_resource = builtin eq token_address _sender;
-    match is_recieving_resource with
-    | False => (* no-op: ignore not sold token *)
-    | True =>
-      msg_to_resource = {
-        _tag: "Burn";
-        _recipient: token_address;
-        _amount: zero;
-        burn_account: _this_address;
-        amount: amount
-      };
-     
-      msgs = one_msg msg_to_resource;
-      send msgs 
-    end
-  end
+  msg_to_resource = {
+    _tag: "Burn";
+    _recipient: _sender;
+    _amount: zero;
+    burn_account: _this_address;
+    amount: amount
+  };
+ 
+  msgs = one_msg msg_to_resource;
+  send msgs 
 end
 
 transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
@@ -472,21 +457,6 @@ transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id
 
   msgs = one_msg msg_to_token;
   send msgs 
-end
-
-transition ListItemSuccess(item_id: Uint128, item_name: String)
-  IsEmporium _sender;
-  maybe_item <- adding_item;
-  match maybe_item with
-  | None =>
-    err = CodeItemNotFound;
-    ThrowError err
-  | Some item =>
-    items[item_id] := item;
-    adding_item := no_item;
-    e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
-    event e
-  end
 end
 
 (* burn huny *)
