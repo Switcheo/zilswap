@@ -526,7 +526,6 @@ procedure MintTokenAndSetTraits(
   proposed_traits: List (Pair String String)
 )
   RequireValidDestination to;
-  RequireContractOwner;
   IsMinter _sender;
 
   (* generate ID *)
@@ -552,7 +551,7 @@ procedure SetTraits(
   token_id: Uint256,
   proposed_traits: List (Pair String String)
 )
-  RequireContractOwner;
+  IsMinter _sender;
 
   maybe_token_owner <- token_owners[token_id];
   match maybe_token_owner with

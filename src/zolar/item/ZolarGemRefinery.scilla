@@ -312,3 +312,7 @@ transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint
   (* no-op *)
 end
 
+(* mint gems *)
+transition ZRC6_BatchMintCallback()
+  (* no-op *)
+end

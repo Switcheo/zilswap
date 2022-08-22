@@ -65,6 +65,57 @@ const deployResource = async (resource, {
   return contract;
 }
 
+const deployItems = async ({
+} = {}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile(`./src/zolar/item/ZolarItems.scilla`)).toString()
+  const init = [
+    param("_scilla_version", "Uint32", "0"),
+    param("initial_contract_owner", "ByStr20", address),
+    param("initial_base_uri", "String", "https://api.zolar.io/items/metadata/"),
+    param("name", "String", "Zolar Items"),
+    param("symbol", "String", "ITEM"),
+  ]
+
+  console.info(`Deploying ZolarItems...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  await callContract(privateKey, contract, "AddMinter", [{
+    vname: 'minter',
+    type: 'ByStr20',
+    value: address,
+  }], 0, false, false);
+
+  return contract;
+}
+
+const deployGemRefinery = async ({
+  itemsAddress,
+  geodeAddress,
+} = {}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile(`./src/zolar/item/ZolarGemRefinery.scilla`)).toString()
+  const init = [
+    param("_scilla_version", "Uint32", "0"),
+    param("initial_owner", "ByStr20", address),
+    param("initial_items_address", "ByStr20", itemsAddress),
+    param("initial_geode_address", "ByStr20", geodeAddress),
+  ]
+
+  console.info(`Deploying ZolarItems...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  await callContract(privateKey, contract, "AddMinter", [{
+    vname: 'minter',
+    type: 'ByStr20',
+    value: address,
+  }], 0, false, false);
+
+  return contract;
+}
+
 const deployEmporium = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
@@ -116,6 +167,17 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
 
   const scrapContract = await deployResource("ZolarZolraniumScrap", { name: "Scraps - Zolar Resource", symbol: "zlrSCRAP", decimals: "2" });
   const scrapAddress = scrapContract.address.toLowerCase();
+
+  const itemsContract = await deployItems();
+  const itemsAddress = itemsContract.address.toLowerCase();
+
+  const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress });
+  const gemRefineryAddress = gemRefineryContract.address.toLowerCase();
+
+  const txAddMinterRefinery = await callContract(privateKey, itemsContract, "AddMinter", [
+    param('minter', 'ByStr20', gemRefineryAddress),
+  ], 0, false, false);
+  console.log("add refinery as items minter", txAddMinterRefinery.id);
 
   const txAddMinter1 = await callContract(privateKey, geodeContract, "AddMinter", [
     param('minter', 'ByStr20', resourceStallAddress),
@@ -190,4 +252,21 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
     param('quantity', 'Uint128', "100"),
   ], 0, false, false)
   console.log("sell geode", txSellGeode.id);
+
+  const txRefineryAllowance = await callContract(privateKey, geodeContract, "IncreaseAllowance", [
+    param('spender', 'ByStr20', emporiumAddress),
+    param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
+  ], 0, false, false)
+  console.log("increase allowance geode", txRefineryAllowance.id);
+
+  const txRefineGeode = await callContract(privateKey, gemRefineryContract, "BeginGeodeRefinement", [
+    param('quantity', 'Uint128', "100"),
+  ], 0, false, false)
+  console.log("refine geode", txRefineGeode.id);
+
+  const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeGeodeRefinement", [
+    param('refinement_id', 'Uint256', "0"),
+    param('gems', 'List String', ["Int"]),
+  ], 0, false, false)
+  console.log("conclude refinement", txConcludeRefine.id);
 })();
