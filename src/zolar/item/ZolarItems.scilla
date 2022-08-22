@@ -43,12 +43,6 @@ let get_bal =
     | Some bal => bal
     end
 
-type TransferItemParams =
-  | TransferItemParams of Uint256 Uint256 ByStr20 (* parent_token_id, item_id, parent_contract *)
-
-type MintAndSetTraitsParams =
-  | MintAndSetTraitsParams of ByStr20 String (List (Pair String String)) (* to, token_uri, proposed_traits *)
-
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -596,12 +590,15 @@ procedure HandleSetTraits(token_id_proposed_traits_pair: Pair Uint256 (List (Pai
   end
 end
 
-procedure HandleMintAndSetTraits(to_token_uri_proposed_traits: MintAndSetTraitsParams)
+procedure HandleMintAndSetTraits(to_token_uri_proposed_traits: Pair (Pair ByStr20 String) (List (Pair String String)))
   match to_token_uri_proposed_traits with
-  | MintAndSetTraitsParams to token_uri proposed_traits =>
-    MintTokenAndSetTraits to proposed_traits;
-    token_id <- token_id_count;
-    SetTokenURI token_id token_uri
+  | Pair to_token_uri proposed_traits =>
+    match to_token_uri with
+    | Pair to token_uri =>
+      MintTokenAndSetTraits to proposed_traits;
+      token_id <- token_id_count;
+      SetTokenURI token_id token_uri
+    end
   end
 end
 
@@ -726,17 +723,23 @@ procedure TransferItemFromParent(
   end
 end
 
-procedure HandleTransferItemToParent(to_token_id_item_id_to_contract: TransferItemParams)
-  match to_token_id_item_id_to_contract with
-  | TransferItemParams to_token_id item_id to_contract =>
-    TransferItemToParent to_token_id item_id to_contract
+procedure HandleTransferItemToParent(params: Pair Uint256 (Pair Uint256 ByStr20))
+  match params with
+  | Pair item_id pair =>
+    match pair with
+    | Pair to_token_id to_contract =>
+      TransferItemToParent to_token_id item_id to_contract
+    end
   end
 end
 
-procedure HandleTransferItemFromParent(from_token_id_item_id_from_contract: TransferItemParams)
-  match from_token_id_item_id_from_contract with
-  | TransferItemParams from_token_id item_id from_contract =>
-    TransferItemFromParent from_token_id item_id from_contract
+procedure HandleTransferItemFromParent(params: Pair Uint256 (Pair Uint256 ByStr20))
+  match params with
+  | Pair item_id pair =>
+    match pair with
+    | Pair from_token_id from_contract =>
+      TransferItemFromParent from_token_id item_id from_contract
+    end
   end
 end
 
@@ -880,7 +883,7 @@ transition MintAndSetTraits(
 end         
 
 transition BatchMintAndSetTraits(
-  to_token_uri_proposed_traits_list: List (MintAndSetTraitsParams)
+  to_token_uri_proposed_traits_list: List (Pair (Pair ByStr20 String) (List (Pair String String)))
 )
   RequireNotPaused;
   cur_id <- token_id_count;
@@ -1176,8 +1179,8 @@ transition AddOperator(operator: ByStr20)
 end
 
 transition TransferToParent(
-  to_token_id: Uint256,
   item_id: Uint256,
+  to_token_id: Uint256,
   to_contract: ByStr20
 )
   TransferItemToParent to_token_id item_id to_contract;
@@ -1192,20 +1195,20 @@ transition TransferToParent(
 end
 
 transition BatchTransferToParent(
-  to_token_id_item_id_to_contract_list: List (TransferItemParams)
+  item_id_to_token_id_to_contract_list: List (Pair Uint256 (Pair Uint256 ByStr20))
 )
-  forall to_token_id_item_id_to_contract_list HandleTransferItemToParent;
+  forall item_id_to_token_id_to_contract_list HandleTransferItemToParent;
   e = {
     _eventname: "BatchTransferToParent";
     sender: _sender;
-    to_token_id_item_id_to_contract_list: to_token_id_item_id_to_contract_list
+    params: item_id_to_token_id_to_contract_list
   };
   event e
 end
 
 transition TransferFromParent(
-  from_token_id: Uint256,
   item_id: Uint256,
+  from_token_id: Uint256,
   from_contract: ByStr20
 )
   TransferItemFromParent from_token_id item_id from_contract;  
@@ -1220,13 +1223,13 @@ transition TransferFromParent(
 end
 
 transition BatchTransferFromParent(
-  from_token_id_item_id_from_contract_list: List (TransferItemParams)
+  item_id_from_token_id_from_contract_list: List (Pair Uint256 (Pair Uint256 ByStr20))
 )
-  forall from_token_id_item_id_from_contract_list HandleTransferItemFromParent;
+  forall item_id_from_token_id_from_contract_list HandleTransferItemFromParent;
   e = {
     _eventname: "BatchTransferFromParent";
     sender: _sender;
-    from_token_id_item_id_from_contract_list: from_token_id_item_id_from_contract_list
+    params: item_id_from_token_id_from_contract_list
   };
   event e
 end

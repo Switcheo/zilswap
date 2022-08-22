@@ -1,0 +1,314 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+library ZolarGemRefinery
+
+let true = True
+let false = False
+let zero = Uint128 0
+let uint256_zero = Uint256 0
+let uint256_one = Uint256 1
+let one = Uint128 1
+let two = Uint128 2
+let none = None {ByStr20}
+let empty = ""
+let hundred_percent_bps = Uint128 10000
+let hundred = Uint128 100
+let empty_pair = Pair {Uint128 Uint128} zero zero
+let zero_address = 0x0000000000000000000000000000000000000000
+
+let trait_key_affinity = "Affinity"
+let trait_key_type = "Type"
+let trait_value_type = "Gem"
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotOwnedGem
+  | CodeInvalidGeodeAmount
+  | CodeInvalidRefinement
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                          => Int32 -1
+      | CodeNotPendingOwner                   => Int32 -2
+      | CodePendingOwnerNotEmpty              => Int32 -3
+      | CodeNotOwnedGem                       => Int32 -4
+      | CodeInvalidGeodeAmount                => Int32 -5
+      | CodeInvalidRefinement                 => Int32 -6
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+type OngoingRefinement =
+  | OngoingRefinement of ByStr20 Uint128
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let nil_msg = Nil {Message} in
+  let list = Cons {Message} msg1 nil_msg in
+  Cons {Message} msg2 list
+
+let map_gem_traits =
+  fun (gem_affinity_list : List String) => 
+    let fold = @list_map (String) (List (Pair String String)) in
+    let fn = 
+      fun (affinity: String) =>
+        let trait_type = Pair {String String} trait_key_type trait_value_type in
+        let trait_affinity = Pair {String String} trait_key_affinity affinity in
+        let t0 = Nil {(Pair String String)} in
+        let t1 = Cons {(Pair String String)} trait_type t0 in
+        Cons {(Pair String String)} trait_affinity t1
+    in
+    fold fn gem_affinity_list
+
+let map_mint_traits = 
+  fun (gems_traits: List (List (Pair String String))) =>
+  fun (recipient: ByStr20) =>
+  let fold = @list_map (List (Pair String String)) (Pair (Pair ByStr20 String) (List (Pair String String))) in
+  let fn = 
+    fun (traits: List (Pair String String)) =>
+      let mint_param = Pair {ByStr20 String} recipient empty in
+      Pair {(Pair ByStr20 String) (List (Pair String String))} mint_param traits
+  in
+  fold fn gems_traits
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarGemRefinery(
+  initial_owner : ByStr20,
+  initial_items_address : ByStr20 with contract
+    field token_owners : Map Uint256 ByStr20,
+    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  end,
+  initial_geode_address : ByStr20
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field items_address : ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256
+end = initial_items_address
+
+field geode_address : ByStr20 = initial_geode_address
+
+field refinements : Map Uint256 OngoingRefinement = Emp Uint256 OngoingRefinement
+field next_refinement_id : Uint256 = uint256_zero
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure VerifyOwnership(token_id: Uint256)
+  items_contract <- items_address;
+  maybe_owner <- & items_contract.token_owners[token_id];
+  owner = match maybe_owner with
+    | Some owner => owner
+    | None => zero_address
+    end;
+
+  is_owner = builtin eq owner _sender;
+  match is_owner with
+  | True =>
+  | False =>
+    err = CodeNotOwnedGem;
+    ThrowError err
+  end
+end
+
+procedure VerifyGeodeQuantity(quantity: Uint128)
+  invalid_qty = builtin lt quantity hundred;
+  match invalid_qty with
+  | False =>
+  | True =>
+    err = CodeInvalidGeodeAmount;
+    ThrowError err
+  end;
+
+  remainder = builtin rem quantity hundred;
+  valid_lot_size = builtin eq remainder zero;
+  match valid_lot_size with
+  | True =>
+  | False =>
+    err = CodeInvalidGeodeAmount;
+    ThrowError err
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition UpgradeGem(output_tier: Uint32, gem_token_ids: List Uint256)
+  forall gem_token_ids VerifyOwnership
+
+  (* TODO: implement gem evolution *)
+end
+
+transition BeginGeodeRefinement(quantity: Uint128)
+  VerifyGeodeQuantity quantity;
+  gem_quantity = builtin div quantity hundred;
+
+  refinement_id <- next_refinement_id;
+  new_refinement_id = builtin add refinement_id uint256_one;
+  next_refinement_id := new_refinement_id;
+
+  refinement = OngoingRefinement _sender gem_quantity;
+  refinements[refinement_id] := refinement
+end
+
+transition ConcludeGeodeRefinement(refinement_id: Uint256, gems: List String)
+  maybe_ongoing_refinement <- refinements[refinement_id];
+  match maybe_ongoing_refinement with
+  | None =>
+    err = CodeInvalidRefinement;
+    ThrowError err
+  | Some ongoing_refinement => 
+    delete refinements[refinement_id];
+
+    recipient = match ongoing_refinement with
+      | OngoingRefinement recipient _ => recipient
+      end;
+
+    gems_traits = map_gem_traits gems;
+    batch_mint_params = map_mint_traits gems_traits recipient;
+
+    current_items_address <- items_address;
+    msg_to_items = {
+      _tag: "BatchMintAndSetTraits";
+      _recipient: current_items_address;
+      _amount: zero;
+      to_token_uri_proposed_traits_list: batch_mint_params
+    };
+    msgs = one_msg msg_to_items;
+    send msgs
+  end
+end
+
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  msg_to_resource = {
+    _tag: "Burn";
+    _recipient: _sender;
+    _amount: zero;
+    burn_account: _this_address;
+    amount: amount
+  };
+ 
+  msgs = one_msg msg_to_resource;
+  send msgs 
+end
+
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+  msg_to_token = {
+    _tag: "BurnToken";
+    _recipient: _sender;
+    _amount: zero;
+    token_id: token_id
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs 
+end
+
+(* burn geodes *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* burn gems *)
+transition ZRC6_BurnCallBack(token_owner: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* mint gems *)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+

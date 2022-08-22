@@ -447,13 +447,8 @@ transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: U
   (* no-op *)
 end
 
-(* sell resource *)
-transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
-  (* no-op *)
-end
-
-(* sell resource *)
-transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* burn items *)
+transition ZRC6_BurnCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
