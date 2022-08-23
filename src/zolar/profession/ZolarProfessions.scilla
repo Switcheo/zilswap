@@ -10,12 +10,14 @@ library ZolarProfessions
 let true = True
 let false = False
 let zero = Uint128 0
+let uint32_zero = Uint32 0
 let uint256_zero = Uint256 0
 let uint256_one = Uint256 1
 let one = Uint128 1
 let two = Uint128 2
 let none = None {ByStr20}
 let empty = ""
+let nostr = None {String}
 let empty_traits = Nil {(Pair String String)}
 let hundred_percent_bps = Uint128 10000
 let hundred = Uint128 100
@@ -23,11 +25,10 @@ let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
 
 let trait_key_profession = "Profession"
-let trait_val_str = "STR"
-let trait_val_dex = "DEX"
-let trait_val_int = "INT"
+let trait_key_unused_attributes = "UnusedAttributePoints"
 
 let trait_list_filter = @list_filter (Pair String String)
+let trait_list_find = @list_find (Pair String String)
 
 (* Error events *)
 type Error =
@@ -39,6 +40,8 @@ type Error =
   | CodeOperatorNotFoundError
   | CodeInvalidMetazoaContract
   | CodeNotTokenOwner
+  | CodeInvalidTrait
+  | CodeInsufficientFreePoints
 
 let make_error =
   fun (result : Error) =>
@@ -52,6 +55,8 @@ let make_error =
       | CodeOperatorNotFoundError             => Int32 -6
       | CodeInvalidMetazoaContract            => Int32 -7
       | CodeNotTokenOwner                     => Int32 -8
+      | CodeInvalidTrait                      => Int32 -9
+      | CodeInsufficientFreePoints            => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -87,20 +92,77 @@ let append_or_replace =
     let new_traits = trait_list_filter filter_fn traits in
     Cons {(Pair String String)} new_trait new_traits
 
-let get_maybe_address = 
+let get_address_or_zero = 
   fun (maybe_address: Option ByStr20) =>
     match maybe_address with
     | Some addr => addr
     | None => zero_address
     end
-    
 
+let get_trait_value =
+  fun (traits: List (Pair String String)) =>
+  fun (trait_key: String) =>
+    let fn = fun (trait: Pair String String) => 
+      match trait with
+      | Pair key _ => builtin eq key trait_key
+      end
+    in
+    let maybe_trait = trait_list_find fn traits in
+    match maybe_trait with
+    | Some trait => match trait with | Pair _ value => Some {String} value end
+    | None => nostr
+    end
+
+let get_trait_points =
+  fun (traits: List (Pair String String)) =>
+  fun (attribute: String) =>
+    let maybe_attribute_value = get_trait_value traits attribute in
+    match maybe_attribute_value with
+    | Some attribute_value =>
+      let maybe_uint32_value = builtin to_uint32 attribute_value in
+      match maybe_uint32_value with
+      | Some v => v
+      | None => uint32_zero
+      end
+    | None => uint32_zero
+    end
+
+let get_total_points =
+  fun (attribute_points: List (Pair String Uint32)) =>
+    let fold = @list_foldl (Pair String Uint32) Uint32 in
+    let fn = 
+      fun (result: Uint32) =>
+      fun (item: Pair String Uint32) =>
+        let pt = match item with | Pair _ pt => pt end in
+        builtin add pt result
+    in
+    fold fn uint32_zero attribute_points
+    
+let add_attribute_points =
+  fun (traits: List (Pair String String)) =>
+  fun (attribute: String) =>
+  fun (points: Uint32) =>
+    let curr_points = get_trait_points traits attribute in
+    let new_points = builtin add points curr_points in
+    let trait_value = builtin to_string new_points in
+    let new_trait = Pair {String String} attribute trait_value in
+    append_or_replace traits new_trait
+    
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+    
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
 
 contract ZolarProfessions(
-  initial_owner : ByStr20
+  initial_owner : ByStr20,
+  initial_attributes : List String,
+  initial_professions : List String
 )
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
@@ -112,11 +174,8 @@ field operators: Map ByStr20 Bool =
     let emp_map = Emp ByStr20 Bool in
     builtin put emp_map initial_owner true
 
-field professions: List String = 
-  let p0 = Nil {String} in
-  let p1 = Cons {String} trait_val_str p0 in
-  let p2 = Cons {String} trait_val_dex p1 in
-  Cons {String} trait_val_int p2
+field attributes : List String = initial_attributes
+field professions: List String = initial_professions
 
 field metazoa_address : Option (ByStr20 with contract
   field traits: Map Uint256 (List (Pair String String)),
@@ -181,6 +240,16 @@ procedure IsOperator(address: ByStr20)
   end
 end
 
+procedure RequireMetazoaContract()
+  maybe_metazoa_contract <- metazoa_address;
+  match maybe_metazoa_contract with
+  | None =>
+    err = CodeInvalidMetazoaContract;
+    ThrowError err
+  | Some _ =>
+  end
+end
+
 procedure IsOwnerOrOperator(token_id: Uint256, address: ByStr20)
   is_operator <- exists operators[address];
   match is_operator with
@@ -205,11 +274,9 @@ procedure IsOwnerOrOperator(token_id: Uint256, address: ByStr20)
         err = CodeNotTokenOwner;
         ThrowError err
       end
-      
     end
   end
 end
-
 
 procedure VerifyProfession(profession: String)
   accepted_professions <- professions;
@@ -217,12 +284,108 @@ procedure VerifyProfession(profession: String)
   match profession_exist with
   | True =>
   | False =>
-    err = CodeNotPendingOwner;
+    err = CodeInvalidTrait;
     ThrowError err
   end
 end
 
-procedure UpdateProfessionTrait(token_id: Uint256, profession: String)
+procedure VerifyAttributePoints(attribute_points: List (Pair String Uint32))
+  accepted_attributes <- attributes;
+  fold = @list_foldl (Pair String Uint32) (List Bool);
+  fn =
+    fun (result: List Bool) =>
+    fun (attr_item: Pair String Uint32) =>
+      match attr_item with
+      | Pair attribute points => 
+        let valid_attribute = str_exist attribute accepted_attributes in
+        Cons {Bool} valid_attribute result
+      end;
+
+  init_result = Nil {Bool};
+  result = fold fn init_result attribute_points;
+  valid = all_true result;
+  match valid with
+  | True => 
+  | False =>
+    err = CodeInvalidTrait;
+    ThrowError err
+  end
+end
+
+procedure AddAttributePoints(param: Pair Uint256 (List (Pair String Uint32)))
+  match param with
+  | Pair token_id attribute_points =>
+    IsOwnerOrOperator token_id _sender;
+    VerifyAttributePoints attribute_points;
+
+    maybe_metazoa_contract <- metazoa_address;
+    match maybe_metazoa_contract with
+    | None =>
+      err = CodeInvalidMetazoaContract;
+      ThrowError err
+    | Some curr_metazoa_contract =>
+      maybe_traits <- & curr_metazoa_contract.traits[token_id];
+      traits = match maybe_traits with
+        | None => empty_traits
+        | Some traits => traits
+        end;
+
+      free_points = get_trait_points traits trait_key_unused_attributes;
+      points_required = get_total_points attribute_points;
+      is_insufficient_points = builtin lt free_points points_required;
+      match is_insufficient_points with
+      | False =>
+      | True =>
+        err = CodeInsufficientFreePoints;
+        ThrowError err
+      end;
+
+      remaining_free_points = builtin sub free_points points_required;
+
+      fold = @list_foldl (Pair String Uint32) (List (Pair String String));
+      fn = 
+        fun (traits: List (Pair String String)) =>
+        fun (attr_item: Pair String Uint32) =>
+          match attr_item with
+          | Pair attribute points => add_attribute_points traits attribute points
+          end;
+      
+      new_traits_0 = fold fn traits attribute_points;
+      trait_value_free_pt = builtin to_string remaining_free_points;
+
+      free_pt_attr = Pair {String String} trait_key_unused_attributes trait_value_free_pt;
+      new_traits = append_or_replace new_traits_0 free_pt_attr;
+
+      msg_to_metazoa = {
+        _tag: "SetTokenTraits";
+        _recipient: curr_metazoa_contract;
+        _amount: zero;
+        token_id: token_id;
+        proposed_traits: new_traits
+      };
+
+      msgs = one_msg msg_to_metazoa;
+      send msgs;
+
+      e = {
+        _eventname: "AddAttributePointsSuccess";
+        token_id: token_id;
+        attribute_points: attribute_points;
+        initiator: _sender
+      };
+      event e
+    end
+  end
+end
+
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition UpdateProfession(token_id: Uint256, profession: String)
+  IsOwnerOrOperator token_id _sender;
+  RequireMetazoaContract;
   VerifyProfession profession;
 
   maybe_metazoa_contract <- metazoa_address;
@@ -249,32 +412,23 @@ procedure UpdateProfessionTrait(token_id: Uint256, profession: String)
     };
 
     msgs = one_msg msg_to_metazoa;
-    send msgs 
+    send msgs;
+
+    e = {
+      _eventname: "UpdateProfessionSuccess";
+      token_id: token_id;
+      profession: profession;
+      initiator: _sender
+    };
+    event e
   end
 end
 
-procedure SendMsgMetazoa(msgs: List Message)
-  maybe_metazoa_contract <- metazoa_address;
-  match maybe_metazoa_contract with
-  | None =>
-    err = CodeInvalidMetazoaContract;
-    ThrowError err
-  | Some curr_metazoa_contract =>
-    send msgs
-  end
+transition BulkAddAttributePoints(params: List (Pair Uint256 (List (Pair String Uint32))))
+  RequireMetazoaContract;
+  
+  forall params AddAttributePoints
 end
-
-
-(***************************************)
-(*             Transitions             *)
-(***************************************)
-
-transition UpdateProfession(token_id: Uint256, profession: String)
-  IsOwnerOrOperator token_id _sender;
-
-  UpdateProfessionTrait token_id profession
-end
-
 
 (* Adds `operator`. *)
 (* @Requirements: *)
@@ -322,6 +476,30 @@ transition RemoveOperator(operator: ByStr20)
   event e
 end
 
+transition UpdateProfessionsWhitelist(new_professions: List String)
+  IsOwner _sender;
+  professions := new_professions;
+
+  e = {
+    _eventname: "UpdateProfessionsWhitelistSuccess";
+    new_professions: new_professions;
+    initiator: _sender
+  };
+  event e
+end
+
+transition UpdateAttributesWhitelist(new_attributes: List String)
+  IsOwner _sender;
+  attributes := new_attributes;
+
+  e = {
+    _eventname: "UpdateAttributesWhitelistSuccess";
+    new_attributes: new_attributes;
+    initiator: _sender
+  };
+  event e
+end
+
 (***************************************************)
 (*            Metazoa Proxy Transitions            *)
 (***************************************************)
@@ -334,9 +512,10 @@ transition SetTokenTraits(
   proposed_traits: List (Pair String String)
 )
   IsOperator _sender;
+  RequireMetazoaContract;
 
   maybe_metazoa_contract <- metazoa_address;
-  curr_metazoa_address = get_maybe_address maybe_metazoa_contract;
+  curr_metazoa_address = get_address_or_zero maybe_metazoa_contract;
   
   msg_to_metazoa = {
     _tag: "SetTokenTraits";
@@ -347,15 +526,16 @@ transition SetTokenTraits(
   };
 
   msgs = one_msg msg_to_metazoa;
-  SendMsgMetazoa msgs 
+  send msgs 
 end
 
 (* Proxy pauses the metazoa contract. *)
 transition PauseMetazoa()
   IsOwner _sender;
+  RequireMetazoaContract;
 
   maybe_metazoa_contract <- metazoa_address;
-  curr_metazoa_address = get_maybe_address maybe_metazoa_contract;
+  curr_metazoa_address = get_address_or_zero maybe_metazoa_contract;
   
   msg_to_metazoa = {
     _tag: "Pause";
@@ -364,15 +544,16 @@ transition PauseMetazoa()
   };
 
   msgs = one_msg msg_to_metazoa;
-  SendMsgMetazoa msgs
+  send msgs
 end
 
 (* Proxy unpauses the metazoa contract. *)
 transition UnpauseMetazoa()
   IsOwner _sender;
+  RequireMetazoaContract;
 
   maybe_metazoa_contract <- metazoa_address;
-  curr_metazoa_address = get_maybe_address maybe_metazoa_contract;
+  curr_metazoa_address = get_address_or_zero maybe_metazoa_contract;
   
   msg_to_metazoa = {
     _tag: "Unpause";
@@ -381,14 +562,15 @@ transition UnpauseMetazoa()
   };
 
   msgs = one_msg msg_to_metazoa;
-  SendMsgMetazoa msgs
+  send msgs
 end
 
 transition SetContractOwnershipRecipient(to: ByStr20)
   IsOwner _sender;
+  RequireMetazoaContract;
 
   maybe_metazoa_contract <- metazoa_address;
-  curr_metazoa_address = get_maybe_address maybe_metazoa_contract;
+  curr_metazoa_address = get_address_or_zero maybe_metazoa_contract;
   
   msg_to_metazoa = {
     _tag: "SetContractOwnershipRecipient";
@@ -398,7 +580,7 @@ transition SetContractOwnershipRecipient(to: ByStr20)
   };
 
   msgs = one_msg msg_to_metazoa;
-  SendMsgMetazoa msgs
+  send msgs
 end
 
 transition AcceptContractOwnership(new_metazoa_address: ByStr20)
@@ -481,7 +663,6 @@ transition ZRC6_AcceptContractOwnershipCallback(contract_owner: ByStr20)
     ThrowError err
   end;
   
-
   maybe_metazoa_contract <- & _sender as ByStr20 with contract
     field traits: Map Uint256 (List (Pair String String)),
     field token_owners: Map Uint256 ByStr20

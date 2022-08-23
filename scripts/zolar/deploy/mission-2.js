@@ -64,6 +64,8 @@ const deployProfessions = async ({
   const init = [
     param("_scilla_version", "Uint32", "0"),
     param("initial_owner", "ByStr20", address),
+    param("initial_attributes", "List String", ["STR", "DEX", "INT", "LUK"]),
+    param("initial_professions", "List String", ["STR", "DEX", "INT"]),
   ]
 
   console.info(`Deploying ZolarProfessions...`)
