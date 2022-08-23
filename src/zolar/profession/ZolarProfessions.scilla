@@ -378,50 +378,58 @@ procedure AddAttributePoints(param: Pair Uint256 (List (Pair String Uint32)))
   end
 end
 
+procedure UpdateProfession(param: Pair Uint256 String)
+  match param with
+  | Pair token_id profession =>
+    IsOwnerOrOperator token_id _sender;
+    VerifyProfession profession;
+
+    maybe_metazoa_contract <- metazoa_address;
+    match maybe_metazoa_contract with
+    | None =>
+      err = CodeInvalidMetazoaContract;
+      ThrowError err
+    | Some curr_metazoa_contract =>
+      maybe_traits <- & curr_metazoa_contract.traits[token_id];
+      traits = match maybe_traits with
+        | None => empty_traits
+        | Some traits => traits
+        end;
+      
+      new_trait = Pair {String String} trait_key_profession profession;
+      new_traits = append_or_replace traits new_trait;
+
+      msg_to_metazoa = {
+        _tag: "SetTokenTraits";
+        _recipient: curr_metazoa_contract;
+        _amount: zero;
+        token_id: token_id;
+        proposed_traits: new_traits
+      };
+
+      msgs = one_msg msg_to_metazoa;
+      send msgs;
+
+      e = {
+        _eventname: "UpdateProfessionSuccess";
+        token_id: token_id;
+        profession: profession;
+        initiator: _sender
+      };
+      event e
+    end
+  end
+end
+
 
 (***************************************)
 (*             Transitions             *)
 (***************************************)
 
-transition UpdateProfession(token_id: Uint256, profession: String)
-  IsOwnerOrOperator token_id _sender;
+transition BulkUpdateProfession(params: List (Pair Uint256 String))
   RequireMetazoaContract;
-  VerifyProfession profession;
-
-  maybe_metazoa_contract <- metazoa_address;
-  match maybe_metazoa_contract with
-  | None =>
-    err = CodeInvalidMetazoaContract;
-    ThrowError err
-  | Some curr_metazoa_contract =>
-    maybe_traits <- & curr_metazoa_contract.traits[token_id];
-    traits = match maybe_traits with
-      | None => empty_traits
-      | Some traits => traits
-      end;
-    
-    new_trait = Pair {String String} trait_key_profession profession;
-    new_traits = append_or_replace traits new_trait;
-
-    msg_to_metazoa = {
-      _tag: "SetTokenTraits";
-      _recipient: curr_metazoa_contract;
-      _amount: zero;
-      token_id: token_id;
-      proposed_traits: new_traits
-    };
-
-    msgs = one_msg msg_to_metazoa;
-    send msgs;
-
-    e = {
-      _eventname: "UpdateProfessionSuccess";
-      token_id: token_id;
-      profession: profession;
-      initiator: _sender
-    };
-    event e
-  end
+  
+  forall params UpdateProfession
 end
 
 transition BulkAddAttributePoints(params: List (Pair Uint256 (List (Pair String Uint32))))

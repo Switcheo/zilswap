@@ -241,9 +241,12 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
   const { traits } = await metazoaContract.getSubState("traits", ["1"]);
   console.log("verify trait set", traits["1"][0].arguments.join(": "), traits["1"][1].arguments.join(": "));
 
-  const txUpdateProfession = await callContract(privateKey, professionsContract, "UpdateProfession", [
-    param('token_id', 'Uint256', "1"),
-    param('profession', 'String', "STR"),
+  const txUpdateProfession = await callContract(privateKey, professionsContract, "BulkUpdateProfession", [
+    param('params', 'List (Pair Uint256 String)', [{
+      constructor: 'Pair',
+      argtypes: ['Uint256', 'String'],
+      arguments: ['1', 'STR'],
+    }]),
   ], 0, false, false);
   console.log("Update Profession", txUpdateProfession.id);
 
