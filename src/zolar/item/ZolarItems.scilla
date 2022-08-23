@@ -70,6 +70,13 @@ type Error =
   | ParentTokenNotFoundError
   | NotRootOwnerError
   | InvalidParentContractError
+  | InvalidParentContract2Error
+  | InvalidParentContract3Error
+  | InvalidItemContractError
+  | ItemCannotBeParentError
+  | ItemCannotBeParentError2
+  | ItemCannotBeParentError3
+  | MaxItemDepthReachedError
 
 let make_error =
   fun (result: Error) =>
@@ -100,6 +107,13 @@ let make_error =
       | ParentTokenNotFoundError           => Int32 -23
       | NotRootOwnerError                  => Int32 -24
       | InvalidParentContractError         => Int32 -25
+      | InvalidParentContract2Error        => Int32 -26
+      | InvalidParentContract3Error        => Int32 -27
+      | InvalidItemContractError           => Int32 -28
+      | ItemCannotBeParentError            => Int32 -29
+      | ItemCannotBeParentError2           => Int32 -30
+      | ItemCannotBeParentError3           => Int32 -31
+      | MaxItemDepthReachedError           => Int32 -32
       end
     in
     { _exception: "Error"; code: result_code }
@@ -258,13 +272,96 @@ procedure RequireValidParentToken(
   end
 end
 
-(* procedure RequireRootOwner(
+(* different from RequireRootOwner, RequireRootOwner2 and RequireRootOwner3, as this must be at root level *)
+procedure RequireRootOwner4(
   item_id: Uint256,
   token_contract_address: ByStr20
 )
   maybe_token_contract <- & token_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  field token_owners : Map Uint256 ByStr20 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidParentContract3Error;
+    Throw error
+  | Some token_contract =>
+    maybe_token_owner <- & token_contract.token_owners[item_id];
+    match maybe_token_owner with
+    | None =>
+      error = TokenNotFoundError;
+      Throw error
+    | Some token_owner =>
+      is_root_owner = builtin eq token_owner _sender;
+      match is_root_owner with
+      | True =>
+      | False =>
+        error = NotRootOwnerError;
+        Throw error
+      end
+    end
+  end
+end
+
+procedure RequireRootOwner3(
+  item_id: Uint256,
+  token_contract_address: ByStr20
+)
+  maybe_token_contract <- & token_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidParentContract2Error;
+    Throw error
+  | Some token_contract =>
+    maybe_token_owner <- & token_contract.token_owners[item_id];
+    match maybe_token_owner with
+    | None =>
+      error = TokenNotFoundError;
+      Throw error
+    | Some token_owner =>
+      maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+      match maybe_item_contract with
+      (* check if current contract is a root level contract / lower level item contract *)
+      | None =>
+        (* hit root level contract *)
+        is_root_owner = builtin eq token_owner _sender;
+        match is_root_owner with
+        | True =>
+        | False =>
+          error = NotRootOwnerError;
+          Throw error
+        end
+      | Some item_contract =>
+        (* still at lower level item contract *)
+        maybe_token_owned <- & item_contract.parent_owners[item_id];
+        match maybe_token_owned with
+        | None =>
+          (* item not equipped, check token_owners straight *)
+          is_root_owner = builtin eq token_owner _sender;
+          match is_root_owner with
+          | True =>
+          | False =>
+            error = NotRootOwnerError;
+            Throw error
+          end
+        | Some token_owned =>
+          (* item equipped, traverse to next layer of contracts to check ownership *)
+          match token_owned with
+          | Pair parent_contract parent_token_id =>
+            RequireRootOwner4 parent_token_id parent_contract
+          end
+        end
+      end
+    end
+  end
+end
+
+procedure RequireRootOwner2(
+  item_id: Uint256,
+  token_contract_address: ByStr20
+)
+  maybe_token_contract <- & token_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20 end;
   match maybe_token_contract with
   | None =>
     error = InvalidParentContractError;
@@ -276,9 +373,12 @@ end
       error = TokenNotFoundError;
       Throw error
     | Some token_owner =>
-      maybe_token_owned <- & token_contract.parent_owners[item_id];
-      match maybe_token_owned with
+      maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+      match maybe_item_contract with
+      (* check if current contract is a root level contract / lower level item contract *)
       | None =>
+        (* hit root level contract *)
         is_root_owner = builtin eq token_owner _sender;
         match is_root_owner with
         | True =>
@@ -286,17 +386,243 @@ end
           error = NotRootOwnerError;
           Throw error
         end
-      | Some token_owned =>
-        match token_owned with
-        | Pair parent_contract parent_token_id =>
-          RequireRootOwner parent_token_id parent_contract
+      | Some item_contract =>
+        (* still at lower level item contract *)
+        maybe_token_owned <- & item_contract.parent_owners[item_id];
+        match maybe_token_owned with
+        | None =>
+          (* item not equipped, check token_owners straight *)
+          is_root_owner = builtin eq token_owner _sender;
+          match is_root_owner with
+          | True =>
+          | False =>
+            error = NotRootOwnerError;
+            Throw error
+          end
+        | Some token_owned =>
+          (* item equipped, traverse to next layer of contracts to check ownership *)
+          match token_owned with
+          | Pair parent_contract parent_token_id =>
+            RequireRootOwner3 parent_token_id parent_contract
+          end
         end
       end
     end
   end
-end *)
+end
 
 procedure RequireRootOwner(
+  item_id: Uint256,
+  token_contract_address: ByStr20
+)
+  maybe_token_contract <- & token_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20 end;
+  match maybe_token_contract with
+  | None =>
+    error = InvalidItemContractError;
+    Throw error
+  | Some token_contract =>
+    maybe_token_owner <- & token_contract.token_owners[item_id];
+    match maybe_token_owner with
+    | None =>
+      error = TokenNotFoundError;
+      Throw error
+    | Some token_owner =>
+      maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+      match maybe_item_contract with
+      (* check if current contract is a root level contract / lower level item contract *)
+      | None =>
+        (* hit root level contract *)
+        is_root_owner = builtin eq token_owner _sender;
+        match is_root_owner with
+        | True =>
+        | False =>
+          error = NotRootOwnerError;
+          Throw error
+        end
+      | Some item_contract =>
+        (* still at lower level item contract *)
+        maybe_token_owned <- & item_contract.parent_owners[item_id];
+        match maybe_token_owned with
+        | None =>
+          (* item not equipped, check token_owners straight *)
+          is_root_owner = builtin eq token_owner _sender;
+          match is_root_owner with
+          | True =>
+          | False =>
+            error = NotRootOwnerError;
+            Throw error
+          end
+        | Some token_owned =>
+          (* item equipped, traverse to next layer of contracts to check ownership *)
+          match token_owned with
+          | Pair parent_contract parent_token_id =>
+            RequireRootOwner2 parent_token_id parent_contract
+          end
+        end
+      end
+    end
+  end
+end
+
+(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+(* different from RequireItemNotParent, RequireItemNotParent2 and RequireItemNotParent3, as this must be at root level *)
+procedure RequireItemNotParent4(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  maybe_to_contract <- & to_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  match maybe_to_contract with
+  | None =>
+    (* safe, contract is root level, higher level than any item contracts *)
+  | Some to_contract =>
+    (* should not hit, if hit need to recheck max item equipment chain count *)
+    error = MaxItemDepthReachedError;
+    Throw error
+  end
+end
+
+(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+procedure RequireItemNotParent3(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  maybe_to_contract <- & to_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  match maybe_to_contract with
+  | None =>
+    (* safe, contract is root level, higher level than any item contracts *)
+  | Some to_contract =>
+    (* check if to_token is being equipped by any tokens *)
+    maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
+    match maybe_parent_owner with
+    | None =>
+      (* safe, not part of any composable *)
+    | Some parent_owner =>
+      (* check if parent matches item to be equipped *)
+      match parent_owner with
+      | Pair parent_contract_address parent_token_id =>
+        is_same_contract = builtin eq parent_contract_address item_contract_address;
+        match is_same_contract with
+        | True =>
+          is_same_token_id = builtin eq parent_token_id item_id;
+          match is_same_token_id with
+          | True =>
+            (* item is already parent, throw error *)
+            error = ItemCannotBeParentError3;
+            Throw error
+          | False =>
+            (* item not parent, continue traversing composable tree *)
+            RequireItemNotParent4 parent_token_id parent_contract_address item_id item_contract_address
+          end
+        | False =>
+          (* item not parent, continue traversing composable tree *)
+          RequireItemNotParent4 parent_token_id parent_contract_address item_id item_contract_address
+        end
+      end
+    end
+  end
+end
+
+(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+procedure RequireItemNotParent2(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  maybe_to_contract <- & to_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  match maybe_to_contract with
+  | None =>
+    (* safe, contract is root level, higher level than any item contracts *)
+  | Some to_contract =>
+    (* check if to_token is being equipped by any tokens *)
+    maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
+    match maybe_parent_owner with
+    | None =>
+      (* safe, not part of any composable *)
+    | Some parent_owner =>
+      (* check if parent matches item to be equipped *)
+      match parent_owner with
+      | Pair parent_contract_address parent_token_id =>
+        is_same_contract = builtin eq parent_contract_address item_contract_address;
+        match is_same_contract with
+        | True =>
+          is_same_token_id = builtin eq parent_token_id item_id;
+          match is_same_token_id with
+          | True =>
+            (* item is already parent, throw error *)
+            error = ItemCannotBeParentError2;
+            Throw error
+          | False =>
+            (* item not parent, continue traversing composable tree *)
+            RequireItemNotParent3 parent_token_id parent_contract_address item_id item_contract_address
+          end
+        | False =>
+          (* item not parent, continue traversing composable tree *)
+          RequireItemNotParent3 parent_token_id parent_contract_address item_id item_contract_address
+        end
+      end
+    end
+  end
+end
+
+(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+procedure RequireItemNotParent(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  maybe_to_contract <- & to_contract_address as ByStr20 with contract
+  field token_owners : Map Uint256 ByStr20,
+  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+  match maybe_to_contract with
+  | None =>
+    (* safe, contract is root level, higher level than any item contracts *)
+  | Some to_contract =>
+    (* check if to_token is being equipped by any tokens *)
+    maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
+    match maybe_parent_owner with
+    | None =>
+      (* safe, not part of any composable *)
+    | Some parent_owner =>
+      (* check if parent matches item to be equipped *)
+      match parent_owner with
+      | Pair parent_contract_address parent_token_id =>
+        is_same_contract = builtin eq parent_contract_address item_contract_address;
+        match is_same_contract with
+        | True =>
+          is_same_token_id = builtin eq parent_token_id item_id;
+          match is_same_token_id with
+          | True =>
+            (* item is already parent, throw error *)
+            error = ItemCannotBeParentError;
+            Throw error
+          | False =>
+            (* item not parent, continue traversing composable tree *)
+            RequireItemNotParent2 parent_token_id parent_contract_address item_id item_contract_address
+          end
+        | False =>
+          (* item not parent, continue traversing composable tree *)
+          RequireItemNotParent2 parent_token_id parent_contract_address item_id item_contract_address
+        end
+      end
+    end
+  end
+end
+
+(* procedure RequireRootOwner(
   item_id: Uint256,
   token_contract: ByStr20 with contract
   field token_owners : Map Uint256 ByStr20
@@ -337,7 +663,7 @@ procedure RequireRootOwner(
       end
     end
   end
-end
+end *)
 
 procedure RequireValidDestination(to: ByStr20)
   (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
@@ -408,7 +734,11 @@ procedure ValidateOwnership(
   end
 end
 
-procedure RequireItemEquipped(parent_token_id: Uint256, item_id: Uint256)
+procedure RequireItemEquipped(
+  parent_token_id: Uint256,
+  item_id: Uint256,
+  from_contract_address: ByStr20
+  )
   maybe_parent <- parent_owners[item_id];
   match maybe_parent with
   | None =>
@@ -416,10 +746,17 @@ procedure RequireItemEquipped(parent_token_id: Uint256, item_id: Uint256)
     Throw err
   | Some parent =>
     match parent with
-    | Pair _ token_id =>
-      is_correct_parent = builtin eq parent_token_id token_id;
-      match is_correct_parent with
+    | Pair parent_contract_address token_id =>
+      is_correct_contract = builtin eq from_contract_address parent_contract_address;
+      match is_correct_contract with
       | True =>
+        is_correct_parent = builtin eq parent_token_id token_id;
+        match is_correct_parent with
+        | True =>
+        | False =>
+          err = ItemWrongParentError;
+          Throw err
+        end
       | False =>
         err = ItemWrongParentError;
         Throw err
@@ -665,15 +1002,6 @@ procedure HandleTransfer(info: Pair ByStr20 Uint256)
   end
 end
 
-procedure RequireItemNotParent(
-  to_token_id: Uint256,
-  item_id: Uint256,
-  to_contract: ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20
-  end
-)
-end
-
 procedure TransferItemToParent(
   to_token_id: Uint256,
   item_id: Uint256,
@@ -689,9 +1017,9 @@ procedure TransferItemToParent(
     RequireValidItem item_id;
     RequireValidParentToken to_token_id token_contract;
     RequireItemNotEquipped item_id;
-    RequireItemNotParent to_token_id item_id token_contract;
-    RequireRootOwner item_id token_contract;
-    RequireRootOwner to_token_id token_contract;
+    RequireItemNotParent to_token_id to_contract item_id _this_address;
+    RequireTokenOwner item_id _sender;
+    RequireRootOwner to_token_id to_contract;
 
     new_equip_item = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_equip_item;
@@ -713,9 +1041,9 @@ procedure TransferItemFromParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken from_token_id token_contract;
-    RequireItemEquipped from_token_id item_id;
-    RequireRootOwner item_id token_contract;
-    RequireRootOwner from_token_id token_contract;
+    RequireItemEquipped from_token_id item_id from_contract;
+    RequireRootOwner item_id _this_address;
+    RequireRootOwner from_token_id from_contract;
 
     delete parent_owners[item_id];
     token_owners[item_id] := _sender
