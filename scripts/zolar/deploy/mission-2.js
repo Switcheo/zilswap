@@ -336,13 +336,35 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
   console.log("increase allowance geode", txRefineryAllowance.id);
 
   const txRefineGeode = await callContract(privateKey, gemRefineryContract, "BeginGeodeRefinement", [
-    param('quantity', 'Uint128', "100"),
+    param('quantity', 'Uint128', "500"),
   ], 0, false, false)
   console.log("refine geode", txRefineGeode.id);
 
-  const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeGeodeRefinement", [
+  const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "0"),
-    param('gems', 'List String', ["INT"]),
+    param('gems', 'List String', ["INT", "INT", "INT", "INT"]),
   ], 0, false, false)
   console.log("conclude refinement", txConcludeRefine.id);
+
+  const txAddOperator = await callContract(privateKey, itemsContract, "AddOperator", [
+    param('operator', 'ByStr20', gemRefineryAddress),
+  ], 0, false, false)
+  console.log("item add refinery as operator", txAddOperator.id);
+
+  const txEnhanceGem = await callContract(privateKey, gemRefineryContract, "BeginGemEnhancement", [
+    param('output_tier', `${gemRefineryAddress}.GemTier`, {
+      constructor: `${gemRefineryAddress}.TierB`,
+      argtypes: [],
+      arguments: []
+    }),
+    param('base_gem_token_id', 'Uint256', "1"),
+    param('material_gem_token_ids', 'List Uint256', ["2", "3", "4"]),
+  ], 0, false, false)
+  console.log("enhance gem", txEnhanceGem.id);
+
+  const txConcludeEnhance = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
+    param('refinement_id', 'Uint256', "1"),
+    param('gems', 'List String', ["INT"]),
+  ], 0, false, false)
+  console.log("conclude enhancement", txConcludeEnhance.id);
 })();

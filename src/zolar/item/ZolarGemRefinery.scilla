@@ -10,20 +10,31 @@ library ZolarGemRefinery
 let true = True
 let false = False
 let zero = Uint128 0
-let uint256_zero = Uint256 0
-let uint256_one = Uint256 1
 let one = Uint128 1
 let two = Uint128 2
+let uint32_zero = Uint32 0
+let uint32_one = Uint32 1
+let uint32_two = Uint32 2
+let uint32_three = Uint32 3
+let uint256_zero = Uint256 0
+let uint256_one = Uint256 1
 let none = None {ByStr20}
 let empty = ""
 let hundred_percent_bps = Uint128 10000
 let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
+let empty_traits = Nil {(Pair String String)}
 
 let trait_key_affinity = "Affinity"
+let trait_key_tier = "Tier"
 let trait_key_type = "Type"
 let trait_value_type = "Gem"
+let trait_value_tier_ss = "SS"
+let trait_value_tier_s = "S"
+let trait_value_tier_a = "A"
+let trait_value_tier_b = "B"
+let trait_value_tier_c = "C"
 
 (* Error events *)
 type Error =
@@ -34,6 +45,10 @@ type Error =
   | CodeInvalidGeodeAmount
   | CodeInvalidRefinement
   | CodeInvalidAffinity
+  | CodeInvalidEnhancementTier
+  | CodeGemTraitNotFound
+  | CodeInvalidGemTier
+  | CodeInvalidMaterial
 
 let make_error =
   fun (result : Error) =>
@@ -46,12 +61,29 @@ let make_error =
       | CodeInvalidGeodeAmount                => Int32 -5
       | CodeInvalidRefinement                 => Int32 -6
       | CodeInvalidAffinity                   => Int32 -7
+      | CodeInvalidEnhancementTier            => Int32 -8
+      | CodeGemTraitNotFound                  => Int32 -9
+      | CodeInvalidGemTier                    => Int32 -10
+      | CodeInvalidMaterial                   => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
 
+type GemTier =
+  | TierSS
+  | TierS
+  | TierA
+  | TierB
+  | TierC
+  | TierUnknown
+
 type OngoingRefinement =
-  | OngoingRefinement of ByStr20 Uint128
+  | GemEnhancement of ByStr20 GemTier (* recipient, output tier *)
+  | GeodeRefinement of ByStr20 Uint128 (* recipient, input quantity *)
+
+let trait_list_find = @list_find (Pair String String)
+let uint256_list_nth = @list_nth Uint256
+let uint256_list_length = @list_length Uint256
 
 let one_msg =
   fun (msg : Message) =>
@@ -65,16 +97,66 @@ let two_msgs =
   let list = Cons {Message} msg1 nil_msg in
   Cons {Message} msg2 list
 
+let get_tier =
+  fun (value: String) =>
+    let is_tier_ss = builtin eq value trait_value_tier_ss in
+    let is_tier_s = builtin eq value trait_value_tier_s in
+    let is_tier_a = builtin eq value trait_value_tier_a in
+    let is_tier_b = builtin eq value trait_value_tier_b in
+    let is_tier_c = builtin eq value trait_value_tier_c in
+    match is_tier_ss with
+    | True => TierSS
+    | False => match is_tier_s with | True => TierS
+    | False => match is_tier_a with | True => TierA
+    | False => match is_tier_b with | True => TierB
+    | False => match is_tier_c with | True => TierC
+    | False => TierUnknown
+    end
+    end
+    end
+    end
+    end
+
+let get_gem_tier =
+  fun (traits: List (Pair String String)) =>
+    let fn = fun (trait: Pair String String) => 
+      match trait with
+      | Pair key _ => builtin eq key trait_key_tier
+      end
+    in
+    let maybe_trait = trait_list_find fn traits in
+    match maybe_trait with
+    | Some trait => 
+      match trait with 
+      | Pair _ value => get_tier value
+      end
+    | None => TierUnknown
+    end
+
+let tier_to_trait_value = 
+  fun (tier: GemTier) =>
+    match tier with
+    | TierSS => trait_value_tier_ss
+    | TierS => trait_value_tier_s
+    | TierA => trait_value_tier_a
+    | TierB => trait_value_tier_b
+    | TierC => trait_value_tier_c
+    | TierUnknown => empty
+    end
+
 let map_gem_traits =
   fun (gem_affinity_list : List String) => 
+  fun (gem_tier : GemTier) => 
+    let trait_tier_value = tier_to_trait_value gem_tier in
     let fold = @list_map (String) (List (Pair String String)) in
     let fn = 
       fun (affinity: String) =>
         let trait_type = Pair {String String} trait_key_type trait_value_type in
         let trait_affinity = Pair {String String} trait_key_affinity affinity in
-        let t0 = Nil {(Pair String String)} in
-        let t1 = Cons {(Pair String String)} trait_type t0 in
-        Cons {(Pair String String)} trait_affinity t1
+        let trait_tier = Pair {String String} trait_key_tier trait_tier_value in
+        let t1 = Cons {(Pair String String)} trait_type empty_traits in
+        let t2 = Cons {(Pair String String)} trait_tier t1 in
+        Cons {(Pair String String)} trait_affinity t2
     in
     fold fn gem_affinity_list
 
@@ -103,6 +185,7 @@ let affinity_exist =
 contract ZolarGemRefinery(
   initial_owner : ByStr20,
   initial_items_address : ByStr20 with contract
+    field traits : Map Uint256 List (Pair String String),
     field token_owners : Map Uint256 ByStr20,
     field parent_owners : Map Uint256 Pair ByStr20 Uint256
   end,
@@ -114,6 +197,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field items_address : ByStr20 with contract
+  field traits : Map Uint256 List (Pair String String),
   field token_owners : Map Uint256 ByStr20,
   field parent_owners : Map Uint256 Pair ByStr20 Uint256
 end = initial_items_address
@@ -215,29 +299,139 @@ procedure VerifyGeodeQuantity(quantity: Uint128)
   end
 end
 
+procedure VerifyGemTier(tier: GemTier, required_tier: GemTier)
+  tier_power = tier_to_trait_value tier;
+  required_tier_power = tier_to_trait_value required_tier;
+  is_eq = builtin eq tier_power required_tier_power;
+  match is_eq with
+  | True =>
+  | False =>
+    err = CodeInvalidGemTier;
+    ThrowError err
+  end
+end
+
+procedure VerifyAndConsumeGem(token_id: Uint256, required_tier: GemTier)
+  items_contract <- items_address;
+  maybe_gem_traits <- & items_contract.traits[token_id];
+  gem_traits = match maybe_gem_traits with | Some traits => traits | None => empty_traits end;
+  tier = get_gem_tier gem_traits;
+  VerifyGemTier tier required_tier;
+
+  msg_to_items = {
+    _tag: "TransferFrom";
+    _recipient: items_contract;
+    _amount: zero;
+    to: _this_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
+end
+
+procedure VerifyAndConsumeMaterials(material_gem_token_ids: List Uint256, required_tier: GemTier, index: Uint32)
+  maybe_token_id = uint256_list_nth index material_gem_token_ids;
+
+  match maybe_token_id with
+  | None =>
+    err = CodeInvalidMaterial;
+    ThrowError err
+  | Some token_id =>
+    VerifyAndConsumeGem token_id required_tier
+  end
+end
+
+procedure VerifyMaterialsLength(material_gem_token_ids: List Uint256, length: Uint32)
+  materials_length = uint256_list_length material_gem_token_ids;
+  is_eq = builtin eq length materials_length;
+  match is_eq with
+  | True =>
+  | False =>
+    err = CodeInvalidMaterial;
+    ThrowError err
+  end
+end
+
+procedure AddRefinement(refinement: OngoingRefinement)
+  refinement_id <- next_refinement_id;
+  new_refinement_id = builtin add refinement_id uint256_one;
+  next_refinement_id := new_refinement_id;
+
+  refinements[refinement_id] := refinement;
+
+  e = {
+    _eventname: "RefinementStarted";
+    initiator: _sender;
+    refinement_id: refinement_id;
+    refinement: refinement
+  };
+  event e
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
 
-transition UpgradeGem(output_tier: Uint32, gem_token_ids: List Uint256)
-  forall gem_token_ids VerifyOwnership
+transition BeginGemEnhancement(output_tier: GemTier, base_gem_token_id: Uint256, material_gem_token_ids: List Uint256)
+  all_gem_token_ids = Cons {Uint256} base_gem_token_id material_gem_token_ids;
+  forall all_gem_token_ids VerifyOwnership;
 
-  (* TODO: implement gem evolution *)
+  items_contract <- items_address;
+  maybe_base_gem_traits <- & items_contract.traits[base_gem_token_id];
+  match maybe_base_gem_traits with
+  | None =>
+    err = CodeGemTraitNotFound;
+    ThrowError err
+  | Some base_gem_traits =>
+ 
+    base_gem_tier = get_gem_tier base_gem_traits;
+  
+    match output_tier with
+    | TierSS =>
+      required_tier = get_tier trait_value_tier_s;
+      VerifyGemTier base_gem_tier required_tier;
+      VerifyMaterialsLength material_gem_token_ids uint32_one;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero
+    | TierS =>
+      required_tier = get_tier trait_value_tier_a;
+      VerifyGemTier base_gem_tier required_tier;
+      VerifyMaterialsLength material_gem_token_ids uint32_one;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero
+    | TierA =>
+      required_tier = get_tier trait_value_tier_b;
+      VerifyGemTier base_gem_tier required_tier;
+      VerifyMaterialsLength material_gem_token_ids uint32_two;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_one
+    | TierB =>
+      required_tier = get_tier trait_value_tier_c;
+      VerifyGemTier base_gem_tier required_tier;
+      VerifyMaterialsLength material_gem_token_ids uint32_three;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_one;
+      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_two
+    | TierC =>
+      err = CodeInvalidEnhancementTier;
+      ThrowError err
+    | TierUnknown =>
+      err = CodeInvalidEnhancementTier;
+      ThrowError err
+    end;
+
+    refinement = GemEnhancement _sender output_tier;
+    AddRefinement refinement
+  end
 end
 
 transition BeginGeodeRefinement(quantity: Uint128)
   VerifyGeodeQuantity quantity;
   gem_quantity = builtin div quantity hundred;
 
-  refinement_id <- next_refinement_id;
-  new_refinement_id = builtin add refinement_id uint256_one;
-  next_refinement_id := new_refinement_id;
-
-  refinement = OngoingRefinement _sender gem_quantity;
-  refinements[refinement_id] := refinement
+  refinement = GeodeRefinement _sender gem_quantity;
+  AddRefinement refinement
 end
 
-transition ConcludeGeodeRefinement(refinement_id: Uint256, gems: List String)
+transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
   forall gems VerifyAffinity;
   maybe_ongoing_refinement <- refinements[refinement_id];
   match maybe_ongoing_refinement with
@@ -248,10 +442,16 @@ transition ConcludeGeodeRefinement(refinement_id: Uint256, gems: List String)
     delete refinements[refinement_id];
 
     recipient = match ongoing_refinement with
-      | OngoingRefinement recipient _ => recipient
+      | GemEnhancement recipient _ => recipient
+      | GeodeRefinement recipient _ => recipient
+      end;
+    
+    gem_tier = match ongoing_refinement with
+      | GemEnhancement _ output_tier => output_tier
+      | GeodeRefinement _ _ => TierC
       end;
 
-    gems_traits = map_gem_traits gems;
+    gems_traits = map_gem_traits gems gem_tier;
     batch_mint_params = map_mint_traits gems_traits recipient;
 
     current_items_address <- items_address;
@@ -311,7 +511,7 @@ end
 
 transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
   msg_to_token = {
-    _tag: "BurnToken";
+    _tag: "Burn";
     _recipient: _sender;
     _amount: zero;
     token_id: token_id
@@ -321,13 +521,17 @@ transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id
   send msgs 
 end
 
+transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
 (* burn geodes *)
 transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* burn gems *)
-transition ZRC6_BurnCallBack(token_owner: ByStr20, token_id: Uint256)
+transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
   (* no-op *)
 end
 

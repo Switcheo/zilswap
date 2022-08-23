@@ -682,7 +682,7 @@ transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: U
 end
 
 (* burn gems *)
-transition ZRC6_BurnCallBack(token_owner: ByStr20, token_id: Uint256)
+transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
   (* no-op *)
 end
 
