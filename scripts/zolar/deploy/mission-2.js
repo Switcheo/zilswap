@@ -36,6 +36,43 @@ const deployHunyToken = async ({
   return contract;
 };
 
+const deployMetazoa = async ({
+} = {}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile(`./src/zolar/Metazoa.scilla`)).toString()
+  const init = [
+    param("_scilla_version", "Uint32", "0"),
+    param("initial_contract_owner", "ByStr20", address),
+    param("initial_base_uri", "String", "https://api.zolar.io/metazoa/metadata/"),
+    param("name", "String", "Metazoa"),
+    param("symbol", "String", "ZOA"),
+  ]
+
+  console.info(`Deploying Metazoa...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+};
+
+const deployProfessions = async ({
+  metazoaAddress
+} = {}) => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile(`./src/zolar/profession/ZolarProfessions.scilla`)).toString()
+  const init = [
+    param("_scilla_version", "Uint32", "0"),
+    param("initial_owner", "ByStr20", address),
+  ]
+
+  console.info(`Deploying ZolarProfessions...`)
+  const [contract] = await deployContract(privateKey, code, init)
+
+  return contract;
+};
+
+
 const deployResource = async (resource, {
   name,
   symbol,
@@ -80,13 +117,6 @@ const deployItems = async ({
 
   console.info(`Deploying ZolarItems...`)
   const [contract] = await deployContract(privateKey, code, init)
-
-  await callContract(privateKey, contract, "AddMinter", [{
-    vname: 'minter',
-    type: 'ByStr20',
-    value: address,
-  }], 0, false, false);
-
   return contract;
 };
 
@@ -148,6 +178,12 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
   const hunyContract = await deployHunyToken({ name: "Huny Token", symbol: "HUNY", decimals: "12" });
   const hunyAddress = hunyContract.address.toLowerCase();
 
+  const metazoaContract = await deployMetazoa();
+  const metazoaAddress = metazoaContract.address.toLowerCase();
+
+  const professionsContract = await deployProfessions({ metazoaAddress });
+  const professionsAddress = professionsContract.address.toLowerCase();
+
   const emporiumContract = await deployEmporium();
   const emporiumAddress = emporiumContract.address.toLowerCase();
 
@@ -168,6 +204,49 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
 
   const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress });
   const gemRefineryAddress = gemRefineryContract.address.toLowerCase();
+
+  const txMintMetazoa = await callContract(privateKey, metazoaContract, "Mint", [
+    param('to', 'ByStr20', address),
+    param('token_uri', 'String', ''),
+  ], 0, false, false);
+  console.log("mint metazoa metazoa", txMintMetazoa.id);
+
+  // transfer metazoa ownership to professions proxy contract
+  const txTransferOwnership = await callContract(privateKey, metazoaContract, "SetContractOwnershipRecipient", [
+    param('to', 'ByStr20', professionsAddress),
+  ], 0, false, false);
+  console.log("transfer metazoa ownership to proxy", txTransferOwnership.id);
+
+  const txAcceptOwnershipt = await callContract(privateKey, professionsContract, "AcceptContractOwnership", [
+    param('new_metazoa_address', 'ByStr20', metazoaAddress),
+  ], 0, false, false);
+  console.log("accept metazoa ownership for proxy", txAcceptOwnershipt.id);
+
+  const txSetTokenTraits = await callContract(privateKey, professionsContract, "SetTokenTraits", [
+    param('token_id', 'Uint256', '1'),
+    param('proposed_traits', 'List (Pair String String)', [{
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['Trait1', 'Value1'],
+    }, {
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['Profession', 'WrongValue'],
+    }]),
+  ], 0, false, false);
+  console.log("set token trait for 1", txSetTokenTraits.id);
+
+  const { traits } = await metazoaContract.getSubState("traits", ["1"]);
+  console.log("verify trait set", traits["1"][0].arguments.join(": "), traits["1"][1].arguments.join(": "));
+
+  const txUpdateProfession = await callContract(privateKey, professionsContract, "UpdateProfession", [
+    param('token_id', 'Uint256', "1"),
+    param('profession', 'String', "STR"),
+  ], 0, false, false);
+  console.log("Update Profession", txUpdateProfession.id);
+
+  const { traits: newTraits } = await metazoaContract.getSubState("traits", ["1"]);
+  console.log("verify trait set", newTraits["1"][0].arguments.join(": "), newTraits["1"][1].arguments.join(": "));
 
   const txAddMinterRefinery = await callContract(privateKey, itemsContract, "AddMinter", [
     param('minter', 'ByStr20', gemRefineryAddress),
