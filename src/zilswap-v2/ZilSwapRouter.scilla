@@ -7,6 +7,7 @@ let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
+let none = None {ByStr20}
 
 let one_msg =
   fun (msg : Message) =>
@@ -41,17 +42,21 @@ let add_once =
 (* Error events *)
 type Error =
 | CodeNotSelf
+| CodeNotGovernor
+| CodeNotPendingGovernor
 | CodeDuplicateUnamplifiedPool
 
 let make_error =
-fun (result : Error) =>
-  let result_code =
-    match result with
-    | CodeNotSelf                   => Int32 -1
-    | CodeDuplicateUnamplifiedPool  => Int32 -2
-    end
-  in
-  { _exception : "Error"; code : result_code }
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotSelf                   => Int32 -1
+      | CodeNotGovernor               => Int32 -2
+      | CodeNotPendingGovernor        => Int32 -3
+      | CodeDuplicateUnamplifiedPool  => Int32 -4
+      end
+    in
+    { _exception : "Error"; code : result_code }
 
 contract ZilSwapRouter
 (
@@ -59,6 +64,7 @@ contract ZilSwapRouter
 )
 
 field governor : ByStr20 = init_governor
+field pending_governor : Option ByStr20 = none
 field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount
 
 field all_pools : List ByStr20 = Nil {ByStr20}
@@ -69,12 +75,12 @@ field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map B
 (*             Procedures             *)
 (**************************************)
 
-(* @dev: zrc-2 *)
 procedure ThrowError(err : Error)
   e = make_error err;
   throw e
 end
 
+(*** Factory ***)
 
 procedure IsSelf(address : ByStr20)
   is_self = builtin eq _this_address address;
@@ -93,8 +99,38 @@ procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   pools[tokenA][tokenB] := p_new
 end
 
+(*** Governance ***)
+
+procedure IsGovernor(address: ByStr20)
+  g <- governor;
+  is_owner = builtin eq g address;
+  match is_owner with
+  | True =>
+  | False =>
+    err = CodeNotGovernor;
+    ThrowError err
+  end
+end
+
+procedure IsPendingGovernor(address: ByStr20)
+  maybe_pending_governor <- pending_governor;
+  match maybe_pending_governor with
+  | Some new_govenor =>
+    is_pending_governor = builtin eq new_govenor address;
+    match is_pending_governor with
+    | True =>
+    | False =>
+      err = CodeNotPendingGovernor;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingGovernor;
+    ThrowError err
+  end
+end
+
 (***************************************)
-(*             Transitions             *)
+(*         Factory Transitions         *)
 (***************************************)
 
 transition AddPool(
@@ -155,9 +191,84 @@ transition AddPool(
 
   ap <- all_pools;
   new_ap = add_once ap pool;
-  all_pools := new_ap
+  all_pools := new_ap;
 
-  (*
-    TODO: emit PoolCreated(token0, token1, pool, ampBps, allPools.length);
-  *)
+  e = {_eventname: "PoolCreated"; token0: token0; token1: token1; amp_bps: amp_bps};
+  event e
+end
+
+(*** Governance ***)
+
+transition SetFeeConfiguration(config: Pair ByStr20 Uint128)
+    fee_configuration := config;
+    e = {_eventname: "FeeConfigurationSet"; fee_configuration: config};
+    event e
+end
+
+(* @dev: Transfers contract governorship to a new address. The new address must call the AcceptGovernorship transition to finalize the transfer. *)
+(* @param new_governor: Address of the new governor.                                                                                    *)
+transition SetGovernor(new_governor: ByStr20)
+  IsGovernor _sender;
+  g = Some {ByStr20} new_governor;
+  pending_governor := g;
+  e = {_eventname : "GovernanceTransferInitiated"; governor : _sender; pending_governor : new_governor};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract governance. Must be called by the pending governor. *)
+transition AcceptGovernance()
+  IsPendingGovernor _sender;
+  previous_governor <- governor;
+  governor := _sender;
+  pending_governor := none;
+  e = {_eventname : "GovernanceTransferAccepted"; previous_governor : previous_governor; governor : _sender};
+  event e
+end
+
+(***************************************)
+(*          Router Transitions         *)
+(***************************************)
+
+(*** LIQUIDITY ***)
+
+transition AddLiquidity()
+  (* TODO *)
+end
+
+transition AddLiquidityZIL()
+  (* TODO *)
+end
+
+transition RemoveLiquidity()
+  (* TODO *)
+end
+
+transition RemoveLiquidityZIL()
+  (* TODO *)
+end
+
+(*** SWAP ***)
+
+transition SwapExactTokensForTokens()
+  (* TODO *)
+end
+
+transition SwapTokensForExactTokens()
+  (* TODO *)
+end
+
+transition SwapExactZILForTokens()
+  (* TODO *)
+end
+
+transition SwapTokensForExactZIL()
+  (* TODO *)
+end
+
+transition SwapExactTokensForZIL()
+  (* TODO *)
+end
+
+transition SwapZILForExactTokens()
+  (* TODO *)
 end
