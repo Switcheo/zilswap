@@ -282,13 +282,24 @@ procedure CheckRootOwner(address: ByStr20)
   end
 end
 
+procedure RequireNotZeroAddress(address: ByStr20)
+  is_zero_address = builtin eq address zero_address;
+  match is_zero_address with
+  | True =>
+    error = TokenNotFoundError;
+    Throw error
+  | False =>
+  end
+end
+
 (* different from RequireRootOwner, RequireRootOwner2 and RequireRootOwner3, as this must be at root level *)
 procedure RequireRootOwner4(
   item_id: Uint256,
   token_contract_address: ByStr20
 )
   maybe_token_contract <- & token_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20 end;
+    field token_owners : Map Uint256 ByStr20
+  end;
   match maybe_token_contract with
   | None =>
     error = InvalidParentContract3Error;
@@ -310,38 +321,38 @@ procedure RequireRootOwner3(
   token_contract_address: ByStr20
 )
   maybe_token_contract <- & token_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20 end;
+    field token_owners : Map Uint256 ByStr20
+  end;
   match maybe_token_contract with
   | None =>
-    error = InvalidParentContract2Error;
+    error = InvalidItemContractError;
     Throw error
   | Some token_contract =>
     maybe_token_owner <- & token_contract.token_owners[item_id];
-    match maybe_token_owner with
+    token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+    RequireNotZeroAddress token_owner;
+
+    maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    end;
+
+    match maybe_item_contract with
+    (* check if current contract is a root level contract / lower level item contract *)
     | None =>
-      error = TokenNotFoundError;
-      Throw error
-    | Some token_owner =>
-      maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
-      match maybe_item_contract with
-      (* check if current contract is a root level contract / lower level item contract *)
+      (* hit root level contract *)
+      CheckRootOwner token_owner
+    | Some item_contract =>
+      (* still at lower level item contract *)
+      maybe_token_owned <- & item_contract.parent_owners[item_id];
+      match maybe_token_owned with
       | None =>
-        (* hit root level contract *)
+        (* item not equipped, check token_owners straight *)
         CheckRootOwner token_owner
-      | Some item_contract =>
-        (* still at lower level item contract *)
-        maybe_token_owned <- & item_contract.parent_owners[item_id];
-        match maybe_token_owned with
-        | None =>
-          (* item not equipped, check token_owners straight *)
-          CheckRootOwner token_owner
-        | Some token_owned =>
-          (* item equipped, traverse to next layer of contracts to check ownership *)
-          match token_owned with
-          | Pair parent_contract parent_token_id =>
-            RequireRootOwner4 parent_token_id parent_contract
-          end
+      | Some token_owned =>
+        (* item equipped, traverse to next layer of contracts to check ownership *)
+        match token_owned with
+        | Pair parent_contract parent_token_id =>
+          RequireRootOwner4 parent_token_id parent_contract
         end
       end
     end
@@ -353,38 +364,38 @@ procedure RequireRootOwner2(
   token_contract_address: ByStr20
 )
   maybe_token_contract <- & token_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20 end;
+    field token_owners : Map Uint256 ByStr20
+  end;
   match maybe_token_contract with
   | None =>
-    error = InvalidParentContractError;
+    error = InvalidItemContractError;
     Throw error
   | Some token_contract =>
     maybe_token_owner <- & token_contract.token_owners[item_id];
-    match maybe_token_owner with
+    token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+    RequireNotZeroAddress token_owner;
+
+    maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    end;
+
+    match maybe_item_contract with
+    (* check if current contract is a root level contract / lower level item contract *)
     | None =>
-      error = TokenNotFoundError;
-      Throw error
-    | Some token_owner =>
-      maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
-      match maybe_item_contract with
-      (* check if current contract is a root level contract / lower level item contract *)
+      (* hit root level contract *)
+      CheckRootOwner token_owner
+    | Some item_contract =>
+      (* still at lower level item contract *)
+      maybe_token_owned <- & item_contract.parent_owners[item_id];
+      match maybe_token_owned with
       | None =>
-        (* hit root level contract *)
+        (* item not equipped, check token_owners straight *)
         CheckRootOwner token_owner
-      | Some item_contract =>
-        (* still at lower level item contract *)
-        maybe_token_owned <- & item_contract.parent_owners[item_id];
-        match maybe_token_owned with
-        | None =>
-          (* item not equipped, check token_owners straight *)
-          CheckRootOwner token_owner
-        | Some token_owned =>
-          (* item equipped, traverse to next layer of contracts to check ownership *)
-          match token_owned with
-          | Pair parent_contract parent_token_id =>
-            RequireRootOwner3 parent_token_id parent_contract
-          end
+      | Some token_owned =>
+        (* item equipped, traverse to next layer of contracts to check ownership *)
+        match token_owned with
+        | Pair parent_contract parent_token_id =>
+          RequireRootOwner3 parent_token_id parent_contract
         end
       end
     end
@@ -396,38 +407,38 @@ procedure RequireRootOwner(
   token_contract_address: ByStr20
 )
   maybe_token_contract <- & token_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20 end;
+    field token_owners : Map Uint256 ByStr20
+  end;
   match maybe_token_contract with
   | None =>
     error = InvalidItemContractError;
     Throw error
   | Some token_contract =>
     maybe_token_owner <- & token_contract.token_owners[item_id];
-    match maybe_token_owner with
+    token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+    RequireNotZeroAddress token_owner;
+
+    maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    end;
+
+    match maybe_item_contract with
+    (* check if current contract is a root level contract / lower level item contract *)
     | None =>
-      error = TokenNotFoundError;
-      Throw error
-    | Some token_owner =>
-      maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
-      match maybe_item_contract with
-      (* check if current contract is a root level contract / lower level item contract *)
+      (* hit root level contract *)
+      CheckRootOwner token_owner
+    | Some item_contract =>
+      (* still at lower level item contract *)
+      maybe_token_owned <- & item_contract.parent_owners[item_id];
+      match maybe_token_owned with
       | None =>
-        (* hit root level contract *)
+        (* item not equipped, check token_owners straight *)
         CheckRootOwner token_owner
-      | Some item_contract =>
-        (* still at lower level item contract *)
-        maybe_token_owned <- & item_contract.parent_owners[item_id];
-        match maybe_token_owned with
-        | None =>
-          (* item not equipped, check token_owners straight *)
-          CheckRootOwner token_owner
-        | Some token_owned =>
-          (* item equipped, traverse to next layer of contracts to check ownership *)
-          match token_owned with
-          | Pair parent_contract parent_token_id =>
-            RequireRootOwner2 parent_token_id parent_contract
-          end
+      | Some token_owned =>
+        (* item equipped, traverse to next layer of contracts to check ownership *)
+        match token_owned with
+        | Pair parent_contract parent_token_id =>
+          RequireRootOwner2 parent_token_id parent_contract
         end
       end
     end
@@ -443,8 +454,9 @@ procedure RequireItemNotParent4(
   item_contract_address: ByStr20
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+    field token_owners : Map Uint256 ByStr20,
+    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  end;
   match maybe_to_contract with
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
@@ -463,8 +475,9 @@ procedure RequireItemNotParent3(
   item_contract_address: ByStr20
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+    field token_owners : Map Uint256 ByStr20,
+    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  end;
   match maybe_to_contract with
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
@@ -508,8 +521,9 @@ procedure RequireItemNotParent2(
   item_contract_address: ByStr20
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+    field token_owners : Map Uint256 ByStr20,
+    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  end;
   match maybe_to_contract with
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
@@ -553,8 +567,9 @@ procedure RequireItemNotParent(
   item_contract_address: ByStr20
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256 end;
+    field token_owners : Map Uint256 ByStr20,
+    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  end;
   match maybe_to_contract with
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
@@ -948,7 +963,7 @@ procedure TransferItemToParent(
 
     new_equip_item = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_equip_item;
-    token_owners[item_id] := zero_address
+    token_owners[item_id] := to_contract
   end
 end
 
