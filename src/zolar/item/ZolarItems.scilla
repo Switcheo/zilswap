@@ -272,6 +272,16 @@ procedure RequireValidParentToken(
   end
 end
 
+procedure CheckRootOwner(address: ByStr20)
+  is_root_owner = builtin eq address _sender;
+  match is_root_owner with
+  | True =>
+  | False =>
+    error = NotRootOwnerError;
+    Throw error
+  end
+end
+
 (* different from RequireRootOwner, RequireRootOwner2 and RequireRootOwner3, as this must be at root level *)
 procedure RequireRootOwner4(
   item_id: Uint256,
@@ -290,13 +300,7 @@ procedure RequireRootOwner4(
       error = TokenNotFoundError;
       Throw error
     | Some token_owner =>
-      is_root_owner = builtin eq token_owner _sender;
-      match is_root_owner with
-      | True =>
-      | False =>
-        error = NotRootOwnerError;
-        Throw error
-      end
+      CheckRootOwner token_owner
     end
   end
 end
@@ -324,26 +328,14 @@ procedure RequireRootOwner3(
       (* check if current contract is a root level contract / lower level item contract *)
       | None =>
         (* hit root level contract *)
-        is_root_owner = builtin eq token_owner _sender;
-        match is_root_owner with
-        | True =>
-        | False =>
-          error = NotRootOwnerError;
-          Throw error
-        end
+        CheckRootOwner token_owner
       | Some item_contract =>
         (* still at lower level item contract *)
         maybe_token_owned <- & item_contract.parent_owners[item_id];
         match maybe_token_owned with
         | None =>
           (* item not equipped, check token_owners straight *)
-          is_root_owner = builtin eq token_owner _sender;
-          match is_root_owner with
-          | True =>
-          | False =>
-            error = NotRootOwnerError;
-            Throw error
-          end
+          CheckRootOwner token_owner
         | Some token_owned =>
           (* item equipped, traverse to next layer of contracts to check ownership *)
           match token_owned with
@@ -379,26 +371,14 @@ procedure RequireRootOwner2(
       (* check if current contract is a root level contract / lower level item contract *)
       | None =>
         (* hit root level contract *)
-        is_root_owner = builtin eq token_owner _sender;
-        match is_root_owner with
-        | True =>
-        | False =>
-          error = NotRootOwnerError;
-          Throw error
-        end
+        CheckRootOwner token_owner
       | Some item_contract =>
         (* still at lower level item contract *)
         maybe_token_owned <- & item_contract.parent_owners[item_id];
         match maybe_token_owned with
         | None =>
           (* item not equipped, check token_owners straight *)
-          is_root_owner = builtin eq token_owner _sender;
-          match is_root_owner with
-          | True =>
-          | False =>
-            error = NotRootOwnerError;
-            Throw error
-          end
+          CheckRootOwner token_owner
         | Some token_owned =>
           (* item equipped, traverse to next layer of contracts to check ownership *)
           match token_owned with
@@ -434,26 +414,14 @@ procedure RequireRootOwner(
       (* check if current contract is a root level contract / lower level item contract *)
       | None =>
         (* hit root level contract *)
-        is_root_owner = builtin eq token_owner _sender;
-        match is_root_owner with
-        | True =>
-        | False =>
-          error = NotRootOwnerError;
-          Throw error
-        end
+        CheckRootOwner token_owner
       | Some item_contract =>
         (* still at lower level item contract *)
         maybe_token_owned <- & item_contract.parent_owners[item_id];
         match maybe_token_owned with
         | None =>
           (* item not equipped, check token_owners straight *)
-          is_root_owner = builtin eq token_owner _sender;
-          match is_root_owner with
-          | True =>
-          | False =>
-            error = NotRootOwnerError;
-            Throw error
-          end
+          CheckRootOwner token_owner
         | Some token_owned =>
           (* item equipped, traverse to next layer of contracts to check ownership *)
           match token_owned with
@@ -621,49 +589,6 @@ procedure RequireItemNotParent(
     end
   end
 end
-
-(* procedure RequireRootOwner(
-  item_id: Uint256,
-  token_contract: ByStr20 with contract
-  field token_owners : Map Uint256 ByStr20
-  end)
-  maybe_token_owner <- token_owners[item_id];
-  match maybe_token_owner with
-  | None =>
-    error = TokenNotFoundError;
-    Throw error
-  | Some token_owner =>
-    maybe_item_equipped <- parent_owners[item_id];
-    match maybe_item_equipped with
-    | None =>
-      is_root_owner = builtin eq token_owner _sender;
-      match is_root_owner with
-      | True =>
-      | False =>
-        error = NotRootOwnerError;
-        Throw error
-      end
-    | Some item_equipped =>
-      match item_equipped with
-      | Pair parent_contract parent_token_id =>
-        maybe_root_owner <- & token_contract.token_owners[parent_token_id];
-        match maybe_root_owner with
-        | None =>
-          error = ParentTokenNotFoundError;
-          Throw error
-        | Some root_owner =>
-          is_root_owner = builtin eq root_owner _sender;
-          match is_root_owner with
-          | True =>
-          | False =>
-            error = NotRootOwnerError;
-            Throw error
-          end     
-        end
-      end
-    end
-  end
-end *)
 
 procedure RequireValidDestination(to: ByStr20)
   (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
