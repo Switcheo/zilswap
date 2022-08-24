@@ -325,7 +325,7 @@ procedure RequireRootOwner3(
   end;
   match maybe_token_contract with
   | None =>
-    error = InvalidItemContractError;
+    error = InvalidParentContract2Error;
     Throw error
   | Some token_contract =>
     maybe_token_owner <- & token_contract.token_owners[item_id];
@@ -368,7 +368,7 @@ procedure RequireRootOwner2(
   end;
   match maybe_token_contract with
   | None =>
-    error = InvalidItemContractError;
+    error = InvalidParentContractError;
     Throw error
   | Some token_contract =>
     maybe_token_owner <- & token_contract.token_owners[item_id];
