@@ -9,6 +9,7 @@ library ZolarOMGShop
 
 let true = True
 let false = False
+let uint32_zero = Uint32 0
 let zero = Uint128 0
 let one = Uint128 1
 let two = Uint128 2
@@ -28,11 +29,13 @@ type Error =
   | CodeItemNotFound
   | CodeItemTooExpensive
   | CodeCannotAchieveSellPrice
-  | CodeInvalidQuantity
   | CodeInvalidPaymentItem
+  | CodeInvalidPaymentItemCount
+  | CodeInvalidPaymentItemToken
+  | CodeInvalidPaymentItemTraits
 
 type CraftingCost =
-  | CraftingCost of ByStr20 Uint128 (Option (List (Pair String String))) (* item token address, quantity, item traits *)
+  | CraftingCost of ByStr20 Uint128 (List (Pair String String)) (* item token address, quantity, item traits *)
 
 type Item =
   | Item of String ByStr20 (List (Pair String String)) (List CraftingCost) (* item name, item token address, traits item token address *)
@@ -51,8 +54,10 @@ let make_error =
       | CodeItemNotFound                      => Int32 -5
       | CodeItemTooExpensive                  => Int32 -6
       | CodeCannotAchieveSellPrice            => Int32 -7
-      | CodeInvalidQuantity                   => Int32 -8
       | CodeInvalidPaymentItem                => Int32 -8
+      | CodeInvalidPaymentItemCount           => Int32 -9
+      | CodeInvalidPaymentItemToken           => Int32 -10
+      | CodeInvalidPaymentItemTraits          => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -60,6 +65,7 @@ let make_error =
 let no_item = None {Item}
 let len_payment_items = @list_length PaymentItem
 let len_crafting_costs = @list_length CraftingCost
+let len_traits = @list_length (Pair String String)
 let zipper = @list_zip CraftingCost PaymentItem
 
 let one_msg =
@@ -210,16 +216,6 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
-procedure IsValidQuantity(quantity: Uint128)
-  is_valid = builtin lt zero quantity;
-  match is_valid with
-  | True =>
-  | False =>
-    err = CodeInvalidQuantity;
-    ThrowError err
-  end
-end
-
 procedure VerifyItemTraits(required_traits: List (Pair String String), token_address: ByStr20, token_id: Uint256)
   maybe_token_contract <- & token_address as ByStr20 with contract
     field traits : Map Uint256 (List (Pair String String))
@@ -238,7 +234,7 @@ procedure VerifyItemTraits(required_traits: List (Pair String String), token_add
       ok = is_traits_exist required_traits traits;
       match ok with
       | False =>
-        err = CodeInvalidPaymentItem;
+        err = CodeInvalidPaymentItemTraits;
         ThrowError err
       | True => (* ok *)
       end
@@ -251,7 +247,7 @@ procedure VerifyTokenAddress(lhs: ByStr20, rhs: ByStr20)
   match is_same_address with
   | True => 
   | False =>
-    err = CodeInvalidPaymentItem;
+    err = CodeInvalidPaymentItemToken;
     ThrowError err
   end
 end
@@ -287,16 +283,18 @@ procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
   match pair with
   | Pair crafting_cost payment_item =>
     match crafting_cost with
-    | CraftingCost token_address quantity maybe_item_traits  =>
+    | CraftingCost token_address quantity item_traits  =>
       match payment_item with
       | PaymentItem pay_token_address token_id  =>
         VerifyTokenAddress pay_token_address token_address;
-        match maybe_item_traits with
-        | Some item_traits =>
+        item_traits_length = len_traits item_traits;
+        has_item_traits = builtin lt uint32_zero item_traits_length;
+        match has_item_traits with
+        | True =>
           (* zrc6 token cost*)
           VerifyItemTraits item_traits token_address token_id;
           ReceiveZRC6 token_address token_id
-        | None =>
+        | False =>
           (* zrc2 token cost *)
           ReceiveZRC2 token_address quantity _sender
         end
@@ -312,7 +310,7 @@ procedure VerifyAndReceivePayment(crafting_costs: List CraftingCost, payment_ite
   match is_same_count with
   | True =>
   | False =>
-    err = CodeItemNotFound; (* TODO: new error *)
+    err = CodeInvalidPaymentItemCount;
     ThrowError err
   end;
 

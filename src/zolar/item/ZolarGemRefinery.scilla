@@ -84,6 +84,7 @@ type OngoingRefinement =
 let trait_list_find = @list_find (Pair String String)
 let uint256_list_nth = @list_nth Uint256
 let uint256_list_length = @list_length Uint256
+let len_str = @list_length String
 
 let one_msg =
   fun (msg : Message) =>
@@ -170,6 +171,16 @@ let map_mint_traits =
         Pair {(Pair ByStr20 String) (List (Pair String String))} mint_param traits
     in
     fold fn gems_traits
+
+let zrc6_batch_transfer_param = 
+  fun (to: ByStr20) =>
+  fun (token_ids: List Uint256) =>
+    let fold = @list_map Uint256 (Pair ByStr20 Uint256) in
+    let fn = 
+      fun (token_id: Uint256) =>
+        Pair {ByStr20 Uint256} to token_id
+    in
+    fold fn token_ids
 
 let affinity_exist = 
   fun (affinity: String) =>
@@ -336,22 +347,40 @@ procedure ConsumeGems(token_ids: List Uint256)
   send msgs 
 end
 
-procedure VerifyAndReceiveGem(token_id: Uint256, required_tier: GemTier)
+procedure RefundGems(to: ByStr20, token_ids: List Uint256)
+  to_token_id_pair_list = zrc6_batch_transfer_param to token_ids;
+
+  items_contract <- items_address;
+  msg_to_items = {
+    _tag: "BatchTransferFrom";
+    _recipient: items_contract;
+    _amount: zero;
+    to_token_id_pair_list: to_token_id_pair_list
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
+end
+
+procedure ReceiveGems(token_ids: List Uint256)
+  to_token_id_pair_list = zrc6_batch_transfer_param _this_address token_ids;
+
+  items_contract <- items_address;
+  msg_to_items = {
+    _tag: "BatchTransferFrom";
+    _recipient: items_contract;
+    _amount: zero;
+    to_token_id_pair_list: to_token_id_pair_list
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
+end
+
+procedure VerifyGem(token_id: Uint256, required_tier: GemTier)
   items_contract <- items_address;
   maybe_gem_traits <- & items_contract.traits[token_id];
   gem_traits = match maybe_gem_traits with | Some traits => traits | None => empty_traits end;
   tier = get_gem_tier gem_traits;
-  VerifyGemTier tier required_tier;
-
-  msg_to_items = {
-    _tag: "TransferFrom";
-    _recipient: items_contract;
-    _amount: zero;
-    to: _this_address;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_items;
-  send msgs
+  VerifyGemTier tier required_tier
 end
 
 procedure VerifyAndReceiveMaterials(material_gem_token_ids: List Uint256, required_tier: GemTier, index: Uint32)
@@ -362,7 +391,7 @@ procedure VerifyAndReceiveMaterials(material_gem_token_ids: List Uint256, requir
     err = CodeInvalidMaterial;
     ThrowError err
   | Some token_id =>
-    VerifyAndReceiveGem token_id required_tier
+    VerifyGem token_id required_tier
   end
 end
 
@@ -443,6 +472,8 @@ transition BeginGemEnhancement(output_tier: GemTier, base_gem_token_id: Uint256,
       ThrowError err
     end;
 
+    ReceiveGems all_gem_token_ids;
+
     refinement = GemEnhancement _sender output_tier base_gem_token_id material_gem_token_ids;
     AddRefinement refinement
   end
@@ -466,35 +497,54 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
   | Some ongoing_refinement => 
     delete refinements[refinement_id];
 
+    output_length = len_str gems;
+    has_output = builtin lt uint32_zero output_length;
+
     match ongoing_refinement with
-    | GemEnhancement _ _ base_gem_token_id material_gem_token_ids =>
+    | GemEnhancement recipient _ base_gem_token_id material_gem_token_ids =>
       all_gems = Cons {Uint256} base_gem_token_id material_gem_token_ids;
-      ConsumeGems all_gems
+      match has_output with
+      | False =>
+        RefundGems recipient all_gems 
+      | True =>
+        ConsumeGems all_gems
+      end
     | GeodeRefinement _ _ =>
     end;
 
-    recipient = match ongoing_refinement with
-      | GemEnhancement recipient _ _ _ => recipient
-      | GeodeRefinement recipient _ => recipient
-      end;
-    
-    gem_tier = match ongoing_refinement with
-      | GemEnhancement _ output_tier _ _ => output_tier
-      | GeodeRefinement _ _ => TierC
-      end;
+    match has_output with
+    | False =>
+    | True =>
+      recipient = match ongoing_refinement with
+        | GemEnhancement recipient _ _ _ => recipient
+        | GeodeRefinement recipient _ => recipient
+        end;
+      
+      gem_tier = match ongoing_refinement with
+        | GemEnhancement _ output_tier _ _ => output_tier
+        | GeodeRefinement _ _ => TierC
+        end;
 
-    gems_traits = map_gem_traits gems gem_tier;
-    batch_mint_params = map_mint_traits gems_traits recipient;
+      gems_traits = map_gem_traits gems gem_tier;
+      batch_mint_params = map_mint_traits gems_traits recipient;
 
-    current_items_address <- items_address;
-    msg_to_items = {
-      _tag: "BatchMintAndSetTraits";
-      _recipient: current_items_address;
-      _amount: zero;
-      to_token_uri_proposed_traits_list: batch_mint_params
+      current_items_address <- items_address;
+      msg_to_items = {
+        _tag: "BatchMintAndSetTraits";
+        _recipient: current_items_address;
+        _amount: zero;
+        to_token_uri_proposed_traits_list: batch_mint_params
+      };
+      msgs = one_msg msg_to_items;
+      send msgs
+    end;
+
+    e = {
+      _eventname: "RefinementConcluded";
+      initiator: _sender;
+      refinement_id: refinement_id
     };
-    msgs = one_msg msg_to_items;
-    send msgs
+    event e
   end
 end
 
@@ -550,7 +600,7 @@ transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, reci
   (* no-op *)
 end
 
-transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
+transition ZRC6_BatchTransferFromCallback()
   (* no-op *)
 end
 

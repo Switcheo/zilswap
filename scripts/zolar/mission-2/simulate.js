@@ -1,8 +1,8 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
 const { default: BigNumber } = require("bignumber.js");
 const { callContract } = require("../../call");
-const { getPrivateKey, param } = require("../../zilliqa");
-const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE_HUNY } = require("./helper");
+const { getPrivateKey, param, noneParam, ZERO_ADDRESS } = require("../../zilliqa");
+const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE_HUNY, deployZOMGStore } = require("./helper");
 
 ;
 (async () => {
@@ -33,11 +33,106 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
   const scrapContract = await deployResource("ZolarZolraniumScrap", { name: "Scraps - Zolar Resource", symbol: "zlrSCRAP", decimals: "2" });
   const scrapAddress = scrapContract.address.toLowerCase();
 
-  const itemsContract = await deployItems();
+  const itemsContract = await deployItems({ baseUri: "https://test-api.zolar.io/items/metadata/" });
   const itemsAddress = itemsContract.address.toLowerCase();
+
+  const zomgStoreContract = await deployZOMGStore();
+  const zomgStoreAddress = zomgStoreContract.address.toLowerCase();
 
   const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress });
   const gemRefineryAddress = gemRefineryContract.address.toLowerCase();
+
+  const txAddWeapon = await callContract(privateKey, zomgStoreContract, "AddItem", [
+    param('item_name', 'String', 'HA13-Hand of Death'),
+    param('token_address', 'ByStr20', itemsAddress),
+    param('traits', 'List (Pair String String)', [{
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['Type', 'Equipment'],
+    }, {
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['STR', '7'],
+    }, {
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['INT', '7'],
+    }, {
+      constructor: 'Pair',
+      argtypes: ['String', 'String'],
+      arguments: ['DEX', '7'],
+    }]),
+    param('cost', `List ${zomgStoreAddress}.CraftingCost`, [{
+      constructor: `${zomgStoreAddress}.CraftingCost`,
+      argtypes: [],
+      arguments: [
+        hunyAddress,
+        ONE_HUNY.times(27000), // 27K huny
+        [],
+      ],
+    }, {
+      constructor: `${zomgStoreAddress}.CraftingCost`,
+      argtypes: [],
+      arguments: [
+        itemsAddress,
+        "0", // ignored for zrc6
+        [{
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Type', 'Gem'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Affinity', 'Int'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Tier', 'C'],
+        }],
+      ],
+    }, {
+      constructor: `${zomgStoreAddress}.CraftingCost`,
+      argtypes: [],
+      arguments: [
+        itemsAddress,
+        "0", // ignored for zrc6
+        [{
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Type', 'Gem'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Affinity', 'Int'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Tier', 'C'],
+        }],
+      ],
+    }, {
+      constructor: `${zomgStoreAddress}.CraftingCost`,
+      argtypes: [],
+      arguments: [
+        itemsAddress,
+        "0", // ignored for zrc6
+        [{
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Type', 'Gem'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Affinity', 'Int'],
+        }, {
+          constructor: `Pair`,
+          argtypes: ['String', 'String'],
+          arguments: ['Tier', 'C'],
+        }],
+      ],
+    }]),
+  ], 0, false, false);
+  console.log("add weapon", txAddWeapon.id);
 
   const txMintMetazoa = await callContract(privateKey, metazoaContract, "Mint", [
     param('to', 'ByStr20', address),
@@ -204,7 +299,31 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
 
   const txConcludeEnhance = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "1"),
-    param('gems', 'List String', ["INT"]),
+    param('gems', 'List String', ["INT", "INT", "INT"]),
   ], 0, false, false)
   console.log("conclude enhancement", txConcludeEnhance.id);
+
+  console.log("items traits", Object.entries((await itemsContract.getSubState("traits")).traits).map(([token_id, traits]) => `${token_id}: ${traits.map(t => t.arguments.join("=")).join(",")}`).join("\n"))
+
+  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "PurchaseItem", [
+    param('item_id', 'Uint128', "0"),
+    param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [{
+      constructor: `${zomgStoreAddress}.PaymentItem`,
+      argtypes: [],
+      arguments: [hunyAddress, "0"], // pay huny
+    }, {
+      constructor: `${zomgStoreAddress}.PaymentItem`,
+      argtypes: [],
+      arguments: [itemsAddress, "5"], // pay gem
+    }, {
+      constructor: `${zomgStoreAddress}.PaymentItem`,
+      argtypes: [],
+      arguments: [itemsAddress, "6"], // pay gem
+    }, {
+      constructor: `${zomgStoreAddress}.PaymentItem`,
+      argtypes: [],
+      arguments: [itemsAddress, "7"], // pay gem
+    }]),
+  ], 0, false, false)
+  console.log("craft weapon", txCraftWeapon.id);
 })();

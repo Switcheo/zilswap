@@ -105,6 +105,7 @@ const deployResource = async (resource, {
 };
 
 const deployItems = async ({
+  baseUri,
 } = {}) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
@@ -112,7 +113,7 @@ const deployItems = async ({
   const init = [
     param("_scilla_version", "Uint32", "0"),
     param("initial_contract_owner", "ByStr20", address),
-    param("initial_base_uri", "String", "https://api.zolar.io/items/metadata/"),
+    param("initial_base_uri", "String", baseUri),
     param("name", "String", "Zolar Items"),
     param("symbol", "String", "ITEM"),
   ]
@@ -172,6 +173,20 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
   return contract;
 };
 
+const deployZOMGStore = async () => {
+  const privateKey = getPrivateKey();
+  const address = getAddressFromPrivateKey(privateKey)
+  const code = (await fs.promises.readFile(`./src/zolar/item/ZolarOMGShop.scilla`)).toString()
+  const init = [
+    param("_scilla_version", "Uint32", "0"),
+    param("initial_owner", "ByStr20", address),
+  ]
+
+  console.info(`Deploying Item Store...`)
+  const [contract] = await deployContract(privateKey, code, init)
+  return contract;
+};
+
 module.exports = {
   ONE_HUNY,
   deployHunyToken,
@@ -182,4 +197,5 @@ module.exports = {
   deployGemRefinery,
   deployEmporium,
   deployResourceStore,
+  deployZOMGStore,
 }

@@ -27,6 +27,14 @@ const param = (vname, type, value) => {
   return { vname, type, value };
 }
 
+const noneParam = (address) => {
+  return {
+    constructor: `${address}.None`,
+    argtypes: [],
+    arguments: [],
+  }
+}
+
 const getNetwork = () => {
   const network = (process.env.NETWORK || '').toLowerCase()
   switch (network) {
@@ -65,11 +73,14 @@ const network = getNetwork()
 const rpc = getRPC(network)
 const VERSION = bytes.pack(getChainID(network), 1)
 const zilliqa = new Zilliqa(rpc)
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 exports.chainId = getChainID(network)
 exports.param = param
+exports.noneParam = noneParam
 exports.useKey = useKey
 exports.getPrivateKey = getPrivateKey
 exports.network = network
 exports.zilliqa = zilliqa
+exports.ZERO_ADDRESS = ZERO_ADDRESS;
 exports.VERSION = VERSION
