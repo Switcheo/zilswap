@@ -83,7 +83,7 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
-          arguments: ['Affinity', 'Int'],
+          arguments: ['Affinity', 'INT'],
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
@@ -103,7 +103,7 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
-          arguments: ['Affinity', 'Int'],
+          arguments: ['Affinity', 'INT'],
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
@@ -123,7 +123,7 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
-          arguments: ['Affinity', 'Int'],
+          arguments: ['Affinity', 'INT'],
         }, {
           constructor: `Pair`,
           argtypes: ['String', 'String'],
@@ -184,6 +184,16 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
     param('minter', 'ByStr20', gemRefineryAddress),
   ], 0, false, false);
   console.log("add refinery as items minter", txAddMinterItemsRefinery.id);
+
+  const txAddMinterItemsShop = await callContract(privateKey, itemsContract, "AddMinter", [
+    param('minter', 'ByStr20', zomgStoreAddress),
+  ], 0, false, false);
+  console.log("add zomg store as items minter", txAddMinterItemsShop.id);
+
+  const txAddMinterHunyShop = await callContract(privateKey, hunyContract, "AddMinter", [
+    param('minter', 'ByStr20', zomgStoreAddress),
+  ], 0, false, false);
+  console.log("add zomg store as huny minter", txAddMinterHunyShop.id);
 
   const txAddMinterGeodeRefinery = await callContract(privateKey, geodeContract, "AddMinter", [
     param('minter', 'ByStr20', gemRefineryAddress),
@@ -367,10 +377,21 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
   ], 0, false, false)
   console.log("conclude enhancement", txConcludeEnhance.id);
 
+  const txZOMGStoreAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [
+    param('spender', 'ByStr20', zomgStoreAddress),
+    param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
+  ], 0, false, false)
+  console.log("increase allowance huny to zomg store", txZOMGStoreAllowance.id);
+
+  const txZOMGStoreAddOperator = await callContract(privateKey, itemsContract, "AddOperator", [
+    param('operator', 'ByStr20', zomgStoreAddress),
+  ], 0, false, false)
+  console.log("item add zomg store as operator", txZOMGStoreAddOperator.id);
+
   console.log("items traits", "\n" + Object.entries((await itemsContract.getSubState("traits")).traits).map(([token_id, traits]) => `${token_id}: ${traits.map(t => t.arguments.join("=")).join(",")}`).join("\n"))
   console.log("items owners", "\n" + Object.entries((await itemsContract.getSubState("token_owners")).token_owners).map(([token_id, owner]) => `${token_id}: ${owner}`).join("\n"))
 
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "PurchaseItem", [
+  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [{
       constructor: `${zomgStoreAddress}.PaymentItem`,

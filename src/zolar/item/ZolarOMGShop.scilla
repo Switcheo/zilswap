@@ -97,8 +97,8 @@ let all_true =
     list_forall_bool identity list
 
 let is_trait_found =
-  fun (list : List (Pair String String)) =>
-  fun (candidate: Pair String String) =>
+  fun (list : List (Pair String String)) => (* token traits *)
+  fun (candidate: Pair String String) => (* required trait *)
     let check_exists = @list_exists (Pair String String) in
     let exist_fn = fun (item: Pair String String) => 
         match item with
@@ -117,8 +117,8 @@ let is_trait_found =
     check_exists exist_fn list
 
 let is_traits_exist =
-  fun (set : List (Pair String String)) =>
-  fun (candidate : List (Pair String String)) =>
+  fun (set : List (Pair String String)) => (* token traits *)
+  fun (candidate : List (Pair String String)) => (* required traits *)
     let fold = @list_foldl (Pair String String) (List Bool) in
     let fn = 
       fun (result_list: List Bool) => 
@@ -252,12 +252,11 @@ procedure VerifyTokenAddress(lhs: ByStr20, rhs: ByStr20)
   end
 end
 
-procedure ReceiveZRC6(token_address: ByStr20, token_id: Uint256)
+procedure ExpendZRC6(token_address: ByStr20, token_id: Uint256)
   msg_to_token = {
-    _tag: "TransferFrom";
+    _tag: "Burn";
     _recipient: token_address;
     _amount: zero;
-    to: _this_address;
     token_id: token_id
   };
 
@@ -265,13 +264,12 @@ procedure ReceiveZRC6(token_address: ByStr20, token_id: Uint256)
   send msgs
 end
 
-procedure ReceiveZRC2(token_address: ByStr20, quantity: Uint128, purchaser: ByStr20)
+procedure ExpendZRC2(token_address: ByStr20, quantity: Uint128, purchaser: ByStr20)
   msg = {
-    _tag: "TransferFrom";
+    _tag: "Burn";
     _recipient: token_address;
     _amount: zero;
-    from: _sender;
-    to: _this_address;
+    burn_account: purchaser;
     amount: quantity
   };
 
@@ -293,10 +291,10 @@ procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
         | True =>
           (* zrc6 token cost*)
           VerifyItemTraits item_traits token_address token_id;
-          ReceiveZRC6 token_address token_id
+          ExpendZRC6 token_address token_id
         | False =>
           (* zrc2 token cost *)
-          ReceiveZRC2 token_address quantity _sender
+          ExpendZRC2 token_address quantity _sender
         end
       end
     end
@@ -338,7 +336,7 @@ end
 
 (* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
 (* @param item_id: the id of the item to purchase *)
-transition PurchaseItem(item_id: Uint128, payment_items: List PaymentItem)
+transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
   maybe_item <- items[item_id];
   match maybe_item with
   | None =>
@@ -415,43 +413,33 @@ end
 (*             Callbacks               *)
 (***************************************)
 
-transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
-  msg_to_resource = {
-    _tag: "Burn";
-    _recipient: _sender;
-    _amount: zero;
-    burn_account: _this_address;
-    amount: amount
-  };
- 
-  msgs = one_msg msg_to_resource;
-  send msgs 
-end
-
-transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
-  msg_to_token = {
-    _tag: "BurnToken";
-    _recipient: _sender;
-    _amount: zero;
-    token_id: token_id
-  };
-
-  msgs = one_msg msg_to_token;
-  send msgs 
-end
-
 (* burn huny *)
 transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end
 
 (* burn items *)
-transition ZRC6_BurnCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* item crafted *)
+transition ZRC6_MintCallback(to: ByStr20, token_id: Uint256, token_uri: String)
   (* no-op *)
 end
 
 (* mint resource *)
 transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* receive resource/huny *)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* receive gems/items *)
+transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
   (* no-op *)
 end
 
