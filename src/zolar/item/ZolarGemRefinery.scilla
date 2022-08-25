@@ -78,7 +78,7 @@ type GemTier =
   | TierUnknown
 
 type OngoingRefinement =
-  | GemEnhancement of ByStr20 GemTier (* recipient, output tier *)
+  | GemEnhancement of ByStr20 GemTier Uint256 (List Uint256) (* recipient, output tier, base gem id, material token ids *)
   | GeodeRefinement of ByStr20 Uint128 (* recipient, input quantity *)
 
 let trait_list_find = @list_find (Pair String String)
@@ -280,7 +280,7 @@ procedure VerifyOwnership(token_id: Uint256)
   end
 end
 
-procedure VerifyGeodeQuantity(quantity: Uint128)
+procedure VerifyAndConsumeGeodes(quantity: Uint128)
   invalid_qty = builtin lt quantity hundred;
   match invalid_qty with
   | False =>
@@ -296,7 +296,19 @@ procedure VerifyGeodeQuantity(quantity: Uint128)
   | False =>
     err = CodeInvalidGeodeAmount;
     ThrowError err
-  end
+  end;
+
+  current_geode_address <- geode_address;
+  msg_to_items = {
+    _tag: "TransferFrom";
+    _recipient: current_geode_address;
+    _amount: zero;
+    from: _sender;
+    to: _this_address;
+    amount: quantity
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
 end
 
 procedure VerifyGemTier(tier: GemTier, required_tier: GemTier)
@@ -311,7 +323,20 @@ procedure VerifyGemTier(tier: GemTier, required_tier: GemTier)
   end
 end
 
-procedure VerifyAndConsumeGem(token_id: Uint256, required_tier: GemTier)
+procedure ConsumeGems(token_ids: List Uint256)
+  items_contract <- items_address;
+  msg_to_token = {
+    _tag: "BatchBurn";
+    _recipient: items_contract;
+    _amount: zero;
+    token_id_list: token_ids
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs 
+end
+
+procedure VerifyAndReceiveGem(token_id: Uint256, required_tier: GemTier)
   items_contract <- items_address;
   maybe_gem_traits <- & items_contract.traits[token_id];
   gem_traits = match maybe_gem_traits with | Some traits => traits | None => empty_traits end;
@@ -329,7 +354,7 @@ procedure VerifyAndConsumeGem(token_id: Uint256, required_tier: GemTier)
   send msgs
 end
 
-procedure VerifyAndConsumeMaterials(material_gem_token_ids: List Uint256, required_tier: GemTier, index: Uint32)
+procedure VerifyAndReceiveMaterials(material_gem_token_ids: List Uint256, required_tier: GemTier, index: Uint32)
   maybe_token_id = uint256_list_nth index material_gem_token_ids;
 
   match maybe_token_id with
@@ -337,7 +362,7 @@ procedure VerifyAndConsumeMaterials(material_gem_token_ids: List Uint256, requir
     err = CodeInvalidMaterial;
     ThrowError err
   | Some token_id =>
-    VerifyAndConsumeGem token_id required_tier
+    VerifyAndReceiveGem token_id required_tier
   end
 end
 
@@ -391,25 +416,25 @@ transition BeginGemEnhancement(output_tier: GemTier, base_gem_token_id: Uint256,
       required_tier = get_tier trait_value_tier_s;
       VerifyGemTier base_gem_tier required_tier;
       VerifyMaterialsLength material_gem_token_ids uint32_one;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_zero
     | TierS =>
       required_tier = get_tier trait_value_tier_a;
       VerifyGemTier base_gem_tier required_tier;
       VerifyMaterialsLength material_gem_token_ids uint32_one;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_zero
     | TierA =>
       required_tier = get_tier trait_value_tier_b;
       VerifyGemTier base_gem_tier required_tier;
       VerifyMaterialsLength material_gem_token_ids uint32_two;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_one
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_zero;
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_one
     | TierB =>
       required_tier = get_tier trait_value_tier_c;
       VerifyGemTier base_gem_tier required_tier;
       VerifyMaterialsLength material_gem_token_ids uint32_three;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_zero;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_one;
-      VerifyAndConsumeMaterials material_gem_token_ids required_tier uint32_two
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_zero;
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_one;
+      VerifyAndReceiveMaterials material_gem_token_ids required_tier uint32_two
     | TierC =>
       err = CodeInvalidEnhancementTier;
       ThrowError err
@@ -418,13 +443,13 @@ transition BeginGemEnhancement(output_tier: GemTier, base_gem_token_id: Uint256,
       ThrowError err
     end;
 
-    refinement = GemEnhancement _sender output_tier;
+    refinement = GemEnhancement _sender output_tier base_gem_token_id material_gem_token_ids;
     AddRefinement refinement
   end
 end
 
 transition BeginGeodeRefinement(quantity: Uint128)
-  VerifyGeodeQuantity quantity;
+  VerifyAndConsumeGeodes quantity;
   gem_quantity = builtin div quantity hundred;
 
   refinement = GeodeRefinement _sender gem_quantity;
@@ -441,13 +466,20 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
   | Some ongoing_refinement => 
     delete refinements[refinement_id];
 
+    match ongoing_refinement with
+    | GemEnhancement _ _ base_gem_token_id material_gem_token_ids =>
+      all_gems = Cons {Uint256} base_gem_token_id material_gem_token_ids;
+      ConsumeGems all_gems
+    | GeodeRefinement _ _ =>
+    end;
+
     recipient = match ongoing_refinement with
-      | GemEnhancement recipient _ => recipient
+      | GemEnhancement recipient _ _ _ => recipient
       | GeodeRefinement recipient _ => recipient
       end;
     
     gem_tier = match ongoing_refinement with
-      | GemEnhancement _ output_tier => output_tier
+      | GemEnhancement _ output_tier _ _ => output_tier
       | GeodeRefinement _ _ => TierC
       end;
 
@@ -509,16 +541,13 @@ transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, reci
   send msgs 
 end
 
+(* receive gems *)
 transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
-  msg_to_token = {
-    _tag: "Burn";
-    _recipient: _sender;
-    _amount: zero;
-    token_id: token_id
-  };
+  (* no-op *)
+end
 
-  msgs = one_msg msg_to_token;
-  send msgs 
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
 end
 
 transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
@@ -531,7 +560,7 @@ transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: U
 end
 
 (* burn gems *)
-transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
+transition ZRC6_BatchBurnCallback()
   (* no-op *)
 end
 
