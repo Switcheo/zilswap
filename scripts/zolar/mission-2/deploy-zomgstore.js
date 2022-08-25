@@ -1,33 +1,32 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
+const { callContract } = require("../../call");
 const { getPrivateKey, param, zilliqa } = require("../../zilliqa");
-const { deployResourceStore, deployResource, deployItems, deployGemRefinery } = require("./helper");
+const { deployZOMGStore } = require("./helper");
 
 ;
 (async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
 
+  const itemsAddress = process.env.ITEMS_CONTRACT_HASH;
   const hunyAddress = process.env.HUNY_CONTRACT_HASH;
-  const emporiumAddress = process.env.METAZOA_CONTRACT_HASH;
+  const geodeAddress = process.env.GEODE_CONTRACT_HASH;
+  const berryAddress = process.env.BERRY_CONTRACT_HASH;
+  const scrapAddress = process.env.SCRAP_CONTRACT_HASH;
 
-  const geodeContract = await deployResource("ZolarGeode", { name: "Geode - Zolar Resource", symbol: "zlrGEODE", decimals: "2" });
-  const geodeAddress = geodeContract.address.toLowerCase();
+  const zomgStallContract = await deployZOMGStore();
+  const zomgStallAddress = zomgStallContract.address.toLowerCase();
 
-  const berryContract = await deployResource("ZolarElderberry", { name: "Elderberry - Zolar Resource", symbol: "zlrBERRY", decimals: "2" });
-  const berryAddress = berryContract.address.toLowerCase();
-
-  const scrapContract = await deployResource("ZolarZolraniumScrap", { name: "Scraps - Zolar Resource", symbol: "zlrSCRAP", decimals: "2" });
-  const scrapAddress = scrapContract.address.toLowerCase();
-
-  const resourceStallContract = await deployResourceStore({ emporium: emporiumAddress, huny_token: hunyAddress });
-  const resourceStallAddress = resourceStallContract.address.toLowerCase();
+  for (const contract_address of [itemsAddress, hunyAddress, geodeAddress, berryAddress, scrapAddress]) {
+    const contract = zilliqa.contracts.at(contract_address);
+    const txAddMinter = await callContract(privateKey, contract, "AddMinter", [
+      param('minter', 'ByStr20', zomgStallAddress),
+    ], 0, false, false);
+    console.log("add zomg store as minter", contract_address, txAddMinter.id);
+  }
 
   console.log(`\n\n======================`)
   console.log(`\n  Contracts`)
   console.log(`\n======================`)
-  console.log(`\nGeode      `, geodeAddress);
-  console.log(`\nBerry      `, berryAddress);
-  console.log(`\nScrap      `, scrapAddress);
-  console.log(`\nStall      `, resourceStallAddress);
-  console.log(`\nGemRefinery`, gemRefineryAddress);
+  console.log(`\nZOMG Store `, zomgStallAddress);
 })();
