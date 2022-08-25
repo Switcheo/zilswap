@@ -84,7 +84,7 @@ type OngoingRefinement =
 let trait_list_find = @list_find (Pair String String)
 let uint256_list_nth = @list_nth Uint256
 let uint256_list_length = @list_length Uint256
-let len_str = @list_length String
+let gems_list_length = @list_length (Pair String GemTier)
 
 let one_msg =
   fun (msg : Message) =>
@@ -146,20 +146,22 @@ let tier_to_trait_value =
     end
 
 let map_gem_traits =
-  fun (gem_affinity_list : List String) => 
-  fun (gem_tier : GemTier) => 
-    let trait_tier_value = tier_to_trait_value gem_tier in
-    let fold = @list_map (String) (List (Pair String String)) in
-    let fn = 
-      fun (affinity: String) =>
-        let trait_type = Pair {String String} trait_key_type trait_value_type in
-        let trait_affinity = Pair {String String} trait_key_affinity affinity in
-        let trait_tier = Pair {String String} trait_key_tier trait_tier_value in
-        let t1 = Cons {(Pair String String)} trait_type empty_traits in
-        let t2 = Cons {(Pair String String)} trait_tier t1 in
-        Cons {(Pair String String)} trait_affinity t2
+  fun (output_gem_list : List (Pair String GemTier)) => 
+    let fold = @list_map (Pair String GemTier) (List (Pair String String)) in
+    let fn : Pair String GemTier -> List (Pair String String) = 
+      fun (output_gem: Pair String GemTier) =>
+        match output_gem with
+        | Pair affinity tier =>
+          let trait_tier_value = tier_to_trait_value tier in
+          let trait_type = Pair {String String} trait_key_type trait_value_type in
+          let trait_affinity = Pair {String String} trait_key_affinity affinity in
+          let trait_tier = Pair {String String} trait_key_tier trait_tier_value in
+          let t1 = Cons {(Pair String String)} trait_type empty_traits in
+          let t2 = Cons {(Pair String String)} trait_tier t1 in
+          Cons {(Pair String String)} trait_affinity t2
+        end
     in
-    fold fn gem_affinity_list
+    fold fn output_gem_list
 
 let map_mint_traits = 
   fun (gems_traits: List (List (Pair String String))) =>
@@ -262,7 +264,8 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
-procedure VerifyAffinity(affinity: String)
+procedure VerifyAffinity(gem: Pair String GemTier)
+  affinity = match gem with | Pair a _ => a end;
   current_gem_affinities <- gem_affinities;
   maybe_exist = affinity_exist affinity current_gem_affinities;
   match maybe_exist with
@@ -487,7 +490,7 @@ transition BeginGeodeRefinement(quantity: Uint128)
   AddRefinement refinement
 end
 
-transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
+transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String GemTier))
   forall gems VerifyAffinity;
   maybe_ongoing_refinement <- refinements[refinement_id];
   match maybe_ongoing_refinement with
@@ -497,17 +500,19 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
   | Some ongoing_refinement => 
     delete refinements[refinement_id];
 
-    output_length = len_str gems;
+    output_length = gems_list_length gems;
     has_output = builtin lt uint32_zero output_length;
 
     match ongoing_refinement with
     | GemEnhancement recipient _ base_gem_token_id material_gem_token_ids =>
-      all_gems = Cons {Uint256} base_gem_token_id material_gem_token_ids;
+      ConsumeGems material_gem_token_ids;
+
+      base_gem_list = let l0 = Nil {Uint256} in Cons {Uint256} base_gem_token_id l0;
       match has_output with
-      | False =>
-        RefundGems recipient all_gems 
       | True =>
-        ConsumeGems all_gems
+        ConsumeGems base_gem_list
+      | False =>
+        RefundGems recipient base_gem_list
       end
     | GeodeRefinement _ _ =>
     end;
@@ -519,13 +524,8 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List String)
         | GemEnhancement recipient _ _ _ => recipient
         | GeodeRefinement recipient _ => recipient
         end;
-      
-      gem_tier = match ongoing_refinement with
-        | GemEnhancement _ output_tier _ _ => output_tier
-        | GeodeRefinement _ _ => TierC
-        end;
 
-      gems_traits = map_gem_traits gems gem_tier;
+      gems_traits = map_gem_traits gems;
       batch_mint_params = map_mint_traits gems_traits recipient;
 
       current_items_address <- items_address;

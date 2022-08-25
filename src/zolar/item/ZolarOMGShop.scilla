@@ -231,7 +231,7 @@ procedure VerifyItemTraits(required_traits: List (Pair String String), token_add
       err = CodeInvalidPaymentItem;
       ThrowError err
     | Some traits =>
-      ok = is_traits_exist required_traits traits;
+      ok = is_traits_exist traits required_traits;
       match ok with
       | False =>
         err = CodeInvalidPaymentItemTraits;

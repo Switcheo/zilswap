@@ -277,7 +277,63 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
 
   const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "0"),
-    param('gems', 'List String', ["INT", "INT", "INT", "INT"]),
+    param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, [{
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }, {
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierC`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }]),
   ], 0, false, false)
   console.log("conclude refinement", txConcludeRefine.id);
 
@@ -299,11 +355,20 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
 
   const txConcludeEnhance = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "1"),
-    param('gems', 'List String', ["INT", "INT", "INT"]),
+    param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, [{
+      constructor: `Pair`,
+      argtypes: ['String', `${gemRefineryAddress}.GemTier`],
+      arguments: ['INT', {
+        constructor: `${gemRefineryAddress}.TierB`,
+        argtypes: [],
+        arguments: [],
+      }]
+    }]),
   ], 0, false, false)
   console.log("conclude enhancement", txConcludeEnhance.id);
 
-  console.log("items traits", Object.entries((await itemsContract.getSubState("traits")).traits).map(([token_id, traits]) => `${token_id}: ${traits.map(t => t.arguments.join("=")).join(",")}`).join("\n"))
+  console.log("items traits", "\n" + Object.entries((await itemsContract.getSubState("traits")).traits).map(([token_id, traits]) => `${token_id}: ${traits.map(t => t.arguments.join("=")).join(",")}`).join("\n"))
+  console.log("items owners", "\n" + Object.entries((await itemsContract.getSubState("token_owners")).token_owners).map(([token_id, owner]) => `${token_id}: ${owner}`).join("\n"))
 
   const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "PurchaseItem", [
     param('item_id', 'Uint128', "0"),
