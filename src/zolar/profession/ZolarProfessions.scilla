@@ -333,7 +333,7 @@ procedure AddAttributePoints(param: Pair Uint256 (List (Pair String Uint32)))
     remaining_free_points = builtin sub free_points points_required;
 
     e = {
-      _eventname: "AddAttributePointsSuccess";
+      _eventname: "AddAttributePoints";
       token_id: token_id;
       attribute_points: attribute_points;
       remaining_free_points: remaining_free_points;
@@ -359,7 +359,7 @@ procedure UpdateProfession(param: Pair Uint256 String)
     VerifyNoProfession traits;
 
     e = {
-      _eventname: "UpdateProfessionSuccess";
+      _eventname: "UpdateProfession";
       token_id: token_id;
       profession: profession;
       initiator: _sender
