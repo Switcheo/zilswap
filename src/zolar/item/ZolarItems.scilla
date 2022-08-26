@@ -64,8 +64,8 @@ type Error =
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | CodeNotTokenOwner
-  | ItemEquippedError
-  | ItemNotEquippedError
+  | ItemOwnedError
+  | ItemNotOwnedError
   | ItemWrongParentError
   | ParentTokenNotFoundError
   | NotRootOwnerError
@@ -101,8 +101,8 @@ let make_error =
       | ThisAddressDestinationError        => Int32 -17
       | NotContractOwnershipRecipientError => Int32 -18
       | CodeNotTokenOwner                  => Int32 -19
-      | ItemEquippedError                  => Int32 -20
-      | ItemNotEquippedError               => Int32 -21
+      | ItemOwnedError                     => Int32 -20
+      | ItemNotOwnedError                  => Int32 -21
       | ItemWrongParentError               => Int32 -22
       | ParentTokenNotFoundError           => Int32 -23
       | NotRootOwnerError                  => Int32 -24
@@ -346,10 +346,10 @@ procedure RequireRootOwner3(
       maybe_token_owned <- & item_contract.parent_owners[item_id];
       match maybe_token_owned with
       | None =>
-        (* item not equipped, check token_owners straight *)
+        (* item not transferred, check token_owners straight *)
         CheckRootOwner token_owner
       | Some token_owned =>
-        (* item equipped, traverse to next layer of contracts to check ownership *)
+        (* item transferred, traverse to next layer of contracts to check ownership *)
         match token_owned with
         | Pair parent_contract parent_token_id =>
           RequireRootOwner4 parent_token_id parent_contract
@@ -389,10 +389,10 @@ procedure RequireRootOwner2(
       maybe_token_owned <- & item_contract.parent_owners[item_id];
       match maybe_token_owned with
       | None =>
-        (* item not equipped, check token_owners straight *)
+        (* item not transferred, check token_owners straight *)
         CheckRootOwner token_owner
       | Some token_owned =>
-        (* item equipped, traverse to next layer of contracts to check ownership *)
+        (* item transferred, traverse to next layer of contracts to check ownership *)
         match token_owned with
         | Pair parent_contract parent_token_id =>
           RequireRootOwner3 parent_token_id parent_contract
@@ -432,10 +432,10 @@ procedure RequireRootOwner(
       maybe_token_owned <- & item_contract.parent_owners[item_id];
       match maybe_token_owned with
       | None =>
-        (* item not equipped, check token_owners straight *)
+        (* item not transferred, check token_owners straight *)
         CheckRootOwner token_owner
       | Some token_owned =>
-        (* item equipped, traverse to next layer of contracts to check ownership *)
+        (* item transferred, traverse to next layer of contracts to check ownership *)
         match token_owned with
         | Pair parent_contract parent_token_id =>
           RequireRootOwner2 parent_token_id parent_contract
@@ -445,7 +445,7 @@ procedure RequireRootOwner(
   end
 end
 
-(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+(* item attempting to transfer must not be already be in the composable to prevent cyclic dependency *)
 (* different from RequireItemNotParent, RequireItemNotParent2 and RequireItemNotParent3, as this must be at root level *)
 procedure RequireItemNotParent4(
   to_token_id: Uint256,
@@ -461,13 +461,13 @@ procedure RequireItemNotParent4(
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
   | Some to_contract =>
-    (* should not hit, if hit need to recheck max item equipment chain count *)
+    (* should not hit, if hit need to recheck max item ownership chain count *)
     error = MaxItemDepthReachedError;
     Throw error
   end
 end
 
-(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+(* item attempting to transfer must not be already be in the composable to prevent cyclic dependency *)
 procedure RequireItemNotParent3(
   to_token_id: Uint256,
   to_contract_address: ByStr20,
@@ -482,13 +482,13 @@ procedure RequireItemNotParent3(
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
   | Some to_contract =>
-    (* check if to_token is being equipped by any tokens *)
+    (* check if to_token is owned by any tokens *)
     maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
     match maybe_parent_owner with
     | None =>
       (* safe, not part of any composable *)
     | Some parent_owner =>
-      (* check if parent matches item to be equipped *)
+      (* check if parent matches item to be transferred *)
       match parent_owner with
       | Pair parent_contract_address parent_token_id =>
         is_same_contract = builtin eq parent_contract_address item_contract_address;
@@ -513,7 +513,7 @@ procedure RequireItemNotParent3(
   end
 end
 
-(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+(* item attempting to transfer must not be already be in the composable to prevent cyclic dependency *)
 procedure RequireItemNotParent2(
   to_token_id: Uint256,
   to_contract_address: ByStr20,
@@ -528,13 +528,13 @@ procedure RequireItemNotParent2(
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
   | Some to_contract =>
-    (* check if to_token is being equipped by any tokens *)
+    (* check if to_token is owned by any tokens *)
     maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
     match maybe_parent_owner with
     | None =>
       (* safe, not part of any composable *)
     | Some parent_owner =>
-      (* check if parent matches item to be equipped *)
+      (* check if parent matches item to be transferred *)
       match parent_owner with
       | Pair parent_contract_address parent_token_id =>
         is_same_contract = builtin eq parent_contract_address item_contract_address;
@@ -559,7 +559,7 @@ procedure RequireItemNotParent2(
   end
 end
 
-(* item attempting to equip must not be already be in the composable to prevent cyclic dependency *)
+(* item attempting to transfer must not be already be in the composable to prevent cyclic dependency *)
 procedure RequireItemNotParent(
   to_token_id: Uint256,
   to_contract_address: ByStr20,
@@ -574,13 +574,13 @@ procedure RequireItemNotParent(
   | None =>
     (* safe, contract is root level, higher level than any item contracts *)
   | Some to_contract =>
-    (* check if to_token is being equipped by any tokens *)
+    (* check if to_token is owned by any tokens *)
     maybe_parent_owner <- & to_contract.parent_owners[to_token_id];
     match maybe_parent_owner with
     | None =>
       (* safe, not part of any composable *)
     | Some parent_owner =>
-      (* check if parent matches item to be equipped *)
+      (* check if parent matches item to be transferred *)
       match parent_owner with
       | Pair parent_contract_address parent_token_id =>
         is_same_contract = builtin eq parent_contract_address item_contract_address;
@@ -674,7 +674,7 @@ procedure ValidateOwnership(
   end
 end
 
-procedure RequireItemEquipped(
+procedure RequireItemOwned(
   parent_token_id: Uint256,
   item_id: Uint256,
   from_contract_address: ByStr20
@@ -682,7 +682,7 @@ procedure RequireItemEquipped(
   maybe_parent <- parent_owners[item_id];
   match maybe_parent with
   | None =>
-    err = ItemNotEquippedError;
+    err = ItemNotOwnedError;
     Throw err
   | Some parent =>
     match parent with
@@ -705,12 +705,12 @@ procedure RequireItemEquipped(
   end
 end
 
-procedure RequireItemNotEquipped(item_id: Uint256)
+procedure RequireItemNotOwned(item_id: Uint256)
   maybe_parent <- parent_owners[item_id];
   match maybe_parent with
   | None =>
   | Some parent =>
-    err = ItemEquippedError;
+    err = ItemOwnedError;
     Throw err
   end
 end
@@ -882,7 +882,7 @@ end
 (* - `token_id` must exist. Otherwise, it must throw `TokenNotFoundError` *)
 (* - `_sender` must be a token owner or an operator. Otherwise, it must throw `NotOwnerOrOperatorError` *)
 procedure BurnToken(token_id: Uint256)
-  RequireItemNotEquipped token_id;
+  RequireItemNotOwned token_id;
   (* Check if token exists *)
   maybe_token_owner <- token_owners[token_id];
   match maybe_token_owner with
@@ -956,13 +956,13 @@ procedure TransferItemToParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken to_token_id token_contract;
-    RequireItemNotEquipped item_id;
+    RequireItemNotOwned item_id;
     RequireItemNotParent to_token_id to_contract item_id _this_address;
     RequireTokenOwner item_id _sender;
     RequireRootOwner to_token_id to_contract;
 
-    new_equip_item = Pair {ByStr20 Uint256} to_contract to_token_id;
-    parent_owners[item_id] := new_equip_item;
+    new_parent_token = Pair {ByStr20 Uint256} to_contract to_token_id;
+    parent_owners[item_id] := new_parent_token;
     token_owners[item_id] := to_contract
   end
 end
@@ -981,7 +981,7 @@ procedure TransferItemFromParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken from_token_id token_contract;
-    RequireItemEquipped from_token_id item_id from_contract;
+    RequireItemOwned from_token_id item_id from_contract;
     RequireRootOwner item_id _this_address;
     RequireRootOwner from_token_id from_contract;
 
@@ -1534,7 +1534,7 @@ end
 (* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
 transition TransferFrom(to: ByStr20, token_id: Uint256)
   RequireNotPaused;
-  RequireItemNotEquipped token_id;
+  RequireItemNotOwned token_id;
   maybe_token_owner <- token_owners[token_id];
   match maybe_token_owner with
   | None =>
