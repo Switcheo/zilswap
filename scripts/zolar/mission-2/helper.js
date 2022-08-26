@@ -66,6 +66,7 @@ const deployProfessions = async ({
     param("initial_owner", "ByStr20", address),
     param("initial_attributes", "List String", ["STR", "DEX", "INT", "LUK"]),
     param("initial_professions", "List String", ["STR", "DEX", "INT"]),
+    param("initial_metazoa_address", "ByStr20", metazoaAddress),
   ]
 
   console.info(`Deploying ZolarProfessions...`)

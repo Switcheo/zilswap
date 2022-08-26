@@ -140,18 +140,7 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
   ], 0, false, false);
   console.log("mint metazoa metazoa", txMintMetazoa.id);
 
-  // transfer metazoa ownership to professions proxy contract
-  const txTransferOwnership = await callContract(privateKey, metazoaContract, "SetContractOwnershipRecipient", [
-    param('to', 'ByStr20', professionsAddress),
-  ], 0, false, false);
-  console.log("transfer metazoa ownership to proxy", txTransferOwnership.id);
-
-  const txAcceptOwnershipt = await callContract(privateKey, professionsContract, "AcceptContractOwnership", [
-    param('new_metazoa_address', 'ByStr20', metazoaAddress),
-  ], 0, false, false);
-  console.log("accept metazoa ownership for proxy", txAcceptOwnershipt.id);
-
-  const txSetTokenTraits = await callContract(privateKey, professionsContract, "SetTokenTraits", [
+  const txSetTokenTraits = await callContract(privateKey, metazoaContract, "SetTokenTraits", [
     param('token_id', 'Uint256', '1'),
     param('proposed_traits', 'List (Pair String String)', [{
       constructor: 'Pair',
@@ -176,9 +165,6 @@ const { deployHunyToken, deployMetazoa, deployProfessions, deployEmporium, deplo
     }]),
   ], 0, false, false);
   console.log("Update Profession", txUpdateProfession.id);
-
-  const { traits: newTraits } = await metazoaContract.getSubState("traits", ["1"]);
-  console.log("verify trait set", newTraits["1"][0].arguments.join(": "), newTraits["1"][1].arguments.join(": "));
 
   const txAddMinterItemsRefinery = await callContract(privateKey, itemsContract, "AddMinter", [
     param('minter', 'ByStr20', gemRefineryAddress),
