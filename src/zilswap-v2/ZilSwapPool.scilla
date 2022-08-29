@@ -5,12 +5,13 @@ import BoolUtils IntUtils ListUtils
 library ZilSwapPool
 
 type ReserveData =
-| ReserveData of Uint256 Uint256 Uint256 Uint256 (* reserve0, reserve1, vReserve0, vReserve1 *)
+| ReserveData of Uint128 Uint128 Uint128 Uint128 (* reserve0, reserve1, vReserve0, vReserve1 *)
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
+let half_bps = Uint128 5000
 
 (* returns True if all items in the list is True *)
 let all_true =
@@ -30,12 +31,47 @@ let two_msgs =
   let msgs_tmp = one_msg msg2 in
   Cons {Message} msg1 msgs_tmp
 
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero_amount
+    end
+
+let min =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_lt_b = builtin lt a b in
+    match a_lt_b with
+    | True => a
+    | False => b
+    end
+
+let max =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let a_lt_b = builtin lt a b in
+    match a_lt_b with
+    | True => b
+    | False => a
+    end
+
+(* @dev: (x * y) / z *)
+let frac =
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+  fun (z : Uint128) =>
+    let xy = builtin mul x y in
+    builtin div xy z
+
 (* Error events *)
 type Error =
 | CodeIsSender
 | CodeInsufficientFunds
 | CodeInsufficientAllowance
 | CodeNotFactory
+| CodeInsufficientLiquidity
+| CodeUnsyncedReserves
 
 let make_error =
   fun (result : Error) =>
@@ -45,6 +81,8 @@ let make_error =
       | CodeInsufficientFunds     => Int32 -2
       | CodeInsufficientAllowance => Int32 -3
       | CodeNotFactory            => Int32 -4
+      | CodeInsufficientLiquidity => Int32 -5
+      | CodeUnsyncedReserves      => Int32 -6
       end
     in
     { _exception : "Error"; code : result_code }
@@ -106,7 +144,8 @@ with
   all_true l7
 =>
 
-(* @dev: to allow reading of these values by other contract, these vars are not immutable *)
+(* @dev: to allow reading of these values by other contracts, these vars are not immutable even though
+   @dev: they are never changed and cannot be changed. *)
 field factory : ByStr20 with contract
   field fee_configuration : Pair ByStr20 Uint128 (* _feeTo, _governanceFeeBps *)
 end = init_factory
@@ -129,6 +168,8 @@ field amp_bps : Uint128 = init_amp_bps
 field v_reserve0 : Uint128 = zero_amount
 field v_reserve1 : Uint128 = zero_amount
 
+field k_last : Uint128 = zero_amount
+
 (* @dev: zrc-2 *)
 field total_supply : Uint128 = zero_amount
 field balances: Map ByStr20 Uint128 = Emp ByStr20 Uint128
@@ -138,11 +179,12 @@ field allowances: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 U
 (*             Procedures             *)
 (**************************************)
 
-(* @dev: zrc-2 *)
 procedure ThrowError(err : Error)
   e = make_error err;
   throw e
 end
+
+(*** zrc-2 ***)
 
 procedure IsNotSender(address: ByStr20)
   is_sender = builtin eq _sender address;
@@ -177,8 +219,41 @@ procedure AuthorizedMoveIfSufficientBalance(from: ByStr20, to: ByStr20, amount: 
   end
 end
 
-(* @dev: pool *)
-procedure IsFactory(address : ByStr20)
+procedure AuthorizedMint(recipient: ByStr20, amount: Uint128)
+  o_recipient_bal <- balances[recipient];
+  bal = get_val o_recipient_bal;
+  new_balance = builtin add amount bal;
+  balances[recipient] := new_balance;
+  current_total_supply <- total_supply;
+  new_total_supply = builtin add current_total_supply amount;
+  total_supply := new_total_supply;
+  e = {_eventname: "Minted"; minter: _sender; recipient: recipient; amount: amount};
+  event e
+end
+
+procedure AuthorizedBurnIfSufficientBalance(from: ByStr20, amount: Uint128)
+  o_get_bal <- balances[from];
+  bal = get_val o_get_bal;
+  can_burn = uint128_le amount bal;
+  match can_burn with
+  | True =>
+    (* Subtract amount from from *)
+    new_balance = builtin sub bal amount;
+    balances[from] := new_balance;
+    current_total_supply <- total_supply;
+    new_total_supply = builtin sub current_total_supply amount;
+    total_supply := new_total_supply;
+    e = {_eventname: "Burnt"; burner: _sender; burn_account: from; amount: amount};
+    event e
+  | False =>
+    err = CodeInsufficientFunds;
+    ThrowError err
+  end
+end
+
+(*** pool ***)
+
+procedure IsFactory(address: ByStr20)
   f <- factory;
   is_factory = builtin eq f address;
   match is_factory with
@@ -189,8 +264,87 @@ procedure IsFactory(address : ByStr20)
   end
 end
 
+(* @dev: mints fee to fee address via liquidity tokens *)
+procedure MintFee(is_amp_pool: Bool)
+  fee_config <- & init_factory.fee_configuration;
+  match fee_config with
+  | Pair fee_to fee_bps =>
+    is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
+    match is_fee_on with
+    | False =>
+    | True =>
+      kl <- k_last;
+      v_r0_ <- v_reserve0;
+      v_r1_ <- v_reserve1;
+      r0_ <- reserve0;
+      r1_ <- reserve1;
+      r0 = match is_amp_pool with | False => r0_ | True => v_r0_ end;
+      r1 = match is_amp_pool with | False => r1_ | True => v_r1_ end;
+      t = builtin mul kl r0;
+      t_r0 = builtin div t r0;
+      is_eq = builtin eq t_r0 kl;
+      collected_fee = match is_eq with (* value is in token 0 *)
+      | True =>
+        (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
+        let t_r1 = builtin div t r1 in
+        let sqrt = builtin isqrt t_r1 in
+        builtin sub r0 t_r1
+      | False =>
+        (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
+        let kl_r1 = builtin div kl r1 in
+        let kl_r1_r0 = builtin mul kl_r1 r0 in
+        let sqrt = builtin isqrt kl_r1_r0 in
+        builtin sub r0 sqrt
+      end;
+      pool_value = let r1_value = frac r1_ r0 r1 in builtin add r0_ r1_value; (* value in token0 *)
+      ts <- total_supply;
+      liquidity =
+        let numerator = let a = builtin mul ts collected_fee in builtin mul a fee_bps in
+        let denominator = let a = builtin sub pool_value collected_fee in builtin mul a half_bps in
+        builtin div numerator denominator;
+      has_fee = builtin eq liquidity zero_amount;
+      match has_fee with | False =>
+      | True =>
+        AuthorizedMint fee_to liquidity
+      end
+    end
+  end
+end
+
+(* @dev: update reserves *)
+procedure Update(is_amp_pool: Bool, data: ReserveData)
+  match data with
+  | ReserveData r0 r1 vr0 vr1 =>
+    reserve0 := r0;
+    reserve1 := r1;
+    match is_amp_pool with
+    | False =>
+    | True =>
+      v_reserve0 := vr0;
+      v_reserve1 := vr1
+    end
+  end;
+  e = {_eventname : "Sync"; data: data};
+  event e
+end
+
+(* @dev: update last k value *)
+procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
+  match data with
+  | ReserveData r0 r1 vr0 vr1 =>
+    match is_amp_pool with
+    | True =>
+      k = builtin mul vr0 vr1;
+      k_last := k
+    | False =>
+      k = builtin mul r0 r1;
+      k_last := k
+    end
+  end
+end
+
 (***************************************)
-(*             Transitions             *)
+(*         ZRC-2 Transitions           *)
 (***************************************)
 
 (* @dev: Increase the allowance of an approved_spender over the caller tokens. Only token_owner allowed to invoke.   *)
@@ -268,4 +422,250 @@ transition TransferFrom(from: ByStr20, to: ByStr20, amount: Uint128)
     err = CodeInsufficientAllowance;
     ThrowError err
   end
+end
+
+(***************************************)
+(*          Pool Transitions           *)
+(***************************************)
+
+
+(* @dev This low-level function should be called from a contract
+   which performs important safety checks *)
+transition Mint(to : ByStr20)
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  r0 <- reserve0;
+  r1 <- reserve1;
+  vr0 <- v_reserve0;
+  vr1 <- v_reserve1;
+
+  m_r0 <- & init_token0.balances[_this_address];
+  new_r0 = get_amount_or_zero m_r0;
+  m_r1 <- & init_token1.balances[_this_address];
+  new_r1 = get_amount_or_zero m_r1;
+
+  amount0 = builtin sub new_r0 r0;
+  amount1 = builtin sub new_r1 r1;
+
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+  is_zero = builtin eq supply zero_amount;
+  result = match is_zero with
+  | True =>
+    (* new pool *)
+    let data = match is_amp_pool with
+    | False =>
+      ReserveData new_r0 new_r1 zero_amount zero_amount
+    | True =>
+      let v_r0 = let n0 = builtin mul new_r0 amp in builtin div n0 bps in
+      let v_r1 = let n1 = builtin mul new_r1 amp in builtin div n1 bps in
+      ReserveData new_r0 new_r1 v_r0 v_r1
+    end in
+    let liquidity = let x = builtin mul amount0 amount1 in let y = builtin isqrt x in builtin sub y minimum_liquidity in
+    Pair {Uint128 ReserveData} liquidity data
+  | False =>
+    let liquidity =
+      let a = frac amount0 supply r0 in
+      let b = frac amount1 supply r1 in
+      min a b
+    in
+    let data = match is_amp_pool with
+    | False =>
+      ReserveData new_r0 new_r1 zero_amount zero_amount
+    | True =>
+      let ls = builtin add liquidity supply in
+      let v_r0 = let n0 = frac vr0 ls supply in max n0 new_r0 in
+      let v_r1 = let n1 = frac vr1 ls supply in max n1 new_r1 in
+      ReserveData new_r0 new_r1 v_r0 v_r1
+    end in
+    Pair {Uint128 ReserveData} liquidity data
+  end;
+
+  match is_zero with
+  | False => | True =>
+    (* permanently lock the first minimum_liquidity tokens *)
+    AuthorizedMint zero_address minimum_liquidity
+  end;
+
+  match result with
+  | Pair liquidity data =>
+    mint_failed = builtin eq liquidity zero_amount;
+    match mint_failed with
+    | False => | True =>
+      err = CodeInsufficientLiquidity;
+      ThrowError err
+    end;
+
+    AuthorizedMint to liquidity;
+    Update is_amp_pool data;
+    UpdateLastK is_amp_pool data;
+
+    e = {_eventname: "PoolMinted"; minter: _sender; amount0: amount0; amount1: amount1};
+    event e
+  end
+end
+
+(* @dev This low-level function should be called from a contract
+   which performs important safety checks.
+   User must transfer LP token to this contract before call burn *)
+transition Burn(to : ByStr20)
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  supply <- total_supply;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  v_r0 <- v_reserve0;
+  v_r1 <- v_reserve1;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  is_reserves_synced =
+    let b0_ok = uint128_ge balance0 r0 in
+    let b1_ok = uint128_ge balance1 r0 in
+    andb b0_ok b1_ok;
+  match is_reserves_synced with
+  | True =>
+  | False =>
+    err = CodeUnsyncedReserves;
+    ThrowError err
+  end;
+
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+  m_l <- balances[_this_address];
+  liquidity = get_amount_or_zero m_l;
+
+  amount0 = frac liquidity balance0 supply;
+  amount1 = frac liquidity balance1 supply;
+
+  (* require(amount0 > 0 && amount1 > 0, "DMM: INSUFFICIENT_LIQUIDITY_BURNED"); *)
+
+  AuthorizedBurnIfSufficientBalance _this_address liquidity;
+
+  msg_to_token0 = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: _sender; amount: amount0
+  };
+
+  msg_to_token1 = {
+    _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+    to: _sender; amount: amount1
+  };
+
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs;
+
+  new_r0 = builtin sub balance0 amount0;
+  new_r1 = builtin sub balance1 amount1;
+
+  data = match is_amp_pool with
+  | True =>
+    let x = frac new_r0 supply r0 in
+    let y = frac new_r1 supply r1 in
+    let b = min x y in
+    let vx = frac v_r0 b supply in
+    let vy = frac v_r1 b supply in
+    let v_r0 = max vx r0 in
+    let v_r1 = max vy r1 in
+    ReserveData new_r0 new_r1 v_r0 v_r1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
+  end;
+
+  Update is_amp_pool data;
+  UpdateLastK is_amp_pool data;
+
+  e = {_eventname: "PoolBurnt"; burner: _sender; amount0: amount0; amount1: amount1};
+  event e
+end
+
+(* @dev This low-level function should be called from a contract
+   which performs important safety checks *)
+transition Swap(
+  amount0Out: Uint128,
+  amount1Out: Uint128,
+  to: ByStr20
+)
+  (* TODO:
+    require(amount0Out > 0 || amount1Out > 0, "DMM: INSUFFICIENT_OUTPUT_AMOUNT");
+    (bool isAmpPool, ReserveData memory data) = getReservesData(); // gas savings
+    require(
+        amount0Out < data.reserve0 && amount1Out < data.reserve1,
+        "DMM: INSUFFICIENT_LIQUIDITY"
+    );
+
+    ReserveData memory newData;
+    {
+        // scope for _token{0,1}, avoids stack too deep errors
+        IERC20 _token0 = token0;
+        IERC20 _token1 = token1;
+        require(to != address(_token0) && to != address(_token1), "DMM: INVALID_TO");
+        if (amount0Out > 0) _token0.safeTransfer(to, amount0Out); // optimistically transfer tokens
+        if (amount1Out > 0) _token1.safeTransfer(to, amount1Out); // optimistically transfer tokens
+        if (callbackData.length > 0)
+            IDMMCallee(to).dmmSwapCall(msg.sender, amount0Out, amount1Out, callbackData);
+        newData.reserve0 = _token0.balanceOf(address(this));
+        newData.reserve1 = _token1.balanceOf(address(this));
+        if (isAmpPool) {
+            newData.vReserve0 = data.vReserve0.add(newData.reserve0).sub(data.reserve0);
+            newData.vReserve1 = data.vReserve1.add(newData.reserve1).sub(data.reserve1);
+        }
+    }
+    uint256 amount0In = newData.reserve0 > data.reserve0 - amount0Out
+        ? newData.reserve0 - (data.reserve0 - amount0Out)
+        : 0;
+    uint256 amount1In = newData.reserve1 > data.reserve1 - amount1Out
+        ? newData.reserve1 - (data.reserve1 - amount1Out)
+        : 0;
+    require(amount0In > 0 || amount1In > 0, "DMM: INSUFFICIENT_INPUT_AMOUNT");
+    uint256 feeInPrecision = verifyBalanceAndUpdateEma(
+        amount0In,
+        amount1In,
+        isAmpPool ? data.vReserve0 : data.reserve0,
+        isAmpPool ? data.vReserve1 : data.reserve1,
+        isAmpPool ? newData.vReserve0 : newData.reserve0,
+        isAmpPool ? newData.vReserve1 : newData.reserve1
+    );
+
+    _update(isAmpPool, newData);
+    emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to, feeInPrecision);
+  *)
+end
+
+transition Skim(
+  to: ByStr20
+)
+  (* TODO
+    token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
+    token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
+  *)
+end
+
+transition Sync()
+  (* TODO:
+    (bool isAmpPool, ReserveData memory data) = getReservesData();
+    bool feeOn = _mintFee(isAmpPool, data);
+    ReserveData memory newData;
+    newData.reserve0 = IERC20(token0).balanceOf(address(this));
+    newData.reserve1 = IERC20(token1).balanceOf(address(this));
+    // update virtual reserves if this is amp pool
+    if (isAmpPool) {
+        uint256 _totalSupply = totalSupply();
+        uint256 b = Math.min(
+            newData.reserve0.mul(_totalSupply) / data.reserve0,
+            newData.reserve1.mul(_totalSupply) / data.reserve1
+        );
+        newData.vReserve0 = Math.max(data.vReserve0.mul(b) / _totalSupply, newData.reserve0);
+        newData.vReserve1 = Math.max(data.vReserve1.mul(b) / _totalSupply, newData.reserve1);
+    }
+    _update(isAmpPool, newData);
+    if (feeOn) kLast = getK(isAmpPool, newData);
+  *)
 end
