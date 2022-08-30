@@ -77,6 +77,8 @@ type Error =
   | ItemCannotBeParentError2
   | ItemCannotBeParentError3
   | MaxItemDepthReachedError
+  | ConsumerFoundError
+  | ConsumerNotFoundError
 
 let make_error =
   fun (result: Error) =>
@@ -114,6 +116,8 @@ let make_error =
       | ItemCannotBeParentError2           => Int32 -30
       | ItemCannotBeParentError3           => Int32 -31
       | MaxItemDepthReachedError           => Int32 -32
+      | ConsumerFoundError                 => Int32 -33
+      | ConsumerNotFoundError              => Int32 -34
       end
     in
     { _exception: "Error"; code: result_code }
@@ -203,6 +207,9 @@ field spenders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping from token owner to operators authorized by the token owner *)
 field operators: Map ByStr20 (Map ByStr20 Bool) = Emp ByStr20 (Map ByStr20 Bool)
+
+(* Item consumers, set by contract owner to operate on tokens without allowance *)
+field consumers: Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* Generic on-chain traits *)
 (* field traits: Map Uint256 (Map ByStr20 ByStr20) = Emp Uint256 (Map ByStr20 ByStr20) *)
@@ -716,14 +723,19 @@ procedure RequireItemNotOwned(item_id: Uint256)
 end
 
 procedure RequireOwnerOrOperator(address: ByStr20)
-  is_owner = builtin eq _sender address;
-  has_operator <- exists operators[address][_sender];
-  is_allowed = orb is_owner has_operator;
-  match is_allowed with
+  is_consumer <- exists consumers[_sender];
+  match is_consumer with
   | True =>
   | False =>
-    error = NotOwnerOrOperatorError;
-    Throw error
+    is_owner = builtin eq _sender address;
+    has_operator <- exists operators[address][_sender];
+    is_allowed = orb is_owner has_operator;
+    match is_allowed with
+    | True =>
+    | False =>
+      error = NotOwnerOrOperatorError;
+      Throw error
+    end
   end
 end
 
@@ -1347,6 +1359,49 @@ transition RemoveMinter(minter: ByStr20)
   };
   msgs = one_msg msg_to_sender;
   send msgs
+end
+
+(* Adds `consumer`. *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `consumer` must not be already a consumer. Otherwise, it must throw `MinterFoundError` *)
+transition AddConsumer(consumer: ByStr20)
+  RequireContractOwner;
+  has_consumer <- exists consumers[consumer];
+  match has_consumer with
+  | True => 
+    error = ConsumerFoundError;
+    Throw error
+  | False =>
+    (* Add consumer *)
+    consumers[consumer] := true
+  end;
+  e = { 
+    _eventname: "AddConsumer";
+    consumer: consumer
+  };
+  event e
+end
+
+(* Removes `consumer`. *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `consumer` must be already a consumer. Otherwise, it must throw `ConsumerNotFoundError` *)
+transition RemoveConsumer(consumer: ByStr20)
+  RequireContractOwner;
+  has_consumer <- exists consumers[consumer];
+  match has_consumer with
+  | False =>
+    error = ConsumerNotFoundError;
+    Throw error
+  | True => 
+    delete consumers[consumer]
+  end;
+  e = { 
+    _eventname: "RemoveConsumer";
+    consumer: consumer
+  };
+  event e
 end
 
 (* Sets `spender` for `token_id`. *)
