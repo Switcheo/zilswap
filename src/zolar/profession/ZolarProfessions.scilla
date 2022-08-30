@@ -24,8 +24,7 @@ let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
 
-let trait_key_profession = "Profession"
-let trait_key_unused_attributes = "UnusedAttributePoints"
+let trait_key_profession = "profession"
 
 let trait_list_filter = @list_filter (Pair String String)
 let trait_list_find = @list_find (Pair String String)
@@ -274,29 +273,6 @@ procedure VerifyProfession(profession: String)
   end
 end
 
-procedure VerifyAttributePoints(attribute_points: List (Pair String Uint32))
-  accepted_attributes <- attributes;
-  fold = @list_foldl (Pair String Uint32) (List Bool);
-  fn =
-    fun (result: List Bool) =>
-    fun (attr_item: Pair String Uint32) =>
-      match attr_item with
-      | Pair attribute points => 
-        let valid_attribute = str_exist attribute accepted_attributes in
-        Cons {Bool} valid_attribute result
-      end;
-
-  init_result = Nil {Bool};
-  result = fold fn init_result attribute_points;
-  valid = all_true result;
-  match valid with
-  | True => 
-  | False =>
-    err = CodeInvalidTrait;
-    ThrowError err
-  end
-end
-
 procedure VerifyNoProfession(traits: List (Pair String String))
   profession = get_trait_value traits trait_key_profession;
   match profession with
@@ -304,42 +280,6 @@ procedure VerifyNoProfession(traits: List (Pair String String))
     err = CodeProfessionAlreadySet;
     ThrowError err
   | None =>
-  end
-end
-
-procedure AddAttributePoints(param: Pair Uint256 (List (Pair String Uint32)))
-  match param with
-  | Pair token_id attribute_points =>
-    IsOwnerOrOperator token_id _sender;
-    VerifyAttributePoints attribute_points;
-
-    metazoa_contract <- metazoa_address;
-    maybe_traits <- & metazoa_contract.traits[token_id];
-    traits = match maybe_traits with
-      | None => empty_traits
-      | Some traits => traits
-      end;
-
-    free_points = get_trait_points traits trait_key_unused_attributes;
-    points_required = get_total_points attribute_points;
-    is_insufficient_points = builtin lt free_points points_required;
-    match is_insufficient_points with
-    | False =>
-    | True =>
-      err = CodeInsufficientFreePoints;
-      ThrowError err
-    end;
-
-    remaining_free_points = builtin sub free_points points_required;
-
-    e = {
-      _eventname: "AddAttributePoints";
-      token_id: token_id;
-      attribute_points: attribute_points;
-      remaining_free_points: remaining_free_points;
-      initiator: _sender
-    };
-    event e
   end
 end
 
