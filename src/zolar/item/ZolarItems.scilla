@@ -4,7 +4,7 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils ListUtils IntUtils NatUtils
+import BoolUtils ListUtils IntUtils NatUtils PairUtils
 library Item
 
 type Operation =
@@ -43,6 +43,20 @@ let get_bal =
     | Some bal => bal
     end
 
+let get_head_of_list =
+  fun (list : List (Pair String String)) =>
+    let list_head = @list_head (Pair String String) in
+    let maybe_head = list_head list in
+    match maybe_head with
+    | None =>
+      Pair {String String} empty_string empty_string
+    | Some head =>
+      head
+    end
+
+(* extracts the head from Pair (String, String) *)
+let get_head_of_pair : Pair String String -> String = @fst String String
+
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -79,6 +93,7 @@ type Error =
   | MaxItemDepthReachedError
   | ConsumerFoundError
   | ConsumerNotFoundError
+  | ItemTypeAlreadyOwned
 
 let make_error =
   fun (result: Error) =>
@@ -118,6 +133,7 @@ let make_error =
       | MaxItemDepthReachedError           => Int32 -32
       | ConsumerFoundError                 => Int32 -33
       | ConsumerNotFoundError              => Int32 -34
+      | ItemTypeAlreadyOwned               => Int32 -35
       end
     in
     { _exception: "Error"; code: result_code }
@@ -186,6 +202,10 @@ field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping of item id to its respective parent token*)
 field parent_owners: Map Uint256 Pair ByStr20 Uint256 = Emp Uint256 Pair ByStr20 Uint256
+
+(* Mapping of parent token to its types of items owned *)
+(* parent_token_contract : { token_id : { 'headgear': 1, 'armor': 1, 'off-hand': 0 } } *)
+field parent_owned_types: Map ByStr20 (Map Uint256 (Map String Bool)) = Emp ByStr20 (Map Uint256 (Map String Bool))
 
 (* The total number of tokens minted *)
 field token_id_count: Uint256 = Uint256 0
@@ -296,6 +316,31 @@ procedure RequireNotZeroAddress(address: ByStr20)
     error = TokenNotFoundError;
     Throw error
   | False =>
+  end
+end
+
+procedure RequireDifferentItemType(
+  item_id: Uint256,
+  to_token_id: Uint256,
+  to_contract: ByStr20
+)
+  maybe_item_traits <- traits[item_id];
+  match maybe_item_traits with
+  | None =>
+  | Some item_traits =>
+    item_trait = get_head_of_list item_traits;
+    trait_key = get_head_of_pair item_trait;
+    maybe_item_type_flag <- parent_owned_types[to_contract][to_token_id][trait_key];
+    match maybe_item_type_flag with
+    | None =>
+    | Some item_type_flag =>
+      match item_type_flag with
+      | True =>
+        error = ItemTypeAlreadyOwned;
+        Throw error
+      | False =>
+      end
+    end
   end
 end
 
@@ -972,10 +1017,25 @@ procedure TransferItemToParent(
     RequireItemNotParent to_token_id to_contract item_id _this_address;
     RequireTokenOwner item_id _sender;
     RequireRootOwner to_token_id to_contract;
+    RequireDifferentItemType item_id to_token_id to_contract;
 
     new_parent_token = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_parent_token;
-    token_owners[item_id] := to_contract
+    token_owners[item_id] := to_contract;
+    
+    maybe_item_traits <- traits[item_id];
+    match maybe_item_traits with
+    | None =>
+    | Some item_traits =>
+      item_trait = get_head_of_list item_traits;
+      trait_key = get_head_of_pair item_trait;
+      is_traitless = builtin eq trait_key empty_string;
+      match is_traitless with
+      | True =>
+      | False =>
+        parent_owned_types[to_contract][to_token_id][trait_key] := true
+      end
+    end
   end
 end
 
@@ -998,7 +1058,21 @@ procedure TransferItemFromParent(
     RequireRootOwner from_token_id from_contract;
 
     delete parent_owners[item_id];
-    token_owners[item_id] := _sender
+    token_owners[item_id] := _sender;
+
+    maybe_item_traits <- traits[item_id];
+    match maybe_item_traits with
+    | None =>
+    | Some item_traits =>
+      item_trait = get_head_of_list item_traits;
+      trait_key = get_head_of_pair item_trait;
+      is_traitless = builtin eq trait_key empty_string;
+      match is_traitless with
+      | True =>
+      | False =>
+        parent_owned_types[from_contract][from_token_id][trait_key] := false
+      end
+    end
   end
 end
 
