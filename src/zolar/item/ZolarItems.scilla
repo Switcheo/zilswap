@@ -1511,7 +1511,8 @@ transition TransferToParent(
     _eventname: "TransferToParent";
     sender: _sender;
     to_token_id: to_token_id;
-    item_id: item_id
+    item_id: item_id;
+    to_contract: to_contract
   };
   event e
 end
@@ -1539,7 +1540,8 @@ transition TransferFromParent(
     _eventname: "TransferFromParent";
     sender: _sender;
     from_token_id: from_token_id;
-    item_id: item_id
+    item_id: item_id;
+    from_contract: from_contract
   };
   event e
 end
