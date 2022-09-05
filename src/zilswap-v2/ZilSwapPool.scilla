@@ -9,9 +9,13 @@ type ReserveData =
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
+let zero_block = BNum 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let half_bps = Uint128 5000
+let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
+let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
+let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
 
 (* returns True if all items in the list is True *)
 let all_true =
@@ -36,6 +40,16 @@ let get_amount_or_zero =
     match maybe with
     | Some amt => amt
     | None => zero_amount
+    end
+
+(* gets the virtual reserve if pool is amplified, or the real reserve otherwise *)
+let get_reserve =
+  fun (is_amp_pool : Bool) =>
+  fun (virtual_reserve : Uint128) =>
+  fun (real_reserve : Uint128) =>
+    match is_amp_pool with
+    | True => virtual_reserve
+    | False => real_reserve
     end
 
 let min =
@@ -64,13 +78,45 @@ let frac =
     let xy = builtin mul x y in
     builtin div xy z
 
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+let shrink =
+  fun (var : Int256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
+    end
+
+(* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
+let ema =
+  fun (ema : Uint128) =>
+  fun (alpha : Uint256) =>
+  fun (value : Uint128) =>
+    let e = grow ema in
+    let v = grow value in
+    let i_a = builtin sub precision alpha in
+    let a = builtin mul i_a e in
+    let b = builtin mul a v in
+    let n = builtin add a b in
+    builtin div n precision
+
 (* Error events *)
 type Error =
 | CodeIsSender
 | CodeInsufficientFunds
 | CodeInsufficientAllowance
 | CodeNotFactory
+| CodeInsufficientInput
+| CodeInsufficientOutput
 | CodeInsufficientLiquidity
+| CodeInvalidToAddress
 | CodeUnsyncedReserves
 
 let make_error =
@@ -81,8 +127,11 @@ let make_error =
       | CodeInsufficientFunds     => Int32 -2
       | CodeInsufficientAllowance => Int32 -3
       | CodeNotFactory            => Int32 -4
-      | CodeInsufficientLiquidity => Int32 -5
-      | CodeUnsyncedReserves      => Int32 -6
+      | CodeInsufficientInput     => Int32 -5
+      | CodeInsufficientOutput    => Int32 -6
+      | CodeInsufficientLiquidity => Int32 -7
+      | CodeInvalidToAddress      => Int32 -8
+      | CodeUnsyncedReserves      => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -169,6 +218,10 @@ field v_reserve0 : Uint128 = zero_amount
 field v_reserve1 : Uint128 = zero_amount
 
 field k_last : Uint128 = zero_amount
+field current_block_volume : Uint128 = zero_amount
+field short_ema : Uint256 = Uint256 0
+field long_ema : Uint256 = Uint256 0
+field last_trade_block : BNum = zero_block
 
 (* @dev: zrc-2 *)
 field total_supply : Uint128 = zero_amount
@@ -341,6 +394,91 @@ procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
       k_last := k
     end
   end
+end
+
+procedure RecordVolume(volume: Uint128)
+  (*
+    // this can not be underflow because block.number always increases
+    uint256 skipBlock = blockNumber - lastTradeBlock;
+    if (skipBlock == 0) {
+        currentBlockVolume = safeUint128(
+            uint256(currentBlockVolume).add(value),
+            "volume exceeds valid range"
+        );
+        return calculateRFactor(uint256(shortEMA), uint256(longEMA));
+    }
+    uint128 _currentBlockVolume = currentBlockVolume;
+    uint256 _shortEMA = newEMA(shortEMA, SHORT_ALPHA, currentBlockVolume);
+    uint256 _longEMA = newEMA(longEMA, LONG_ALPHA, currentBlockVolume);
+    // ema = ema * (1-aplha) ^(skipBlock -1)
+    _shortEMA = _shortEMA.mulInPrecision(
+        (PRECISION - SHORT_ALPHA).unsafePowInPrecision(skipBlock - 1)
+    );
+    _longEMA = _longEMA.mulInPrecision(
+        (PRECISION - LONG_ALPHA).unsafePowInPrecision(skipBlock - 1)
+    );
+    shortEMA = safeUint128(_shortEMA);
+    longEMA = safeUint128(_longEMA);
+    currentBlockVolume = safeUint128(value);
+    lastTradeBlock = safeUint128(blockNumber);
+
+    emit UpdateEMA(_shortEMA, _longEMA, _currentBlockVolume, skipBlock);
+
+    return calculateRFactor(_shortEMA, _longEMA);
+  *)
+  current_block <- & BLOCKNUMBER;
+  last <- last_trade_block;
+  is_first_trade = builtin eq last zero_block;
+  last_block = match is_first_trade with
+  | True => current_block
+  | False => last
+  end;
+  blocks_skipped_u256 = builtin bsub current_block last_block;
+  blocks_skipped = shrink blocks_skipped_u256;
+  already_updated = builtin eq blocks_skipped zero_amount;
+  match already_updated with
+  | True =>
+    v <- current_block_volume;
+    new_volume = builtin add volume v;
+    current_block_volume := new_volume
+  | False =>
+    current_block_volume := volume;
+    prev_short_ema <- short_ema;
+    prev_long_ema <- long_ema
+    (* WIP
+      s_e = get_ema prev_short_ema short_alpha current_block_volume;
+      l_e = get_ema prev_long_ema long_alpha current_block_volume;
+    *)
+  end
+end
+
+procedure VerifyBalanceAndUpdateEMA(
+  amount0_in: Uint128,
+  amount1_in: Uint128,
+  before_reserve0: Uint128,
+  before_reserve1: Uint128,
+  after_reserve0: Uint128,
+  after_reserve1: Uint128
+)
+  (*
+    uint256 volume = beforeReserve0.mul(amount1In).div(beforeReserve1).add(amount0In);
+    uint256 rFactorInPrecision = recordNewUpdatedVolume(block.number, volume);
+    feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), ampBps);
+    // verify balance update matches with fomula
+    uint256 balance0Adjusted = afterReserve0.mul(PRECISION);
+    balance0Adjusted = balance0Adjusted.sub(amount0In.mul(feeInPrecision));
+    balance0Adjusted = balance0Adjusted / PRECISION;
+    uint256 balance1Adjusted = afterReserve1.mul(PRECISION);
+    balance1Adjusted = balance1Adjusted.sub(amount1In.mul(feeInPrecision));
+    balance1Adjusted = balance1Adjusted / PRECISION;
+    require(
+        balance0Adjusted.mul(balance1Adjusted) >= beforeReserve0.mul(beforeReserve1),
+        "DMM: K"
+    );
+  *)
+  volume = let amt1_in_0 = frac before_reserve0 amount1_in before_reserve1 in builtin add amt1_in_0 amount0_in;
+  RecordVolume volume
+  (* WIP *)
 end
 
 (***************************************)
@@ -545,7 +683,16 @@ transition Burn(to : ByStr20)
   amount0 = frac liquidity balance0 supply;
   amount1 = frac liquidity balance1 supply;
 
-  (* require(amount0 > 0 && amount1 > 0, "DMM: INSUFFICIENT_LIQUIDITY_BURNED"); *)
+  is_sufficient_liquidity_burnt =
+    let a0_ok = uint128_gt amount0 zero_amount in
+    let a1_ok = uint128_gt amount1 zero_amount in
+    andb a0_ok a1_ok;
+  match is_sufficient_liquidity_burnt with
+  | True =>
+  | False =>
+    err = CodeInsufficientLiquidity;
+    ThrowError err
+  end;
 
   AuthorizedBurnIfSufficientBalance _this_address liquidity;
 
@@ -589,54 +736,140 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
 transition Swap(
-  amount0Out: Uint128,
-  amount1Out: Uint128,
+  amount0_out: Uint128,
+  amount1_out: Uint128,
   to: ByStr20
 )
-  (* TODO:
-    require(amount0Out > 0 || amount1Out > 0, "DMM: INSUFFICIENT_OUTPUT_AMOUNT");
-    (bool isAmpPool, ReserveData memory data) = getReservesData(); // gas savings
-    require(
-        amount0Out < data.reserve0 && amount1Out < data.reserve1,
-        "DMM: INSUFFICIENT_LIQUIDITY"
-    );
+  is_sending_t0 = uint128_gt amount0_out zero_amount;
+  is_sending_t1 = uint128_gt amount1_out zero_amount;
 
-    ReserveData memory newData;
-    {
-        // scope for _token{0,1}, avoids stack too deep errors
-        IERC20 _token0 = token0;
-        IERC20 _token1 = token1;
-        require(to != address(_token0) && to != address(_token1), "DMM: INVALID_TO");
-        if (amount0Out > 0) _token0.safeTransfer(to, amount0Out); // optimistically transfer tokens
-        if (amount1Out > 0) _token1.safeTransfer(to, amount1Out); // optimistically transfer tokens
-        if (callbackData.length > 0)
-            IDMMCallee(to).dmmSwapCall(msg.sender, amount0Out, amount1Out, callbackData);
-        newData.reserve0 = _token0.balanceOf(address(this));
-        newData.reserve1 = _token1.balanceOf(address(this));
-        if (isAmpPool) {
-            newData.vReserve0 = data.vReserve0.add(newData.reserve0).sub(data.reserve0);
-            newData.vReserve1 = data.vReserve1.add(newData.reserve1).sub(data.reserve1);
-        }
-    }
-    uint256 amount0In = newData.reserve0 > data.reserve0 - amount0Out
-        ? newData.reserve0 - (data.reserve0 - amount0Out)
-        : 0;
-    uint256 amount1In = newData.reserve1 > data.reserve1 - amount1Out
-        ? newData.reserve1 - (data.reserve1 - amount1Out)
-        : 0;
-    require(amount0In > 0 || amount1In > 0, "DMM: INSUFFICIENT_INPUT_AMOUNT");
-    uint256 feeInPrecision = verifyBalanceAndUpdateEma(
-        amount0In,
-        amount1In,
-        isAmpPool ? data.vReserve0 : data.reserve0,
-        isAmpPool ? data.vReserve1 : data.reserve1,
-        isAmpPool ? newData.vReserve0 : newData.reserve0,
-        isAmpPool ? newData.vReserve1 : newData.reserve1
-    );
+  is_sufficient_output = andb is_sending_t0 is_sending_t1;
+  match is_sufficient_output with
+  | True =>
+  | False =>
+    err = CodeInsufficientOutput;
+    ThrowError err
+  end;
 
-    _update(isAmpPool, newData);
-    emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to, feeInPrecision);
-  *)
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  supply <- total_supply;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  v_r0 <- v_reserve0;
+  v_r1 <- v_reserve1;
+
+  is_sufficient_liquidity =
+    let a0_ok = builtin lt amount0_out r0 in
+    let a1_ok = builtin lt amount1_out r1 in
+    andb a0_ok a1_ok;
+    match is_sufficient_liquidity with
+    | True =>
+    | False =>
+      err = CodeInsufficientLiquidity;
+      ThrowError err
+    end;
+
+  is_valid_to =
+    let t0_ok = let e0 = builtin eq init_token0 to in negb e0 in
+    let t1_ok = let e1 = builtin eq init_token1 to in negb e1 in
+    andb t0_ok t1_ok;
+  match is_valid_to with
+  | True =>
+  | False =>
+    err = CodeInvalidToAddress;
+    ThrowError err
+  end;
+
+  match is_sending_t0 with
+  | False =>
+  | True =>
+    msg_to_token0 = {
+      _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+      to: _sender; amount: amount0_out
+    };
+    msgs = one_msg msg_to_token0;
+    send msgs
+  end;
+
+  match is_sending_t1 with
+  | False =>
+  | True =>
+    msg_to_token1 = {
+      _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+      to: _sender; amount: amount1_out
+    };
+    msgs = one_msg msg_to_token1;
+    send msgs
+  end;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  b0 = get_amount_or_zero m_b0;
+  new_r0 = builtin sub b0 amount0_out;
+  m_b1 <- & init_token1.balances[_this_address];
+  b1 = get_amount_or_zero m_b1;
+  new_r1 = builtin sub b1 amount1_out;
+
+  new_data = match is_amp_pool with
+  | True =>
+    let new_vr0 = let a = builtin add v_r0 new_r0 in builtin sub a r0 in
+    let new_vr1 = let b = builtin add v_r1 new_r1 in builtin sub b r1 in
+    ReserveData new_r0 new_r1 new_vr0 new_vr1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
+  end;
+
+  amount0_in =
+    let has_input = uint128_gt new_r0 r0 in
+    match has_input with
+    | False => zero_amount
+    | True => builtin sub new_r0 r0
+    end;
+
+  amount1_in =
+    let has_input = uint128_gt new_r1 r1 in
+    match has_input with
+    | False => zero_amount
+    | True => builtin sub new_r1 r1
+    end;
+
+  is_sufficient_input =
+    let a0_ok = uint128_gt amount0_in zero_amount in
+    let a1_ok = uint128_gt amount1_in zero_amount in
+    andb a0_ok a1_ok;
+  match is_sufficient_input with
+  | True =>
+  | False =>
+    err = CodeInsufficientInput;
+    ThrowError err
+  end;
+
+  match new_data with
+  | ReserveData _ _ new_v_r0 new_v_r1 =>
+    before_r0 = get_reserve is_amp_pool v_r0 r0;
+    before_r1 = get_reserve is_amp_pool v_r1 r1;
+    after_r0 = get_reserve is_amp_pool new_v_r0 new_r0;
+    after_r1 = get_reserve is_amp_pool new_v_r1 new_r1;
+
+    VerifyBalanceAndUpdateEMA
+      amount0_in
+      amount1_in
+      before_r0
+      before_r1
+      after_r0
+      after_r1
+  end;
+
+  Update is_amp_pool new_data;
+
+  e = {
+    _eventname: "PoolSwapped"; origin: _origin; sender: _sender;
+    amount0_in: amount0_in; amount1_in: amount1_in;
+    amount0_out: amount0_out; amount1_out: amount1_out;
+    to: to
+  };
+  event e
 end
 
 transition Skim(
