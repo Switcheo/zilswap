@@ -119,7 +119,7 @@ test('add item to zomg store (independent of emporium)', async () => {
   expect(state.items[0].arguments[0]).toEqual('HA13-Hand of Death')
 })
 
-test('craft item successfully', async () => {
+test('(success) craft item', async () => {
   const hunyStateBeforeTx = await hunyContract.getState()
 
   // test zrc-2 and zrc-6 payment tokens correctly deducted (burnt)
@@ -147,7 +147,7 @@ test('craft item successfully', async () => {
   expect(Object.keys(itemsStateAfterTx.token_owners)).toContain((MINT_ITEM_COUNT + 1).toString())
 })
 
-test('craft item with non-matching (length) paymentItems and craftingCost)', async () => {
+test('(fail) craft item with non-matching (length) paymentItems and craftingCost)', async () => {
   // test length of cost token vs payment token should match (9 - CodeInvalidPaymentItemCount)
   const txCraftWeaponExcess = await callContract(privateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
@@ -180,7 +180,7 @@ test('craft item with non-matching (length) paymentItems and craftingCost)', asy
   expect(txCraftWeaponDeficit.receipt.success).toEqual(false)
 })
 
-test('craft item with non-matching (order) paymentItems and craftingCost', async () => {
+test('(fail) craft item with non-matching (order) paymentItems and craftingCost', async () => {
   // test order of cost token vs payment token should match (10 - CodeInvalidPaymentItemToken) 
   const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
@@ -198,7 +198,7 @@ test('craft item with non-matching (order) paymentItems and craftingCost', async
   expect(txCraftWeapon.receipt.success).toEqual(false)
 })
 
-test('craft item with non-matching (traits) paymentItems and craftingCost', async () => {
+test('(fail) craft item with non-matching (traits) paymentItems and craftingCost', async () => {
   // test traits of cost token vs payment token should match (11 - CodeInvalidPaymentItemTraits) 
   const txMintGemAndSetTraits = await callContract(privateKey, itemsContract, "MintAndSetTraits", [
     param('to', 'ByStr20', address),
@@ -227,7 +227,7 @@ test('craft item with non-matching (traits) paymentItems and craftingCost', asyn
   expect(txCraftWeapon.receipt.success).toEqual(false)
 })
 
-test(`(bug) craft item using other users' gems for payment`, async () => {
+test(`(fail) craft item using other users' gems for payment`, async () => {
   const txCraftWeapon = await callContract(memberPrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
@@ -238,4 +238,7 @@ test(`(bug) craft item using other users' gems for payment`, async () => {
     ]),
   ], 0, false, false)
   console.log("craft weapon with other users' gems", txCraftWeapon.id);
+  expect(txCraftWeapon.status).toEqual(3)
+  // expect(txCraftWeapon.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeInvalidPaymentItemTraits
+  expect(txCraftWeapon.receipt.success).toEqual(false)
 })
