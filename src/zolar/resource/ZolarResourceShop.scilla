@@ -101,17 +101,30 @@ let multiply_bps =
       builtin div p hundred_percent_bps
     end
 
+let get_max_inflation_bps = 
+  fun (base_price: Uint128) =>
+  fun (max_price: Uint128) =>
+    let max_inflation_amt = builtin sub max_price base_price in
+    let m = builtin mul max_inflation_amt hundred_percent_bps in
+    builtin div m base_price
+  
 let get_new_inflation =
   fun (current_inflation_bps : Uint128) =>
   fun (buy_price : Price) =>
   fun (buy_quantity: Uint128) =>
   fun (sell_quantity: Uint128) =>
   match buy_price with
-  | Price _ _ buy_inflation_bps sell_deflation_bps =>
+  | Price base_price max_price buy_inflation_bps sell_deflation_bps =>
     let buy = builtin mul buy_inflation_bps buy_quantity in
     let sell = builtin mul sell_deflation_bps sell_quantity in
     let n1 = builtin add current_inflation_bps buy in
-    subtract_or_zero n1 sell
+    let n2 = subtract_or_zero n1 sell in
+    let max_inflation_bps = get_max_inflation_bps base_price max_price in 
+    let is_over_max = builtin lt max_inflation_bps n2 in 
+    match is_over_max with
+    | True => max_inflation_bps
+    | False => n2
+    end
   end
 
 let compute_cost =
@@ -140,30 +153,35 @@ let get_buy_cost =
   fun (buy_price : Price) =>
   fun (transacts : Pair Uint128 Uint128) =>
   match transacts with
-  | Pair _ net_inflation_bps =>
+  | Pair net_purchase net_inflation_bps =>
     match buy_price with
     | Price base_price max_price inflation_bps _ =>
       let is_zero_inflation = builtin eq inflation_bps zero in
       match is_zero_inflation with
       | True => builtin mul base_price quantity
       | False =>
-        let max_inflation_amt = builtin sub max_price base_price in
-        let m = builtin mul max_inflation_amt hundred_percent_bps in
-        let max_inflation_bps = builtin div m base_price in
+        let max_inflation_bps = get_max_inflation_bps base_price max_price in 
         let qty_before_max = builtin div max_inflation_bps inflation_bps in
-        let is_over_max = builtin lt qty_before_max quantity in
-        match is_over_max with
-        | True => 
-          let qty_over_max = builtin sub quantity qty_before_max in
-          let cost_a = compute_cost base_price net_inflation_bps inflation_bps qty_before_max in 
-          let cost_b = builtin mul max_price qty_over_max in
-          builtin add cost_a cost_b
+        let is_over_max_1 = builtin lt qty_before_max net_purchase in 
+        match is_over_max_1 with 
+        | True => builtin mul max_price quantity
         | False => 
-          compute_cost base_price net_inflation_bps inflation_bps quantity
+          let total_qty = builtin add net_purchase quantity in 
+          let is_over_max_2 = builtin lt qty_before_max total_qty in
+          match is_over_max_2 with
+          | True => 
+            let leftover_qty_before_max = builtin sub qty_before_max net_purchase in
+            let qty_over_max = builtin sub total_qty qty_before_max in
+            let cost_a = compute_cost base_price net_inflation_bps inflation_bps leftover_qty_before_max in 
+            let cost_b = builtin mul max_price qty_over_max in
+            builtin add cost_a cost_b
+          | False => 
+            compute_cost base_price net_inflation_bps inflation_bps quantity
+          end
         end
       end
     end
-  end
+  end 
   
 
 let get_sell_price =
