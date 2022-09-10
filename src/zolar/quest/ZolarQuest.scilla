@@ -102,7 +102,7 @@ contract ZolarQuest
 (
   initial_owner: ByStr20,
   initial_oracle: ByStr20,
-  resource_token: ByStr20, (* _this_address must also be a minter (to mint resources after questing) *)
+  resource_contract: ByStr20, (* _this_address must also be a minter (to mint resources after questing) *)
   metazoa_contract: ByStr20 with contract
     field token_owners : Map Uint256 ByStr20
   end
@@ -313,20 +313,21 @@ procedure HarvestForMetazoa(token_id : Uint256)
                builtin mul one_percent total_percent;
 
   (* mint resources to _sender and emit xp event for db to pick up *)
-  msg_to_resource_token = {
+  msg_to_resource_contract = {
     _tag: "Mint";
-    _recipient: resource_token;
+    _recipient: resource_contract;
     _amount: zero_amt;
     recipient: _sender;
     amount: resource_to_mint
   };
-  msgs = one_msg msg_to_resource_token;
+  msgs = one_msg msg_to_resource_contract;
   send msgs;
 
   e1 = {
     _eventname: "HarvestQuest";
     token_id: token_id;
     metazoa_contract: metazoa_contract;
+    resource_contract: resource_contract;
     resource_to_mint: resource_to_mint;
     xp_to_gain: xp_to_gain
   };
