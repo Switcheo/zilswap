@@ -53,13 +53,6 @@ let get_amount_or_zero =
     | None => zero_amount
     end
 
-let get_amount_or_zero_u256 =
-  fun (maybe : Option Uint256) =>
-    match maybe with
-    | Some amt => amt
-    | None => zero_amount_u256
-    end
-
 (* gets the virtual reserve if pool is amplified, or the real reserve otherwise *)
 let get_reserve =
   fun (is_amp_pool : Bool) =>
@@ -190,13 +183,6 @@ let make_error =
 (* Dummy user-defined ADT *)
 type Unit =
 | Unit
-
-let get_val =
-  fun (some_val: Option Uint128) =>
-  match some_val with
-  | Some val => val
-  | None => zero_amount
-  end
 
 contract ZilSwapPool
 (
@@ -530,7 +516,6 @@ procedure VerifyBalanceAndUpdateEMA(
   volume = let amt1_in_0 = frac before_reserve0 amount1_in before_reserve1 in builtin add amt1_in_0 amount0_in;
   RecordVolume volume;
 
-
   (* Implemented by Kai Jun *)
   amp <- amp_bps;
   r_factor_in_precision <- current_block_volume; (* is this the correct way to get rFactorInPrecision? *)
@@ -553,14 +538,6 @@ procedure VerifyBalanceAndUpdateEMA(
     let b1_a = builtin mul amount1_in_u256 fee_in_precision_u256 in 
     let b1_b = builtin sub b1 b1_a in
     builtin div b1_b precision;
-
-    (* balance1Adjusted = 
-    let after_reserve1_u256 = grow after_reserve1 in 
-    let b1 = builtin mul after_reserve1_u256 precision in 
-    let b1_a = builtin mul amount1_in fee_in_precision in 
-    let b1_b = builtin sub b1 b1_a in
-    builtin div b1_b precision; *)
-  
   
   before_adjustment = let before_adjustment_128 = builtin mul before_reserve0 before_reserve1 in grow before_adjustment_128;
   after_adjustment = builtin mul balance_0_adjusted balance_1_adjusted;
