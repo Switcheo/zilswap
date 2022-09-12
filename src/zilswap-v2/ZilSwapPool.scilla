@@ -11,6 +11,17 @@ let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
 let zero_block = BNum 0
 let minimum_liquidity = Uint128 1000
+
+(* Implemented by Kai Jun *)
+let zero_amount_u256 = Uint256 0
+let four = Uint128 4
+let ten = Uint128 10
+let twenty = Uint128 20
+let thirty = Uint128 30
+let two_bps = Uint128 20000
+let five_bps = Uint128 50000
+let twenty_bps = Uint128 200000
+
 let bps = Uint128 10000
 let half_bps = Uint128 5000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
@@ -40,6 +51,13 @@ let get_amount_or_zero =
     match maybe with
     | Some amt => amt
     | None => zero_amount
+    end
+
+let get_amount_or_zero_u256 =
+  fun (maybe : Option Uint256) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero_amount_u256
     end
 
 (* gets the virtual reserve if pool is amplified, or the real reserve otherwise *)
@@ -107,6 +125,37 @@ let ema =
     let n = builtin add a b in
     builtin div n precision
 
+(* Implemented by Kai Jun, returns final_fee in Uint128*)
+(* function getFinalFee(uint256 feeInPrecision, uint32 _ampBps) internal pure returns (uint256) {
+    if (_ampBps <= 20000) {
+      return feeInPrecision;
+    } else if (_ampBps <= 50000) {
+      return (feeInPrecision * 20) / 30;
+    } else if (_ampBps <= 200000) {
+      return (feeInPrecision * 10) / 30;
+    } else {
+      return (feeInPrecision * 4) / 30;
+    } 
+*)
+let get_final_fee = 
+  fun (fee_in_precision : Uint128) =>
+  fun (amp_bps : Uint128) =>
+    let le_two_bps = uint128_le amp_bps two_bps in 
+    match le_two_bps with
+    | True => fee_in_precision
+    | False =>
+      let le_five_bps = uint128_le amp_bps five_bps in
+      match le_five_bps with 
+      | True => frac fee_in_precision twenty thirty 
+      | False =>
+        let le_twenty_bps = uint128_le amp_bps twenty_bps in
+        match le_twenty_bps with
+        | True => frac fee_in_precision ten thirty
+        | False => frac fee_in_precision four thirty
+        end
+      end
+    end
+    
 (* Error events *)
 type Error =
 | CodeIsSender
@@ -118,6 +167,7 @@ type Error =
 | CodeInsufficientLiquidity
 | CodeInvalidToAddress
 | CodeUnsyncedReserves
+| CodeInvalidBalance
 
 let make_error =
   fun (result : Error) =>
@@ -132,6 +182,7 @@ let make_error =
       | CodeInsufficientLiquidity => Int32 -7
       | CodeInvalidToAddress      => Int32 -8
       | CodeUnsyncedReserves      => Int32 -9
+      | CodeInvalidBalance        => Int32 -10
       end
     in
     { _exception : "Error"; code : result_code }
@@ -477,8 +528,59 @@ procedure VerifyBalanceAndUpdateEMA(
     );
   *)
   volume = let amt1_in_0 = frac before_reserve0 amount1_in before_reserve1 in builtin add amt1_in_0 amount0_in;
-  RecordVolume volume
-  (* WIP *)
+  RecordVolume volume;
+
+
+  (* Implemented by Kai Jun *)
+  amp <- amp_bps;
+  r_factor_in_precision <- current_block_volume; (* is this the correct way to get rFactorInPrecision? *)
+  fee_in_precision = get_final_fee r_factor_in_precision amp;
+
+  balance_0_adjusted = 
+    let after_reserve0_u256 = grow after_reserve0 in 
+    let fee_in_precision_u256 = grow fee_in_precision in
+    let amount0_in_u256 = grow amount0_in in 
+    let b0 = builtin mul after_reserve0_u256 precision in 
+    let b0_a = builtin mul amount0_in_u256 fee_in_precision_u256 in 
+    let b0_b = builtin sub b0 b0_a in
+    builtin div b0_b precision;
+  
+  balance_1_adjusted = 
+    let after_reserve1_u256 = grow after_reserve1 in 
+    let fee_in_precision_u256 = grow fee_in_precision in
+    let amount1_in_u256 = grow amount1_in in 
+    let b1 = builtin mul after_reserve1_u256 precision in 
+    let b1_a = builtin mul amount1_in_u256 fee_in_precision_u256 in 
+    let b1_b = builtin sub b1 b1_a in
+    builtin div b1_b precision;
+
+    (* balance1Adjusted = 
+    let after_reserve1_u256 = grow after_reserve1 in 
+    let b1 = builtin mul after_reserve1_u256 precision in 
+    let b1_a = builtin mul amount1_in fee_in_precision in 
+    let b1_b = builtin sub b1 b1_a in
+    builtin div b1_b precision; *)
+  
+  
+  before_adjustment = let before_adjustment_128 = builtin mul before_reserve0 before_reserve1 in grow before_adjustment_128;
+  after_adjustment = builtin mul balance_0_adjusted balance_1_adjusted;
+  is_ge = uint256_ge after_adjustment before_adjustment;
+  match is_ge with
+  | True =>
+      e = {
+        _eventname: "VerifyBalanceAndUpdateEMASuccess"; 
+        amount0_in: amount0_in; 
+        amount1_in: amount1_in;
+        before_reserve0: before_reserve0;
+        before_reserve1: before_reserve1;
+        after_reserve0: after_reserve0;
+        after_reserve1: after_reserve1
+      };
+      event e
+  | False =>
+      err = CodeInvalidBalance;
+      ThrowError err
+  end
 end
 
 (***************************************)
@@ -740,7 +842,9 @@ transition Swap(
   amount1_out: Uint128,
   to: ByStr20
 )
-  is_sending_t0 = uint128_gt amount0_out zero_amount;
+  (* validates if amount is not zero *)
+  (* andb is logical and *)
+  is_sending_t0 = uint128_gt amount0_out zero_amount; 
   is_sending_t1 = uint128_gt amount1_out zero_amount;
 
   is_sufficient_output = andb is_sending_t0 is_sending_t1;
@@ -751,15 +855,19 @@ transition Swap(
     ThrowError err
   end;
 
-  amp <- amp_bps;
+  (* What is amp_bps? *)
+  amp <- amp_bps; 
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
+  (* Assigning immutable params to local variables *)
+  (* what does each of the params mean? *)
   supply <- total_supply;
   r0 <- reserve0;
   r1 <- reserve1;
   v_r0 <- v_reserve0;
   v_r1 <- v_reserve1;
 
+  (* Checks if amount is less than amount in the pool *)
   is_sufficient_liquidity =
     let a0_ok = builtin lt amount0_out r0 in
     let a1_ok = builtin lt amount1_out r1 in
@@ -771,6 +879,7 @@ transition Swap(
       ThrowError err
     end;
 
+  (* Checks if the token address is the same as the to address? *)
   is_valid_to =
     let t0_ok = let e0 = builtin eq init_token0 to in negb e0 in
     let t1_ok = let e1 = builtin eq init_token1 to in negb e1 in
@@ -782,6 +891,10 @@ transition Swap(
     ThrowError err
   end;
 
+  (* Transfers token0 to _sender*)
+  (* _sender is the person/ contract calling this transition *)
+  (* who is _sender? *)
+  (* Transfer is only for token owner. In this case, ZilswapPool is the token owner *)
   match is_sending_t0 with
   | False =>
   | True =>
@@ -804,6 +917,9 @@ transition Swap(
     send msgs
   end;
 
+  (* init_token0 and init_token1 are zrc 2 contract addresses. *)
+  (* Balance is a mutable field in zrc 2 contracts *)
+  (* The balance of this pool contract is can be obtained by reading the state of the mutable fields *)
   m_b0 <- & init_token0.balances[_this_address];
   b0 = get_amount_or_zero m_b0;
   new_r0 = builtin sub b0 amount0_out;
@@ -811,6 +927,7 @@ transition Swap(
   b1 = get_amount_or_zero m_b1;
   new_r1 = builtin sub b1 amount1_out;
 
+  (* what does amp_pool mean *)
   new_data = match is_amp_pool with
   | True =>
     let new_vr0 = let a = builtin add v_r0 new_r0 in builtin sub a r0 in
