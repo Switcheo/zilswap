@@ -184,6 +184,13 @@ let make_error =
 type Unit =
 | Unit
 
+let get_val =
+  fun (some_val: Option Uint128) =>
+  match some_val with
+  | Some val => val
+  | None => zero_amount
+  end
+
 contract ZilSwapPool
 (
   init_token0 : ByStr20 with contract
