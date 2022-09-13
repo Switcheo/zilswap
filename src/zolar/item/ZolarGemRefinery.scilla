@@ -542,7 +542,8 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String Ge
     e = {
       _eventname: "RefinementConcluded";
       initiator: _sender;
-      refinement_id: refinement_id
+      refinement_id: refinement_id;
+      gems: gems
     };
     event e
   end

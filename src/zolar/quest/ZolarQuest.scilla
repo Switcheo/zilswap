@@ -1,0 +1,597 @@
+(* SPDX-License-Identifier: MIT *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import ListUtils NatUtils
+library ZolarQuest
+
+let block_zero = BNum 0
+let zero = Uint32 0
+let one = Uint32 1
+let five = Uint32 5
+let six = Uint32 6
+let ten = Uint32 10
+let hundred_amt = Uint128 100
+let zero_amt = Uint128 0
+let one_amt = Uint128 1
+let none = None {ByStr20}
+let true = True
+let false = False
+let empty = ""
+let noone = 0x0000000000000000000000000000000000000000
+let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
+
+(* Error exception *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotOracle
+  | CodeNotTokenOwner
+  | CodeInvalidActionId
+  | CodeMissingTraits
+  | CodeMissingCommander
+  | CodeInsufficientFuel
+  | CodeSupplyExceeded
+  | CodeInvalidBurnCount
+  | QuestOverError
+  | CodeMaxDepthReached
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                    => Int32 -1
+      | CodeNotPendingOwner             => Int32 -2
+      | CodePendingOwnerNotEmpty        => Int32 -3
+      | CodeNotOracle                   => Int32 -4
+      | CodeNotTokenOwner               => Int32 -5
+      | CodeInvalidActionId             => Int32 -6
+      | CodeMissingTraits               => Int32 -7
+      | CodeMissingCommander            => Int32 -8
+      | CodeInsufficientFuel            => Int32 -9
+      | CodeSupplyExceeded              => Int32 -10
+      | CodeInvalidBurnCount            => Int32 -11
+      | QuestOverError                  => Int32 -12
+      | CodeMaxDepthReached             => Int32 -13
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg: Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let u256_list_length = @list_length(Uint256)
+
+let resource_per_block = Uint128 5000
+let xp_per_block = Uint128 5000
+
+let blocks_to_harvest =
+  fun (current_block : BNum) =>
+  fun (last_harvested_block : BNum) =>
+    let blks = builtin bsub current_block last_harvested_block in (* this is a uint256 *)
+    let result = builtin to_uint128 blks in
+    match result with
+    | None => builtin sub zero_amt one_amt (* throw on overflow *)
+    | Some u128 =>
+      let is_negative = builtin lt u128 zero_amt in
+      match is_negative with
+      | True => zero_amt
+      | False => u128
+      end
+    end
+
+let get_min_blocks =
+  fun (height_a : BNum) =>
+  fun (height_b : BNum) =>
+    let is_a_smaller = builtin blt height_a height_b in
+    match is_a_smaller with
+    | True =>  height_a
+    | False =>  height_b
+    end
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarQuest
+(
+  initial_owner: ByStr20,
+  initial_oracle: ByStr20,
+  resource_contract: ByStr20, (* _this_address must also be a minter (to mint resources after questing) *)
+  metazoa_contract: ByStr20 with contract
+    field token_owners : Map Uint256 ByStr20
+  end
+)
+
+(* Mutable fields *)
+
+(* game addresses *)
+field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+field current_oracle : ByStr20 = initial_oracle
+
+(* map of battling metazoas to their commanders (internal owner) *)
+field metazoa_commanders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
+
+(* map to track when huny was last harvested for each ursa *)
+field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
+field max_harvest_block: Option BNum = None {BNum}
+
+(* map to track metazoa resource gathering bonus *)
+field resource_gathering_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
+
+(* map to track metazoa mastery leveling bonus *)
+field mastery_leveling_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
+
+(* use for immediate retreat *)
+field abandoned : Bool = False
+
+(**************************************)
+(*         Internal Procedures        *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+(**************************************)
+(*         Ownership Procedures       *)
+(**************************************)
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- current_owner;
+  match maybe_current_owner with
+  | Some owner =>
+    is_owner = builtin eq owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure NoPendingOwner()
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | None =>
+  | Some p =>
+    err = CodePendingOwnerNotEmpty;
+    ThrowError err
+  end
+end
+
+procedure IsOracle(address: ByStr20)
+  oracle <- current_oracle;
+  is_oracle = builtin eq oracle address;
+  match is_oracle with
+  | True =>
+  | False =>
+    err = CodeNotOracle;
+    ThrowError err
+  end
+end
+
+(* validates that the tx sender is the owner of the NFT *)
+procedure ValidateOwnership(
+  token_id: Uint256,
+  address: ByStr20 with contract
+    field token_owners : Map Uint256 ByStr20
+  end
+)
+  maybe_owner <- & address.token_owners[token_id];
+  match maybe_owner with
+  | Some actual_owner =>
+    is_owner = builtin eq actual_owner _sender;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotTokenOwner;
+    ThrowError err
+  end
+end
+
+(* validates that the tx sender is the owner of the metazoa *)
+procedure ValidateMetazoaOwnership(token_id: Uint256)
+  ValidateOwnership token_id metazoa_contract
+end
+
+(**************************************)
+(*           Game Procedures          *)
+(**************************************)
+
+(* validates that the tx sender is the commander of the battling metazoa *)
+procedure ValidateCommander(token_id: Uint256)
+  maybe_owner <- metazoa_commanders[token_id];
+  match maybe_owner with
+  | Some actual_owner =>
+    is_owner = builtin eq actual_owner _sender;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotTokenOwner;
+    ThrowError err
+  end
+end
+
+(* update last_harvested and trigger bonus update for each token_id if there is a change to last_harvested[token_id] *)
+procedure UpdateHarvest(token_id: Uint256)
+  (* update last_harvested block with min of current block and max_harvest_block *)
+  current_block <- & BLOCKNUMBER;
+  maybe_max_block <- max_harvest_block;
+  max_block = match maybe_max_block with | None => current_block | Some v => v end;
+  updated_harvest_block = get_min_blocks current_block max_block;
+
+  (* if last_harvested_block === updated_harvest_block, no update *)
+  maybe_last_harvested_block <- last_harvested[token_id];
+  last_harvested_block = match maybe_last_harvested_block with | None => updated_harvest_block | Some v => v end;
+  is_equal_height = builtin eq last_harvested_block updated_harvest_block;
+  match is_equal_height with
+  | True =>
+    (* no update *)
+  | False =>
+    last_harvested[token_id] := updated_harvest_block;
+    (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
+    e = {
+      _eventname: "UpdateQuestBonus";
+      token_id: token_id;
+      metazoa_contract: metazoa_contract
+    };
+    event e
+  end
+end
+
+(* mints resources + update xp progression based on harvest time and bonuses *)
+procedure HarvestForMetazoa(token_id : Uint256)
+  current_block <- & BLOCKNUMBER;
+  (* check last_harvested_blk to get total blocks *)
+  maybe_last_harvested_block <- last_harvested[token_id];
+  last_harvested_block = match maybe_last_harvested_block with
+    | None => current_block
+    | Some v => v
+  end;
+
+  (* get the min of current block and max_harvest_block to prevent unintentional extra mint of resource *)
+  maybe_max_block <- max_harvest_block;
+  max_block = match maybe_max_block with | None => current_block | Some v => v end;
+  harvest_block = get_min_blocks current_block max_block;
+  num_blocks = blocks_to_harvest harvest_block last_harvested_block;
+
+  (* based on resource per block + bonus, calculate total resources to mint to _sender, and xp gained to save in db *)
+  maybe_resource_bonus <- resource_gathering_bonus[token_id];
+  resource_bonus = match maybe_resource_bonus with
+    | None => zero_amt
+    | Some v => v
+  end;
+  maybe_mastery_bonus <- mastery_leveling_bonus[token_id];
+  mastery_bonus = match maybe_mastery_bonus with
+    | None => zero_amt
+    | Some v => v
+  end;
+  resource_to_mint = let base = builtin mul num_blocks resource_per_block in
+                     let total_percent = builtin add resource_bonus hundred_amt in
+                     let one_percent = builtin div base hundred_amt in
+                     builtin mul one_percent total_percent;
+  xp_to_gain = let base = builtin mul num_blocks xp_per_block in
+               let total_percent = builtin add mastery_bonus hundred_amt in
+               let one_percent = builtin div base hundred_amt in
+               builtin mul one_percent total_percent;
+
+  (* mint resources to _sender and emit xp event for db to pick up *)
+  msg_to_resource_contract = {
+    _tag: "Mint";
+    _recipient: resource_contract;
+    _amount: zero_amt;
+    recipient: _sender;
+    amount: resource_to_mint
+  };
+  msgs = one_msg msg_to_resource_contract;
+  send msgs;
+
+  e1 = {
+    _eventname: "HarvestQuest";
+    token_id: token_id;
+    metazoa_contract: metazoa_contract;
+    resource_contract: resource_contract;
+    resource_to_mint: resource_to_mint;
+    xp_to_gain: xp_to_gain
+  };
+  event e1;
+
+  UpdateHarvest token_id
+end
+
+(* transfers a metazoa to this contract for quest under the tx sender as the commander *)
+procedure TransferToQuest(token_id: Uint256)
+  (* if current blk >= max_harvest_block, throw QuestOverError *)
+  current_block <- & BLOCKNUMBER;
+  maybe_max_block <- max_harvest_block;
+  match maybe_max_block with
+  | None =>
+  | Some max_block =>
+    is_quest_ongoing = builtin blt current_block max_block;
+    match is_quest_ongoing with
+      | True =>
+      | False =>
+        err = QuestOverError;
+        ThrowError err
+    end
+  end;
+
+  last_harvested[token_id] := current_block;
+    (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
+    e = {
+      _eventname: "UpdateQuestBonus";
+      token_id: token_id;
+      metazoa_contract: metazoa_contract
+    };
+    event e;
+  
+  (* update metazoa_commanders field with _sender *)
+  metazoa_commanders[token_id] := _sender;
+
+  msg_to_metazoa = {
+    _tag: "TransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to: _this_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
+(* transfers a metazoa from this contract to the _sender *)
+procedure TransferFromQuest(token_id: Uint256)
+  (* trigger last harvest before unstaking metazoa *)
+  HarvestForMetazoa token_id;
+
+  msg_to_metazoa = {
+    _tag: "TransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to: _sender;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
+(* transfers a metazoa from this contract to the commander, used in EjectQuest *)
+procedure TransferToCommander(token_id: Uint256, commander: ByStr20)
+  (* trigger last harvest before unstaking metazoa *)
+  HarvestForMetazoa token_id;
+
+  msg_to_metazoa = {
+    _tag: "TransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to: commander;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
+(* removes a metazoa from its current commander *)
+procedure RemoveCommander(token_id: Uint256)
+  delete metazoa_commanders[token_id]
+end
+
+(* throws error if max depth is reached *)
+procedure CheckMaxDepth(is_max_depth: Bool)
+  match is_max_depth with
+  | True =>
+    (* throw error *)
+    err = CodeMaxDepthReached;
+    ThrowError err
+  | False =>
+    (* good to go *)
+  end
+end
+
+procedure HandleValidateCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    ValidateCommander token_id
+  end
+end
+
+procedure HandleRemoveCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    RemoveCommander token_id
+  end
+end
+
+procedure HandleTransferToCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    TransferToCommander token_id commander
+  end
+end
+
+(***************************************************)
+(*               Quest Transitions                *)
+(***************************************************)
+
+(* max depth = 6 *)
+transition EnterQuest(token_ids : List Uint256)
+  list_length = u256_list_length token_ids;
+  is_max_depth = builtin lt six list_length;
+  CheckMaxDepth is_max_depth;
+
+  forall token_ids ValidateMetazoaOwnership;
+  forall token_ids TransferToQuest
+end
+
+(* max depth = 10 *)
+transition HarvestResource(token_ids : List Uint256)
+  list_length = u256_list_length token_ids;
+  is_max_depth = builtin lt ten list_length;
+  CheckMaxDepth is_max_depth;
+
+  forall token_ids ValidateCommander;
+  forall token_ids HarvestForMetazoa
+end
+
+(* max depth = 5 *)
+transition ReturnToBase(token_ids : List Uint256)
+  list_length = u256_list_length token_ids;
+  is_max_depth = builtin lt five list_length;
+  CheckMaxDepth is_max_depth;
+
+  forall token_ids ValidateCommander;
+  forall token_ids RemoveCommander;
+  forall token_ids TransferFromQuest
+end
+
+(* transition for oracle to invoke after picking up 'EnterQuest' event, to set back-end calculated bonus *)
+transition SetQuestBonus(token_id : Uint256, resource_bonus : Uint128, mastery_bonus: Uint128)
+  (* check if _sender is oracle *)
+  IsOracle _sender;
+
+  (* check if bonus > 0 *)
+  is_invalid_resource_bonus = builtin lt resource_bonus zero_amt;
+  final_resource_bonus = match is_invalid_resource_bonus with | True => zero_amt | False => resource_bonus end;
+  resource_gathering_bonus[token_id] := final_resource_bonus;
+
+  is_invalid_mastery_bonus = builtin lt mastery_bonus zero_amt;
+  final_mastery_bonus = match is_invalid_mastery_bonus with | True => zero_amt | False => mastery_bonus end;
+  mastery_leveling_bonus[token_id] := final_mastery_bonus
+end
+
+transition EjectQuest()
+  is_abandoned <- abandoned;
+  match is_abandoned with
+  | True =>
+    token_id_commander_map <- metazoa_commanders;
+    token_id_commander_list = builtin to_list token_id_commander_map;
+    forall token_id_commander_list HandleValidateCommander;
+    forall token_id_commander_list HandleRemoveCommander;
+    forall token_id_commander_list HandleTransferToCommander
+  | False => (* no-op *)
+  end
+end
+
+transition AbandonQuest(token_ids : List Uint256)
+  is_abandoned <- abandoned;
+  match is_abandoned with
+  | False => (* no-op *)
+  | True =>
+    forall token_ids ValidateMetazoaOwnership;
+    forall token_ids TransferFromQuest
+  end
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Removes the current_owner, meaning that new minters can no longer be added. Must not have a pending owner. *)
+transition RevokeOwnership()
+  IsOwner _sender;
+  NoPendingOwner;
+  current_owner := none;
+  e = {_eventname : "OwnershipRevoked"; current_owner : _sender};
+  event e
+end
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new current_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; current_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new current_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_current_owner <- current_owner;
+  o = Some {ByStr20} _sender;
+  current_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_current_owner : previous_current_owner; current_owner : _sender};
+  event e
+end
+
+(* @dev: Sets the RNG oracle address. Can be overriden at any time. *)
+transition SetOracle(oracle : ByStr20)
+  IsOwner _sender;
+  current_oracle := oracle;
+  e = {_eventname : "OracleSet"; oracle : oracle};
+  event e
+end
+
+(* @dev: Sets the mint end time. Can be overriden at any time in emergencies to end the game. *)
+transition SetMaxHarvestBlock(block : Option BNum)
+  IsOwner _sender;
+  max_harvest_block := block;
+  e = {_eventname : "MaxHarvestBlockSet"; max_harvest_block : block};
+  event e
+end
+
+(* @dev: Sets quest as abanonded. Can be used to withdraw all metazoas from quest without harvest and penalty. *)
+transition SetQuestAbandoned(a: Bool)
+  IsOwner _sender;
+  abandoned := a;
+  e = {_eventname : "QuestAbandonedSet"; abandoned : a};
+  event e
+end
+
+(***************************************************)
+(*                     Callbacks                   *)
+(***************************************************)
+
+(* send metazoa *)
+transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* receive metazoa *)
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* mint resource *)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
