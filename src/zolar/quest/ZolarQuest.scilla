@@ -392,6 +392,22 @@ procedure TransferFromQuest(token_id: Uint256)
   send msgs
 end
 
+(* transfers a metazoa from this contract to the commander, used in EjectQuest *)
+procedure TransferToCommander(token_id: Uint256, commander: ByStr20)
+  (* trigger last harvest before unstaking metazoa *)
+  HarvestForMetazoa token_id;
+
+  msg_to_metazoa = {
+    _tag: "TransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to: commander;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
 (* removes a metazoa from its current commander *)
 procedure RemoveCommander(token_id: Uint256)
   delete metazoa_commanders[token_id]
@@ -406,6 +422,27 @@ procedure CheckMaxDepth(is_max_depth: Bool)
     ThrowError err
   | False =>
     (* good to go *)
+  end
+end
+
+procedure HandleValidateCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    ValidateCommander token_id
+  end
+end
+
+procedure HandleRemoveCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    RemoveCommander token_id
+  end
+end
+
+procedure HandleTransferToCommander(token_id_commander_pair: Pair Uint256 ByStr20)
+  match token_id_commander_pair with
+  | Pair token_id commander =>
+    TransferToCommander token_id commander
   end
 end
 
@@ -445,25 +482,31 @@ transition ReturnToBase(token_ids : List Uint256)
 end
 
 (* transition for oracle to invoke after picking up 'EnterQuest' event, to set back-end calculated bonus *)
-transition SetResourceGatheringBonus(token_id : Uint256, bonus : Uint128)
+transition SetQuestBonus(token_id : Uint256, resource_bonus : Uint128, mastery_bonus: Uint128)
   (* check if _sender is oracle *)
   IsOracle _sender;
 
   (* check if bonus > 0 *)
-  is_invalid_bonus = builtin lt bonus zero_amt;
-  final_bonus = match is_invalid_bonus with | True => zero_amt | False => bonus end;
-  resource_gathering_bonus[token_id] := final_bonus
+  is_invalid_resource_bonus = builtin lt resource_bonus zero_amt;
+  final_resource_bonus = match is_invalid_resource_bonus with | True => zero_amt | False => resource_bonus end;
+  resource_gathering_bonus[token_id] := final_resource_bonus;
+
+  is_invalid_mastery_bonus = builtin lt mastery_bonus zero_amt;
+  final_mastery_bonus = match is_invalid_mastery_bonus with | True => zero_amt | False => mastery_bonus end;
+  mastery_leveling_bonus[token_id] := final_mastery_bonus
 end
 
-(* transition for oracle to invoke after picking up 'EnterQuest' event, to set back-end calculated bonus *)
-transition SetMasteryLevelingBonus(token_id : Uint256, bonus : Uint128)
-  (* check if _sender is oracle *)
-  IsOracle _sender;
-  
-  (* check if bonus > 0 *)
-  is_invalid_bonus = builtin lt bonus zero_amt;
-  final_bonus = match is_invalid_bonus with | True => zero_amt | False => bonus end;
-  mastery_leveling_bonus[token_id] := final_bonus
+transition EjectQuest()
+  is_abandoned <- abandoned;
+  match is_abandoned with
+  | True =>
+    token_id_commander_map <- metazoa_commanders;
+    token_id_commander_list = builtin to_list token_id_commander_map;
+    forall token_id_commander_list HandleValidateCommander;
+    forall token_id_commander_list HandleRemoveCommander;
+    forall token_id_commander_list HandleTransferToCommander
+  | False => (* no-op *)
+  end
 end
 
 transition AbandonQuest(token_ids : List Uint256)
