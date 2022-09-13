@@ -11,17 +11,6 @@ let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
 let zero_block = BNum 0
 let minimum_liquidity = Uint128 1000
-
-(* Implemented by Kai Jun *)
-let zero_amount_u256 = Uint256 0
-let four = Uint128 4
-let ten = Uint128 10
-let twenty = Uint128 20
-let thirty = Uint128 30
-let two_bps = Uint128 20000
-let five_bps = Uint128 50000
-let twenty_bps = Uint128 200000
-
 let bps = Uint128 10000
 let half_bps = Uint128 5000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
@@ -118,7 +107,7 @@ let ema =
     let n = builtin add a b in
     builtin div n precision
 
-(* Implemented by Kai Jun, returns final_fee in Uint128*)
+(* Returns final_fee in Uint128*)
 (* function getFinalFee(uint256 feeInPrecision, uint32 _ampBps) internal pure returns (uint256) {
     if (_ampBps <= 20000) {
       return feeInPrecision;
@@ -133,21 +122,32 @@ let ema =
 let get_final_fee = 
   fun (fee_in_precision : Uint128) =>
   fun (amp_bps : Uint128) =>
+    let four = Uint128 4 in
+    let ten = Uint128 10 in
+    let twenty = Uint128 20 in
+    let thirty = Uint128 30 in
+    let two_bps = Uint128 20000 in
+    let five_bps = Uint128 50000 in
+    let twenty_bps = Uint128 200000 in
     let le_two_bps = uint128_le amp_bps two_bps in 
     match le_two_bps with
     | True => fee_in_precision
     | False =>
       let le_five_bps = uint128_le amp_bps five_bps in
       match le_five_bps with 
-      | True => frac fee_in_precision twenty thirty 
+      | True => 
+        frac fee_in_precision twenty thirty 
       | False =>
         let le_twenty_bps = uint128_le amp_bps twenty_bps in
         match le_twenty_bps with
-        | True => frac fee_in_precision ten thirty
-        | False => frac fee_in_precision four thirty
+        | True => 
+          frac fee_in_precision ten thirty
+        | False => 
+          frac fee_in_precision four thirty
         end
       end
     end
+    
     
 (* Error events *)
 type Error =
@@ -183,13 +183,6 @@ let make_error =
 (* Dummy user-defined ADT *)
 type Unit =
 | Unit
-
-let get_val =
-  fun (some_val: Option Uint128) =>
-  match some_val with
-  | Some val => val
-  | None => zero_amount
-  end
 
 contract ZilSwapPool
 (
@@ -295,7 +288,7 @@ end
 
 procedure AuthorizedMoveIfSufficientBalance(from: ByStr20, to: ByStr20, amount: Uint128)
   o_from_bal <- balances[from];
-  bal = get_val o_from_bal;
+  bal = get_amount_or_zero o_from_bal;
   can_do = uint128_le amount bal;
   match can_do with
   | True =>
@@ -318,7 +311,7 @@ end
 
 procedure AuthorizedMint(recipient: ByStr20, amount: Uint128)
   o_recipient_bal <- balances[recipient];
-  bal = get_val o_recipient_bal;
+  bal = get_amount_or_zero o_recipient_bal;
   new_balance = builtin add amount bal;
   balances[recipient] := new_balance;
   current_total_supply <- total_supply;
@@ -330,7 +323,7 @@ end
 
 procedure AuthorizedBurnIfSufficientBalance(from: ByStr20, amount: Uint128)
   o_get_bal <- balances[from];
-  bal = get_val o_get_bal;
+  bal = get_amount_or_zero o_get_bal;
   can_burn = uint128_le amount bal;
   match can_burn with
   | True =>
@@ -577,7 +570,7 @@ end
 transition IncreaseAllowance(spender: ByStr20, amount: Uint128)
   IsNotSender spender;
   some_current_allowance <- allowances[_sender][spender];
-  current_allowance = get_val some_current_allowance;
+  current_allowance = get_amount_or_zero some_current_allowance;
   new_allowance = builtin add current_allowance amount;
   allowances[_sender][spender] := new_allowance;
   e = {_eventname : "IncreasedAllowance"; token_owner : _sender; spender: spender; new_allowance : new_allowance};
@@ -590,7 +583,7 @@ end
 transition DecreaseAllowance(spender: ByStr20, amount: Uint128)
   IsNotSender spender;
   some_current_allowance <- allowances[_sender][spender];
-  current_allowance = get_val some_current_allowance;
+  current_allowance = get_amount_or_zero some_current_allowance;
   new_allowance =
     let amount_le_allowance = uint128_le amount current_allowance in
       match amount_le_allowance with
@@ -626,7 +619,7 @@ end
 (* @param amount:  Amount of tokens to be transferred.                                                                                    *)
 transition TransferFrom(from: ByStr20, to: ByStr20, amount: Uint128)
   o_spender_allowed <- allowances[from][_sender];
-  allowed = get_val o_spender_allowed;
+  allowed = get_amount_or_zero o_spender_allowed;
   can_do = uint128_le amount allowed;
   match can_do with
   | True =>
