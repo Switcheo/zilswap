@@ -18,6 +18,7 @@ let true = True
 let zero = Uint256 0
 let one = Uint256 1
 let empty_string = ""
+let item_type_key = "Type"
 
 let add_operation = Add
 let sub_operation = Sub
@@ -43,19 +44,27 @@ let get_bal =
     | Some bal => bal
     end
 
-let get_head_of_list =
-  fun (list : List (Pair String String)) =>
-    let list_head = @list_head (Pair String String) in
-    let maybe_head = list_head list in
-    match maybe_head with
-    | None =>
-      Pair {String String} empty_string empty_string
-    | Some head =>
-      head
+(* gets the trait of given traitKey from a list of traits *)
+let get_trait_value = 
+  fun (traits_list : List (Pair String String)) =>
+  fun (traitKey: String) =>
+    let get_value = @list_find (Pair String String) in
+    let fn =
+      fun (trait: Pair String String) =>
+        match trait with
+        | Pair key value =>
+          builtin eq key traitKey
+        end
+    in
+    let maybe_trait_value = get_value fn traits_list in
+    match maybe_trait_value with
+    | None => empty_string
+    | Some trait_value =>
+      match trait_value with
+      | Pair key value =>
+        value
+      end
     end
-
-(* extracts the head from Pair (String, String) *)
-let get_head_of_pair : Pair String String -> String = @fst String String
 
 (* Error exception *)
 type Error =
@@ -328,9 +337,8 @@ procedure RequireDifferentItemType(
   match maybe_item_traits with
   | None =>
   | Some item_traits =>
-    item_trait = get_head_of_list item_traits;
-    trait_key = get_head_of_pair item_trait;
-    maybe_item_type_flag <- parent_owned_types[to_contract][to_token_id][trait_key];
+    item_type_value = get_trait_value item_traits item_type_key;
+    maybe_item_type_flag <- parent_owned_types[to_contract][to_token_id][item_type_value];
     match maybe_item_type_flag with
     | None =>
     | Some item_type_flag =>
@@ -1027,13 +1035,12 @@ procedure TransferItemToParent(
     match maybe_item_traits with
     | None =>
     | Some item_traits =>
-      item_trait = get_head_of_list item_traits;
-      trait_key = get_head_of_pair item_trait;
-      is_traitless = builtin eq trait_key empty_string;
+      item_type_value = get_trait_value item_traits item_type_key;
+      is_traitless = builtin eq item_type_value empty_string;
       match is_traitless with
       | True =>
       | False =>
-        parent_owned_types[to_contract][to_token_id][trait_key] := true
+        parent_owned_types[to_contract][to_token_id][item_type_value] := true
       end
     end
   end
@@ -1064,13 +1071,12 @@ procedure TransferItemFromParent(
     match maybe_item_traits with
     | None =>
     | Some item_traits =>
-      item_trait = get_head_of_list item_traits;
-      trait_key = get_head_of_pair item_trait;
-      is_traitless = builtin eq trait_key empty_string;
+      item_type_value = get_trait_value item_traits item_type_key;
+      is_traitless = builtin eq item_type_value empty_string;
       match is_traitless with
       | True =>
       | False =>
-        parent_owned_types[from_contract][from_token_id][trait_key] := false
+        parent_owned_types[from_contract][from_token_id][item_type_value] := false
       end
     end
   end
