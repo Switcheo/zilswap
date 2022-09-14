@@ -516,7 +516,10 @@ transition RemoveItem(item_id: Uint128)
     err = CodeItemNotFound;
     ThrowError err
   | Some item =>
-    delete items[item_id]
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e
   end
 end
 
