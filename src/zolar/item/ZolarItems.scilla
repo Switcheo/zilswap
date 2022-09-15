@@ -44,28 +44,6 @@ let get_bal =
     | Some bal => bal
     end
 
-(* gets the trait of given traitKey from a list of traits *)
-let get_trait_value = 
-  fun (traits_list : List (Pair String String)) =>
-  fun (traitKey: String) =>
-    let get_value = @list_find (Pair String String) in
-    let fn =
-      fun (trait: Pair String String) =>
-        match trait with
-        | Pair key value =>
-          builtin eq key traitKey
-        end
-    in
-    let maybe_trait_value = get_value fn traits_list in
-    match maybe_trait_value with
-    | None => empty_string
-    | Some trait_value =>
-      match trait_value with
-      | Pair key value =>
-        value
-      end
-    end
-
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -102,7 +80,6 @@ type Error =
   | MaxItemDepthReachedError
   | ConsumerFoundError
   | ConsumerNotFoundError
-  | ItemTypeAlreadyOwned
 
 let make_error =
   fun (result: Error) =>
@@ -142,7 +119,6 @@ let make_error =
       | MaxItemDepthReachedError           => Int32 -32
       | ConsumerFoundError                 => Int32 -33
       | ConsumerNotFoundError              => Int32 -34
-      | ItemTypeAlreadyOwned               => Int32 -35
       end
     in
     { _exception: "Error"; code: result_code }
@@ -211,10 +187,6 @@ field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping of item id to its respective parent token*)
 field parent_owners: Map Uint256 Pair ByStr20 Uint256 = Emp Uint256 Pair ByStr20 Uint256
-
-(* Mapping of parent token to its types of items owned *)
-(* parent_token_contract : { token_id : { 'headgear': 1, 'armor': 1, 'off-hand': 0 } } *)
-field parent_owned_types: Map ByStr20 (Map Uint256 (Map String Bool)) = Emp ByStr20 (Map Uint256 (Map String Bool))
 
 (* The total number of tokens minted *)
 field token_id_count: Uint256 = Uint256 0
@@ -325,30 +297,6 @@ procedure RequireNotZeroAddress(address: ByStr20)
     error = TokenNotFoundError;
     Throw error
   | False =>
-  end
-end
-
-procedure RequireDifferentItemType(
-  item_id: Uint256,
-  to_token_id: Uint256,
-  to_contract: ByStr20
-)
-  maybe_item_traits <- traits[item_id];
-  match maybe_item_traits with
-  | None =>
-  | Some item_traits =>
-    item_type_value = get_trait_value item_traits item_type_key;
-    maybe_item_type_flag <- parent_owned_types[to_contract][to_token_id][item_type_value];
-    match maybe_item_type_flag with
-    | None =>
-    | Some item_type_flag =>
-      match item_type_flag with
-      | True =>
-        error = ItemTypeAlreadyOwned;
-        Throw error
-      | False =>
-      end
-    end
   end
 end
 
@@ -1025,24 +973,10 @@ procedure TransferItemToParent(
     RequireItemNotParent to_token_id to_contract item_id _this_address;
     RequireTokenOwner item_id _sender;
     RequireRootOwner to_token_id to_contract;
-    RequireDifferentItemType item_id to_token_id to_contract;
 
     new_parent_token = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_parent_token;
-    token_owners[item_id] := to_contract;
-    
-    maybe_item_traits <- traits[item_id];
-    match maybe_item_traits with
-    | None =>
-    | Some item_traits =>
-      item_type_value = get_trait_value item_traits item_type_key;
-      is_traitless = builtin eq item_type_value empty_string;
-      match is_traitless with
-      | True =>
-      | False =>
-        parent_owned_types[to_contract][to_token_id][item_type_value] := true
-      end
-    end
+    token_owners[item_id] := to_contract
   end
 end
 
@@ -1065,20 +999,7 @@ procedure TransferItemFromParent(
     RequireRootOwner from_token_id from_contract;
 
     delete parent_owners[item_id];
-    token_owners[item_id] := _sender;
-
-    maybe_item_traits <- traits[item_id];
-    match maybe_item_traits with
-    | None =>
-    | Some item_traits =>
-      item_type_value = get_trait_value item_traits item_type_key;
-      is_traitless = builtin eq item_type_value empty_string;
-      match is_traitless with
-      | True =>
-      | False =>
-        parent_owned_types[from_contract][from_token_id][item_type_value] := false
-      end
-    end
+    token_owners[item_id] := _sender
   end
 end
 
