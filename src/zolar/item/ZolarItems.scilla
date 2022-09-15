@@ -18,7 +18,6 @@ let true = True
 let zero = Uint256 0
 let one = Uint256 1
 let empty_string = ""
-let item_type_key = "Type"
 
 let add_operation = Add
 let sub_operation = Sub
