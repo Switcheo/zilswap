@@ -20,6 +20,7 @@ let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
 let item_type_key = "Type"
+let item_name_key = "Name"
 let empty_string = ""
 
 (* Error events *)
@@ -408,6 +409,7 @@ procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr
       ThrowError err
     | Some traits =>
       item_type = get_trait_value traits item_type_key;
+      item_name = get_trait_value traits item_name_key;
       maybe_consumable_mapping <- consumable_whitelist[item_type];
       is_valid_consumable = match maybe_consumable_mapping with | None => false | Some v => v end;
       match is_valid_consumable with
@@ -418,7 +420,8 @@ procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr
           _eventname: "ItemConsumed";
           token_id: token_id;
           token_contract_address: token_contract_address;
-          item_type: item_type
+          item_type: item_type;
+          item_name: item_name
         };
         event e
       | False =>

@@ -22,6 +22,9 @@ let false = False
 let empty = ""
 let noone = 0x0000000000000000000000000000000000000000
 let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
+let blocks_required_to_harvest = Uint128 100
+let resource_per_day = Uint128 28
+let xp_per_day = Uint128 5
 
 (* Error exception *)
 type Error =
@@ -66,9 +69,6 @@ let one_msg =
     Cons {Message} msg nil_msg
 
 let u256_list_length = @list_length(Uint256)
-
-let resource_per_block = Uint128 5000
-let xp_per_block = Uint128 5000
 
 let blocks_to_harvest =
   fun (current_block : BNum) =>
@@ -250,24 +250,25 @@ procedure ValidateCommander(token_id: Uint256)
 end
 
 (* update last_harvested and trigger bonus update for each token_id if there is a change to last_harvested[token_id] *)
-procedure UpdateHarvest(token_id: Uint256)
-  (* update last_harvested block with min of current block and max_harvest_block *)
+procedure UpdateHarvest(token_id: Uint256, blocks_to_add: Uint128)
   current_block <- & BLOCKNUMBER;
   maybe_max_block <- max_harvest_block;
   max_block = match maybe_max_block with | None => current_block | Some v => v end;
-  updated_harvest_block = get_min_blocks current_block max_block;
+  harvest_block = get_min_blocks current_block max_block;
 
-  (* if last_harvested_block === updated_harvest_block, no update *)
   maybe_last_harvested_block <- last_harvested[token_id];
-  last_harvested_block = match maybe_last_harvested_block with | None => updated_harvest_block | Some v => v end;
-  is_equal_height = builtin eq last_harvested_block updated_harvest_block;
-  match is_equal_height with
-  | True =>
-    (* no update *)
-  | False =>
-    last_harvested[token_id] := updated_harvest_block;
-    (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
-    e = {
+  match maybe_last_harvested_block with
+  | None =>
+    (* should not happen *)
+    (* set last_harvested[token_id] if this happens somehow for damage control *)
+    last_harvested[token_id] := harvest_block
+  | Some last_harvested_block =>
+    (* sum blocks_to_add and last_harvested_block *)
+    new_last_harvested = builtin badd last_harvested_block blocks_to_add;
+    last_harvested[token_id] := new_last_harvested;
+
+     (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
+     e = {
       _eventname: "UpdateQuestBonus";
       token_id: token_id;
       metazoa_contract: metazoa_contract
@@ -292,48 +293,58 @@ procedure HarvestForMetazoa(token_id : Uint256)
   harvest_block = get_min_blocks current_block max_block;
   num_blocks = blocks_to_harvest harvest_block last_harvested_block;
 
-  (* based on resource per block + bonus, calculate total resources to mint to _sender, and xp gained to save in db *)
-  maybe_resource_bonus <- resource_gathering_bonus[token_id];
-  resource_bonus = match maybe_resource_bonus with
-    | None => zero_amt
-    | Some v => v
-  end;
-  maybe_mastery_bonus <- mastery_leveling_bonus[token_id];
-  mastery_bonus = match maybe_mastery_bonus with
-    | None => zero_amt
-    | Some v => v
-  end;
-  resource_to_mint = let base = builtin mul num_blocks resource_per_block in
-                     let total_percent = builtin add resource_bonus hundred_amt in
-                     let one_percent = builtin div base hundred_amt in
-                     builtin mul one_percent total_percent;
-  xp_to_gain = let base = builtin mul num_blocks xp_per_block in
-               let total_percent = builtin add mastery_bonus hundred_amt in
-               let one_percent = builtin div base hundred_amt in
-               builtin mul one_percent total_percent;
+  (* if num_blocks < 2520, no resources minted, not throwing error to prevent stuck metazoas when returning to base*)
+  unable_to_harvest = builtin lt num_blocks blocks_required_to_harvest;
+  match unable_to_harvest with
+  | True => (* no op *)
+  | False =>
+    (* based on resource per block + bonus, calculate total resources to mint to _sender, and xp gained to save in db *)
+    maybe_resource_bonus <- resource_gathering_bonus[token_id];
+    resource_bonus = match maybe_resource_bonus with
+        | None => zero_amt
+        | Some v => v
+    end;
+    maybe_mastery_bonus <- mastery_leveling_bonus[token_id];
+    mastery_bonus = match maybe_mastery_bonus with
+        | None => zero_amt
+        | Some v => v
+    end;
+    num_of_days = builtin div num_blocks blocks_required_to_harvest;
+    blocks_to_add = builtin mul num_of_days blocks_required_to_harvest;
 
-  (* mint resources to _sender and emit xp event for db to pick up *)
-  msg_to_resource_contract = {
-    _tag: "Mint";
-    _recipient: resource_contract;
-    _amount: zero_amt;
-    recipient: _sender;
-    amount: resource_to_mint
-  };
-  msgs = one_msg msg_to_resource_contract;
-  send msgs;
+    resource_to_mint = let base = builtin mul num_of_days resource_per_day in
+                       let total_percent = builtin add resource_bonus hundred_amt in
+                       let product = builtin mul base total_percent in
+                       builtin div product hundred_amt;
+                       
+    xp_to_gain = let base = builtin mul num_of_days xp_per_day in
+                 let total_percent = builtin add mastery_bonus hundred_amt in
+                 let product = builtin mul base total_percent in
+                 builtin div product hundred_amt;
 
-  e1 = {
-    _eventname: "HarvestQuest";
-    token_id: token_id;
-    metazoa_contract: metazoa_contract;
-    resource_contract: resource_contract;
-    resource_to_mint: resource_to_mint;
-    xp_to_gain: xp_to_gain
-  };
-  event e1;
+    (* mint resources to _sender and emit xp event for db to pick up *)
+    msg_to_resource_contract = {
+        _tag: "Mint";
+        _recipient: resource_contract;
+        _amount: zero_amt;
+        recipient: _sender;
+        amount: resource_to_mint
+    };
+    msgs = one_msg msg_to_resource_contract;
+    send msgs;
 
-  UpdateHarvest token_id
+    e1 = {
+        _eventname: "HarvestQuest";
+        token_id: token_id;
+        metazoa_contract: metazoa_contract;
+        resource_contract: resource_contract;
+        resource_to_mint: resource_to_mint;
+        xp_to_gain: xp_to_gain
+    };
+    event e1;
+
+    UpdateHarvest token_id blocks_to_add
+  end
 end
 
 (* transfers a metazoa to this contract for quest under the tx sender as the commander *)
