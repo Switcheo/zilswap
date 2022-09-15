@@ -19,6 +19,8 @@ let hundred_percent_bps = Uint128 10000
 let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
+let item_type_key = "Type"
+let empty_string = ""
 
 (* Error events *)
 type Error =
@@ -33,6 +35,9 @@ type Error =
   | CodeInvalidPaymentItemCount
   | CodeInvalidPaymentItemToken
   | CodeInvalidPaymentItemTraits
+  | CodeNotTokenOwner
+  | CodeInvalidItemContract
+  | CodeItemNotValidConsumable
 
 type CraftingCost =
   | CraftingCost of ByStr20 Uint128 (List (Pair String String)) (* item token address, quantity, item traits *)
@@ -58,6 +63,9 @@ let make_error =
       | CodeInvalidPaymentItemCount           => Int32 -9
       | CodeInvalidPaymentItemToken           => Int32 -10
       | CodeInvalidPaymentItemTraits          => Int32 -11
+      | CodeNotTokenOwner                     => Int32 -12
+      | CodeInvalidItemContract               => Int32 -13
+      | CodeItemNotValidConsumable            => Int32 -14
       end
     in
     { _exception : "Error"; code : result_code }
@@ -129,6 +137,28 @@ let is_traits_exist =
     let empty_list = Nil {Bool} in
     let result = fold fn empty_list candidate in
     all_true result
+
+(* gets the trait of key "Type" from a list of traits *)
+let get_trait_value = 
+  fun (traits_list : List (Pair String String)) =>
+  fun (traitKey: String) =>
+    let get_value = @list_find (Pair String String) in
+    let fn =
+      fun (trait: Pair String String) =>
+        match trait with
+        | Pair key value =>
+          builtin eq key traitKey
+        end
+    in
+    let maybe_trait_value = get_value fn traits_list in
+    match maybe_trait_value with
+    | None => empty_string
+    | Some trait_value =>
+      match trait_value with
+      | Pair key value =>
+        value
+      end
+    end
   
 
 let get_amount_or_zero =
@@ -172,6 +202,7 @@ field pending_owner : Option ByStr20 = none
 field items : Map Uint128 Item = Emp Uint128 Item
 field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_purchase, net_inflation) *)
 field next_item_id : Uint128 = zero
+field consumable_whitelist : Map String Bool = Emp String Bool (* map of consumableName : isConsumable *)
 
 (**************************************)
 (*             Procedures             *)
@@ -329,6 +360,75 @@ procedure MintItem(token_address: ByStr20, traits: List (Pair String String))
   send msgs
 end
 
+(* for each payment_item, check if it belongs to _sender *)
+procedure VerifyOwnership(payment_item: PaymentItem)
+  match payment_item with
+  | PaymentItem token_contract_address token_id =>
+    maybe_token_contract <- & token_contract_address as ByStr20 with contract
+      field token_owners : Map Uint256 ByStr20
+    end;
+    match maybe_token_contract with
+    | None =>
+      (* throw error invalid contract *)
+      err = CodeInvalidItemContract;
+      ThrowError err
+    | Some token_contract =>
+      (* check if token_owners[token_id] === _sender *)
+      maybe_token_owner <- & token_contract.token_owners[token_id];
+      token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+      is_token_owner = builtin eq token_owner _sender;
+      match is_token_owner with
+      | True => (* no op, token_owner matches _sender *)
+      | False =>
+        (* throw error as _sender is not token_owner *)
+        err = CodeNotTokenOwner;
+        ThrowError err
+      end
+    end
+  end
+end
+
+procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr20)
+  (* check if item is on consumable whitelist *)
+  maybe_item_contract <- & token_contract_address as ByStr20 with contract
+    field traits : Map Uint256 (List (Pair String String))
+  end;
+  match maybe_item_contract with
+  | None =>
+    (* invalid item_contract with no traits field, throw err *)
+    err = CodeInvalidItemContract;
+    ThrowError err
+  | Some item_contract =>
+    (* get item traits *)
+    maybe_traits <- & item_contract.traits[token_id];
+    match maybe_traits with
+    | None =>
+      (* throw error as item not a valid consumable *)
+      err = CodeItemNotValidConsumable;
+      ThrowError err
+    | Some traits =>
+      item_type = get_trait_value traits item_type_key;
+      maybe_consumable_mapping <- consumable_whitelist[item_type];
+      is_valid_consumable = match maybe_consumable_mapping with | None => false | Some v => v end;
+      match is_valid_consumable with
+      | True =>
+        (* expend item and emit event for db to track, as item is valid *)
+        ExpendZRC6 token_contract_address token_id;
+        e = {
+          _eventname: "ItemConsumed";
+          token_id: token_id;
+          token_contract_address: token_contract_address;
+          item_type: item_type
+        };
+        event e
+      | False =>
+        (* throw error as item not a valid consumable *)
+        err = CodeItemNotValidConsumable;
+        ThrowError err
+      end
+    end
+  end
+end
 
 (***************************************)
 (*             Transitions             *)
@@ -344,11 +444,22 @@ transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
     ThrowError err
   | Some item =>
     match item with
-    | Item name token_address traits crafting_costs  =>
+    | Item name token_address traits crafting_costs =>
+      forall payment_items VerifyOwnership;
       VerifyAndReceivePayment crafting_costs payment_items;
       MintItem token_address traits
     end
   end
+end
+
+(* @dev: Consumes an item from a given contract, must be on consumable white-list *)
+(* @param item_id: the id of the item to consume *)
+transition ConsumeItem(token_id: Uint256, token_contract_address: ByStr20)
+  token = PaymentItem token_contract_address token_id;
+  (* check if item to be consumed belongs to _sender *)
+  VerifyOwnership token;
+  (* check if item is a valid consumable (on the consumable_whitelist) and consume if so *)
+  VerifyAndConsumeItem token_id token_contract_address
 end
 
 (***************************************************)
@@ -405,8 +516,33 @@ transition RemoveItem(item_id: Uint128)
     err = CodeItemNotFound;
     ThrowError err
   | Some item =>
-    delete items[item_id]
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e
   end
+end
+
+(* @dev: Adds a consumable to the consumable_whitelist *)
+(* @param name: Name of consumable to be added *)
+transition AddConsumable(name: String)
+  consumable_whitelist[name] := true;
+  e = {
+    _eventname: "ConsumableAdded";
+    item_name: name
+  };
+  event e
+end
+
+(* @dev: Removes a consumable from the consumable_whitelist *)
+(* @param name: Name of consumable to be removed *)
+transition RemoveConsumable(name: String)
+  consumable_whitelist[name] := false;
+  e = {
+    _eventname: "ConsumableRemoved";
+    item_name: name
+  };
+  event e
 end
 
 (***************************************)
