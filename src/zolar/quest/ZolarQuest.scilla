@@ -22,7 +22,7 @@ let false = False
 let empty = ""
 let noone = 0x0000000000000000000000000000000000000000
 let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
-let blocks_required_to_harvest = Uint128 100
+let blocks_required_to_harvest = Uint128 2520
 let resource_per_day = Uint128 28
 let xp_per_day = Uint128 5
 
