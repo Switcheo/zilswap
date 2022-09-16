@@ -1003,15 +1003,40 @@ transition Swap(
   event e
 end
 
+(* @dev: Transfers tokens such that balances match reserves *)
+(*
+  token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
+  token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
+*)
 transition Skim(
   to: ByStr20
 )
-  (* TODO
-    token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
-    token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
-  *)
+  r_0 <- reserve0;
+  r_1 <- reserve1;
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  amount0 = builtin sub balance0 r_0;
+  amount1 = builtin sub balance1 r_1;
+
+  msg_to_token0  = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: to; amount: amount0
+  };
+
+  msg_to_token1  = {
+    _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+    to: to; amount: amount1
+  };
+
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs
+
 end
 
+(* @dev: force reserves to match balances *)
 transition Sync()
   (* TODO:
     (bool isAmpPool, ReserveData memory data) = getReservesData();
