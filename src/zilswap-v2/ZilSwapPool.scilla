@@ -94,6 +94,14 @@ let shrink =
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
 
+let reduce =
+  fun (var : Uint256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
+    end
+
 (* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
 let ema =
   fun (ema : Uint128) =>
@@ -107,7 +115,30 @@ let ema =
     let n = builtin add a b in
     builtin div n precision
 
-(* Returns final_fee in Uint128*)
+(* @dev: returns r_factor_in_precision in Uint256 from short_ema and long_ema *)
+(* function calculateRFactor(uint256 _shortEMA, uint256 _longEMA)
+  internal
+  pure
+  returns (uint256)
+{
+  if (_longEMA == 0) {
+      return 0;
+  }
+  return (_shortEMA * MathExt.PRECISION) / _longEMA;
+} *)
+let calculate_r_factor = 
+  fun (short_ema : Uint256) =>
+  fun (long_ema : Uint256) =>
+    let zero_amount = Uint256 0 in 
+    let is_eq = builtin eq long_ema zero_amount in 
+    match is_eq with
+    | True => zero_amount
+    | False =>
+      let s_e = builtin mul short_ema precision in 
+      builtin div s_e long_ema
+    end
+
+(* @dev: returns final_fee in Uint128*)
 (* function getFinalFee(uint256 feeInPrecision, uint32 _ampBps) internal pure returns (uint256) {
     if (_ampBps <= 20000) {
       return feeInPrecision;
@@ -120,8 +151,9 @@ let ema =
     } 
 *)
 let get_final_fee = 
-  fun (fee_in_precision : Uint128) =>
+  fun (fee_in_precision : Uint256) =>
   fun (amp_bps : Uint128) =>
+    let fee_in_precision_u128 = reduce fee_in_precision in
     let four = Uint128 4 in
     let ten = Uint128 10 in
     let twenty = Uint128 20 in
@@ -131,19 +163,19 @@ let get_final_fee =
     let twenty_bps = Uint128 200000 in
     let le_two_bps = uint128_le amp_bps two_bps in 
     match le_two_bps with
-    | True => fee_in_precision
+    | True => fee_in_precision_u128
     | False =>
       let le_five_bps = uint128_le amp_bps five_bps in
       match le_five_bps with 
       | True => 
-        frac fee_in_precision twenty thirty 
+        frac fee_in_precision_u128 twenty thirty 
       | False =>
         let le_twenty_bps = uint128_le amp_bps twenty_bps in
         match le_twenty_bps with
         | True => 
-          frac fee_in_precision ten thirty
+          frac fee_in_precision_u128 ten thirty
         | False => 
-          frac fee_in_precision four thirty
+          frac fee_in_precision_u128 four thirty
         end
       end
     end
@@ -433,6 +465,7 @@ procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
   end
 end
 
+(* @dev: Updates blocknumber *)
 procedure RecordVolume(volume: Uint128)
   (*
     // this can not be underflow because block.number always increases
@@ -482,6 +515,8 @@ procedure RecordVolume(volume: Uint128)
     current_block_volume := volume;
     prev_short_ema <- short_ema;
     prev_long_ema <- long_ema
+
+    (* Where is this from? *)
     (* WIP
       s_e = get_ema prev_short_ema short_alpha current_block_volume;
       l_e = get_ema prev_long_ema long_alpha current_block_volume;
@@ -518,25 +553,27 @@ procedure VerifyBalanceAndUpdateEMA(
 
   (* Implemented by Kai Jun *)
   amp <- amp_bps;
-  r_factor_in_precision <- current_block_volume; (* is this the correct way to get rFactorInPrecision? *)
+  s_e <- short_ema;
+  l_e <- long_ema;
+  r_factor_in_precision = calculate_r_factor s_e l_e;
   fee_in_precision = get_final_fee r_factor_in_precision amp;
 
   balance_0_adjusted = 
     let after_reserve0_u256 = grow after_reserve0 in 
-    let fee_in_precision_u256 = grow fee_in_precision in
+    let fee_in_precision_u256 = grow fee_in_precision in 
     let amount0_in_u256 = grow amount0_in in 
     let b0 = builtin mul after_reserve0_u256 precision in 
     let b0_a = builtin mul amount0_in_u256 fee_in_precision_u256 in 
-    let b0_b = builtin sub b0 b0_a in
+    let b0_b = builtin sub b0 b0_a in 
     builtin div b0_b precision;
   
   balance_1_adjusted = 
     let after_reserve1_u256 = grow after_reserve1 in 
-    let fee_in_precision_u256 = grow fee_in_precision in
+    let fee_in_precision_u256 = grow fee_in_precision in 
     let amount1_in_u256 = grow amount1_in in 
     let b1 = builtin mul after_reserve1_u256 precision in 
     let b1_a = builtin mul amount1_in_u256 fee_in_precision_u256 in 
-    let b1_b = builtin sub b1 b1_a in
+    let b1_b = builtin sub b1 b1_a in 
     builtin div b1_b precision;
   
   before_adjustment = let before_adjustment_128 = builtin mul before_reserve0 before_reserve1 in grow before_adjustment_128;
