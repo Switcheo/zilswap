@@ -97,6 +97,7 @@ let get_min_blocks =
 
 contract ZolarQuest
 (
+  name: String,
   initial_owner: ByStr20,
   initial_oracle: ByStr20,
   resource_contract: ByStr20, (* _this_address must also be a minter (to mint resources after questing) *)
@@ -104,8 +105,8 @@ contract ZolarQuest
     field token_owners : Map Uint256 ByStr20
   end,
   blocks_required_to_harvest: Uint128,
-  resource_per_day: Uint128,
-  xp_per_day: Uint128
+  resource_per_epoch: Uint128,
+  xp_per_epoch: Uint128
 )
 
 (* Mutable fields *)
@@ -312,12 +313,12 @@ procedure HarvestForMetazoa(token_id : Uint256)
     num_of_days = builtin div num_blocks blocks_required_to_harvest;
     blocks_to_add = builtin mul num_of_days blocks_required_to_harvest;
 
-    resource_to_mint = let base = builtin mul num_of_days resource_per_day in
+    resource_to_mint = let base = builtin mul num_of_days resource_per_epoch in
                        let total_percent = builtin add resource_bonus hundred_amt in
                        let product = builtin mul base total_percent in
                        builtin div product hundred_amt;
                        
-    xp_to_gain = let base = builtin mul num_of_days xp_per_day in
+    xp_to_gain = let base = builtin mul num_of_days xp_per_epoch in
                  let total_percent = builtin add mastery_bonus hundred_amt in
                  let product = builtin mul base total_percent in
                  builtin div product hundred_amt;
