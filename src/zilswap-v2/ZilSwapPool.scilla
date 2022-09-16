@@ -550,8 +550,6 @@ procedure VerifyBalanceAndUpdateEMA(
   *)
   volume = let amt1_in_0 = frac before_reserve0 amount1_in before_reserve1 in builtin add amt1_in_0 amount0_in;
   RecordVolume volume;
-
-  (* Implemented by Kai Jun *)
   amp <- amp_bps;
   s_e <- short_ema;
   l_e <- long_ema;
@@ -1004,13 +1002,13 @@ transition Swap(
 end
 
 (* @dev: Transfers tokens such that balances match reserves *)
+transition Skim(
+  to: ByStr20
+)
 (*
   token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
   token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
 *)
-transition Skim(
-  to: ByStr20
-)
   r_0 <- reserve0;
   r_1 <- reserve1;
   m_b0 <- & init_token0.balances[_this_address];
@@ -1033,7 +1031,6 @@ transition Skim(
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
   send msgs
-
 end
 
 (* @dev: force reserves to match balances *)
@@ -1057,4 +1054,53 @@ transition Sync()
     _update(isAmpPool, newData);
     if (feeOn) kLast = getK(isAmpPool, newData);
   *)
+
+  r0 <- reserve0;
+  r1 <- reserve1;
+  vr0 <- v_reserve0;
+  vr1 <- v_reserve1;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  new_r0 = balance0;
+  new_r1 = balance1;
+
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  supply <- total_supply;
+
+  b = 
+    let c = frac new_r0 supply r0 in 
+    let d = frac new_r1 supply r1 in
+    min c d;
+
+  data = match is_amp_pool with 
+  | False =>
+    ReserveData new_r0 new_r1 vr0 vr1
+  | True =>
+    let new_vr0 = 
+      let x = frac vr0 b supply in 
+      max x new_r0 in
+    let new_vr1 = 
+      let y = frac vr1 b supply in 
+      max y new_r1 in
+    ReserveData new_r0 new_r1 new_vr0 new_vr1
+  end;
+
+  Update is_amp_pool data;
+
+  fee_config <- & init_factory.fee_configuration;
+  match fee_config with
+  | Pair fee_to fee_bps =>
+    is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
+    match is_fee_on with
+    | False =>
+    | True =>
+      UpdateLastK is_amp_pool data
+    end
+  end
 end
