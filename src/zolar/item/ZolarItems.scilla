@@ -79,6 +79,7 @@ type Error =
   | MaxItemDepthReachedError
   | ConsumerFoundError
   | ConsumerNotFoundError
+  | ItemSelfError
 
 let make_error =
   fun (result: Error) =>
@@ -118,6 +119,7 @@ let make_error =
       | MaxItemDepthReachedError           => Int32 -32
       | ConsumerFoundError                 => Int32 -33
       | ConsumerNotFoundError              => Int32 -34
+      | ItemSelfError                      => Int32 -35
       end
     in
     { _exception: "Error"; code: result_code }
@@ -448,6 +450,27 @@ procedure RequireRootOwner(
           RequireRootOwner2 parent_token_id parent_contract
         end
       end
+    end
+  end
+end
+
+(* item attempting to transfer must not be same as the recipient parentToken *)
+procedure RequireItemNotSelf(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  is_same_contract = builtin eq to_contract_address item_contract_address;
+  match is_same_contract with
+  | False => (* no op, different contract *)
+  | True =>
+    is_same_token_id = builtin eq to_token_id item_id;
+    match is_same_token_id with
+    | False => (* no op, different id *)
+    | True =>
+      error = ItemSelfError;
+      Throw error
     end
   end
 end
@@ -968,6 +991,7 @@ procedure TransferItemToParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken to_token_id token_contract;
+    RequireItemNotSelf to_token_id to_contract item_id _this_address;
     RequireItemNotOwned item_id;
     RequireItemNotParent to_token_id to_contract item_id _this_address;
     RequireTokenOwner item_id _sender;
@@ -975,7 +999,12 @@ procedure TransferItemToParent(
 
     new_parent_token = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_parent_token;
-    token_owners[item_id] := to_contract
+    token_owners[item_id] := to_contract;
+
+    (* subtract one from previous token owner balance *)
+    UpdateBalance sub_operation _sender;
+    (* add one to the new token owner balance *)
+    UpdateBalance add_operation to_contract
   end
 end
 
@@ -998,7 +1027,12 @@ procedure TransferItemFromParent(
     RequireRootOwner from_token_id from_contract;
 
     delete parent_owners[item_id];
-    token_owners[item_id] := _sender
+    token_owners[item_id] := _sender;
+
+    (* subtract one from previous token owner balance *)
+    UpdateBalance sub_operation from_contract;
+    (* add one to the new token owner balance *)
+    UpdateBalance add_operation _sender
   end
 end
 
