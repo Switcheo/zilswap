@@ -676,6 +676,15 @@ transition TransferFrom(from: ByStr20, to: ByStr20, amount: Uint128)
   end
 end
 
+(*************************************)
+(*             Callbacks             *)
+(*************************************)
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
 (***************************************)
 (*          Pool Transitions           *)
 (***************************************)
