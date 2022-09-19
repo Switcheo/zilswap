@@ -1039,7 +1039,12 @@ transition Skim(
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
-  send msgs
+  send msgs;
+
+  e = {
+    _eventname: "Skim"; to: to; amount0: amount0; amount1: amount1
+  };
+  event e
 end
 
 (* @dev: force reserves to match balances *)
@@ -1082,15 +1087,14 @@ transition Sync()
 
   supply <- total_supply;
 
-  b = 
-    let c = frac new_r0 supply r0 in 
-    let d = frac new_r1 supply r1 in
-    min c d;
-
   data = match is_amp_pool with 
   | False =>
     ReserveData new_r0 new_r1 vr0 vr1
   | True =>
+    let b = 
+      let c = frac new_r0 supply r0 in 
+      let d = frac new_r1 supply r1 in
+      min c d in
     let new_vr0 = 
       let x = frac vr0 b supply in 
       max x new_r0 in
@@ -1111,5 +1115,8 @@ transition Sync()
     | True =>
       UpdateLastK is_amp_pool data
     end
-  end
+  end;
+
+  e = {_eventname: "Sync"; data: data};
+  event e
 end
