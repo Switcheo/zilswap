@@ -862,7 +862,7 @@ transition Swap(
   amount1_out: Uint128,
   to: ByStr20
 )
-  is_sending_t0 = uint128_gt amount0_out zero_amount; 
+  is_sending_t0 = uint128_gt amount0_out zero_amount;
   is_sending_t1 = uint128_gt amount1_out zero_amount;
 
   is_sufficient_output = andb is_sending_t0 is_sending_t1;
@@ -873,7 +873,7 @@ transition Swap(
     ThrowError err
   end;
 
-  amp <- amp_bps; 
+  amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
   supply <- total_supply;
