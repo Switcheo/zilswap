@@ -1,6 +1,7 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
 const { getPrivateKey } = require("../../zilliqa");
-const { deployQuest } = require("./helper");
+const { deployQuest, ONE_HUNY } = require("./helper");
+
 
 ;
 (async () => {
@@ -8,6 +9,7 @@ const { deployQuest } = require("./helper");
   const geodeAddress = process.env.GEODE_CONTRACT_HASH;
   const berryAddress = process.env.BERRY_CONTRACT_HASH;
   const metazoaAddress = process.env.METAZOA_CONTRACT_HASH;
+  const hunyAddress = process.env.HUNY_CONTRACT_HASH;
 
   const questScrapContract = await deployQuest({
     questName: "Zolar Quest - Moon Battlegrounds",
@@ -15,7 +17,10 @@ const { deployQuest } = require("./helper");
     metazoaContract: metazoaAddress,
     epoch: "2520",
     resourcePerEpoch: "2800",
-    xpPerEpoch: "5"
+    xpPerEpoch: "5",
+    feeContract: hunyAddress,
+    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questScrapAddress = questScrapContract.address.toLowerCase();
 
@@ -25,7 +30,10 @@ const { deployQuest } = require("./helper");
     metazoaContract: metazoaAddress,
     epoch: "2520",
     resourcePerEpoch: "2800",
-    xpPerEpoch: "5"
+    xpPerEpoch: "5",
+    feeContract: hunyAddress,
+    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questGeodeAddress = questGeodeContract.address.toLowerCase();
 
@@ -35,7 +43,10 @@ const { deployQuest } = require("./helper");
     metazoaContract: metazoaAddress,
     epoch: "2520",
     resourcePerEpoch: "1000",
-    xpPerEpoch: "5"
+    xpPerEpoch: "5",
+    feeContract: hunyAddress,
+    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questBerryAddress = questBerryContract.address.toLowerCase();
 
