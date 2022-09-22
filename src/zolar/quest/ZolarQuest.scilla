@@ -22,6 +22,7 @@ let false = False
 let empty = ""
 let noone = 0x0000000000000000000000000000000000000000
 let invalid_id = Uint256 115792089237316195423570985008687907853269984665640564039457584007913129639935 (* max uint256 *)
+let empty_token_xp_map = Emp Uint256 Uint128
 
 (* Error exception *)
 type Error =
@@ -38,6 +39,9 @@ type Error =
   | CodeInvalidBurnCount
   | QuestOverError
   | CodeMaxDepthReached
+
+type TokenBonus =
+  | TokenBonus of Uint256 Uint128 Uint128 Uint128 (* token_id, resource_bonus, mastery_bonus, fee_discount *)
 
 let make_error =
   fun (result : Error) =>
@@ -65,10 +69,14 @@ let one_msg =
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
-let u256_list_length = @list_length(Uint256)
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let nil_msg = Nil {Message} in
+    let list = Cons {Message} msg1 nil_msg in
+    Cons {Message} msg2 list
 
-let resource_per_block = Uint128 5000
-let xp_per_block = Uint128 5000
+let u256_list_length = @list_length(Uint256)
 
 let blocks_to_harvest =
   fun (current_block : BNum) =>
@@ -94,18 +102,34 @@ let get_min_blocks =
     | False =>  height_b
     end
 
+let sub_or_zero =
+  fun (a : Uint128) =>
+  fun (b : Uint128) =>
+    let is_negative_sum = builtin lt a b in
+    match is_negative_sum with
+    | True => zero_amt
+    | False => builtin sub a b
+    end
+
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
 
 contract ZolarQuest
 (
+  name: String,
   initial_owner: ByStr20,
   initial_oracle: ByStr20,
   resource_contract: ByStr20, (* _this_address must also be a minter (to mint resources after questing) *)
   metazoa_contract: ByStr20 with contract
     field token_owners : Map Uint256 ByStr20
-  end
+  end,
+  initial_blocks_required_to_harvest: Uint128,
+  initial_resource_per_epoch: Uint128,
+  initial_xp_per_epoch: Uint128,
+  initial_fee_contract: ByStr20,
+  initial_harvest_fee: Uint128,
+  initial_return_fee: Uint128
 )
 
 (* Mutable fields *)
@@ -115,11 +139,31 @@ field current_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 field current_oracle : ByStr20 = initial_oracle
 
+(* minimum number of blocks/epoch require to harvest *)
+field blocks_required_to_harvest : Uint128 = initial_blocks_required_to_harvest
+
+(* resource gained per epoch *)
+field resource_per_epoch : Uint128 = initial_resource_per_epoch
+
+(* xp gained per epoch *)
+field xp_per_epoch : Uint128 = initial_xp_per_epoch
+
+(* token address for fee ($HUNY) *)
+field fee_contract : ByStr20 = initial_fee_contract
+
+(* fee charged per metazoa per harvest *)
+field harvest_fee : Uint128 = initial_harvest_fee
+
+(* fee charged per metazoa per return to base *)
+field return_fee : Uint128 = initial_return_fee
+
 (* map of battling metazoas to their commanders (internal owner) *)
 field metazoa_commanders: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* map to track when huny was last harvested for each ursa *)
 field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
+
+(* max harvest block for minting of resource and xp gain*)
 field max_harvest_block: Option BNum = None {BNum}
 
 (* map to track metazoa resource gathering bonus *)
@@ -127,6 +171,18 @@ field resource_gathering_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
 
 (* map to track metazoa mastery leveling bonus *)
 field mastery_leveling_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
+
+(* map to track accuracy bonus fee discount *)
+field accuracy_fee_discount: Map Uint256 Uint128 = Emp Uint256 Uint128
+
+(* map to track accumulated resources for each commander *)
+field accumulated_resources: Map ByStr20 Uint128 = Emp ByStr20 Uint128
+
+(* map to track accumulated xp for each commander's metazoa *)
+field accumulated_xp: Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* map to track accumulated fees for each commander *)
+field accumulated_fees: Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (* use for immediate retreat *)
 field abandoned : Bool = False
@@ -249,34 +305,37 @@ procedure ValidateCommander(token_id: Uint256)
   end
 end
 
-(* update last_harvested and trigger bonus update for each token_id if there is a change to last_harvested[token_id] *)
-procedure UpdateHarvest(token_id: Uint256)
-  (* update last_harvested block with min of current block and max_harvest_block *)
+(* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
+procedure UpdateQuestBonus(token_ids: List Uint256)
+  e = {
+    _eventname: "UpdateQuestBonus";
+    token_ids: token_ids;
+    metazoa_contract: metazoa_contract
+  };
+  event e
+end
+
+(* update last_harvested for each token_id if there is a change to last_harvested[token_id] *)
+procedure UpdateHarvest(token_id: Uint256, blocks_to_add: Uint128)
   current_block <- & BLOCKNUMBER;
   maybe_max_block <- max_harvest_block;
   max_block = match maybe_max_block with | None => current_block | Some v => v end;
-  updated_harvest_block = get_min_blocks current_block max_block;
+  harvest_block = get_min_blocks current_block max_block;
 
-  (* if last_harvested_block === updated_harvest_block, no update *)
   maybe_last_harvested_block <- last_harvested[token_id];
-  last_harvested_block = match maybe_last_harvested_block with | None => updated_harvest_block | Some v => v end;
-  is_equal_height = builtin eq last_harvested_block updated_harvest_block;
-  match is_equal_height with
-  | True =>
-    (* no update *)
-  | False =>
-    last_harvested[token_id] := updated_harvest_block;
-    (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
-    e = {
-      _eventname: "UpdateQuestBonus";
-      token_id: token_id;
-      metazoa_contract: metazoa_contract
-    };
-    event e
+  match maybe_last_harvested_block with
+  | None =>
+    (* should not happen *)
+    (* set last_harvested[token_id] if this happens somehow for damage control *)
+    last_harvested[token_id] := harvest_block
+  | Some last_harvested_block =>
+    (* sum blocks_to_add and last_harvested_block *)
+    new_last_harvested = builtin badd last_harvested_block blocks_to_add;
+    last_harvested[token_id] := new_last_harvested
   end
 end
 
-(* mints resources + update xp progression based on harvest time and bonuses *)
+(* mints resources + update xp progression + charge harvest fees based on harvest time and bonuses *)
 procedure HarvestForMetazoa(token_id : Uint256)
   current_block <- & BLOCKNUMBER;
   (* check last_harvested_blk to get total blocks *)
@@ -292,48 +351,149 @@ procedure HarvestForMetazoa(token_id : Uint256)
   harvest_block = get_min_blocks current_block max_block;
   num_blocks = blocks_to_harvest harvest_block last_harvested_block;
 
-  (* based on resource per block + bonus, calculate total resources to mint to _sender, and xp gained to save in db *)
-  maybe_resource_bonus <- resource_gathering_bonus[token_id];
-  resource_bonus = match maybe_resource_bonus with
-    | None => zero_amt
-    | Some v => v
+  (* if num_blocks < epoch, no resources minted, not throwing error to prevent stuck metazoas when returning to base *)
+  min_harvest_blocks <- blocks_required_to_harvest;
+  unable_to_harvest = builtin lt num_blocks min_harvest_blocks;
+  match unable_to_harvest with
+  | True => (* no op *)
+  | False =>
+    (* based on resource per block + bonus, calculate total resources to mint to _sender, xp gained to save in db and harvest fees *)
+    maybe_resource_bonus <- resource_gathering_bonus[token_id];
+    resource_bonus = match maybe_resource_bonus with | None => zero_amt | Some v => v end;
+
+    maybe_mastery_bonus <- mastery_leveling_bonus[token_id];
+    mastery_bonus = match maybe_mastery_bonus with | None => zero_amt | Some v => v end;
+
+    maybe_fee_discount <- accuracy_fee_discount[token_id];
+    fee_discount = match maybe_fee_discount with | None => zero_amt | Some v => v end;
+
+    num_of_epochs = builtin div num_blocks min_harvest_blocks;
+    blocks_to_add = builtin mul num_of_epochs min_harvest_blocks;
+
+    resource_per_unit <- resource_per_epoch;
+    resource_to_mint = let base = builtin mul num_of_epochs resource_per_unit in
+                       let total_percent = builtin add resource_bonus hundred_amt in
+                       let product = builtin mul base total_percent in
+                       builtin div product hundred_amt;
+                       
+    xp_per_unit <- xp_per_epoch;
+    xp_to_gain = let base = builtin mul num_of_epochs xp_per_unit in
+                 let total_percent = builtin add mastery_bonus hundred_amt in
+                 let product = builtin mul base total_percent in
+                 builtin div product hundred_amt;
+
+    fee <- harvest_fee;
+    fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
+                    let product = builtin mul fee new_percent in
+                    builtin div product hundred_amt;
+    
+    (* add resource_to_mint, xp_to_gain and fee_to_charge to accumulated contract fields for aggregated harvest *)
+    maybe_current_accumulated_resource <- accumulated_resources[_sender];
+    current_accumulated_resource = match maybe_current_accumulated_resource with | None => zero_amt | Some v => v end;
+    new_accumulated_resource = builtin add current_accumulated_resource resource_to_mint;
+    accumulated_resources[_sender] := new_accumulated_resource;
+
+    maybe_current_accumulated_xp <- accumulated_xp[_sender][token_id];
+    current_accumulated_xp = match maybe_current_accumulated_xp with | None => zero_amt | Some v => v end;
+    new_accumulated_xp = builtin add current_accumulated_xp xp_to_gain;
+    accumulated_xp[_sender][token_id] := new_accumulated_xp;
+
+    maybe_current_accumulated_fee <- accumulated_fees[_sender];
+    current_accumulated_fee = match maybe_current_accumulated_fee with | None => zero_amt | Some v => v end;
+    new_accumulated_fee = builtin add current_accumulated_fee fee_to_charge;
+    accumulated_fees[_sender] := new_accumulated_fee;
+
+    UpdateHarvest token_id blocks_to_add
+  end
+end
+
+(* charge return fee for token and update accumulated_fees field for aggregated harvest*)
+procedure ChargeReturnFee(token_id: Uint256)
+  maybe_fee_discount <- accuracy_fee_discount[token_id];
+  fee_discount = match maybe_fee_discount with | None => zero_amt | Some v => v end;
+  
+  fee <- return_fee;
+  fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
+                  let product = builtin mul fee new_percent in
+                  builtin div product hundred_amt;
+          
+  maybe_current_accumulated_fee <- accumulated_fees[_sender];
+  current_accumulated_fee = match maybe_current_accumulated_fee with | None => zero_amt | Some v => v end;
+  new_accumulated_fee = builtin add current_accumulated_fee fee_to_charge;
+  accumulated_fees[_sender] := new_accumulated_fee
+end
+
+(* mint and grant the accumulated amount of resources and xp of the _sender *)
+procedure HarvestForCommander(token_ids: List Uint256)
+  maybe_current_accumulated_resource <- accumulated_resources[_sender];
+  current_accumulated_resource = match maybe_current_accumulated_resource with | None => zero_amt | Some v => v end;
+
+  maybe_current_accumulated_xp <- accumulated_xp[_sender];
+  current_accumulated_xp = match maybe_current_accumulated_xp with | None => empty_token_xp_map | Some v => v end;
+
+  maybe_current_accumulated_fee <- accumulated_fees[_sender];
+  current_accumulated_fee = match maybe_current_accumulated_fee with | None => zero_amt | Some v => v end;
+
+  (* check if any accumulated resources to mint *)
+  not_ready_for_harvest = builtin eq current_accumulated_resource zero_amt;
+  match not_ready_for_harvest with
+  | True => (* no op *)
+  | False =>
+    (* mint resources to _sender and emit xp event for db to pick up *)
+    msg_to_resource_contract = {
+      _tag: "Mint";
+      _recipient: resource_contract;
+      _amount: zero_amt;
+      recipient: _sender;
+      amount: current_accumulated_resource
+    };
+
+    msgs = one_msg msg_to_resource_contract;
+    send msgs;
+
+    (* convert map of _sender's token : xp_accumulated to list *)
+    current_accumulated_xp_list = builtin to_list current_accumulated_xp;
+
+    e = {
+      _eventname: "HarvestQuest";
+      token_ids: token_ids;
+      metazoa_contract: metazoa_contract;
+      resource_contract: resource_contract;
+      resource_to_mint: current_accumulated_resource;
+      xp_to_gain: current_accumulated_xp_list
+    };
+    event e;
+
+    (* emit UpdateQuestBonus event to reset bonuses for each token *)
+    UpdateQuestBonus token_ids;
+
+    (* reset accumulated resource and xp to 0 *)
+    accumulated_resources[_sender] := zero_amt;
+    accumulated_xp[_sender] := empty_token_xp_map
   end;
-  maybe_mastery_bonus <- mastery_leveling_bonus[token_id];
-  mastery_bonus = match maybe_mastery_bonus with
-    | None => zero_amt
-    | Some v => v
-  end;
-  resource_to_mint = let base = builtin mul num_blocks resource_per_block in
-                     let total_percent = builtin add resource_bonus hundred_amt in
-                     let one_percent = builtin div base hundred_amt in
-                     builtin mul one_percent total_percent;
-  xp_to_gain = let base = builtin mul num_blocks xp_per_block in
-               let total_percent = builtin add mastery_bonus hundred_amt in
-               let one_percent = builtin div base hundred_amt in
-               builtin mul one_percent total_percent;
 
-  (* mint resources to _sender and emit xp event for db to pick up *)
-  msg_to_resource_contract = {
-    _tag: "Mint";
-    _recipient: resource_contract;
-    _amount: zero_amt;
-    recipient: _sender;
-    amount: resource_to_mint
-  };
-  msgs = one_msg msg_to_resource_contract;
-  send msgs;
+  (* check if any outstanding fees to charge *)
+  no_outstanding_fee = builtin eq current_accumulated_fee zero_amt;
+  match no_outstanding_fee with
+  | True => (* no op *)
+  | False =>
+    fee_address <- fee_contract;
 
-  e1 = {
-    _eventname: "HarvestQuest";
-    token_id: token_id;
-    metazoa_contract: metazoa_contract;
-    resource_contract: resource_contract;
-    resource_to_mint: resource_to_mint;
-    xp_to_gain: xp_to_gain
-  };
-  event e1;
+    (* charge outstanding fees from _sender's balance *)
+    msg_to_fee_contract = {
+      _tag: "Burn";
+      _recipient: fee_address;
+      _amount: zero_amt;
+      burn_account: _sender;
+      amount: current_accumulated_fee
+    };
 
-  UpdateHarvest token_id
+    msgs = one_msg msg_to_fee_contract;
+    send msgs;
+
+    (* reset accumulated fees to 0 *)
+    accumulated_fees[_sender] := zero_amt
+  end
 end
 
 (* transfers a metazoa to this contract for quest under the tx sender as the commander *)
@@ -354,13 +514,8 @@ procedure TransferToQuest(token_id: Uint256)
   end;
 
   last_harvested[token_id] := current_block;
-    (* emit UpdateQuestBonus event for backend oracle to pick up to update bonuses *)
-    e = {
-      _eventname: "UpdateQuestBonus";
-      token_id: token_id;
-      metazoa_contract: metazoa_contract
-    };
-    event e;
+  accumulated_resources[_sender] := zero_amt;
+  accumulated_xp[_sender] := empty_token_xp_map;
   
   (* update metazoa_commanders field with _sender *)
   metazoa_commanders[token_id] := _sender;
@@ -378,9 +533,6 @@ end
 
 (* transfers a metazoa from this contract to the _sender *)
 procedure TransferFromQuest(token_id: Uint256)
-  (* trigger last harvest before unstaking metazoa *)
-  HarvestForMetazoa token_id;
-
   msg_to_metazoa = {
     _tag: "TransferFrom";
     _recipient: metazoa_contract;
@@ -394,9 +546,6 @@ end
 
 (* transfers a metazoa from this contract to the commander, used in EjectQuest *)
 procedure TransferToCommander(token_id: Uint256, commander: ByStr20)
-  (* trigger last harvest before unstaking metazoa *)
-  HarvestForMetazoa token_id;
-
   msg_to_metazoa = {
     _tag: "TransferFrom";
     _recipient: metazoa_contract;
@@ -446,6 +595,25 @@ procedure HandleTransferToCommander(token_id_commander_pair: Pair Uint256 ByStr2
   end
 end
 
+(* set quest related bonuses for each token_id (resource, mastery and fee bonus) *)
+procedure HandleSetQuestBonus(token_bonus: TokenBonus)
+  match token_bonus with
+  | TokenBonus token_id resource_bonus mastery_bonus fee_discount =>
+    (* check if bonus > 0 *)
+    is_invalid_resource_bonus = builtin lt resource_bonus zero_amt;
+    final_resource_bonus = match is_invalid_resource_bonus with | True => zero_amt | False => resource_bonus end;
+    resource_gathering_bonus[token_id] := final_resource_bonus;
+
+    is_invalid_mastery_bonus = builtin lt mastery_bonus zero_amt;
+    final_mastery_bonus = match is_invalid_mastery_bonus with | True => zero_amt | False => mastery_bonus end;
+    mastery_leveling_bonus[token_id] := final_mastery_bonus;
+
+    is_invalid_fee_discount = builtin lt fee_discount zero_amt;
+    final_fee_discount = match is_invalid_fee_discount with | True => zero_amt | False => fee_discount end;
+    accuracy_fee_discount[token_id] := final_fee_discount
+  end
+end
+
 (***************************************************)
 (*               Quest Transitions                *)
 (***************************************************)
@@ -457,17 +625,14 @@ transition EnterQuest(token_ids : List Uint256)
   CheckMaxDepth is_max_depth;
 
   forall token_ids ValidateMetazoaOwnership;
-  forall token_ids TransferToQuest
+  forall token_ids TransferToQuest;
+  UpdateQuestBonus token_ids
 end
 
-(* max depth = 10 *)
 transition HarvestResource(token_ids : List Uint256)
-  list_length = u256_list_length token_ids;
-  is_max_depth = builtin lt ten list_length;
-  CheckMaxDepth is_max_depth;
-
   forall token_ids ValidateCommander;
-  forall token_ids HarvestForMetazoa
+  forall token_ids HarvestForMetazoa;
+  HarvestForCommander token_ids
 end
 
 (* max depth = 5 *)
@@ -478,22 +643,17 @@ transition ReturnToBase(token_ids : List Uint256)
 
   forall token_ids ValidateCommander;
   forall token_ids RemoveCommander;
+  forall token_ids HarvestForMetazoa;
+  forall token_ids ChargeReturnFee;
+  HarvestForCommander token_ids;
   forall token_ids TransferFromQuest
 end
 
-(* transition for oracle to invoke after picking up 'EnterQuest' event, to set back-end calculated bonus *)
-transition SetQuestBonus(token_id : Uint256, resource_bonus : Uint128, mastery_bonus: Uint128)
+(* transition for oracle to invoke after picking up 'UpdateQuestBonus' event, to set back-end calculated bonus *)
+transition SetQuestBonus(token_bonus_list: List TokenBonus)
   (* check if _sender is oracle *)
   IsOracle _sender;
-
-  (* check if bonus > 0 *)
-  is_invalid_resource_bonus = builtin lt resource_bonus zero_amt;
-  final_resource_bonus = match is_invalid_resource_bonus with | True => zero_amt | False => resource_bonus end;
-  resource_gathering_bonus[token_id] := final_resource_bonus;
-
-  is_invalid_mastery_bonus = builtin lt mastery_bonus zero_amt;
-  final_mastery_bonus = match is_invalid_mastery_bonus with | True => zero_amt | False => mastery_bonus end;
-  mastery_leveling_bonus[token_id] := final_mastery_bonus
+  forall token_bonus_list HandleSetQuestBonus
 end
 
 transition EjectQuest()
@@ -561,6 +721,54 @@ transition SetOracle(oracle : ByStr20)
   event e
 end
 
+(* @dev: Sets the minimum number of blocks/epoch required to harvest. Can be overriden at any time. *)
+transition SetEpoch(epoch : Uint128)
+  IsOwner _sender;
+  blocks_required_to_harvest := epoch;
+  e = {_eventname : "EpochSet"; epoch : epoch};
+  event e
+end
+
+(* @dev: Sets the resource gained per epoch. Can be overriden at any time. *)
+transition SetResourcePerEpoch(amount : Uint128)
+  IsOwner _sender;
+  resource_per_epoch := amount;
+  e = {_eventname : "ResourcePerEpochSet"; amount : amount};
+  event e
+end
+
+(* @dev: Sets the xp gained per epoch. Can be overriden at any time. *)
+transition SetXpPerEpoch(amount : Uint128)
+  IsOwner _sender;
+  xp_per_epoch := amount;
+  e = {_eventname : "XpPerEpochSet"; amount : amount};
+  event e
+end
+
+(* @dev: Sets the harvest fee per metazoa. Can be overriden at any time. *)
+transition SetFeeContract(address : ByStr20)
+  IsOwner _sender;
+  fee_contract := address;
+  e = {_eventname : "FeeAddressSet"; address : address};
+  event e
+end
+
+(* @dev: Sets the harvest fee per metazoa. Can be overriden at any time. *)
+transition SetHarvestFee(fee : Uint128)
+  IsOwner _sender;
+  harvest_fee := fee;
+  e = {_eventname : "HarvestFeeSet"; fee : fee};
+  event e
+end
+
+(* @dev: Sets the return fee per metazoa. Can be overriden at any time. *)
+transition SetReturnFee(fee : Uint128)
+  IsOwner _sender;
+  return_fee := fee;
+  e = {_eventname : "ReturnFeeSet"; fee : fee};
+  event e
+end
+
 (* @dev: Sets the mint end time. Can be overriden at any time in emergencies to end the game. *)
 transition SetMaxHarvestBlock(block : Option BNum)
   IsOwner _sender;
@@ -593,5 +801,10 @@ end
 
 (* mint resource *)
 transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* burn fee token (HUNY) *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end

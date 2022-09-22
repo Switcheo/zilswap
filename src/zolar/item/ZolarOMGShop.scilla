@@ -20,6 +20,7 @@ let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
 let item_type_key = "Type"
+let item_name_key = "Name"
 let empty_string = ""
 
 (* Error events *)
@@ -47,6 +48,9 @@ type Item =
 
 type PaymentItem =
   | PaymentItem of ByStr20 Uint256 (* item token address, item id *)
+
+type ConsumeItem =
+  | ConsumeItem of ByStr20 Uint256 ByStr20 Uint256 (* consumable address, consumable id, consumer address, consumer id *)
 
 let make_error =
   fun (result : Error) =>
@@ -308,6 +312,34 @@ procedure ExpendZRC2(token_address: ByStr20, quantity: Uint128, purchaser: ByStr
   send msgs
 end
 
+(* for each payment_item, check if it belongs to _sender *)
+procedure VerifyOwnership(payment_item: PaymentItem)
+  match payment_item with
+  | PaymentItem token_contract_address token_id =>
+    maybe_token_contract <- & token_contract_address as ByStr20 with contract
+      field token_owners : Map Uint256 ByStr20
+    end;
+    match maybe_token_contract with
+    | None =>
+      (* throw error invalid contract *)
+      err = CodeInvalidItemContract;
+      ThrowError err
+    | Some token_contract =>
+      (* check if token_owners[token_id] === _sender *)
+      maybe_token_owner <- & token_contract.token_owners[token_id];
+      token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+      is_token_owner = builtin eq token_owner _sender;
+      match is_token_owner with
+      | True => (* no op, token_owner matches _sender *)
+      | False =>
+        (* throw error as _sender is not token_owner *)
+        err = CodeNotTokenOwner;
+        ThrowError err
+      end
+    end
+  end
+end
+
 procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
   match pair with
   | Pair crafting_cost payment_item =>
@@ -321,6 +353,7 @@ procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
         match has_item_traits with
         | True =>
           (* zrc6 token cost*)
+          VerifyOwnership payment_item;
           VerifyItemTraits item_traits token_address token_id;
           ExpendZRC6 token_address token_id
         | False =>
@@ -360,35 +393,7 @@ procedure MintItem(token_address: ByStr20, traits: List (Pair String String))
   send msgs
 end
 
-(* for each payment_item, check if it belongs to _sender *)
-procedure VerifyOwnership(payment_item: PaymentItem)
-  match payment_item with
-  | PaymentItem token_contract_address token_id =>
-    maybe_token_contract <- & token_contract_address as ByStr20 with contract
-      field token_owners : Map Uint256 ByStr20
-    end;
-    match maybe_token_contract with
-    | None =>
-      (* throw error invalid contract *)
-      err = CodeInvalidItemContract;
-      ThrowError err
-    | Some token_contract =>
-      (* check if token_owners[token_id] === _sender *)
-      maybe_token_owner <- & token_contract.token_owners[token_id];
-      token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
-      is_token_owner = builtin eq token_owner _sender;
-      match is_token_owner with
-      | True => (* no op, token_owner matches _sender *)
-      | False =>
-        (* throw error as _sender is not token_owner *)
-        err = CodeNotTokenOwner;
-        ThrowError err
-      end
-    end
-  end
-end
-
-procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr20)
+procedure VerifyAndConsumeItem(token_id: Uint256, token_contract_address: ByStr20, consumer_id: Uint256, consumer_contract_address: ByStr20)
   (* check if item is on consumable whitelist *)
   maybe_item_contract <- & token_contract_address as ByStr20 with contract
     field traits : Map Uint256 (List (Pair String String))
@@ -408,6 +413,7 @@ procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr
       ThrowError err
     | Some traits =>
       item_type = get_trait_value traits item_type_key;
+      item_name = get_trait_value traits item_name_key;
       maybe_consumable_mapping <- consumable_whitelist[item_type];
       is_valid_consumable = match maybe_consumable_mapping with | None => false | Some v => v end;
       match is_valid_consumable with
@@ -418,7 +424,10 @@ procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr
           _eventname: "ItemConsumed";
           token_id: token_id;
           token_contract_address: token_contract_address;
-          item_type: item_type
+          consumer_id: consumer_id;
+          consumer_contract_address: consumer_contract_address; 
+          item_type: item_type;
+          item_name: item_name
         };
         event e
       | False =>
@@ -427,6 +436,20 @@ procedure VerifyAndConsumeItem (token_id: Uint256, token_contract_address: ByStr
         ThrowError err
       end
     end
+  end
+end
+
+(* verifies ownership and validity of items, and consumes *)
+procedure HandleConsumeItem(token_consumer: ConsumeItem)
+  match token_consumer with
+  | ConsumeItem token_contract_address token_id consumer_contract_address consumer_id =>
+    token = PaymentItem token_contract_address token_id;
+    consumer = PaymentItem consumer_contract_address consumer_id;
+    (* check if item to be consumed and consumer belongs to _sender *)
+    VerifyOwnership token;
+    VerifyOwnership consumer;
+    (* check if item is a valid consumable (on the consumable_whitelist) and consume if so *)
+    VerifyAndConsumeItem token_id token_contract_address consumer_id consumer_contract_address
   end
 end
 
@@ -445,7 +468,6 @@ transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
   | Some item =>
     match item with
     | Item name token_address traits crafting_costs =>
-      forall payment_items VerifyOwnership;
       VerifyAndReceivePayment crafting_costs payment_items;
       MintItem token_address traits
     end
@@ -453,13 +475,19 @@ transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
 end
 
 (* @dev: Consumes an item from a given contract, must be on consumable white-list *)
-(* @param item_id: the id of the item to consume *)
-transition ConsumeItem(token_id: Uint256, token_contract_address: ByStr20)
-  token = PaymentItem token_contract_address token_id;
-  (* check if item to be consumed belongs to _sender *)
-  VerifyOwnership token;
-  (* check if item is a valid consumable (on the consumable_whitelist) and consume if so *)
-  VerifyAndConsumeItem token_id token_contract_address
+(* @param token_id: the id of the item to consume *)
+(* @param token_contract_address: the address of the token's contract *)
+(* @param consumer_id: the id of the consumer *)
+(* @param consumer_contract_address: the address of the consumer's contract *)
+transition ConsumeItem(token_id: Uint256, token_contract_address: ByStr20, consumer_id: Uint256, consumer_contract_address: ByStr20)
+  token_consumer = ConsumeItem token_contract_address token_id consumer_contract_address consumer_id;
+  HandleConsumeItem token_consumer
+end
+
+(* @dev: Batch consumes items from a given contract, must be on consumable white-list *)
+(* @param token_consuer_list: list of all items to consume details and their respective consumer details *)
+transition BatchConsumeItem(token_consumer_list: List ConsumeItem)
+  forall token_consumer_list HandleConsumeItem
 end
 
 (***************************************************)

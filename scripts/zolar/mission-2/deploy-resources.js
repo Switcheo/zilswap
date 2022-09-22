@@ -29,5 +29,4 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery } = 
   console.log(`\nBerry      `, berryAddress);
   console.log(`\nScrap      `, scrapAddress);
   console.log(`\nStall      `, resourceStallAddress);
-  console.log(`\nGemRefinery`, gemRefineryAddress);
 })();

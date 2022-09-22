@@ -198,9 +198,9 @@ let affinity_exist =
 contract ZolarGemRefinery(
   initial_owner : ByStr20,
   initial_items_address : ByStr20 with contract
-    field traits : Map Uint256 List (Pair String String),
+    field traits : Map Uint256 (List (Pair String String)),
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end,
   initial_geode_address : ByStr20,
   initial_gem_affinities : List String
@@ -210,9 +210,9 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field items_address : ByStr20 with contract
-  field traits : Map Uint256 List (Pair String String),
+  field traits : Map Uint256 (List (Pair String String)),
   field token_owners : Map Uint256 ByStr20,
-  field parent_owners : Map Uint256 Pair ByStr20 Uint256
+  field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
 end = initial_items_address
 
 field geode_address : ByStr20 = initial_geode_address
@@ -574,6 +574,15 @@ transition AcceptOwnership()
   e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
   event e
 end
+
+(* @dev: Sets the attainable gem affinities. Can be overriden at any time. *)
+transition SetGemAffinities(affinities : List String)
+  IsOwner _sender;
+  gem_affinities := affinities;
+  e = {_eventname : "GemAffinitiesSet"; affinities : affinities};
+  event e
+end
+
 
 (***************************************)
 (*             Callbacks               *)

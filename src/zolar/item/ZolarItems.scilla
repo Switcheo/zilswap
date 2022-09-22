@@ -79,6 +79,7 @@ type Error =
   | MaxItemDepthReachedError
   | ConsumerFoundError
   | ConsumerNotFoundError
+  | ItemSelfError
 
 let make_error =
   fun (result: Error) =>
@@ -118,6 +119,7 @@ let make_error =
       | MaxItemDepthReachedError           => Int32 -32
       | ConsumerFoundError                 => Int32 -33
       | ConsumerNotFoundError              => Int32 -34
+      | ItemSelfError                      => Int32 -35
       end
     in
     { _exception: "Error"; code: result_code }
@@ -185,7 +187,10 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping of item id to its respective parent token*)
-field parent_owners: Map Uint256 Pair ByStr20 Uint256 = Emp Uint256 Pair ByStr20 Uint256
+field parent_owners: Map Uint256 (Pair ByStr20 Uint256) = Emp Uint256 (Pair ByStr20 Uint256)
+
+(* Mapping of parent contract : token_id to its respective children *)
+field children_owners: Map ByStr20 (Map Uint256 (Map Uint256 Bool)) = Emp ByStr20 (Map Uint256 (Map Uint256 Bool))
 
 (* The total number of tokens minted *)
 field token_id_count: Uint256 = Uint256 0
@@ -340,7 +345,7 @@ procedure RequireRootOwner3(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -383,7 +388,7 @@ procedure RequireRootOwner2(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -426,7 +431,7 @@ procedure RequireRootOwner(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -452,6 +457,27 @@ procedure RequireRootOwner(
   end
 end
 
+(* item attempting to transfer must not be same as the recipient parentToken *)
+procedure RequireItemNotSelf(
+  to_token_id: Uint256,
+  to_contract_address: ByStr20,
+  item_id: Uint256,
+  item_contract_address: ByStr20
+)
+  is_same_contract = builtin eq to_contract_address item_contract_address;
+  match is_same_contract with
+  | False => (* no op, different contract *)
+  | True =>
+    is_same_token_id = builtin eq to_token_id item_id;
+    match is_same_token_id with
+    | False => (* no op, different id *)
+    | True =>
+      error = ItemSelfError;
+      Throw error
+    end
+  end
+end
+
 (* item attempting to transfer must not be already be in the composable to prevent cyclic dependency *)
 (* different from RequireItemNotParent, RequireItemNotParent2 and RequireItemNotParent3, as this must be at root level *)
 procedure RequireItemNotParent4(
@@ -462,7 +488,7 @@ procedure RequireItemNotParent4(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -483,7 +509,7 @@ procedure RequireItemNotParent3(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -529,7 +555,7 @@ procedure RequireItemNotParent2(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -575,7 +601,7 @@ procedure RequireItemNotParent(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -907,6 +933,7 @@ procedure BurnToken(token_id: Uint256)
     delete token_owners[token_id];
     delete spenders[token_id];
     delete token_uris[token_id];
+    delete traits[token_id];
 
     (* subtract one from the balance *)
     UpdateBalance sub_operation token_owner;
@@ -968,6 +995,7 @@ procedure TransferItemToParent(
     RequireNotPaused;
     RequireValidItem item_id;
     RequireValidParentToken to_token_id token_contract;
+    RequireItemNotSelf to_token_id to_contract item_id _this_address;
     RequireItemNotOwned item_id;
     RequireItemNotParent to_token_id to_contract item_id _this_address;
     RequireTokenOwner item_id _sender;
@@ -975,7 +1003,14 @@ procedure TransferItemToParent(
 
     new_parent_token = Pair {ByStr20 Uint256} to_contract to_token_id;
     parent_owners[item_id] := new_parent_token;
-    token_owners[item_id] := to_contract
+    token_owners[item_id] := to_contract;
+
+    children_owners[to_contract][to_token_id][item_id] := true;
+
+    (* subtract one from previous token owner balance *)
+    UpdateBalance sub_operation _sender;
+    (* add one to the new token owner balance *)
+    UpdateBalance add_operation to_contract
   end
 end
 
@@ -998,7 +1033,14 @@ procedure TransferItemFromParent(
     RequireRootOwner from_token_id from_contract;
 
     delete parent_owners[item_id];
-    token_owners[item_id] := _sender
+    token_owners[item_id] := _sender;
+
+    delete children_owners[from_contract][from_token_id][item_id];
+
+    (* subtract one from previous token owner balance *)
+    UpdateBalance sub_operation from_contract;
+    (* add one to the new token owner balance *)
+    UpdateBalance add_operation _sender
   end
 end
 
