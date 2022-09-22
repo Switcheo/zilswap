@@ -187,7 +187,7 @@ field token_uris: Map Uint256 String = Emp Uint256 String
 field token_owners: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 
 (* Mapping of item id to its respective parent token*)
-field parent_owners: Map Uint256 Pair ByStr20 Uint256 = Emp Uint256 Pair ByStr20 Uint256
+field parent_owners: Map Uint256 (Pair ByStr20 Uint256) = Emp Uint256 (Pair ByStr20 Uint256)
 
 (* Mapping of parent contract : token_id to its respective children *)
 field children_owners: Map ByStr20 (Map Uint256 (Map Uint256 Bool)) = Emp ByStr20 (Map Uint256 (Map Uint256 Bool))
@@ -345,7 +345,7 @@ procedure RequireRootOwner3(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -388,7 +388,7 @@ procedure RequireRootOwner2(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -431,7 +431,7 @@ procedure RequireRootOwner(
     RequireNotZeroAddress token_owner;
 
     maybe_item_contract <- & token_contract_address as ByStr20 with contract
-      field parent_owners : Map Uint256 Pair ByStr20 Uint256
+      field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
     end;
 
     match maybe_item_contract with
@@ -488,7 +488,7 @@ procedure RequireItemNotParent4(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -509,7 +509,7 @@ procedure RequireItemNotParent3(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -555,7 +555,7 @@ procedure RequireItemNotParent2(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -601,7 +601,7 @@ procedure RequireItemNotParent(
 )
   maybe_to_contract <- & to_contract_address as ByStr20 with contract
     field token_owners : Map Uint256 ByStr20,
-    field parent_owners : Map Uint256 Pair ByStr20 Uint256
+    field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end;
   match maybe_to_contract with
   | None =>
@@ -933,7 +933,7 @@ procedure BurnToken(token_id: Uint256)
     delete token_owners[token_id];
     delete spenders[token_id];
     delete token_uris[token_id];
-    delete traits[token_id]
+    delete traits[token_id];
 
     (* subtract one from the balance *)
     UpdateBalance sub_operation token_owner;

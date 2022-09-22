@@ -139,7 +139,7 @@ const deployGemRefinery = async ({
     param("initial_gem_affinities", "List String", ["INT"]),
   ]
 
-  console.info(`Deploying ZolarItems...`)
+  console.info(`Deploying ZolarGemRefinery...`)
   const [contract] = await deployContract(privateKey, code, init)
   return contract;
 };
