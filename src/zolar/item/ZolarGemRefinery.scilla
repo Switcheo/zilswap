@@ -572,6 +572,7 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String Ge
       _eventname: "RefinementConcluded";
       initiator: _sender;
       refinement_id: refinement_id;
+      success: has_output;
       gems: gems
     };
     event e
