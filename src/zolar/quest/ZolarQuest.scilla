@@ -745,7 +745,7 @@ transition SetXpPerEpoch(amount : Uint128)
   event e
 end
 
-(* @dev: Sets the harvest fee per metazoa. Can be overriden at any time. *)
+(* @dev: Sets the fee token contract to charge. Can be overriden at any time. *)
 transition SetFeeContract(address : ByStr20)
   IsOwner _sender;
   fee_contract := address;

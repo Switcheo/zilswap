@@ -203,7 +203,10 @@ contract ZolarGemRefinery(
     field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
   end,
   initial_geode_address : ByStr20,
-  initial_gem_affinities : List String
+  initial_gem_affinities : List String,
+  initial_fee_contract: ByStr20,
+  initial_refinement_fee: Uint128,
+  initial_enhancement_fee: Uint128
 )
 
 field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
@@ -217,6 +220,9 @@ end = initial_items_address
 
 field geode_address : ByStr20 = initial_geode_address
 field gem_affinities : List String = initial_gem_affinities
+field fee_contract : ByStr20 = initial_fee_contract
+field refinement_fee : Uint128 = initial_refinement_fee
+field enhancement_fee : Uint128 = initial_enhancement_fee
 
 field refinements : Map Uint256 OngoingRefinement = Emp Uint256 OngoingRefinement
 field next_refinement_id : Uint256 = uint256_zero
@@ -425,6 +431,22 @@ procedure AddRefinement(refinement: OngoingRefinement)
   event e
 end
 
+procedure ChargeFees(payer: ByStr20, amount: Uint128)
+  (* charge outstanding fees from payer's balance *)
+  fee_address <- fee_contract;
+
+  msg_to_fee_contract = {
+    _tag: "Burn";
+    _recipient: fee_address;
+    _amount: zero;
+    burn_account: _sender;
+    amount: amount
+  };
+
+  msgs = one_msg msg_to_fee_contract;
+  send msgs
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -505,6 +527,9 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String Ge
 
     match ongoing_refinement with
     | GemEnhancement recipient _ base_gem_token_id material_gem_token_ids =>
+      (* charge base enhancement fee per enhancement *)
+      fee <- enhancement_fee;
+      ChargeFees recipient fee;
       ConsumeGems material_gem_token_ids;
 
       base_gem_list = let l0 = Nil {Uint256} in Cons {Uint256} base_gem_token_id l0;
@@ -514,7 +539,11 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String Ge
       | False =>
         RefundGems recipient base_gem_list
       end
-    | GeodeRefinement _ _ =>
+    | GeodeRefinement recipient gem_quantity =>
+      (* charge base refinement fee per geode *)
+      fee <- refinement_fee;
+      total_fees = builtin mul fee gem_quantity;
+      ChargeFees recipient total_fees
     end;
 
     match has_output with
@@ -583,6 +612,29 @@ transition SetGemAffinities(affinities : List String)
   event e
 end
 
+(* @dev: Sets the fee token contrac to charge. Can be overriden at any time. *)
+transition SetFeeContract(address : ByStr20)
+  IsOwner _sender;
+  fee_contract := address;
+  e = {_eventname : "FeeAddressSet"; address : address};
+  event e
+end
+
+(* @dev: Sets the fee per geode refinement. Can be overriden at any time. *)
+transition SetRefinementFee(fee : Uint128)
+  IsOwner _sender;
+  refinement_fee := fee;
+  e = {_eventname : "RefinementFeeSet"; fee : fee};
+  event e
+end
+
+(* @dev: Sets the fee per gem enhancement. Can be overriden at any time. *)
+transition SetEnhancementFee(fee : Uint128)
+  IsOwner _sender;
+  enhancement_fee := fee;
+  e = {_eventname : "EnhancementFeeSet"; fee : fee};
+  event e
+end
 
 (***************************************)
 (*             Callbacks               *)
@@ -614,7 +666,7 @@ transition ZRC6_BatchTransferFromCallback()
   (* no-op *)
 end
 
-(* burn geodes *)
+(* burn geodes and huny*)
 transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
   (* no-op *)
 end

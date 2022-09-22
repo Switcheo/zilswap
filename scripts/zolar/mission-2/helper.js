@@ -127,6 +127,9 @@ const deployItems = async ({
 const deployGemRefinery = async ({
   itemsAddress,
   geodeAddress,
+  feeAddress,
+  refinementFee,
+  enhancementFee
 } = {}) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
@@ -136,7 +139,10 @@ const deployGemRefinery = async ({
     param("initial_owner", "ByStr20", address),
     param("initial_items_address", "ByStr20", itemsAddress),
     param("initial_geode_address", "ByStr20", geodeAddress),
-    param("initial_gem_affinities", "List String", ["INT"]),
+    param("initial_gem_affinities", "List String", ["INT", "STR", "DEX"]),
+    param("initial_fee_contract", "ByStr20", feeAddress),
+    param("initial_refinement_fee", "Uint128", refinementFee),
+    param("initial_enhancement_fee", "Uint128", enhancementFee),
   ]
 
   console.info(`Deploying ZolarGemRefinery...`)
