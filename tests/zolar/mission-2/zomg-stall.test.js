@@ -119,34 +119,6 @@ test('add item to zomg store (independent of emporium)', async () => {
   expect(state.items[0].arguments[0]).toEqual('HA13-Hand of Death')
 })
 
-test('(success) craft item', async () => {
-  const hunyStateBeforeTx = await hunyContract.getState()
-
-  // test zrc-2 and zrc-6 payment tokens correctly deducted (burnt)
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
-    param('item_id', 'Uint128', "0"),
-    param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
-      adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
-      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "1"]), // pay gem
-      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "2"]), // pay gem
-      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "3"]), // pay gem
-    ]),
-  ], 0, false, false)
-  console.log("craft weapon", txCraftWeapon.id);
-
-  const hunyStateAfterTx = await hunyContract.getState()
-  const itemsStateAfterTx = await itemsContract.getState()
-
-  const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
-  const hunyBurnt = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
-
-  expect(hunyBurnt.toString()).toEqual(ONE_HUNY.times(27000).toString())
-
-  const gemsBurnt = ["1", "2", "3"]
-  gemsBurnt.forEach(gem => expect(Object.keys(itemsStateAfterTx.token_owners)).not.toContain(gem))
-  expect(Object.keys(itemsStateAfterTx.token_owners)).toContain((MINT_ITEM_COUNT + 1).toString())
-})
-
 test('(fail) craft item with non-matching (length) paymentItems and craftingCost)', async () => {
   // test length of cost token vs payment token should match (9 - CodeInvalidPaymentItemCount)
   const txCraftWeaponExcess = await callContract(privateKey, zomgStoreContract, "CraftItem", [
@@ -220,7 +192,7 @@ test('(fail) craft item with non-matching (traits) paymentItems and craftingCost
       adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "7"]), // pay gem
     ]),
   ], 0, false, false)
-  console.log("craft weapon with non-matching (order) paymentItems and craftingCost", txCraftWeapon.id);
+  console.log("craft weapon with non-matching (traits) paymentItems and craftingCost", txCraftWeapon.id);
 
   expect(txCraftWeapon.status).toEqual(3)
   expect(txCraftWeapon.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeInvalidPaymentItemTraits
@@ -228,7 +200,7 @@ test('(fail) craft item with non-matching (traits) paymentItems and craftingCost
 })
 
 test(`(fail) craft item using other users' gems for payment`, async () => {
-  const txCraftWeapon = await callContract(memberPrivateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -241,4 +213,32 @@ test(`(fail) craft item using other users' gems for payment`, async () => {
   expect(txCraftWeapon.status).toEqual(3)
   // expect(txCraftWeapon.receipt.exceptions[0].message).toEqual(generateErrorMsg(11)) // throws CodeInvalidPaymentItemTraits
   expect(txCraftWeapon.receipt.success).toEqual(false)
+})
+
+test('(success) craft item', async () => {
+  const hunyStateBeforeTx = await hunyContract.getState()
+
+  // test zrc-2 and zrc-6 payment tokens correctly deducted (burnt)
+  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+    param('item_id', 'Uint128', "0"),
+    param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
+      adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
+      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "1"]), // pay gem
+      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "2"]), // pay gem
+      adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "3"]), // pay gem
+    ]),
+  ], 0, false, false)
+  console.log("craft weapon", txCraftWeapon.id);
+
+  const hunyStateAfterTx = await hunyContract.getState()
+  const itemsStateAfterTx = await itemsContract.getState()
+
+  const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
+  const hunyBurnt = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
+
+  expect(hunyBurnt.toString()).toEqual(ONE_HUNY.times(27000).toString())
+
+  const gemsBurnt = ["1", "2", "3"]
+  gemsBurnt.forEach(gem => expect(Object.keys(itemsStateAfterTx.token_owners)).not.toContain(gem))
+  expect(Object.keys(itemsStateAfterTx.token_owners)).toContain((MINT_ITEM_COUNT + 1).toString())
 })

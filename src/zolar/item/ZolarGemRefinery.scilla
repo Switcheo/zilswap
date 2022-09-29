@@ -439,7 +439,7 @@ procedure ChargeFees(payer: ByStr20, amount: Uint128)
     _tag: "Burn";
     _recipient: fee_address;
     _amount: zero;
-    burn_account: _sender;
+    burn_account: payer;
     amount: amount
   };
 

@@ -60,7 +60,6 @@ type Error =
   | OperatorFoundError
   | NotAllowedToTransferError
   | TokenNotFoundError
-  | InvalidFeeBPSError
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | CodeNotTokenOwner
@@ -99,27 +98,26 @@ let make_error =
       | OperatorFoundError                 => Int32 -12
       | NotAllowedToTransferError          => Int32 -13
       | TokenNotFoundError                 => Int32 -14
-      | InvalidFeeBPSError                 => Int32 -15
-      | ZeroAddressDestinationError        => Int32 -16
-      | ThisAddressDestinationError        => Int32 -17
-      | NotContractOwnershipRecipientError => Int32 -18
-      | CodeNotTokenOwner                  => Int32 -19
-      | ItemOwnedError                     => Int32 -20
-      | ItemNotOwnedError                  => Int32 -21
-      | ItemWrongParentError               => Int32 -22
-      | ParentTokenNotFoundError           => Int32 -23
-      | NotRootOwnerError                  => Int32 -24
-      | InvalidParentContractError         => Int32 -25
-      | InvalidParentContract2Error        => Int32 -26
-      | InvalidParentContract3Error        => Int32 -27
-      | InvalidItemContractError           => Int32 -28
-      | ItemCannotBeParentError            => Int32 -29
-      | ItemCannotBeParentError2           => Int32 -30
-      | ItemCannotBeParentError3           => Int32 -31
-      | MaxItemDepthReachedError           => Int32 -32
-      | ConsumerFoundError                 => Int32 -33
-      | ConsumerNotFoundError              => Int32 -34
-      | ItemSelfError                      => Int32 -35
+      | ZeroAddressDestinationError        => Int32 -15
+      | ThisAddressDestinationError        => Int32 -16
+      | NotContractOwnershipRecipientError => Int32 -17
+      | CodeNotTokenOwner                  => Int32 -18
+      | ItemOwnedError                     => Int32 -19
+      | ItemNotOwnedError                  => Int32 -20
+      | ItemWrongParentError               => Int32 -21
+      | ParentTokenNotFoundError           => Int32 -22
+      | NotRootOwnerError                  => Int32 -23
+      | InvalidParentContractError         => Int32 -24
+      | InvalidParentContract2Error        => Int32 -25
+      | InvalidParentContract3Error        => Int32 -26
+      | InvalidItemContractError           => Int32 -27
+      | ItemCannotBeParentError            => Int32 -28
+      | ItemCannotBeParentError2           => Int32 -29
+      | ItemCannotBeParentError3           => Int32 -30
+      | MaxItemDepthReachedError           => Int32 -31
+      | ConsumerFoundError                 => Int32 -32
+      | ConsumerNotFoundError              => Int32 -33
+      | ItemSelfError                      => Int32 -34
       end
     in
     { _exception: "Error"; code: result_code }
@@ -768,6 +766,9 @@ end
 procedure RequireAccessToTransfer(token_owner: ByStr20, token_id: Uint256)  
   (* check if _sender is token owner *)
   is_token_owner = builtin eq token_owner _sender;
+
+  (* check if _sender is consumer *)
+  is_consumer <- exists consumers[_sender];
   
   (* check if _sender is spender *)
   maybe_spender <- spenders[token_id];
@@ -780,8 +781,8 @@ procedure RequireAccessToTransfer(token_owner: ByStr20, token_id: Uint256)
   (* check if _sender is operator *)
   is_operator <- exists operators[token_owner][_sender];
   
-  is_spender_or_operator = orb is_spender is_operator;
-  is_allowed = orb is_spender_or_operator is_token_owner;
+  is_spender_or_operator_or_consumer = let is_spender_or_operator = orb is_spender is_operator in orb is_spender_or_operator is_consumer;
+  is_allowed = orb is_spender_or_operator_or_consumer is_token_owner;
   match is_allowed with
   | True =>
   | False =>
