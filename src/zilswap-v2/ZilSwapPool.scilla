@@ -13,6 +13,7 @@ let zero_block = BNum 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let half_bps = Uint128 5000
+let one_u256 = Uint256 1
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
 let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
 let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
@@ -102,8 +103,57 @@ let reduce =
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
 
+
+(* @dev Returns x*y in precision *)
+(* function mulInPrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+    return x.mul(y) / PRECISION;
+} *)
+let mul_in_precision =
+  fun (x : Uint256) =>
+  fun (y : Uint256) =>
+  fun (precision : Uint256) =>
+    let xy = builtin mul x y in
+    builtin div xy precision
+
+
+(* /// @dev source: dsMath
+  /// @param xInPrecision should be < PRECISION, so this can not overflow
+  /// @return zInPrecision = (x/PRECISION) ^k * PRECISION
+  function unsafePowInPrecision(uint256 xInPrecision, uint256 k)
+      internal
+      pure
+      returns (uint256 zInPrecision)
+  {
+      require(xInPrecision <= PRECISION, "MathExt: x > PRECISION");
+      zInPrecision = k % 2 != 0 ? xInPrecision : PRECISION;
+
+      for (k /= 2; k != 0; k /= 2) {
+          xInPrecision = (xInPrecision * xInPrecision) / PRECISION;
+
+          if (k % 2 != 0) {
+              zInPrecision = (zInPrecision * xInPrecision) / PRECISION;
+          }
+      }
+  } 
+*)
+
+(* WIP *)
+(* let unsafe_pow_in_precision = 
+  fun (x_in_precision: Uint256) =>
+  fun (k: Uint256)=> 
+    let zero = Uint256 0 in
+    let one = Uint256 1 in 
+    let two = Uint256 2 in
+    let remainder = builtin rem k two in
+    let equal = builtin eq remainder zero in
+    match equal with 
+    | True => precision
+    | False =>
+    end *)
+
+
 (* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
-let ema =
+let get_ema =
   fun (ema : Uint128) =>
   fun (alpha : Uint256) =>
   fun (value : Uint128) =>
@@ -242,6 +292,7 @@ contract ZilSwapPool
 
 with
   let not_identical_address = let eql = builtin eq init_token0 init_token1 in negb eql in
+  (* So if one pair is ZIL, should ZIL be token0 or token1 *)
   let not_zero_address = let eql = builtin eq init_token0 zero_address in negb eql in
   let valid_bps = uint128_ge init_amp_bps bps in
   let valid_token_order = let a = builtin to_uint256 init_token0 in let b = builtin to_uint256 init_token1 in builtin lt a b in
@@ -516,11 +567,10 @@ procedure RecordVolume(volume: Uint128)
     prev_short_ema <- short_ema;
     prev_long_ema <- long_ema
 
-    (* Where is this from? *)
-    (* WIP
-      s_e = get_ema prev_short_ema short_alpha current_block_volume;
-      l_e = get_ema prev_long_ema long_alpha current_block_volume;
-    *)
+    (* WIP *)
+    (* s_e = get_ema prev_short_ema short_alpha current_block_volume;
+    l_e = get_ema prev_long_ema long_alpha current_block_volume; *)
+
   end
 end
 
