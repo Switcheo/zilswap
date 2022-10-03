@@ -146,7 +146,6 @@ procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   pools[tokenA][tokenB] := p_new
 end
 
-
 procedure VerifyPoolAddress( 
   tokenA : ByStr20, 
   tokenB : ByStr20,
@@ -397,9 +396,10 @@ end
   SafeERC20.safeTransferFrom(tokenB, msg.sender, pool, amountB);
   liquidity = IDMMPool(pool).mint(to);
 } *)
+(* @params: tokenA < tokenB (ie tokenA == token0, tokenB == token1 on Pool) *)
 transition AddLiquidity(
-  token0 : ByStr20,
-  token1 : ByStr20,
+  tokenA : ByStr20,
+  tokenB : ByStr20,
   pool: ByStr20 with contract 
     field token0 : ByStr20 with contract
       field total_supply : Uint128,
@@ -416,50 +416,50 @@ transition AddLiquidity(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128
   end,
-  amount0_desired: Uint128,
-  amount1_desired: Uint128,
-  amount0_min: Uint128,
-  amount1_min: Uint128,
+  amountA_desired: Uint128,
+  amountB_desired: Uint128,
+  amountA_min: Uint128,
+  amountB_min: Uint128,
   v_reserve_ratio_bounds: Uint128,
   to: ByStr20,
   deadline: BNum
 )
   VerifyBlock deadline;
-  VerifyPoolAddress token0 token1 pool;
+  VerifyPoolAddress tokenA tokenB pool;
 
-  r0 <- & pool.reserve0;
-  r1 <- & pool.reserve1;
-  v_r0 <- & pool.v_reserve0;
-  v_r1 <- & pool.v_reserve1;
+  r_a <- & pool.reserve0;
+  r_b <- & pool.reserve1;
+  v_r_a <- & pool.v_reserve0;
+  v_r_b <- & pool.v_reserve1;
 
   e = 
-    let r0_ = builtin eq r0 zero_amount in 
-    let r1_ = builtin eq r1 zero_amount in 
-    andb r0_ r1_;
+    let r_a_ = builtin eq r_a zero_amount in 
+    let r_b_ = builtin eq r_b zero_amount in 
+    andb r_a_ r_b_;
   match e with 
   | True =>
-    amount0 = amount0_desired;
-    amount1 = amount1_desired;
-    TransferZRC2ToPool pool token0 token1 amount0 amount1
+    amountA = amountA_desired;
+    amountB = amountB_desired;
+    TransferZRC2ToPool pool tokenA tokenB amountA amountB
   | False =>
-    Quote amount0_desired r0 r1;
-    amount1_optimal = quote amount0_desired r0 r1;
-    is_sufficient_amount0 = uint128_le amount1_optimal amount1_desired;
-    match is_sufficient_amount0 with
+    Quote amountA_desired r_a r_b;
+    amountB_optimal = quote amountA_desired r_a r_b;
+    is_sufficient_amountA = uint128_le amountB_optimal amountB_desired;
+    match is_sufficient_amountA with
     | True =>
-      VerifyAmount amount1_optimal amount1_min;
-      amount0 = amount0_desired;
-      amount1 = amount1_optimal;
-      TransferZRC2ToPool pool token0 token1 amount0 amount1
+      VerifyAmount amountB_optimal amountB_min;
+      amountA = amountA_desired;
+      amountB = amountB_optimal;
+      TransferZRC2ToPool pool tokenA tokenB amountA amountB
     | False =>
-      amount0_optimal = quote amount1_desired r1 r0;
-      VerifyAmount amount0_desired amount0_optimal;
-      VerifyAmount amount0_optimal amount0_min;
-      amount0 = amount0_optimal;
-      amount1 = amount1_desired;
-      TransferZRC2ToPool pool token0 token1 amount0 amount1
+      amountA_optimal = quote amountB_desired r_b r_a;
+      VerifyAmount amountA_desired amountA_optimal;
+      VerifyAmount amountA_optimal amountA_min;
+      amountA = amountA_optimal;
+      amountB = amountB_desired;
+      TransferZRC2ToPool pool tokenA tokenB amountA amountB
     end;
-    current_rate = frac v_r1 q112 v_r0
+    current_rate = frac v_r_b q112 v_r_a
 
     (* _addLiquidity *)
     (* require(
@@ -468,7 +468,7 @@ transition AddLiquidity(
     ); *)
   end;
 
-  (* Calls Mint transition on Pool Contract *)
+  (* Calls Mint transition on Pool *)
   msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
   msg = one_msg msg_to_pool;
   send msg
@@ -478,8 +478,64 @@ transition AddLiquidityZIL()
   (* TODO *)
 end
 
-transition RemoveLiquidity()
-  (* TODO *)
+(* // **** REMOVE LIQUIDITY ****
+function removeLiquidity(
+    IERC20 tokenA,
+    IERC20 tokenB,
+    address pool,
+    uint256 liquidity,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+) public override ensure(deadline) returns (uint256 amountA, uint256 amountB) {
+    verifyPoolAddress(tokenA, tokenB, pool);
+    IERC20(pool).safeTransferFrom(msg.sender, pool, liquidity); // send liquidity to pool
+    (uint256 amount0, uint256 amount1) = IDMMPool(pool).burn(to);
+    (IERC20 token0, ) = DMMLibrary.sortTokens(tokenA, tokenB);
+    (amountA, amountB) = tokenA == token0 ? (amount0, amount1) : (amount1, amount0);
+    require(amountA >= amountAMin, "DMMRouter: INSUFFICIENT_A_AMOUNT");
+    require(amountB >= amountBMin, "DMMRouter: INSUFFICIENT_B_AMOUNT");
+} *)
+(* @params: tokenA < tokenB (ie tokenA == token0, tokenB == token1 on Pool) *)
+transition RemoveLiquidity(
+  tokenA : ByStr20,
+  tokenB : ByStr20,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128
+  end,
+  liquidity: Uint128,
+  amountA_min: Uint128,
+  amountB_min: Uint128,
+  to: ByStr20,
+  deadline: BNum
+)
+  VerifyBlock deadline;
+  VerifyPoolAddress tokenA tokenB pool;
+
+  (* require(amountA >= amountAMin, "DMMRouter: INSUFFICIENT_A_AMOUNT");
+  require(amountB >= amountBMin, "DMMRouter: INSUFFICIENT_B_AMOUNT"); *)
+
+  (* Sends liquidity to Pool *)
+  msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
+                from: _sender; to: pool; amount: liquidity};
+  (* Calls Burn transition on Pool *)
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: to};
+  msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
+  send msgs
 end
 
 transition RemoveLiquidityZIL()
