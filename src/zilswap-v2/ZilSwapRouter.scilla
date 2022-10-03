@@ -39,12 +39,23 @@ let add_once =
     | False => Cons {ByStr20} item list
     end
 
+let pool_exists =
+  fun (list : List ByStr20) =>
+  fun (item : ByStr20) =>
+    let f = fun (i : ByStr20) => builtin eq i item in
+    let e = list_exists_bystr20 f list in
+    match e with
+    | True => True
+    | False => False
+    end
+
 (* Error events *)
 type Error =
 | CodeNotSelf
 | CodeNotGovernor
 | CodeNotPendingGovernor
 | CodeDuplicateUnamplifiedPool
+| CodeInvalidPool
 
 let make_error =
   fun (result : Error) =>
@@ -54,6 +65,8 @@ let make_error =
       | CodeNotGovernor               => Int32 -2
       | CodeNotPendingGovernor        => Int32 -3
       | CodeDuplicateUnamplifiedPool  => Int32 -4
+      | CodeInvalidPool               => Int32 -5
+
       end
     in
     { _exception : "Error"; code : result_code }
@@ -97,6 +110,34 @@ procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   list = list_or_empty p;
   p_new = add_once list pool;
   pools[tokenA][tokenB] := p_new
+end
+
+
+procedure VerifyPoolAddress( 
+  tokenA : ByStr20, 
+  tokenB : ByStr20,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end
+  end
+)
+  p <- pools[tokenA][tokenB];
+  list = list_or_empty p;
+  e = pool_exists list pool;
+  match e with 
+  | True =>
+  | False =>
+    err = CodeInvalidPool;
+    ThrowError err
+  end
 end
 
 (*** Governance ***)
@@ -231,8 +272,69 @@ end
 
 (*** LIQUIDITY ***)
 
-transition AddLiquidity()
-  (* TODO *)
+
+(* function addLiquidity(
+  IERC20 tokenA,
+  IERC20 tokenB,
+  address pool,
+  uint256 amountADesired,
+  uint256 amountBDesired,
+  uint256 amountAMin,
+  uint256 amountBMin,
+  uint256[2] memory vReserveRatioBounds,
+  address to,
+  uint256 deadline
+)
+  public
+  virtual
+  override
+  ensure(deadline)
+  returns (
+      uint256 amountA,
+      uint256 amountB,
+      uint256 liquidity
+  )
+{
+  verifyPoolAddress(tokenA, tokenB, pool);
+  (amountA, amountB) = _addLiquidity(
+      tokenA,
+      tokenB,
+      pool,
+      amountADesired,
+      amountBDesired,
+      amountAMin,
+      amountBMin,
+      vReserveRatioBounds
+  );
+  // using tokenA.safeTransferFrom will get "Stack too deep"
+  SafeERC20.safeTransferFrom(tokenA, msg.sender, pool, amountA);
+  SafeERC20.safeTransferFrom(tokenB, msg.sender, pool, amountB);
+  liquidity = IDMMPool(pool).mint(to);
+} *)
+transition AddLiquidity(
+  tokenA: ByStr20,
+  tokenB: ByStr20,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end
+  end,
+  amountA_Desired: Uint256,
+  amountB_Desired: Uint256,
+  amountA_Min: Uint256,
+  amountB_Min: Uint256,
+  vReserve_Ratio_Bounds: Uint256,
+  to: ByStr20,
+  deadline: Uint256
+)
+  VerifyPoolAddress tokenA tokenB pool
 end
 
 transition AddLiquidityZIL()
