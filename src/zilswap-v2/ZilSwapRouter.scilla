@@ -1,13 +1,17 @@
 scilla_version 0
 
-import ListUtils
+import BoolUtils IntUtils ListUtils
 library ZilSwapRouter
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
+let zero_amount_u256 = Uint256 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let none = None {ByStr20}
+let two = Uint128 2
+let one_hundred_and_two = Uint32 112
+let q112 = builtin pow two one_hundred_and_two
 
 let one_msg =
   fun (msg : Message) =>
@@ -19,6 +23,31 @@ let two_msgs =
   fun (msg2 : Message) =>
   let msgs_tmp = one_msg msg2 in
   Cons {Message} msg1 msgs_tmp
+
+(* Convert Uint128 to Uint256 *)
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+(* @dev: (x * y) / z *)
+let frac =
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+  fun (z : Uint128) =>
+    let xy = builtin mul x y in
+    builtin div xy z
+
+(* amountB = amountA.mul(reserveB) / reserveA *)
+let quote =
+  fun (amountA : Uint128) =>
+  fun (reserveA : Uint128) =>
+  fun (reserveB : Uint128) =>
+    frac amountA reserveB reserveA
+
 
 let list_exists_bystr20 = @list_exists ByStr20
 
@@ -56,6 +85,9 @@ type Error =
 | CodeNotPendingGovernor
 | CodeDuplicateUnamplifiedPool
 | CodeInvalidPool
+| CodeInsufficientAmount
+| CodeInsufficientLiquidity
+| CodeBlockExpired
 
 let make_error =
   fun (result : Error) =>
@@ -66,7 +98,9 @@ let make_error =
       | CodeNotPendingGovernor        => Int32 -3
       | CodeDuplicateUnamplifiedPool  => Int32 -4
       | CodeInvalidPool               => Int32 -5
-
+      | CodeInsufficientAmount        => Int32 -6
+      | CodeInsufficientLiquidity     => Int32 -7
+      | CodeBlockExpired              => Int32 -8
       end
     in
     { _exception : "Error"; code : result_code }
@@ -138,6 +172,59 @@ procedure VerifyPoolAddress(
     err = CodeInvalidPool;
     ThrowError err
   end
+end
+
+procedure Quote(amountA : Uint128, reserveA : Uint128, reserveB : Uint128)
+  is_sufficient_amt = uint128_gt amountA zero_amount;
+  match is_sufficient_amt with
+  | True =>
+    is_sufficient_liquidity = 
+      let reserveA_ = uint128_gt reserveA zero_amount in 
+      let reserveB_ = uint128_gt reserveB zero_amount in 
+      andb reserveA_ reserveB_;
+    match is_sufficient_liquidity with
+    | True =>
+    | False =>
+      err = CodeInsufficientLiquidity;
+      ThrowError err
+    end
+  | False =>
+    err = CodeInsufficientAmount;
+    ThrowError err
+  end
+end
+
+(* Checks if amountA >= AmountB *)
+procedure VerifyAmount(amountA : Uint128, amountB : Uint128)
+  is_sufficient_amount = uint128_ge amountA amountB;
+  match is_sufficient_amount with
+  | True =>
+  | False =>
+    err = CodeInsufficientAmount;
+    ThrowError err
+  end
+end
+
+(* Checks if amountA >= AmountB *)
+procedure VerifyBlock(deadline : BNum)
+  current_block <- & BLOCKNUMBER;
+  is_expired = builtin blt current_block deadline;
+  match is_expired with
+  | True =>
+    err = CodeBlockExpired;
+    ThrowError err
+  | False =>
+  end
+end
+
+(* Transfer ZRC-2 tokens to pool *)
+procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, amount0: Uint128, amount1: Uint128)
+  msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                  from: _sender; to: pool; amount: amount0};
+  msg_to_token1 = {_tag: "TransferFrom"; _recipient: token1; _amount: zero_amount;
+                  from: _sender; to: pool; amount: amount1};
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs
 end
 
 (*** Governance ***)
@@ -272,7 +359,6 @@ end
 
 (*** LIQUIDITY ***)
 
-
 (* function addLiquidity(
   IERC20 tokenA,
   IERC20 tokenB,
@@ -312,8 +398,8 @@ end
   liquidity = IDMMPool(pool).mint(to);
 } *)
 transition AddLiquidity(
-  tokenA: ByStr20,
-  tokenB: ByStr20,
+  token0 : ByStr20,
+  token1 : ByStr20,
   pool: ByStr20 with contract 
     field token0 : ByStr20 with contract
       field total_supply : Uint128,
@@ -324,17 +410,68 @@ transition AddLiquidity(
       field total_supply : Uint128,
       field balances: Map ByStr20 Uint128,
       field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128
   end,
-  amountA_Desired: Uint256,
-  amountB_Desired: Uint256,
-  amountA_Min: Uint256,
-  amountB_Min: Uint256,
-  vReserve_Ratio_Bounds: Uint256,
+  amount0_desired: Uint128,
+  amount1_desired: Uint128,
+  amount0_min: Uint128,
+  amount1_min: Uint128,
+  v_reserve_ratio_bounds: Uint128,
   to: ByStr20,
-  deadline: Uint256
+  deadline: BNum
 )
-  VerifyPoolAddress tokenA tokenB pool
+  VerifyBlock deadline;
+  VerifyPoolAddress token0 token1 pool;
+
+  r0 <- & pool.reserve0;
+  r1 <- & pool.reserve1;
+  v_r0 <- & pool.v_reserve0;
+  v_r1 <- & pool.v_reserve1;
+
+  e = 
+    let r0_ = builtin eq r0 zero_amount in 
+    let r1_ = builtin eq r1 zero_amount in 
+    andb r0_ r1_;
+  match e with 
+  | True =>
+    amount0 = amount0_desired;
+    amount1 = amount1_desired;
+    TransferZRC2ToPool pool token0 token1 amount0 amount1
+  | False =>
+    Quote amount0_desired r0 r1;
+    amount1_optimal = quote amount0_desired r0 r1;
+    is_sufficient_amount0 = uint128_le amount1_optimal amount1_desired;
+    match is_sufficient_amount0 with
+    | True =>
+      VerifyAmount amount1_optimal amount1_min;
+      amount0 = amount0_desired;
+      amount1 = amount1_optimal;
+      TransferZRC2ToPool pool token0 token1 amount0 amount1
+    | False =>
+      amount0_optimal = quote amount1_desired r1 r0;
+      VerifyAmount amount0_desired amount0_optimal;
+      VerifyAmount amount0_optimal amount0_min;
+      amount0 = amount0_optimal;
+      amount1 = amount1_desired;
+      TransferZRC2ToPool pool token0 token1 amount0 amount1
+    end;
+    current_rate = frac v_r1 q112 v_r0
+
+    (* _addLiquidity *)
+    (* require(
+      currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
+      "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
+    ); *)
+  end;
+
+  (* Calls Mint transition on Pool Contract *)
+  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  msg = one_msg msg_to_pool;
+  send msg
 end
 
 transition AddLiquidityZIL()
@@ -373,4 +510,14 @@ end
 
 transition SwapZILForExactTokens()
   (* TODO *)
+end
+
+
+(*************************************)
+(*             Callbacks             *)
+(*************************************)
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
 end
