@@ -88,6 +88,7 @@ type Error =
 | CodeInsufficientAmount
 | CodeInsufficientLiquidity
 | CodeBlockExpired
+| CodeOutOfBoundVReserve
 
 let make_error =
   fun (result : Error) =>
@@ -101,6 +102,7 @@ let make_error =
       | CodeInsufficientAmount        => Int32 -6
       | CodeInsufficientLiquidity     => Int32 -7
       | CodeBlockExpired              => Int32 -8
+      | CodeOutOfBoundVReserve        => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -420,7 +422,7 @@ transition AddLiquidity(
   amountB_desired: Uint128,
   amountA_min: Uint128,
   amountB_min: Uint128,
-  v_reserve_ratio_bounds: Uint128,
+  v_reserve_ratio_bounds: Pair Uint128 Uint128,
   to: ByStr20,
   deadline: BNum
 )
@@ -459,13 +461,25 @@ transition AddLiquidity(
       amountB = amountB_desired;
       TransferZRC2ToPool pool tokenA tokenB amountA amountB
     end;
-    current_rate = frac v_r_b q112 v_r_a
-
-    (* _addLiquidity *)
+    current_rate = frac v_r_b q112 v_r_a;
+    
     (* require(
       currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
       "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
     ); *)
+    match v_reserve_ratio_bounds with
+    | Pair l_bound u_bound =>
+      is_out_of_bound_vreserve = 
+        let l_b = uint128_ge current_rate l_bound in
+        let u_b = uint128_le current_rate u_bound in
+        andb l_b u_b;
+      match is_out_of_bound_vreserve with 
+      | True =>
+      | False =>
+        err = CodeOutOfBoundVReserve;
+        ThrowError err
+      end
+    end
   end;
 
   (* Calls Mint transition on Pool *)
@@ -543,6 +557,24 @@ transition RemoveLiquidityZIL()
 end
 
 (*** SWAP ***)
+
+(* function swapExactTokensForTokens(
+  uint256 amountIn,
+  uint256 amountOutMin,
+  address[] memory poolsPath,
+  IERC20[] memory path,
+  address to,
+  uint256 deadline
+) public virtual override ensure(deadline) returns (uint256[] memory amounts) {
+  verifyPoolsPathSwap(poolsPath, path);
+  amounts = DMMLibrary.getAmountsOut(amountIn, poolsPath, path);
+  require(
+      amounts[amounts.length - 1] >= amountOutMin,
+      "DMMRouter: INSUFFICIENT_OUTPUT_AMOUNT"
+  );
+  IERC20(path[0]).safeTransferFrom(msg.sender, poolsPath[0], amounts[0]);
+  _swap(amounts, poolsPath, path, to);
+} *)
 
 transition SwapExactTokensForTokens()
   (* TODO *)
