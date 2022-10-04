@@ -535,13 +535,10 @@ transition RemoveLiquidity(
   amountA_min: Uint128,
   amountB_min: Uint128,
   to: ByStr20,
-  deadline: BNum
+  deadline_block: BNum
 )
-  VerifyBlock deadline;
+  VerifyBlock deadline_block;
   VerifyPoolAddress tokenA tokenB pool;
-
-  (* require(amountA >= amountAMin, "DMMRouter: INSUFFICIENT_A_AMOUNT");
-  require(amountB >= amountBMin, "DMMRouter: INSUFFICIENT_B_AMOUNT"); *)
 
   (* Sends liquidity to Pool *)
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
@@ -607,5 +604,10 @@ end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
 transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition RecipientAcceptTransfer (sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end

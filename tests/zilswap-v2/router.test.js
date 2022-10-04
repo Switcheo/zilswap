@@ -4,15 +4,15 @@ const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 require('dotenv').config()
 
 
-// beforeAll(async () => {
-// });
+beforeAll(async () => {
+});
 
 test('deploy Zilswap', async () => {
   const privateKey = process.env.PRIVATE_KEY;
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
   // console.log("address", address)
 
-  // Deploy ZRC-2 contracts
+  // Deploy HUNY as ZRC2 due to FungibleToken.scilla not having Mint transition
   const tokenFile = "./src/zolar/Huny.scilla"
   const tokenInit = [
     // this parameter is mandatory for all init arrays
@@ -49,10 +49,8 @@ test('deploy Zilswap', async () => {
   ]
   const [token0, token0State] = await deployContract(privateKey, tokenFile, tokenInit)
   const [token1, token1State] = await deployContract(privateKey, tokenFile, tokenInit)
-
   const token0Address = token0.address.toLowerCase();
   const token1Address = token1.address.toLowerCase();
-
 
   // Deploy Router
   const routerFile = "./src/zilswap-v2/ZilSwapRouter.scilla"
@@ -73,6 +71,8 @@ test('deploy Zilswap', async () => {
   const routerAddress = router.address.toLowerCase();
   // console.log(routerAddress)
 
+  // Sort token order
+  // Important when deploying Pool
   const [initToken0, initToken1] = [token0Address, token1Address].sort()
   const initToken0Contract = getContract(initToken0)
   const initToken1Contract = getContract(initToken1)
@@ -137,6 +137,7 @@ test('deploy Zilswap', async () => {
   const [pool, poolState] = await deployContract(privateKey, poolFile, poolInit)
   const poolAddress = pool.address;
 
+  // Add Pool to Router
   await callContract(
     privateKey, router,
     'AddPool',
@@ -150,6 +151,7 @@ test('deploy Zilswap', async () => {
     0, false, false
   )
 
+  // Add Minter (specific to HUNY)
   await callContract(
     privateKey, initToken0Contract,
     'AddMinter',
@@ -175,7 +177,7 @@ test('deploy Zilswap', async () => {
     0, false, false
   )
 
-
+  // Mint ZRC2 tokens
   await callContract(
     privateKey, initToken0Contract,
     'Mint',
@@ -211,6 +213,7 @@ test('deploy Zilswap', async () => {
     0, false, false
   )
 
+  // Increase allowance for ZRC2 tokens minted
   await callContract(
     privateKey, token0,
     'IncreaseAllowance',
@@ -246,6 +249,7 @@ test('deploy Zilswap', async () => {
     0, false, false
   )
 
+  // AddLiquidity
   await callContract(
     privateKey, router,
     'AddLiquidity',
@@ -293,6 +297,73 @@ test('deploy Zilswap', async () => {
           "argtypes": ["Uint128", "Uint128"],
           "arguments": ["0", "100000000"]
         }
+      },
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: `${address}`,
+      },
+    ],
+    0, false, true
+  )
+  const state = await pool.getState()
+  console.log(state)
+
+  // Missing fee config here. Need to set fee config on router
+
+  // Increase Allowance for LP Token
+  await callContract(
+    privateKey, pool,
+    'IncreaseAllowance',
+    [
+      {
+        vname: 'spender',
+        type: 'ByStr20',
+        value: routerAddress,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: `${9000}`, // Amount less than initial due to fee config not being set yet
+      },
+    ],
+    0, false, false
+  )
+
+  // RemoveLiquidity
+  await callContract(
+    privateKey, router,
+    'RemoveLiquidity',
+    [
+      {
+        vname: 'tokenA',
+        type: 'ByStr20',
+        value: `${initToken0}`,
+      },
+      {
+        vname: 'tokenB',
+        type: 'ByStr20',
+        value: `${initToken1}`,
+      },
+      {
+        vname: 'pool',
+        type: 'ByStr20',
+        value: `${poolAddress}`,
+      },
+      {
+        vname: 'liquidity',
+        type: 'Uint128',
+        value: `${9000}`,
+      },
+      {
+        vname: 'amountA_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'amountB_min',
+        type: 'Uint128',
+        value: '0',
       },
       {
         vname: 'to',

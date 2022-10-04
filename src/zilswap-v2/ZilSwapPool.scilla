@@ -292,7 +292,6 @@ contract ZilSwapPool
 
 with
   let not_identical_address = let eql = builtin eq init_token0 init_token1 in negb eql in
-  (* So if one pair is ZIL, should ZIL be token0 or token1 *)
   let not_zero_address = let eql = builtin eq init_token0 zero_address in negb eql in
   let valid_bps = uint128_ge init_amp_bps bps in
   let valid_token_order = let a = builtin to_uint256 init_token0 in let b = builtin to_uint256 init_token1 in builtin lt a b in
@@ -735,7 +734,7 @@ transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount:
 (* no-op *)
 end
 
-(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
 transition RecipientAcceptTransferFrom (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
