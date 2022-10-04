@@ -1,19 +1,19 @@
-const { callContract } = require("../../scripts/call.js")
+const { callContract, getContract } = require("../../scripts/call.js")
 const { deployContract } = require("../../scripts/deploy.js");
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 require('dotenv').config()
 
 
-beforeAll(async () => {
-});
+// beforeAll(async () => {
+// });
 
 test('deploy Zilswap', async () => {
   const privateKey = process.env.PRIVATE_KEY;
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  console.log("address", address)
+  // console.log("address", address)
 
   // Deploy ZRC-2 contracts
-  const tokenFile = "./src/FungibleToken.scilla"
+  const tokenFile = "./src/zolar/Huny.scilla"
   const tokenInit = [
     // this parameter is mandatory for all init arrays
     {
@@ -71,9 +71,13 @@ test('deploy Zilswap', async () => {
   ]
   const [router, routerState] = await deployContract(privateKey, routerFile, routerInit)
   const routerAddress = router.address.toLowerCase();
-  console.log(routerAddress)
+  // console.log(routerAddress)
 
   const [initToken0, initToken1] = [token0Address, token1Address].sort()
+  const initToken0Contract = getContract(initToken0)
+  const initToken1Contract = getContract(initToken1)
+  let initToken0Amount, initToken1Amount
+  initToken0Amount = initToken1Amount = 10000;
 
   // Deploy Pool
   const poolFile = "./src/zilswap-v2/ZilSwapPool.scilla"
@@ -144,6 +148,159 @@ test('deploy Zilswap', async () => {
       },
     ],
     0, false, false
+  )
+
+  await callContract(
+    privateKey, initToken0Contract,
+    'AddMinter',
+    [
+      {
+        vname: 'minter',
+        type: 'ByStr20',
+        value: address,
+      },
+    ],
+    0, false, false
+  )
+  await callContract(
+    privateKey, initToken1Contract,
+    'AddMinter',
+    [
+      {
+        vname: 'minter',
+        type: 'ByStr20',
+        value: address,
+      },
+    ],
+    0, false, false
+  )
+
+
+  await callContract(
+    privateKey, initToken0Contract,
+    'Mint',
+    [
+      {
+        vname: 'recipient',
+        type: 'ByStr20',
+        value: address,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: `${initToken0Amount}`,
+      },
+    ],
+    0, false, false
+  )
+  await callContract(
+    privateKey, initToken1Contract,
+    'Mint',
+    [
+      {
+        vname: 'recipient',
+        type: 'ByStr20',
+        value: address,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: `${initToken1Amount}`,
+      },
+    ],
+    0, false, false
+  )
+
+  await callContract(
+    privateKey, token0,
+    'IncreaseAllowance',
+    [
+      {
+        vname: 'spender',
+        type: 'ByStr20',
+        value: routerAddress,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: `${initToken0Amount}`,
+      },
+    ],
+    0, false, false
+  )
+  await callContract(
+    privateKey, token1,
+    'IncreaseAllowance',
+    [
+      {
+        vname: 'spender',
+        type: 'ByStr20',
+        value: routerAddress,
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: `${initToken1Amount}`,
+      },
+    ],
+    0, false, false
+  )
+
+  await callContract(
+    privateKey, router,
+    'AddLiquidity',
+    [
+      {
+        vname: 'tokenA',
+        type: 'ByStr20',
+        value: `${initToken0}`,
+      },
+      {
+        vname: 'tokenB',
+        type: 'ByStr20',
+        value: `${initToken1}`,
+      },
+      {
+        vname: 'pool',
+        type: 'ByStr20',
+        value: `${poolAddress}`,
+      },
+      {
+        vname: 'amountA_desired',
+        type: 'Uint128',
+        value: `${initToken0Amount}`,
+      },
+      {
+        vname: 'amountB_desired',
+        type: 'Uint128',
+        value: `${initToken1Amount}`,
+      },
+      {
+        vname: 'amountA_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'amountB_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'v_reserve_ratio_bounds',
+        type: 'Pair (Uint128) (Uint128)',
+        value: {
+          "constructor": "Pair",
+          "argtypes": ["Uint128", "Uint128"],
+          "arguments": ["0", "100000000"]
+        }
+      },
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: `${address}`,
+      },
+    ],
+    0, false, true
   )
 
 })

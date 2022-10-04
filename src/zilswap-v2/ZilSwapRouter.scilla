@@ -206,10 +206,10 @@ procedure VerifyAmount(amountA : Uint128, amountB : Uint128)
   end
 end
 
-(* Checks if amountA >= AmountB *)
-procedure VerifyBlock(deadline : BNum)
+(* Checks if current_block >= deadline_block *)
+procedure VerifyBlock(deadline_block : BNum)
   current_block <- & BLOCKNUMBER;
-  is_expired = builtin blt current_block deadline;
+  is_expired = builtin blt deadline_block current_block;
   match is_expired with
   | True =>
     err = CodeBlockExpired;
@@ -424,9 +424,9 @@ transition AddLiquidity(
   amountB_min: Uint128,
   v_reserve_ratio_bounds: Pair Uint128 Uint128,
   to: ByStr20,
-  deadline: BNum
+  deadline_block: BNum
 )
-  VerifyBlock deadline;
+  VerifyBlock deadline_block;
   VerifyPoolAddress tokenA tokenB pool;
 
   r_a <- & pool.reserve0;
@@ -605,7 +605,7 @@ end
 (*             Callbacks             *)
 (*************************************)
 
-(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
+transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
