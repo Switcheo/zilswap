@@ -38,13 +38,14 @@ let make_error =
 type State =
 | Uninitialized (* awaiting tokens *)
 | Pending (* initialized but waiting for start block *)
-| Active (* can send zil / zwap *)
+| Active (* can send zil *)
 | Failed (* refund all *)
 | Completed (* can claim *)
 
 (* Constants *)
 let zero = Uint128 0
 let one = Uint128 1
+let hundred_bps = Uint128 10000
 let none = None {ByStr20}
 let true = True
 
@@ -120,6 +121,42 @@ let getState : Bool -> BNum -> BNum -> BNum -> Uint128 -> Uint128 -> State =
       end
     end
 
+(* get discounted contribution given committed zil amount and discount bps *)
+let convertDiscountedContribution : Uint128 -> Uint128 -> Uint128 =
+  fun (zil_amount : Uint128) =>
+  fun (discount_bps : Uint128) =>
+    (* zil times 100 divide by 95*)
+    let inter = builtin mul zil_amount hundred_bps in
+    builtin div inter discount_bps
+
+(* get contribution accounting for discount if eligibility *)
+let getContributionWithDiscount : ByStr20 -> Uint128 -> Option Bool -> Uint128 -> Uint128 =
+  fun (contributor : ByStr20) =>
+  fun (zil_amount : Uint128) =>
+  fun (maybe_whitelisted : Option Bool) =>
+  fun (discount_bps : Uint128) =>
+    let is_whitelisted = 
+      match maybe_whitelisted with
+      | Some whitelisted => whitelisted
+      | None => False
+      end 
+    in
+    match is_whitelisted with
+    | False => zil_amount
+    | True => convertDiscountedContribution zil_amount discount_bps
+    end
+
+let listToMap : List ByStr20 -> Map ByStr20 Bool =
+  fun (list : List ByStr20) =>
+    let fold = @list_foldl ByStr20 Map ByStr20 Bool in
+    let init = Emp ByStr20 Bool in
+    let iter = 
+      fun (map: Map ByStr20 Bool) =>
+      fun (item: ByStr20) =>
+      builtin put map item true
+    in
+    fold iter init list
+
 (* returns True if all items in the list is True *)
 let allTrue : List Bool -> Bool =
   fun (list : List Bool) =>
@@ -163,28 +200,29 @@ let sixMsgs : Message -> Message -> Message -> Message -> Message -> Message -> 
 
 contract Zilo
 (
-  zwap_address: ByStr20,
   token_address: ByStr20,
   token_amount: Uint128,
   target_zil_amount: Uint128,
-  target_zwap_amount: Uint128,
   minimum_zil_amount: Uint128,
   liquidity_zil_amount: Uint128,
   liquidity_token_amount: Uint128,
+  treasury_zil_amount: Uint128,
   receiver_address: ByStr20,
   liquidity_address: ByStr20,
+  treasury_address: ByStr20,
   start_block: BNum,
-  end_block: BNum
+  end_block: BNum,
+  discount_bps: Uint128,
+  disc_whitelist: List ByStr20
 )
 
 with
   let a = builtin lt zero token_amount in
   let b = builtin lt zero target_zil_amount in
-  let c = builtin lt zero target_zwap_amount in
-  let d = builtin lt liquidity_zil_amount target_zil_amount in
-  let e = builtin blt _creation_block start_block in
-  let f = builtin blt start_block end_block in
-  (* TODO zwap_address != token_address *)
+  let c = builtin lt liquidity_zil_amount target_zil_amount in
+  let d = builtin blt _creation_block start_block in
+  let e = builtin blt start_block end_block in
+  let f = builtin lt discount_bps hundred_bps in
 
   let nil = Nil {Bool} in
   let l1 = Cons {Bool} a nil in
@@ -192,15 +230,21 @@ with
   let l3 = Cons {Bool} c l2 in
   let l4 = Cons {Bool} d l3 in
   let l5 = Cons {Bool} e l4 in
-  let l6 = Cons {Bool} f l5 in
-    allTrue l6
+    allTrue l5
 =>
 
 (* Mutable fields *)
 field initialized : Bool = False
 field finalized : Bool = False (* funds paid out to receiver / lp *)
-field total_contributions : Uint128 = zero (* in QAs *)
-field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128 (* in QAs *)
+field discount_whitelist : Map ByStr20 Bool = listToMap disc_whitelist (* $ZWAP holders whitelist for discount *)
+
+(* zil balances contributed by users *)
+field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field total_balance : Uint128 = zero
+
+(* user contributions after discount *)
+field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field total_contributions : Uint128 = zero
 
 (**************************************)
 (*             Procedures             *)
@@ -212,7 +256,7 @@ procedure ThrowError(err : Error)
   throw e
 end
 
-(* @dev: Asserts that then given amount is not zero. Throws otherwise. *)
+(* @maybe_balance: Asserts that t hen given amount is not zero. Throws otherwise. *)
 procedure AssertNotZero(amount : Uint128)
   is_zero = builtin eq amount zero;
   match is_zero with
@@ -246,30 +290,21 @@ procedure Distribute(contribution : Uint128)
   event e
 end
 
-(* @dev: Refunds the given zil amount to the sender, as well as the corresponding zwap amount in the appropriate ratio. *)
+(* @dev: Refunds the given zil amount to the sender. *)
 procedure Refund(amount : Uint128)
-  zwap_refund = let x = frac amount target_zil_amount target_zwap_amount in
-    getSomeInt x; (* safe because a larger computation neccesarily would have passed before - refund is a smaller operation than contribute *)
-
-  (* refund zwap *)
-  msg_to_zwap =  {
-    _tag: "Transfer"; _recipient: zwap_address; _amount: zero;
-    to: _sender; amount: zwap_refund
-  };
-
   (* refund zil *)
   msg_to_sender = { _tag: "AddFunds"; _recipient: _sender; _amount: amount };
 
   (* notify sender *)
   msg2_to_sender = {
     _tag: "Refund"; _recipient: _sender; _amount: zero;
-    zil_amount: amount; zwap_amount: zwap_refund
+    zil_amount: amount
   };
 
-  msgs = threeMsg msg_to_zwap msg_to_sender msg2_to_sender;
+  msgs = twoMsg msg_to_sender msg2_to_sender;
   send msgs;
 
-  e = { _eventname: "Refunded"; zil_amount: amount; zwap_amount: zwap_refund; to: _sender };
+  e = { _eventname: "Refunded"; zil_amount: amount; to: _sender };
   event e
 end
 
@@ -308,55 +343,50 @@ end
 transition Contribute()
   current_block <- & BLOCKNUMBER;
   raised_amount <- total_contributions;
+  current_total_balance <- total_balance;
   inited <- initialized;
   state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
   match state with
   | Active =>
     AssertNotZero _amount;
 
-    (* update contribution and total raise amt  *)
+    (* update contribution an;d total raise amt  *)
     maybe_contributed <- contributions[_sender];
     contributed = getSomeInt maybe_contributed;
-    new_contribution = builtin add contributed _amount;
+    
+    maybe_whitelisted <- discount_whitelist[_sender];
+    this_contribution = getContributionWithDiscount _sender _amount maybe_whitelisted discount_bps;
+    new_contribution = builtin add contributed this_contribution;
 
     (* to prevent edge cases with calculated pro-rated contribution,
       max contrib per account = target_zil_amt *)
     exceeds_cap = builtin lt target_zil_amount new_contribution;
     match exceeds_cap with
     | False =>
+      (* update contribution shares *)
       contributions[_sender] := new_contribution;
-      new_raised_amount = builtin add raised_amount _amount;
-      total_contributions := new_raised_amount;
+      new_total_contributions = builtin add raised_amount this_contribution;
+      total_contributions := new_total_contributions;
 
-      (* transfer zwap and zils *)
-      maybe_amt = frac _amount target_zil_amount target_zwap_amount;
-      match maybe_amt with
-      | Some amt =>
-        (* transfer (all) zil *)
-        accept;
+      (* update contributed zil amounts *)
+      balances[_sender] := _amount;
+      new_total_balance = builtin add current_total_balance _amount;
+      total_balance := new_total_balance;
 
-        (* transfer zwap by ratio *)
-        amount = builtin add amt one; (* round up *)
-        msg_to_zwap = {
-          _tag: "TransferFrom"; _recipient: zwap_address; _amount: zero;
-          from: _sender; to: _this_address; amount: amount
-        };
+      (* transfer (all) zil *)
+      accept;
 
-        (* notify sender *)
-        msg_to_sender = {
-          _tag: "Contribute"; _recipient: _sender; _amount: zero;
-          zil_amount: _amount; zwap_amount: amount
-        };
+      (* notify sender *)
+      msg_to_sender = {
+        _tag: "Contribute"; _recipient: _sender; _amount: zero;
+        zil_amount: _amount; contribution: this_contribution
+      };
 
-        msgs = twoMsg msg_to_zwap msg_to_sender;
-        send msgs;
+      msgs = oneMsg msg_to_sender;
+      send msgs;
 
-        e = {_eventname: "Contributed"; zil_amount: _amount; zwap_amount: amount };
-        event e
-      | None =>
-        err = CodeAmountTooLarge;
-        ThrowError err
-      end
+      e = {_eventname: "Contributed"; zil_amount: _amount };
+      event e
     | True =>
       err = CodeAmountTooLarge;
       ThrowError err
@@ -371,21 +401,24 @@ end
   If raise amt is more than or equal to the minimum threshold:
     - transfers the raised amount to the token owner and lp address by on a pro-rata basis,
       up to the maximum given by the offering target and
-    - burns all ZWAP collected.
+    - transfers 15% of raised amount to treasury address
   If raise amt is less than then minimum threshold,
     - refunds the tkn distribution amt to the token owner.
 *)
 transition Complete()
   (* get state *)
   current_block <- & BLOCKNUMBER;
-  raised_amount <- total_contributions;
+  current_total_contributions <- total_contributions;
+  current_total_balance <- total_contributions;
   done <- finalized;
   finalized := true;
   match done with
   | False =>
     inited <- initialized;
-    raised_amount_capped = min raised_amount target_zil_amount;
-    state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
+    total_contributions_capped = min current_total_contributions target_zil_amount; (* max contributions accepted *)
+    raised_amount_capped = let x = frac current_total_balance current_total_contributions total_contributions_capped in (* zil amount to be distributed *)
+      getSomeInt x;
+    state = getState inited start_block end_block current_block minimum_zil_amount current_total_contributions;
     match state with
     | Failed =>
       (* refund all tkns *)
@@ -397,7 +430,7 @@ transition Complete()
       msgs = oneMsg msg_to_token;
       send msgs;
 
-      e = { _eventname: "Failed"; raised_amount: raised_amount };
+      e = { _eventname: "Failed"; raised_amount: current_total_contributions; total_zil_received: current_total_balance };
       event e
     | Completed =>
       (* compute lp zil amt *)
@@ -419,23 +452,19 @@ transition Complete()
         zil_amount: lp_amount; token_amount: lp_tkn_amount
       };
 
-      (* compute project amt *)
-      project_amount = builtin sub raised_amount_capped lp_amount;
-      msg_to_project = { _tag: "AddFunds"; _recipient: receiver_address; _amount: project_amount };
-
-      (* compute zwap burn amt *)
-      (* due to rounding up, there may be some extra zwap locked in the contract - but
-        it's probably not worth adding complexity to burn those tokens as they are permenantly locked anyway *)
-      zwap_to_burn = let x = frac raised_amount_capped target_zil_amount target_zwap_amount  in
+      (* compute treasury amt *)
+      treasury_amount = let x = frac treasury_zil_amount target_zil_amount raised_amount_capped in
         getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
-      msg_to_zwap =  {
-        _tag : "Burn"; _recipient: zwap_address; _amount: zero;
-        burn_account: _this_address; amount: zwap_to_burn
-      };
+      msg_to_treasury = { _tag: "AddFunds"; _recipient: treasury_address; _amount: treasury_amount };
+
+      (* compute project amt *)
+      raised_less_lp_amount = builtin sub raised_amount_capped lp_amount;
+      project_amount = builtin sub raised_less_lp_amount treasury_amount;
+      msg_to_project = { _tag: "AddFunds"; _recipient: receiver_address; _amount: project_amount };
 
       (* compute tkn refund amt *)
       refund_amount =
-        let x = frac raised_amount_capped target_zil_amount token_amount in
+        let x = frac total_contributions_capped target_zil_amount token_amount in
         let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
         let distr = builtin add distr_trunc one in (* round up as value is truncated *)
         let distr_capped = min distr token_amount in (* cap at token_amount *)
@@ -448,12 +477,13 @@ transition Complete()
       };
 
       (* send and burn! *)
-      msgs = sixMsgs msg_to_lp_for_zils msg_to_token_for_lp msg_to_lp msg_to_project msg_to_zwap msg_to_token_for_refund;
+      msgs = sixMsgs msg_to_lp_for_zils msg_to_token_for_lp msg_to_lp msg_to_project msg_to_treasury msg_to_token_for_refund;
       send msgs;
 
       e = {
-        _eventname: "Completed"; raised_amount: raised_amount; (* ignores the cap *)
-        burnt_amount: zwap_to_burn; refund_amount: refund_amount
+        _eventname: "Completed"; raised_amount: current_total_contributions; (* ignores the cap *)
+        total_zil_received: current_total_balance;
+        refund_amount: refund_amount
       };
       event e
     | _ =>
@@ -470,6 +500,10 @@ end
   to the sender if the offering is Completed. If the offering is Failed, all contribution
   is refunded. Reverts if the offering is in any other state. *)
 transition Claim()
+  (* get zil committed by user *)
+  maybe_balance <- balances[_sender];
+  zil_committed = getSomeInt maybe_balance;
+
   (* check contribution *)
   maybe_contributed <- contributions[_sender];
   match maybe_contributed with
@@ -486,7 +520,8 @@ transition Claim()
     match state with
     | Failed =>
       (* refund all *)
-      Refund contribution
+
+      Refund zil_committed
     | Completed =>
       f <- finalized;
       match f with
@@ -513,7 +548,9 @@ transition Claim()
         Distribute prorated_contribution;
 
         (* refund the remiander *)
-        refund = builtin sub contribution prorated_contribution;
+        refund_contribution = builtin sub contribution prorated_contribution;
+        refund = let x = frac zil_committed contribution refund_contribution in
+          getSomeInt x;
         refund_required = builtin lt one refund; (* handle case where exactly 0 refund required *)
         match refund_required with
         | False =>
@@ -530,6 +567,18 @@ transition Claim()
     end
   end
 end
+
+transition UpdateWhitelist(whitelist: List ByStr20)
+  whitelist_map = listToMap whitelist;
+  discount_whitelist := whitelist_map;
+
+  e = {
+    _eventname: "DiscountWhitelistUpdated";
+    whitelist: whitelist
+  };
+  event e
+end
+
 
 (***************************************)
 (*             Callbacks               *)
@@ -552,18 +601,5 @@ transition RecipientAcceptTransfer(sender : ByStr20, recipient: ByStr20, amount:
 end
 
 transition RecipientAcceptTransferFrom(initiator: ByStr20, sender : ByStr20, recipient: ByStr20, amount : Uint128)
-  (* if initiator is us, and _sender is zwap - no-op as it is callback from a contribution *)
-  initiator_is_self = builtin eq initiator _this_address;
-  match initiator_is_self with
-  | True =>
-    callback_is_from_zwap = builtin eq _sender zwap_address;
-    match callback_is_from_zwap with
-    | True =>
-      (* no op *)
-    | False =>
-      ValidateTransferAndInitialize _sender amount
-    end
-  | False =>
-    ValidateTransferAndInitialize _sender amount
-  end
+  ValidateTransferAndInitialize _sender amount
 end

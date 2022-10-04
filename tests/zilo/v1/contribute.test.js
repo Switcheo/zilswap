@@ -1,6 +1,6 @@
-const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { callContract, getBlockNum, nextBlock } = require('../../scripts/call.js');
-const { deployZILO, useFungibleToken } = require('../../scripts/deploy.js');
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account.js');
+const { callContract, getBlockNum, nextBlock } = require('../../../scripts/call.js');
+const { deployZILO, useFungibleToken } = require('../../../scripts/deploy.js');
 
 let owner, lp, user, zwap, tkn
 beforeAll(async () => {
