@@ -107,10 +107,12 @@ test('contribute with whitelist get discount successfully', async () => {
     param("amount", "Uint128", (138600000 + 58905000) + tknDecimals),
   ]);
 
+  await nextBlock(5);
+
   const zilAmount = 1000;
-  const contribution = 1000 / 0.95;
+  const contribution = ~~(1000 * 10000 / 9500);
   
-  const tx = await callContract(key, ziloContract, "Contribute", [], {
+  const tx = await callContract(user1.key, ziloContract, "Contribute", [], {
     amount: zilAmount,
   });
 
@@ -118,9 +120,9 @@ test('contribute with whitelist get discount successfully', async () => {
   
   const state = await ziloContract.getState();
 
-  expect(state.balances?.[user1.address]).toEqual(zilAmount);
-  expect(state.total_balance).toEqual(zilAmount);
+  expect(state.balances?.[user1.address]).toEqual(zilAmount.toString());
+  expect(state.total_balance).toEqual(zilAmount.toString());
 
-  expect(state.contributions?.[user1.address]).toEqual(contribution);
-  expect(state.total_contributions).toEqual(contribution);
+  expect(state.contributions?.[user1.address]).toEqual(contribution.toString());
+  expect(state.total_contributions).toEqual(contribution.toString());
 });

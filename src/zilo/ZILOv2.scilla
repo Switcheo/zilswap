@@ -125,9 +125,10 @@ let getState : Bool -> BNum -> BNum -> BNum -> Uint128 -> Uint128 -> State =
 let convertDiscountedContribution : Uint128 -> Uint128 -> Uint128 =
   fun (zil_amount : Uint128) =>
   fun (discount_bps : Uint128) =>
-    (* zil times 100 divide by 95*)
+    (* zil times 1 divide by 0.95 *)
+    let rate = builtin sub hundred_bps discount_bps in
     let inter = builtin mul zil_amount hundred_bps in
-    builtin div inter discount_bps
+    builtin div inter rate
 
 (* get contribution accounting for discount if eligibility *)
 let getContributionWithDiscount : ByStr20 -> Uint128 -> Option Bool -> Uint128 -> Uint128 =
@@ -385,7 +386,7 @@ transition Contribute()
       msgs = oneMsg msg_to_sender;
       send msgs;
 
-      e = {_eventname: "Contributed"; zil_amount: _amount };
+      e = {_eventname: "Contributed"; zil_amount: _amount; contribution: this_contribution };
       event e
     | True =>
       err = CodeAmountTooLarge;
