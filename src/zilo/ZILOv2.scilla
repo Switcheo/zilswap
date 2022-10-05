@@ -513,6 +513,7 @@ transition Claim()
     ThrowError err
   | Some contribution =>
     delete contributions[_sender];
+    delete balances[_sender];
     (* check offering state *)
     current_block <- & BLOCKNUMBER;
     raised_amount <- total_contributions;
