@@ -474,6 +474,30 @@ transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
   end
 end
 
+procedure HandleCraftItem(item_id_payment_items_pair: Pair Uint128 (List PaymentItem))
+  match item_id_payment_items_pair with
+  | Pair item_id payment_items =>
+    maybe_item <- items[item_id];
+    match maybe_item with
+    | None =>
+      err = CodeItemNotFound;
+      ThrowError err
+    | Some item =>
+      match item with
+      | Item name token_address traits crafting_costs =>
+        VerifyAndReceivePayment crafting_costs payment_items;
+        MintItem token_address traits
+      end
+    end
+  end
+end
+
+(* @dev: Batch purchases items from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+transition BatchCraftItem(item_id_payment_items_pair_list: List (Pair Uint128 (List PaymentItem)))
+  forall item_id_payment_items_pair_list HandleCraftItem
+end
+
 (* @dev: Consumes an item from a given contract, must be on consumable white-list *)
 (* @param token_id: the id of the item to consume *)
 (* @param token_contract_address: the address of the token's contract *)

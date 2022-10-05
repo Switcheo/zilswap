@@ -1,0 +1,578 @@
+[
+    {
+        "traits": {
+            "Name": "SinCorp Virulent Quiver",
+            "Type": "Weapon",
+            "Subtype": "Ranged",
+            "Damage": "30"
+        }
+        ,
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "26000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "300000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Godhand Prime, Guardian of Zolar",
+            "Type": "Weapon",
+            "Subtype": "Melee",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "24000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "310000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Awakened Sceptre of the Ursa Father",
+            "Type": "Weapon",
+            "Subtype": "Magic",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "23000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "320000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Corrupted Vengeance, Executioner of the Exiled King",
+            "Type": "Weapon",
+            "Subtype": "Melee",
+            "Damage": "35"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "26000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "300000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Caustic Impact Grenade",
+            "Type": "Off-Hand",
+            "Subtype": "Ranged",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "16000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "280000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "SinCorp Dataspike Interface Model 2.0",
+            "Type": "Off-Hand",
+            "Subtype": "Ranged",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "15000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "290000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Other-worldly Fist of Restless Souls",
+            "Type": "Off-Hand",
+            "Subtype": "Magic",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "18000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "260000",
+                "traits": []
+            },
+            {
+                "material": "BERRY",
+                "quantity": "20000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Mystic Barrier of Protection",
+            "Type": "Off-Hand",
+            "Subtype": "Magic",
+            "Damage": "20"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "20000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "310000",
+                "traits": []
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "END"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Enchanted Gutripper, Sharpened Fang of the Godless",
+            "Type": "Off-Hand",
+            "Subtype": "Melee",
+            "Damage": "35"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "26000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "310000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Cursed Bloodseeker, Unholy Shiv of the Undying",
+            "Type": "Off-Hand",
+            "Subtype": "Melee",
+            "Damage": "35"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "25000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "320000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Godslayer's Hand of Death",
+            "Type": "Off-Hand",
+            "Subtype": "Magic",
+            "Damage": "50"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "27000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "330000",
+                "traits": []
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "STR"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "STR"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "STR"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "INT"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "INT"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "INT"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "DEX"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "DEX"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "DEX"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Radioactive Mobius Gem Holster",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "15000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "240000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Illuminated Matrixx Starfleet Jacket",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "19000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "250000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Astral's Divine Robe of Radiance",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "18700000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "230000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Decorated Grandmaster Architect's Regalia",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "19000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "250000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Solaire Blessed Seraphic Garments",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "20000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "280000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Evolved Godslayer Mechasuit",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "25000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "310000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "All-Weather Multi-Metaversal NVD",
+            "Type": "Headgear"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "19000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "220000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Kyanite Bio Warfare Mask",
+            "Type": "Headgear"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "18500000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "240000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Dark Wyvern Headpiece",
+            "Type": "Headgear"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "21000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "260000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Elderberry Juice",
+            "Type": "Consumable"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "250000000000000",
+                "traits": []
+            },
+            {
+                "material": "BERRY",
+                "quantity": "1000",
+                "traits": []
+            }
+        ]
+    }
+]

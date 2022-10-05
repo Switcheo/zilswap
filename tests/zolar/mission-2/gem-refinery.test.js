@@ -13,6 +13,7 @@ beforeAll(async () => {
   // add refinery as minter for items, geode and huny
   // add refinery as consumer for items
   // increase allowance for gem-refinery for geode contract to transfer
+  // mint huny, mint geode
 
   // gem-refinery checks
   // refine geodes
@@ -70,6 +71,18 @@ beforeAll(async () => {
     param('amount', 'Uint128', "10000000000000")
   ], 0, false, false)
   console.log(txIncreaseAllowance2.id)
+
+  const txMintHuny = await callContract(privateKey, hunyContract, "Mint", [
+    param('recipient', 'ByStr20', address),
+    param('amount', 'Uint128', '1000000000000000000')
+  ], 0, false, false)
+  console.log(txMintHuny.id)
+
+  const txMintGeode = await callContract(privateKey, geodeContract, "Mint", [
+    param('recipient', 'ByStr20', address),
+    param('amount', 'Uint128', '1000000000000000000')
+  ], 0, false, false)
+  console.log(txMintGeode.id)
 })
 
 test('refine own geodes', async () => {
@@ -82,13 +95,17 @@ test('refine own geodes', async () => {
   let gems = []
   for (let i = 0; i < 10; i++) {
     gems.push(
-        adt('Pair', ['String', `${gemRefineryAddress}.GemTier`], ['INT', adt(`${gemRefineryAddress}.TierC`, [], [])])
+        adt(`${gemRefineryAddress}.Gem`, [], [
+          'INT',
+          adt(`${gemRefineryAddress}.TierC`, [], []),
+          adt('False', [], [])
+        ])
     )
   }
 
   const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "0"),
-    param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, gems)
+    param('gems', `List ${gemRefineryAddress}.Gem`, gems)
   ], 0, false, false)
   console.log(txConcludeRefine.id)
   expect(txConcludeRefine.receipt.success).toEqual(true)
@@ -121,13 +138,17 @@ test('enhance own gems', async () => {
   let gems = []
   for (let i = 0; i < 1; i++) {
     gems.push(
-        adt('Pair', ['String', `${gemRefineryAddress}.GemTier`], ['INT', adt(`${gemRefineryAddress}.TierB`, [], [])])
+        adt(`${gemRefineryAddress}.Gem`, [], [
+          'INT',
+          adt(`${gemRefineryAddress}.TierB`, [], []),
+          adt('False', [], [])
+        ])
     )
   }
 
   const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "1"),
-    param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, gems)
+    param('gems', `List ${gemRefineryAddress}.Gem`, gems)
   ], 0, false, false)
   console.log(txConcludeRefine.id)
   expect(txConcludeRefine.receipt.success).toEqual(true)
@@ -167,13 +188,17 @@ test('refine geodes with insufficient huny', async () => {
   let gems = []
   for (let i = 0; i < 10; i++) {
     gems.push(
-      adt('Pair', ['String', `${gemRefineryAddress}.GemTier`], ['INT', adt(`${gemRefineryAddress}.TierC`, [], [])])
+        adt(`${gemRefineryAddress}.Gem`, [], [
+          'INT',
+          adt(`${gemRefineryAddress}.TierC`, [], []),
+          adt('False', [], [])
+        ])
     )
   }
   
   const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
     param('refinement_id', 'Uint256', "2"),
-    param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, gems)
+    param('gems', `List ${gemRefineryAddress}.Gem`, gems)
   ], 0, false, false)
   console.log(txConcludeRefine.id)
   expect(txConcludeRefine.receipt.success).toEqual(false)
@@ -213,13 +238,17 @@ test('enhance gems with insufficient huny', async () => {
     let enhancedGems = []
     for (let i = 0; i < 1; i++) {
       enhancedGems.push(
-          adt('Pair', ['String', `${gemRefineryAddress}.GemTier`], ['INT', adt(`${gemRefineryAddress}.TierB`, [], [])])
-      )
+        adt(`${gemRefineryAddress}.Gem`, [], [
+          'INT',
+          adt(`${gemRefineryAddress}.TierB`, [], []),
+          adt('False', [], [])
+        ])
+    )
     }
   
     const txConcludeRefine = await callContract(privateKey, gemRefineryContract, "ConcludeRefinement", [
       param('refinement_id', 'Uint256', "3"),
-      param('gems', `List (Pair String ${gemRefineryAddress}.GemTier)`, enhancedGems)
+      param('gems', `List ${gemRefineryAddress}.Gem`, enhancedGems)
     ], 0, false, false)
     console.log(txConcludeRefine.id)
     expect(txConcludeRefine.receipt.success).toEqual(false)
