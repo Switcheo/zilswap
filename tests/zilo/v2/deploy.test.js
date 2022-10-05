@@ -1,5 +1,5 @@
 const { deployZRC2Token, deployZilSwap, deployZilo, deployZiloSeedLP } = require("./deploy");
-const { getDefaultAccount, nextBlock, ZERO_ADDRESS, callContract, param, getZilliqaInstance, getLatestBlockHeight } = require("./utils");
+const { getDefaultAccount, nextBlock, ZERO_ADDRESS, callContract, param, getZilliqaInstance, getLatestBlockHeight } = require("../../../scripts/utils");
 
 const tknDecimals = "0".repeat(12);
 const zilDecimals = "0".repeat(12);

@@ -570,18 +570,6 @@ transition Claim()
   end
 end
 
-transition UpdateWhitelist(whitelist: List ByStr20)
-  whitelist_map = listToMap whitelist;
-  discount_whitelist := whitelist_map;
-
-  e = {
-    _eventname: "DiscountWhitelistUpdated";
-    whitelist: whitelist
-  };
-  event e
-end
-
-
 (***************************************)
 (*             Callbacks               *)
 (***************************************)

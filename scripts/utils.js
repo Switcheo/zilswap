@@ -84,6 +84,20 @@ const sendTxs = async (privateKey, txList) => {
   return await zilliqa.blockchain.createBatchTransaction(signedTxList);
 }
 
+const verifyDeployment = (tx) => {
+  // Check for txn execution success
+  if (!tx.txParams.receipt.success) {
+    const errors = tx.txParams.receipt.errors
+    const errMsgs = errors
+      ? Object.keys(errors).reduce((acc, depth) => {
+        const errorMsgList = errors[depth].map(num => TransactionError[num])
+        return { ...acc, [depth]: errorMsgList }
+      }, {})
+      : 'failed to deploy contract!'
+    throw new Error(JSON.stringify(errMsgs, null, 2))
+  }
+}
+
 const transfer = async (privateKey, toAddr, amount) => {
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -218,19 +232,6 @@ const hexNumeric = (number, bytes = 4) => {
   return ("0".repeat(length) + new BigNumber(number).toString(16)).substr(-length);
 }
 
-const varInt = (number) => {
-  const bn = new BigNumber(number);
-  if (bn.lt(0xFD)) {
-    return Buffer.concat([Buffer.from(hexNumeric(bn, 1), "hex").reverse()]);
-  } else if (bn.lte(0xFFFF)) {
-    return Buffer.concat([Buffer.from([0xFD]), Buffer.from(hexNumeric(bn, 2), "hex").reverse()]);
-  } else if (bn.lte(0xFFFFFFFF)) {
-    return Buffer.concat([Buffer.from([0xFE]), Buffer.from(hexNumeric(bn, 4), "hex").reverse()]);
-  } else {
-    return Buffer.concat([Buffer.from([0xFF]), Buffer.from(hexNumeric(bn, 8), "hex").reverse()]);
-  }
-}
-
 module.exports = {
   ZERO_ADDRESS,
 
@@ -248,6 +249,7 @@ module.exports = {
   sendTxs,
   callContract,
   nextBlock,
+  verifyDeployment,
 
   param,
   noneParam,

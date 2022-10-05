@@ -1,12 +1,11 @@
-const { getDefaultAccount } = require('./account')
-const { getBlockNum } = require('./call.js')
-const { deployZILO, deploySeedLP } = require('./deploy')
+const { getDefaultAccount } = require('../../account')
+const { getBlockNum } = require('../../call.js')
+const { deployZILO, deploySeedLP } = require('../../deploy')
 
 const deploy = async () => {
   const owner = getDefaultAccount()
   const bNum = await getBlockNum()
-  const tokenAddress =  '0xb8975762e4d13850f1367f9020ae123ee300897c' // https://devex.zilliqa.com/address/zil1hzt4wchy6yu9pufk07gzptsj8m3spztuqmeucs?network=https%3A%2F%2Fapi.zilliqa.com
-  const zwapAddress =   '0x0d21c1901a06abee40d8177f95171c8c63abdc31' // https://devex.zilliqa.com/address/zil1p5suryq6q647usxczale29cu3336hhp376c627?network=https%3A%2F%2Fapi.zilliqa.com
+  const tokenAddress =  '0x0c66dfdb08dbffc686ab15400c09edef2d96412b' // https://devex.zilliqa.com/address/zil1p3ndlkcgm0ludp4tz4qqcz0daukevsftx46848?network=https%3A%2F%2Fapi.zilliqa.com
 
   // deploy seed lp
   const [lp, stateLP] = await deploySeedLP(owner.key, {
@@ -42,26 +41,6 @@ const deploy = async () => {
   console.log(JSON.stringify(zilo, null, 2))
   console.log('State:')
   console.log(JSON.stringify(state, null, 2))
-
-  // approve burn of zwap on zilo
-  const zwap = getContract(zwapAddress)
-  const result = await callContract(
-    owner.key, zwap,
-    'AddMinter',
-    [
-      {
-        vname: 'minter',
-        type: 'ByStr20',
-        value: zilo.address.toLowerCase(),
-      },
-    ],
-    0, false, false
-  )
-
-  console.log('Approved burn of zwap:')
-  console.log(JSON.stringify(result, null, 2))
-
-  // project TODO: send tkns to zilo
 }
 
 deploy().then(() => console.log('Done.'))

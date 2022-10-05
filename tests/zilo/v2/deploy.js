@@ -1,20 +1,6 @@
 const { TransactionError } = require("@zilliqa-js/core");
 const { getAddressFromPrivateKey } = require("@zilliqa-js/crypto");
-const { getDeployTx, getZilliqaInstance, param, ZERO_ADDRESS, sendTxs } = require("./utils");
-
-const verifyDeployment = (tx) => {
-  // Check for txn execution success
-  if (!tx.txParams.receipt.success) {
-    const errors = tx.txParams.receipt.errors
-    const errMsgs = errors
-      ? Object.keys(errors).reduce((acc, depth) => {
-        const errorMsgList = errors[depth].map(num => TransactionError[num])
-        return { ...acc, [depth]: errorMsgList }
-      }, {})
-      : 'failed to deploy contract!'
-    throw new Error(JSON.stringify(errMsgs, null, 2))
-  }
-}
+const { getDeployTx, getZilliqaInstance, param, ZERO_ADDRESS, sendTxs, verifyDeployment } = require("../../../scripts/utils");
 
 const deployZilo = async (privateKey, {
   tokenAddress, tokenAmount,
