@@ -453,6 +453,24 @@ procedure HandleConsumeItem(token_consumer: ConsumeItem)
   end
 end
 
+procedure HandleCraftItem(item_id_payment_items_pair: Pair Uint128 (List PaymentItem))
+  match item_id_payment_items_pair with
+  | Pair item_id payment_items =>
+    maybe_item <- items[item_id];
+    match maybe_item with
+    | None =>
+      err = CodeItemNotFound;
+      ThrowError err
+    | Some item =>
+      match item with
+      | Item name token_address traits crafting_costs =>
+        VerifyAndReceivePayment crafting_costs payment_items;
+        MintItem token_address traits
+      end
+    end
+  end
+end
+
 (***************************************)
 (*             Transitions             *)
 (***************************************)
@@ -470,24 +488,6 @@ transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
     | Item name token_address traits crafting_costs =>
       VerifyAndReceivePayment crafting_costs payment_items;
       MintItem token_address traits
-    end
-  end
-end
-
-procedure HandleCraftItem(item_id_payment_items_pair: Pair Uint128 (List PaymentItem))
-  match item_id_payment_items_pair with
-  | Pair item_id payment_items =>
-    maybe_item <- items[item_id];
-    match maybe_item with
-    | None =>
-      err = CodeItemNotFound;
-      ThrowError err
-    | Some item =>
-      match item with
-      | Item name token_address traits crafting_costs =>
-        VerifyAndReceivePayment crafting_costs payment_items;
-        MintItem token_address traits
-      end
     end
   end
 end
