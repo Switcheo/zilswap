@@ -385,7 +385,10 @@ transition Contribute()
       total_contributions := new_total_contributions;
 
       (* update contributed zil amounts *)
-      balances[_sender] := _amount;
+      maybe_balance <- balances[_sender];
+      balance = getSomeInt maybe_balance;
+      new_user_balance = builtin add balance _amount;
+      balances[_sender] := new_user_balance;
       new_total_balance = builtin add current_total_balance _amount;
       total_balance := new_total_balance;
 
