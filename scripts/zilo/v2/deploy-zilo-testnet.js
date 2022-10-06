@@ -37,8 +37,8 @@ const deploy = async () => {
     receiverAddress:                   receiverAddress,
     treasuryAddress:                   treasuryAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:               (bNum + 105).toString(), // start 1h from now, 165 blocks an hr (testnet)
-    endBlock:                 (bNum + 4125).toString(), // +25 hrs, hopefully
+    startBlock:               (bNum + 30).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
+    endBlock:                 (bNum + 3000).toString(), // +24 hrs, hopefully
     discountBps:                                 "500",
     discountWhitelist: [
       "0x2a93d019d43872060ca2d3d68ac17009b6dd44ec",
