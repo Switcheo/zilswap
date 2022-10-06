@@ -73,6 +73,9 @@ test('zilo should complete when zil is pass minimum', async () => {
   const tx = await callContract(key, ziloContract, "Claim");
 
   expect(tx.status).toEqual(2);
+  
+  const completedEvent = tx.receipt.event_logs.find(ev => ev._eventname === "Completed");
+  expect(completedEvent?._eventname).toEqual("Completed");
 
   const finalizedSubState = await ziloContract.getSubState("finalized");
   expect(finalizedSubState).toEqual({

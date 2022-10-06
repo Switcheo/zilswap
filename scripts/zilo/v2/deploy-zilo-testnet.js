@@ -1,6 +1,6 @@
 const { getDefaultAccount } = require('../../account')
-const { getContract, callContract, getBlockNum } = require('../../call.js')
-const { deployZILO, deploySeedLP, deployZILOv2 } = require('../../deploy')
+const { getBlockNum } = require('../../call.js')
+const { deploySeedLP, deployZILOv2 } = require('../../deploy')
 
 const deploy = async () => {
   const owner = getDefaultAccount()
@@ -36,9 +36,9 @@ const deploy = async () => {
     treasuryZilAmount:         '4908750' + zilDecimals, // ZIL ~4.9m (5% of target)
     receiverAddress:                   receiverAddress,
     treasuryAddress:                   treasuryAddress,
-    liquidityAddress:         '0x428ad0cec223d8bb9786acb315701485db4a07f1', //lp.address.toLowerCase(),
-    startBlock:               (bNum + 50).toString(), // start 1h from now, 105 blocks an hr
-    endBlock:                 (bNum + 1900).toString(), // +18 hrs, hopefully
+    liquidityAddress:         lp.address.toLowerCase(),
+    startBlock:               (bNum + 105).toString(), // start 1h from now, 105 blocks an hr
+    endBlock:                 (bNum + 525).toString(), // +5 hrs, hopefully
     discountBps:                                 "500",
     discountWhitelist: [
       "0x2a93d019d43872060ca2d3d68ac17009b6dd44ec",
