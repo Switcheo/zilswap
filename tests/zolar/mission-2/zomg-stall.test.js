@@ -242,3 +242,85 @@ test('(success) craft item', async () => {
   gemsBurnt.forEach(gem => expect(Object.keys(itemsStateAfterTx.token_owners)).not.toContain(gem))
   expect(Object.keys(itemsStateAfterTx.token_owners)).toContain((MINT_ITEM_COUNT + 1).toString())
 })
+
+test('(success) batch craft item', async () => {
+  const hunyCost = adt(`${zomgStoreAddress}.CraftingCost`, [], [hunyAddress, ONE_HUNY.times(100), []])
+  const txAddElderberryJuice = await callContract(privateKey, zomgStoreContract, "AddItem", [
+    param('item_name', 'String', 'Elderberry Juice'),
+    param('token_address', "ByStr20", itemsAddress),
+    param('traits', 'List (Pair String String)', [
+      adt('Pair', ['String', 'String'], ['Type', 'Consumable']),
+      adt('Pair', ['String', 'String'], ['Name', 'ElderberryJuice'])
+    ]),
+    param('cost', `List ${zomgStoreAddress}.CraftingCost`, [
+      hunyCost
+    ])
+  ], 0, false, false)
+  console.log('add elderberry juice', txAddElderberryJuice)
+
+  const txBatchCraftElderberry = await callContract(privateKey, zomgStoreContract, "BatchCraftItem", [
+    param('item_id_payment_items_pair_list', `List (Pair Uint128 (List ${zomgStoreAddress}.PaymentItem))`, [
+      adt('Pair', ['Uint128', `List ${zomgStoreAddress}.PaymentItem`], [
+        '1', [adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, '0'])]
+      ]),
+      adt('Pair', ['Uint128', `List ${zomgStoreAddress}.PaymentItem`], [
+        '1', [adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, '0'])]
+      ]),
+      adt('Pair', ['Uint128', `List ${zomgStoreAddress}.PaymentItem`], [
+        '1', [adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, '0'])]
+      ]),
+    ])
+  ], 0, false, false)
+
+  const params = [
+    {
+      itemId: 0,
+      paymentItem: [
+        {
+          constructor: `${zomgStoreAddress}.PaymentItem`,
+          argtypes: [],
+          arguments: [hunyAddress, "0"]
+        },
+        {
+          constructor: `${zomgStoreAddress}.PaymentItem`,
+          argtypes: [],
+          arguments: [berryAddress, "0"]
+        },
+      ]
+    },
+    {
+      itemId: 0,
+      paymentItem: [
+        {
+          constructor: `${zomgStoreAddress}.PaymentItem`,
+          argtypes: [],
+          arguments: [hunyAddress, "0"]
+        },
+        {
+          constructor: `${zomgStoreAddress}.PaymentItem`,
+          argtypes: [],
+          arguments: [berryAddress, "0"]
+        },
+      ]
+    },  
+  ]
+
+  const argList = params.map(param => {
+    return {
+      constructor: "Pair",
+      argtypes: ['Uint128', `List ${zomgStoreAddress}.PaymentItem`],
+      arguments: [param.itemId, param.paymentItem]
+    }
+  })
+
+  const args = [
+    {
+      vname: 'item_id_payment_items_pair_list',
+      type: `List (Pair Uint128 (List ${zomgStoreAddress}.PaymentItem))`,
+      value: argList
+    }
+  ]
+
+  console.log('batch craft elderberry juice', txBatchCraftElderberry)
+  expect(txBatchCraftElderberry.receipt.success).toEqual(true)
+})

@@ -17,6 +17,11 @@ const { deployZOMGStore } = require("./helper");
   const zomgStallContract = await deployZOMGStore();
   const zomgStallAddress = zomgStallContract.address.toLowerCase();
 
+  const txAddConsumable = await callContract(privateKey, zomgStallContract, "AddConsumable", [
+    param('name', 'String', 'Consumable')
+  ], 0, false, false)
+  console.log('add consumable type into consumable whitelist', txAddConsumable)
+
   for (const contract_address of [itemsAddress, hunyAddress, geodeAddress, berryAddress, scrapAddress]) {
     const contract = zilliqa.contracts.at(contract_address);
     const txAddMinter = await callContract(privateKey, contract, "AddMinter", [

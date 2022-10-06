@@ -29,12 +29,15 @@ let empty_traits = Nil {(Pair String String)}
 let trait_key_affinity = "Affinity"
 let trait_key_tier = "Tier"
 let trait_key_type = "Type"
+let trait_key_condition = "Condition"
 let trait_value_type = "Gem"
 let trait_value_tier_ss = "SS"
 let trait_value_tier_s = "S"
 let trait_value_tier_a = "A"
 let trait_value_tier_b = "B"
 let trait_value_tier_c = "C"
+let trait_value_condition_normal = "Normal"
+let trait_value_condition_cracked = "Cracked"
 
 (* Error events *)
 type Error =
@@ -81,10 +84,13 @@ type OngoingRefinement =
   | GemEnhancement of ByStr20 GemTier Uint256 (List Uint256) (* recipient, output tier, base gem id, material token ids *)
   | GeodeRefinement of ByStr20 Uint128 (* recipient, input quantity *)
 
+type Gem = 
+  | Gem of String GemTier Bool (* affinity, tier, condition (is_cracked) *)
+
 let trait_list_find = @list_find (Pair String String)
 let uint256_list_nth = @list_nth Uint256
 let uint256_list_length = @list_length Uint256
-let gems_list_length = @list_length (Pair String GemTier)
+let gems_list_length = @list_length Gem
 
 let one_msg =
   fun (msg : Message) =>
@@ -146,19 +152,22 @@ let tier_to_trait_value =
     end
 
 let map_gem_traits =
-  fun (output_gem_list : List (Pair String GemTier)) => 
-    let fold = @list_map (Pair String GemTier) (List (Pair String String)) in
-    let fn : Pair String GemTier -> List (Pair String String) = 
-      fun (output_gem: Pair String GemTier) =>
+  fun (output_gem_list : List (Gem)) => 
+    let fold = @list_map (Gem) (List (Pair String String)) in
+    let fn : Gem -> List (Pair String String) = 
+      fun (output_gem: Gem) =>
         match output_gem with
-        | Pair affinity tier =>
+        | Gem affinity tier is_cracked =>
           let trait_tier_value = tier_to_trait_value tier in
+          let trait_condition_value = match is_cracked with | True => trait_value_condition_cracked | False => trait_value_condition_normal end in
           let trait_type = Pair {String String} trait_key_type trait_value_type in
           let trait_affinity = Pair {String String} trait_key_affinity affinity in
           let trait_tier = Pair {String String} trait_key_tier trait_tier_value in
+          let trait_condition = Pair {String String} trait_key_condition trait_condition_value in
           let t1 = Cons {(Pair String String)} trait_type empty_traits in
           let t2 = Cons {(Pair String String)} trait_tier t1 in
-          Cons {(Pair String String)} trait_affinity t2
+          let t3 = Cons {(Pair String String)} trait_affinity t2 in
+          Cons {(Pair String String)} trait_condition t3
         end
     in
     fold fn output_gem_list
@@ -270,8 +279,8 @@ procedure IsPendingOwner(address: ByStr20)
   end
 end
 
-procedure VerifyAffinity(gem: Pair String GemTier)
-  affinity = match gem with | Pair a _ => a end;
+procedure VerifyAffinity(gem: Gem)
+  affinity = match gem with | Gem a _ _ => a end;
   current_gem_affinities <- gem_affinities;
   maybe_exist = affinity_exist affinity current_gem_affinities;
   match maybe_exist with
@@ -512,7 +521,7 @@ transition BeginGeodeRefinement(quantity: Uint128)
   AddRefinement refinement
 end
 
-transition ConcludeRefinement(refinement_id: Uint256, gems: List (Pair String GemTier))
+transition ConcludeRefinement(refinement_id: Uint256, gems: List (Gem))
   forall gems VerifyAffinity;
   maybe_ongoing_refinement <- refinements[refinement_id];
   match maybe_ongoing_refinement with
