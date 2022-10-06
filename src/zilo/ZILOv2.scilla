@@ -48,6 +48,7 @@ let one = Uint128 1
 let hundred_bps = Uint128 10000
 let none = None {ByStr20}
 let true = True
+let false = False
 
 (* converts a Uint128 to a Uint256 *)
 let grow : Uint128 -> Uint256 =
@@ -120,6 +121,20 @@ let getState : Bool -> BNum -> BNum -> BNum -> Uint128 -> Uint128 -> State =
         end
       end
     end
+
+let getShouldFinalize : State -> Bool -> Bool =
+  fun (state : State) =>
+  fun (finalized : Bool) =>
+    match finalized with
+    | True => false
+    | False =>
+      match state with
+      | Failed => true
+      | Completed => true
+      | _ => false
+      end
+    end
+    
 
 (* get discounted contribution given committed zil amount and discount bps *)
 let convertDiscountedContribution : Uint128 -> Uint128 -> Uint128 =
@@ -519,24 +534,26 @@ transition Claim()
     raised_amount <- total_contributions;
     inited <- initialized;
     state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
+
+    f <- finalized;
+    shouldFinalize = getShouldFinalize state f;
+    match shouldFinalize with
+    | True => 
+      (* auto complete if first claim *)
+      msg_to_self = {
+        _tag: "Complete"; _recipient: _this_address; _amount: zero
+      };
+      msgs = oneMsg msg_to_self;
+      send msgs
+    | False => (* no op *)
+    end;
+
     match state with
     | Failed =>
       (* refund all *)
 
       Refund zil_committed
     | Completed =>
-      f <- finalized;
-      match f with
-      | True => (* no op *)
-      | False =>
-        (* auto complete if first claim *)
-        msg_to_self = {
-          _tag: "Complete"; _recipient: _this_address; _amount: zero
-        };
-        msgs = oneMsg msg_to_self;
-        send msgs
-      end;
-
       above_target = builtin lt target_zil_amount raised_amount;
       match above_target with
       | False =>
