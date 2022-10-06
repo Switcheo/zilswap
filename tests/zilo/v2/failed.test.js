@@ -64,8 +64,10 @@ test('zilo should complete when zil is pass minimum', async () => {
 
   await nextBlock(5);
 
+  const contributeAmount = (23562000 - 1) + zilDecimals;
+
   await callContract(key, ziloContract, "Contribute", [], {
-    amount: "23562000" + zilDecimals,
+    amount: contributeAmount,
   });
 
   await nextBlock(10);
@@ -73,14 +75,17 @@ test('zilo should complete when zil is pass minimum', async () => {
   const tx = await callContract(key, ziloContract, "Claim");
 
   expect(tx.status).toEqual(2);
-  
-  const completedEvent = tx.receipt.event_logs.find(ev => ev._eventname === "Completed");
-  expect(completedEvent?._eventname).toEqual("Completed");
 
-  const distributedEvent = tx.receipt.event_logs.find(ev => ev._eventname === "Distributed");
-  const distributedAmount = distributedEvent?.params?.find(p => p.vname === "amount")?.value;
-  const correctDistributedAmount = ~~(138600000 * 23562000 / 117810000);
-  expect(distributedAmount).toEqual(correctDistributedAmount.toString() + tknDecimals);
+  const completedEvent = tx.receipt.event_logs.find(ev => ev._eventname === "Failed");
+  expect(completedEvent?._eventname).toEqual("Failed");
+
+  const refundedEvent = tx.receipt.event_logs.find(ev => ev._eventname === "Refunded");
+  const refundedAmount = refundedEvent?.params?.find(p => p.vname === "zil_amount")?.value;
+  expect(refundedAmount).toEqual(contributeAmount);
+
+  const returnTokenEvent = tx.receipt.event_logs.find(ev => ev._eventname === "TransferSuccess");
+  const returnTokenAmount = returnTokenEvent?.params?.find(p => p.vname === "amount")?.value;
+  expect(returnTokenAmount).toEqual((138600000 + 58905000) + tknDecimals);
 
   const finalizedSubState = await ziloContract.getSubState("finalized");
   expect(finalizedSubState).toEqual({
@@ -93,10 +98,4 @@ test('zilo should complete when zil is pass minimum', async () => {
 
   const zilBalanceSubState = await ziloContract.getSubState("_balance");
   expect(zilBalanceSubState?._balance).toEqual("0");
-});
-
-test('zilo should not allow double claim', async () => {
-  const tx = await callContract(key, ziloContract, "Claim");
-
-  expect(tx.status).toEqual(3);
 });
