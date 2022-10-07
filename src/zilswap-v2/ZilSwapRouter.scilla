@@ -10,8 +10,13 @@ let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let none = None {ByStr20}
 let two = Uint128 2
-let one_hundred_and_two = Uint32 112
-let q112 = builtin pow two one_hundred_and_two
+let one_hundred_and_twelve = Uint32 112
+let q112 = builtin pow two one_hundred_and_twelve
+let bps = Uint128 10000
+let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
+let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
+let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
+
 
 let one_msg =
   fun (msg : Message) =>
@@ -24,14 +29,9 @@ let two_msgs =
   let msgs_tmp = one_msg msg2 in
   Cons {Message} msg1 msgs_tmp
 
-(* Convert Uint128 to Uint256 *)
-let grow =
-  fun (var : Uint128) =>
-    let maybe_big = builtin to_uint256 var in
-    match maybe_big with
-    | Some big => big
-    | None => Uint256 0 (* should never happen *)
-    end
+let list_exists_bystr20 = @list_exists ByStr20
+let list_length_bystr20 = @list_length(ByStr20)
+let list_zip_poolspath_path = @list_zip ByStr20 (Pair ByStr20 ByStr20)
 
 (* @dev: (x * y) / z *)
 let frac =
@@ -48,8 +48,23 @@ let quote =
   fun (reserveB : Uint128) =>
     frac amountA reserveB reserveA
 
+(* Convert Uint128 to Uint256 *)
+let grow =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
 
-let list_exists_bystr20 = @list_exists ByStr20
+(* Convert Uint256 to Uint128 *)
+let reduce =
+  fun (var : Uint256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
+    end
 
 let list_or_empty =
   fun (maybe_list : Option (List ByStr20)) =>
@@ -78,6 +93,106 @@ let pool_exists =
     | False => False
     end
 
+    (* function getTradeInfo()
+        external
+        virtual
+        override
+        view
+        returns (
+            uint112 _reserve0,
+            uint112 _reserve1,
+            uint112 _vReserve0,
+            uint112 _vReserve1,
+            uint256 feeInPrecision
+        )
+    {
+        // gas saving to read reserve data
+        _reserve0 = reserve0;
+        _reserve1 = reserve1;
+        uint32 _ampBps = ampBps;
+        _vReserve0 = vReserve0;
+        _vReserve1 = vReserve1;
+        if (_ampBps == BPS) {
+            _vReserve0 = _reserve0;
+            _vReserve1 = _reserve1;
+        }
+        uint256 rFactorInPrecision = getRFactor(block.number);
+        feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), _ampBps);
+    } *)
+
+let calculate_r_factor = 
+  fun (short_ema : Uint256) =>
+  fun (long_ema : Uint256) =>
+    let zero_amount = Uint256 0 in 
+    let is_eq = builtin eq long_ema zero_amount in 
+    match is_eq with
+    | True => zero_amount
+    | False =>
+      let s_e = builtin mul short_ema precision in 
+      builtin div s_e long_ema
+    end
+
+let get_final_fee = 
+  fun (fee_in_precision : Uint256) =>
+  fun (amp_bps : Uint128) =>
+    let fee_in_precision_u128 = reduce fee_in_precision in
+    let four = Uint128 4 in
+    let ten = Uint128 10 in
+    let twenty = Uint128 20 in
+    let thirty = Uint128 30 in
+    let two_bps = Uint128 20000 in
+    let five_bps = Uint128 50000 in
+    let twenty_bps = Uint128 200000 in
+    let le_two_bps = uint128_le amp_bps two_bps in 
+    match le_two_bps with
+    | True => fee_in_precision_u128
+    | False =>
+      let le_five_bps = uint128_le amp_bps five_bps in
+      match le_five_bps with 
+      | True => 
+        frac fee_in_precision_u128 twenty thirty 
+      | False =>
+        let le_twenty_bps = uint128_le amp_bps twenty_bps in
+        match le_twenty_bps with
+        | True => 
+          frac fee_in_precision_u128 ten thirty
+        | False => 
+          frac fee_in_precision_u128 four thirty
+        end
+      end
+    end
+
+(* function getAmountOut(
+  uint256 amountIn,
+  uint256 reserveIn,
+  uint256 reserveOut,
+  uint256 vReserveIn,
+  uint256 vReserveOut,
+  uint256 feeInPrecision
+) internal pure returns (uint256 amountOut) {
+  require(amountIn > 0, "DMMLibrary: INSUFFICIENT_INPUT_AMOUNT");
+  require(reserveIn > 0 && reserveOut > 0, "DMMLibrary: INSUFFICIENT_LIQUIDITY");
+  uint256 amountInWithFee = amountIn.mul(PRECISION.sub(feeInPrecision)).div(PRECISION);
+  uint256 numerator = amountInWithFee.mul(vReserveOut);
+  uint256 denominator = vReserveIn.add(amountInWithFee);
+  amountOut = numerator.div(denominator);
+  require(reserveOut > amountOut, "DMMLibrary: INSUFFICIENT_LIQUIDITY");
+} *)
+
+let get_amount_out = 
+  fun (amount_in: Uint128) =>
+  fun (reserve_in: Uint128) =>
+  fun (reserve_out: Uint128) =>
+  fun (v_reserve_in: Uint128) =>
+  fun (v_reserve_out: Uint128) =>
+  fun (fee_in_precision: Uint128) =>
+    let precision_u128 = reduce precision in
+    let a = builtin sub precision_u128 fee_in_precision in
+    let amount_in_with_fee = frac amount_in a precision_u128 in
+    let numerator = builtin mul amount_in_with_fee v_reserve_out in
+    let denominator = builtin add v_reserve_in amount_in_with_fee in
+    builtin div numerator denominator
+
 (* Error events *)
 type Error =
 | CodeNotSelf
@@ -89,6 +204,7 @@ type Error =
 | CodeInsufficientLiquidity
 | CodeBlockExpired
 | CodeOutOfBoundVReserve
+| CodeInsufficientOutputAmt
 
 let make_error =
   fun (result : Error) =>
@@ -103,6 +219,7 @@ let make_error =
       | CodeInsufficientLiquidity     => Int32 -7
       | CodeBlockExpired              => Int32 -8
       | CodeOutOfBoundVReserve        => Int32 -9
+      | CodeInsufficientOutputAmt     => Int32 -10
       end
     in
     { _exception : "Error"; code : result_code }
@@ -227,6 +344,85 @@ procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, am
   msgs = two_msgs msg_to_token0 msg_to_token1;
   send msgs
 end
+
+(* function verifyPoolsPathSwap(address[] memory poolsPath, IERC20[] memory path) internal view {
+  require(path.length >= 2, "DMMRouter: INVALID_PATH");
+  require(poolsPath.length == path.length - 1, "DMMRouter: INVALID_POOLS_PATH");
+  for (uint256 i = 0; i < poolsPath.length; i++) {
+      verifyPoolAddress(path[i], path[i + 1], poolsPath[i]);
+  }
+} *)
+(* procedure VerifyPoolsPathSwap(merged_path: Pair ByStr20 (Pair ByStr20 ByStr20))
+  match merged_path with
+  | Pair pool token_pair =>
+    pool_ <- & pool as ByStr20 with contract 
+      field token0 : ByStr20 with contract
+        field total_supply : Uint128,
+        field balances: Map ByStr20 Uint128,
+        field allowances: Map ByStr20 (Map ByStr20 Uint128)
+      end,
+      field token1 : ByStr20 with contract
+        field total_supply : Uint128,
+        field balances: Map ByStr20 Uint128,
+        field allowances: Map ByStr20 (Map ByStr20 Uint128)
+      end
+    end;
+    match pool_ with
+    | Some pool_address =>
+      match token_pair with
+      | Pair init_token0 init_token1 =>
+        VerifyPoolAddress init_token0 init_token1 pool_address
+      end
+    | None =>
+      err = CodeInvalidSwapPath;
+      ThrowError err
+    end
+  end
+end *)
+
+(* function getAmountOut(
+  uint256 amountIn,
+  uint256 reserveIn,
+  uint256 reserveOut,
+  uint256 vReserveIn,
+  uint256 vReserveOut,
+  uint256 feeInPrecision
+) internal pure returns (uint256 amountOut) {
+  require(amountIn > 0, "DMMLibrary: INSUFFICIENT_INPUT_AMOUNT");
+  require(reserveIn > 0 && reserveOut > 0, "DMMLibrary: INSUFFICIENT_LIQUIDITY");
+  uint256 amountInWithFee = amountIn.mul(PRECISION.sub(feeInPrecision)).div(PRECISION);
+  uint256 numerator = amountInWithFee.mul(vReserveOut);
+  uint256 denominator = vReserveIn.add(amountInWithFee);
+  amountOut = numerator.div(denominator);
+  require(reserveOut > amountOut, "DMMLibrary: INSUFFICIENT_LIQUIDITY");
+} *)
+
+(* function getAmountsOut(
+  uint256 amountIn,
+  address[] memory poolsPath,
+  IERC20[] memory path
+) internal view returns (uint256[] memory amounts) {
+  amounts = new uint256[](path.length);
+  amounts[0] = amountIn;
+  for (uint256 i; i < path.length - 1; i++) {
+      (
+          uint256 reserveIn,
+          uint256 reserveOut,
+          uint256 vReserveIn,
+          uint256 vReserveOut,
+          uint256 feeInPrecision
+      ) = getTradeInfo(poolsPath[i], path[i], path[i + 1]);
+      amounts[i + 1] = getAmountOut(
+          amounts[i],
+          reserveIn,
+          reserveOut,
+          vReserveIn,
+          vReserveOut,
+          feeInPrecision
+      );
+  }
+} *)
+
 
 (*** Governance ***)
 
@@ -573,8 +769,90 @@ end
   _swap(amounts, poolsPath, path, to);
 } *)
 
-transition SwapExactTokensForTokens()
-  (* TODO *)
+(* Only 1 pool and 1 token pair *)
+(* pools_path: pool_address *)
+(* path: init_token0, init_token1 *)
+transition SwapExactTokensForTokens(
+  amount_in: Uint128,
+  amount_out_min: Uint128,
+  pool_path: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path: Pair ByStr20 ByStr20,
+  to: ByStr20,
+  deadline_block: BNum
+)
+  VerifyBlock deadline_block;
+  match path with 
+  | Pair token0 token1 =>
+    VerifyPoolAddress token0 token1 pool_path;
+    
+    (* getTradeInfo *)
+    r_in <- & pool_path.reserve0;
+    r_out <- & pool_path.reserve1;
+    amp <- & pool_path.amp_bps;
+    s_e <- & pool_path.short_ema;
+    l_e <- & pool_path.long_ema;
+    r_factor_in_precision = calculate_r_factor s_e l_e;
+    fee_in_precision = get_final_fee r_factor_in_precision amp;
+  
+    is_eq = builtin eq amp bps;
+    match is_eq with
+    | True =>
+      v_r_in = r_in;
+      v_r_out = r_out;
+      amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
+      amount = Pair {Uint128 Uint128} amount_in amount_out;
+      is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
+      match is_valid_amount_out_min with 
+      | True =>
+        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                        from: _sender; to: to; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
+        msgs = two_msgs msg_to_token0 msg_to_pool;
+        send msgs
+      | False =>
+        err = CodeInsufficientOutputAmt;
+        ThrowError err
+      end
+      
+    | False =>
+      v_r_in <- & pool_path.v_reserve0;
+      v_r_out <- & pool_path.v_reserve1;
+      amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
+      amount = Pair {Uint128 Uint128} amount_in amount_out;
+      is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
+      match is_valid_amount_out_min with 
+      | True =>
+        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                        from: _sender; to: to; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
+        msgs = two_msgs msg_to_token0 msg_to_pool;
+        send msgs
+      | False =>
+        err = CodeInsufficientOutputAmt;
+        ThrowError err
+      end
+    end
+  end
 end
 
 transition SwapTokensForExactTokens()
