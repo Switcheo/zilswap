@@ -395,6 +395,13 @@ procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, am
   send msgs
 end
 
+procedure Send(amount: Uint128, to_address : ByStr20)
+  msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
+  msgs = one_msg msg;
+  send msgs
+end
+
+
 (* function verifyPoolsPathSwap(address[] memory poolsPath, IERC20[] memory path) internal view {
   require(path.length >= 2, "DMMRouter: INVALID_PATH");
   require(poolsPath.length == path.length - 1, "DMMRouter: INVALID_POOLS_PATH");
@@ -692,8 +699,8 @@ transition AddLiquidity(
   | False =>
     Quote amountA_desired r_a r_b;
     amountB_optimal = quote amountA_desired r_a r_b;
-    is_sufficient_amountA = uint128_le amountB_optimal amountB_desired;
-    match is_sufficient_amountA with
+    is_sufficient_amountB = uint128_le amountB_optimal amountB_desired;
+    match is_sufficient_amountB with
     | True =>
       VerifyAmount amountB_optimal amountB_min;
       amountA = amountA_desired;
@@ -734,8 +741,152 @@ transition AddLiquidity(
   send msg
 end
 
-transition AddLiquidityZIL()
-  (* TODO *)
+(* function addLiquidityETH(
+  IERC20 token,
+  address pool,
+  uint256 amountTokenDesired,
+  uint256 amountTokenMin,
+  uint256 amountETHMin,
+  uint256[2] memory vReserveRatioBounds,
+  address to,
+  uint256 deadline
+)
+  public
+  override
+  payable
+  ensure(deadline)
+  returns (
+      uint256 amountToken,
+      uint256 amountETH,
+      uint256 liquidity
+  )
+{
+  verifyPoolAddress(token, weth, pool);
+  (amountToken, amountETH) = _addLiquidity(
+      token,
+      weth,
+      pool,
+      amountTokenDesired,
+      msg.value,
+      amountTokenMin,
+      amountETHMin,
+      vReserveRatioBounds
+  );
+  token.safeTransferFrom(msg.sender, pool, amountToken);
+  weth.deposit{value: amountETH}();
+  weth.safeTransfer(pool, amountETH);
+  liquidity = IDMMPool(pool).mint(to);
+  // refund dust eth, if any
+  if (msg.value > amountETH) {
+      TransferHelper.safeTransferETH(msg.sender, msg.value - amountETH);
+  }
+} *)
+
+(* transition should be called with _amount *)
+transition AddLiquidityZIL(
+  token : ByStr20,
+  wZIL : ByStr20,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128
+  end,
+  amount_token_desired: Uint128,
+  amount_wZIL_desired: Uint128,
+  amount_token_min: Uint128,
+  amount_wZIL_min: Uint128,
+  v_reserve_ratio_bounds: Pair Uint128 Uint128,
+  to: ByStr20,
+  deadline_block: BNum
+)
+  VerifyBlock deadline_block;
+  VerifyPoolAddress token wZIL pool; (* Order should not matter here *)
+
+  r_a <- & pool.reserve0;
+  r_b <- & pool.reserve1;
+  v_r_a <- & pool.v_reserve0;
+  v_r_b <- & pool.v_reserve1;
+
+  e = 
+    let r_a_ = builtin eq r_a zero_amount in 
+    let r_b_ = builtin eq r_b zero_amount in 
+    andb r_a_ r_b_;
+  match e with 
+  | True =>
+    amount_token = amount_token_desired;
+    amount_wZIL = amount_wZIL_desired;
+
+    (* Send ZIL to wZIL contract and mint wZIL *)
+    accept;
+    msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
+    msg = one_msg msg_to_wZIL;
+    send msg;
+    TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+
+  | False =>
+    Quote amount_token_desired r_a r_b;
+    amount_wZIL_optimal = quote amount_token_desired r_a r_b;
+
+    is_sufficient_wZIL = uint128_le amount_wZIL_optimal amount_wZIL_desired;
+    match is_sufficient_wZIL with
+    | True =>
+      VerifyAmount amount_wZIL_optimal amount_wZIL_min;
+      amount_token = amount_token_desired;
+      amount_wZIL = amount_wZIL_optimal;
+
+      accept;
+      msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
+      msg = one_msg msg_to_wZIL;
+      send msg;
+      refund = builtin sub _amount amount_wZIL;
+      Send refund _sender;
+      TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+      
+    | False =>
+      amount_token_optimal = quote amount_wZIL_desired r_b r_a;
+      VerifyAmount amount_token_desired amount_token_optimal;
+      VerifyAmount amount_wZIL_optimal amount_wZIL_min;
+      amount_token = amount_token_optimal;
+      amount_wZIL = amount_wZIL_desired;
+
+      accept;
+      msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
+      msg = one_msg msg_to_wZIL;
+      send msg;
+      TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+
+    end;
+    current_rate = frac v_r_b q112 v_r_a;
+    match v_reserve_ratio_bounds with
+    | Pair l_bound u_bound =>
+      is_out_of_bound_vreserve = 
+        let l_b = uint128_ge current_rate l_bound in
+        let u_b = uint128_le current_rate u_bound in
+        andb l_b u_b;
+      match is_out_of_bound_vreserve with 
+      | True =>
+      | False =>
+        err = CodeOutOfBoundVReserve;
+        ThrowError err
+      end
+    end
+  end;
+  
+  (* Calls Mint transition on Pool *)
+  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  msg = one_msg msg_to_pool;
+  send msg
 end
 
 (* // **** REMOVE LIQUIDITY ****
