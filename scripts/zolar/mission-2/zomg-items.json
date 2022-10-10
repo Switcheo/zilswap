@@ -1,7 +1,7 @@
 [
     {
         "traits": {
-            "Name": "SinCorp Virulent Quiver",
+            "Name": "W1-SinCorp Virulent Quiver",
             "Type": "Weapon",
             "Subtype": "Ranged",
             "Damage": "30"
@@ -22,7 +22,7 @@
     },
     {
         "traits": {
-            "Name": "Godhand Prime, Guardian of Zolar",
+            "Name": "W2-Godhand Prime, Guardian of Zolar",
             "Type": "Weapon",
             "Subtype": "Melee",
             "Damage": "30"
@@ -42,7 +42,7 @@
     },
     {
         "traits": {
-            "Name": "Awakened Sceptre of the Ursa Father",
+            "Name": "W3-Awakened Sceptre of the Ursa Father",
             "Type": "Weapon",
             "Subtype": "Magic",
             "Damage": "30"
@@ -62,7 +62,7 @@
     },
     {
         "traits": {
-            "Name": "Corrupted Vengeance, Executioner of the Exiled King",
+            "Name": "W4-Corrupted Vengeance, Executioner of the Exiled King",
             "Type": "Weapon",
             "Subtype": "Melee",
             "Damage": "35"
@@ -82,7 +82,7 @@
     },
     {
         "traits": {
-            "Name": "Caustic Impact Grenade",
+            "Name": "OH1-Caustic Impact Grenade",
             "Type": "Off-Hand",
             "Subtype": "Ranged",
             "Damage": "30"
@@ -102,7 +102,7 @@
     },
     {
         "traits": {
-            "Name": "SinCorp Dataspike Interface Model 2.0",
+            "Name": "OH2-SinCorp Dataspike Interface Model 2.0",
             "Type": "Off-Hand",
             "Subtype": "Ranged",
             "Damage": "30"
@@ -122,7 +122,7 @@
     },
     {
         "traits": {
-            "Name": "Other-worldly Fist of Restless Souls",
+            "Name": "OH3-Other-worldly Fist of Restless Souls",
             "Type": "Off-Hand",
             "Subtype": "Magic",
             "Damage": "30"
@@ -147,7 +147,7 @@
     },
     {
         "traits": {
-            "Name": "Mystic Barrier of Protection",
+            "Name": "OH4-Mystic Barrier of Protection",
             "Type": "Off-Hand",
             "Subtype": "Magic",
             "Damage": "20"
@@ -184,7 +184,7 @@
     },
     {
         "traits": {
-            "Name": "Enchanted Gutripper, Sharpened Fang of the Godless",
+            "Name": "OH5-Enchanted Gutripper, Sharpened Fang of the Godless",
             "Type": "Off-Hand",
             "Subtype": "Melee",
             "Damage": "35"
@@ -204,7 +204,7 @@
     },
     {
         "traits": {
-            "Name": "Cursed Bloodseeker, Unholy Shiv of the Undying",
+            "Name": "OH6-Cursed Bloodseeker, Unholy Shiv of the Undying",
             "Type": "Off-Hand",
             "Subtype": "Melee",
             "Damage": "35"
@@ -224,7 +224,7 @@
     },
     {
         "traits": {
-            "Name": "Godslayer's Hand of Death",
+            "Name": "OH7-Godslayer's Hand of Death",
             "Type": "Off-Hand",
             "Subtype": "Magic",
             "Damage": "50"
@@ -397,7 +397,7 @@
     },
     {
         "traits": {
-            "Name": "Radioactive Mobius Gem Holster",
+            "Name": "A1-Radioactive Mobius Gem Holster",
             "Type": "Armor"
         },
         "cost": [
@@ -415,7 +415,7 @@
     },
     {
         "traits": {
-            "Name": "Illuminated Matrixx Starfleet Jacket",
+            "Name": "A2-Illuminated Matrixx Starfleet Jacket",
             "Type": "Armor"
         },
         "cost": [
@@ -433,7 +433,7 @@
     },
     {
         "traits": {
-            "Name": "Astral's Divine Robe of Radiance",
+            "Name": "A3-Astral's Divine Robe of Radiance",
             "Type": "Armor"
         },
         "cost": [
@@ -451,7 +451,7 @@
     },
     {
         "traits": {
-            "Name": "Decorated Grandmaster Architect's Regalia",
+            "Name": "A4-Decorated Grandmaster Architect's Regalia",
             "Type": "Armor"
         },
         "cost": [
@@ -469,7 +469,7 @@
     },
     {
         "traits": {
-            "Name": "Solaire Blessed Seraphic Garments",
+            "Name": "A5-Solaire Blessed Seraphic Garments",
             "Type": "Armor"
         },
         "cost": [
@@ -487,7 +487,7 @@
     },
     {
         "traits": {
-            "Name": "Evolved Godslayer Mechasuit",
+            "Name": "A6-Evolved Godslayer Mechasuit",
             "Type": "Armor"
         },
         "cost": [
@@ -505,7 +505,7 @@
     },
     {
         "traits": {
-            "Name": "All-Weather Multi-Metaversal NVD",
+            "Name": "H1-Eyes of Elysium",
             "Type": "Headgear"
         },
         "cost": [
@@ -523,7 +523,7 @@
     },
     {
         "traits": {
-            "Name": "Kyanite Bio Warfare Mask",
+            "Name": "H2-Mask of Dark Damnation",
             "Type": "Headgear"
         },
         "cost": [
@@ -541,7 +541,7 @@
     },
     {
         "traits": {
-            "Name": "Dark Wyvern Headpiece",
+            "Name": "H3-Mythril Crown of Divine Misery",
             "Type": "Headgear"
         },
         "cost": [

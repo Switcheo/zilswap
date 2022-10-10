@@ -70,7 +70,8 @@ const zomgItems = require('./zomg-items.json')
 
   console.log('sending batch transactions...')
   const batchResult = await zilliqa.blockchain.createBatchTransaction(signedTxList);
-  if (!batchResult) console.log('error adding items to ZOMG Store')
+  if (!batchResult) console.log(`error adding items to ZOMG Store: ${zomgAddress}`)
+  else console.log(`successfuly added items to ZOMG Store: ${zomgAddress}`)
 
   for (const result of batchResult) {
     if (!result?.receipt?.success) console.log('failed to add item: \n', result)
