@@ -93,32 +93,32 @@ let pool_exists =
     | False => False
     end
 
-    (* function getTradeInfo()
-        external
-        virtual
-        override
-        view
-        returns (
-            uint112 _reserve0,
-            uint112 _reserve1,
-            uint112 _vReserve0,
-            uint112 _vReserve1,
-            uint256 feeInPrecision
-        )
-    {
-        // gas saving to read reserve data
-        _reserve0 = reserve0;
-        _reserve1 = reserve1;
-        uint32 _ampBps = ampBps;
-        _vReserve0 = vReserve0;
-        _vReserve1 = vReserve1;
-        if (_ampBps == BPS) {
-            _vReserve0 = _reserve0;
-            _vReserve1 = _reserve1;
-        }
-        uint256 rFactorInPrecision = getRFactor(block.number);
-        feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), _ampBps);
-    } *)
+(* function getTradeInfo()
+    external
+    virtual
+    override
+    view
+    returns (
+        uint112 _reserve0,
+        uint112 _reserve1,
+        uint112 _vReserve0,
+        uint112 _vReserve1,
+        uint256 feeInPrecision
+    )
+{
+    // gas saving to read reserve data
+    _reserve0 = reserve0;
+    _reserve1 = reserve1;
+    uint32 _ampBps = ampBps;
+    _vReserve0 = vReserve0;
+    _vReserve1 = vReserve1;
+    if (_ampBps == BPS) {
+        _vReserve0 = _reserve0;
+        _vReserve1 = _reserve1;
+    }
+    uint256 rFactorInPrecision = getRFactor(block.number);
+    feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), _ampBps);
+} *)
 
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
@@ -193,6 +193,52 @@ let get_amount_out =
     let denominator = builtin add v_reserve_in amount_in_with_fee in
     builtin div numerator denominator
 
+
+(* // given an output amount of an asset and pool reserves, returns a required input amount of the other asset
+function getAmountIn(
+    uint256 amountOut,
+    uint256 reserveIn,
+    uint256 reserveOut,
+    uint256 vReserveIn,
+    uint256 vReserveOut,
+    uint256 feeInPrecision
+) internal pure returns (uint256 amountIn) {
+    require(amountOut > 0, "DMMLibrary: INSUFFICIENT_OUTPUT_AMOUNT");
+    require(reserveIn > 0 && reserveOut > amountOut, "DMMLibrary: INSUFFICIENT_LIQUIDITY");
+    uint256 numerator = vReserveIn.mul(amountOut);
+    uint256 denominator = vReserveOut.sub(amountOut);
+    amountIn = numerator.div(denominator).add(1);
+    // amountIn = floor(amountIN *PRECISION / (PRECISION - feeInPrecision));
+    numerator = amountIn.mul(PRECISION);
+    denominator = PRECISION.sub(feeInPrecision);
+    amountIn = numerator.add(denominator - 1).div(denominator);
+} *)
+
+
+let get_amount_in = 
+  fun (amount_out: Uint128) =>
+  fun (reserve_in: Uint128) =>
+  fun (reserve_out: Uint128) =>
+  fun (v_reserve_in: Uint128) =>
+  fun (v_reserve_out: Uint128) =>
+  fun (fee_in_precision: Uint128) =>
+    let one = Uint128 1 in
+    let precision_u128 = reduce precision in
+    let n = builtin mul v_reserve_in amount_out in
+    let d = builtin sub v_reserve_out amount_out in
+    let a_i = builtin div n d in
+    let amount_in = builtin add a_i one in
+    let numerator = builtin mul amount_in precision_u128 in
+    let denominator = builtin sub precision_u128 fee_in_precision in
+    let d_minus_one = builtin sub numerator one in
+    let n_a = builtin add numerator d_minus_one in
+    builtin div n_a denominator
+
+
+
+
+
+
 (* Error events *)
 type Error =
 | CodeNotSelf
@@ -204,7 +250,9 @@ type Error =
 | CodeInsufficientLiquidity
 | CodeBlockExpired
 | CodeOutOfBoundVReserve
+| CodeInsufficientInputAmt
 | CodeInsufficientOutputAmt
+| CodeExcessiveInputAmt
 
 let make_error =
   fun (result : Error) =>
@@ -219,7 +267,9 @@ let make_error =
       | CodeInsufficientLiquidity     => Int32 -7
       | CodeBlockExpired              => Int32 -8
       | CodeOutOfBoundVReserve        => Int32 -9
-      | CodeInsufficientOutputAmt     => Int32 -10
+      | CodeInsufficientInputAmt      => Int32 -10
+      | CodeInsufficientOutputAmt     => Int32 -11
+      | CodeExcessiveInputAmt         => Int32 -12
       end
     in
     { _exception : "Error"; code : result_code }
@@ -799,6 +849,14 @@ transition SwapExactTokensForTokens(
   deadline_block: BNum
 )
   VerifyBlock deadline_block;
+  is_valid_amount_in = uint128_gt amount_in zero_amount;
+  match is_valid_amount_in with
+  | True =>
+  | False =>
+    err = CodeInsufficientInputAmt;
+    ThrowError err
+  end;
+
   match path with 
   | Pair token0 token1 =>
     VerifyPoolAddress token0 token1 pool_path;
@@ -811,6 +869,17 @@ transition SwapExactTokensForTokens(
     l_e <- & pool_path.long_ema;
     r_factor_in_precision = calculate_r_factor s_e l_e;
     fee_in_precision = get_final_fee r_factor_in_precision amp;
+
+    is_sufficient_liquidity = 
+      let a = uint128_gt r_in zero_amount in
+      let b = uint128_gt r_out zero_amount in
+      andb a b;
+    match is_sufficient_liquidity with
+    | True =>
+    | False =>
+      err = CodeInsufficientLiquidity;
+      ThrowError err
+    end;
   
     is_eq = builtin eq amp bps;
     match is_eq with
@@ -838,8 +907,8 @@ transition SwapExactTokensForTokens(
       v_r_out <- & pool_path.v_reserve1;
       amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
       amount = Pair {Uint128 Uint128} amount_in amount_out;
-      is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
-      match is_valid_amount_out_min with 
+      is_valid_amount_out = uint128_gt amount_out amount_out_min;
+      match is_valid_amount_out with 
       | True =>
         msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
                         from: _sender; to: to; amount: amount_in};
@@ -855,8 +924,120 @@ transition SwapExactTokensForTokens(
   end
 end
 
-transition SwapTokensForExactTokens()
-  (* TODO *)
+(* function swapTokensForExactTokens(
+  uint256 amountOut,
+  uint256 amountInMax,
+  address[] memory poolsPath,
+  IERC20[] memory path,
+  address to,
+  uint256 deadline
+) public override ensure(deadline) returns (uint256[] memory amounts) {
+  verifyPoolsPathSwap(poolsPath, path);
+  amounts = DMMLibrary.getAmountsIn(amountOut, poolsPath, path);
+  require(amounts[0] <= amountInMax, "DMMRouter: EXCESSIVE_INPUT_AMOUNT");
+  path[0].safeTransferFrom(msg.sender, poolsPath[0], amounts[0]);
+  _swap(amounts, poolsPath, path, to);
+} *)
+transition SwapTokensForExactTokens(
+  amount_out: Uint128,
+  amount_in_max: Uint128,
+  pool_path: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path: Pair ByStr20 ByStr20,
+  to: ByStr20,
+  deadline_block: BNum
+)
+  VerifyBlock deadline_block;
+  is_valid_amount_out = uint128_gt amount_out zero_amount;
+  match is_valid_amount_out with
+  | True =>
+  | False =>
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  match path with 
+  | Pair token0 token1 =>
+    VerifyPoolAddress token0 token1 pool_path;
+        
+    (* getTradeInfo *)
+    r_in <- & pool_path.reserve0;
+    r_out <- & pool_path.reserve1;
+    amp <- & pool_path.amp_bps;
+    s_e <- & pool_path.short_ema;
+    l_e <- & pool_path.long_ema;
+    r_factor_in_precision = calculate_r_factor s_e l_e;
+    fee_in_precision = get_final_fee r_factor_in_precision amp;
+
+    is_sufficient_liquidity = 
+      let a = uint128_gt r_in zero_amount in
+      let b = uint128_gt r_out amount_out in
+      andb a b;
+    match is_sufficient_liquidity with
+    | True =>
+    | False =>
+      err = CodeInsufficientLiquidity;
+      ThrowError err
+    end;
+
+    is_eq = builtin eq amp bps;
+    match is_eq with
+    | True =>
+      v_r_in = r_in;
+      v_r_out = r_out;
+      amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+      amount = Pair {Uint128 Uint128} amount_in amount_out;
+      is_valid_amount_in = uint128_le amount_in amount_in_max;
+      match is_valid_amount_in with 
+      | True =>
+        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                        from: _sender; to: to; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
+        msgs = two_msgs msg_to_token0 msg_to_pool;
+        send msgs
+      | False =>
+        err = CodeExcessiveInputAmt;
+        ThrowError err
+      end
+      
+    | False =>
+      v_r_in <- & pool_path.v_reserve0;
+      v_r_out <- & pool_path.v_reserve1;
+      amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+      amount = Pair {Uint128 Uint128} amount_in amount_out;
+      is_valid_amount_in = uint128_le amount_in amount_in_max;
+      match is_valid_amount_in with 
+      | True =>
+        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                        from: _sender; to: to; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
+        msgs = two_msgs msg_to_token0 msg_to_pool;
+        send msgs
+      | False =>
+        err = CodeExcessiveInputAmt;
+        ThrowError err
+      end
+    end
+  end
 end
 
 transition SwapExactZILForTokens()
