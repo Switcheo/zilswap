@@ -1,0 +1,615 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+library Zilo
+
+(* Error events *)
+type Error =
+| CodeAmountNotPositive
+| CodeAmountTooLarge
+| CodeAmountIncorrect
+| CodeContributionNotFound
+| CodeCannotContributeNow
+| CodeCannotClaimNow
+| CodeCannotCompleteNow
+| CodeInvalidTransfer
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeAmountNotPositive     => Int32 -1
+      | CodeAmountTooLarge        => Int32 -2
+      | CodeAmountIncorrect       => Int32 -3
+      | CodeContributionNotFound  => Int32 -4
+      | CodeCannotContributeNow   => Int32 -5
+      | CodeCannotClaimNow        => Int32 -6
+      | CodeCannotCompleteNow     => Int32 -7
+      | CodeInvalidTransfer       => Int32 -8
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(* ZILO ADTs *)
+type State =
+| Uninitialized (* awaiting tokens *)
+| Pending (* initialized but waiting for start block *)
+| Active (* can send zil *)
+| Failed (* refund all *)
+| Completed (* can claim *)
+
+(* Constants *)
+let zero = Uint128 0
+let one = Uint128 1
+let hundred_bps = Uint128 10000
+let none = None {ByStr20}
+let true = True
+let false = False
+
+(* converts a Uint128 to a Uint256 *)
+let grow : Uint128 -> Uint256 =
+  fun (var : Uint128) =>
+    let maybe_big = builtin to_uint256 var in
+    match maybe_big with
+    | Some big => big
+    | None => Uint256 0 (* should never happen *)
+    end
+
+(* unwraps a Uint128 from a Option Uint128, returning 0 if Option resolves to None. *)
+let getSomeInt : Option Uint128 -> Uint128 =
+  fun (x : Option Uint128) =>
+  match x with
+  | Some a => a
+  | None => zero
+  end
+
+(* returns the minimum of x and y *)
+let min : Uint128 -> Uint128 -> Uint128 =
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+  let x_lt_y = builtin lt x y in
+  match x_lt_y with
+  | True => x
+  | False => y
+  end
+
+(* computes the amount of the fraction x / d that is in y *)
+let frac : Uint128 -> Uint128 -> Uint128 -> Option Uint128 =
+  fun (d : Uint128) =>
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+    let big_x = grow x in
+    let big_y = grow y in
+    let big_d = grow d in
+    let d_times_y = builtin mul big_d big_y in
+    let d_times_y_over_x = builtin div d_times_y big_x in
+    builtin to_uint128 d_times_y_over_x
+
+(* computes the offering state *)
+let getState : Bool -> BNum -> BNum -> BNum -> Uint128 -> Uint128 -> State =
+  fun (initialized : Bool) =>
+  fun (start_block : BNum) =>
+  fun (end_block : BNum) =>
+  fun (current_block : BNum) =>
+  fun (min_amount : Uint128) =>
+  fun (raised_amount : Uint128) =>
+    match initialized with
+    | False =>
+      Uninitialized
+    | True =>
+      let before = builtin blt current_block start_block in
+      match before with
+      | True =>
+        Pending
+      | False =>
+        let ended = builtin blt end_block current_block in
+        match ended with
+        | False =>
+          Active
+        | True =>
+          let failed = builtin lt raised_amount min_amount in
+          match failed with
+          | True =>
+            Failed
+          | False =>
+            Completed
+          end
+        end
+      end
+    end
+
+let getShouldFinalize : State -> Bool -> Bool =
+  fun (state : State) =>
+  fun (finalized : Bool) =>
+    match finalized with
+    | True => false
+    | False =>
+      match state with
+      | Failed => true
+      | Completed => true
+      | _ => false
+      end
+    end
+    
+
+(* get discounted contribution given committed zil amount and discount bps *)
+let convertDiscountedContribution : Uint128 -> Uint128 -> Uint128 =
+  fun (zil_amount : Uint128) =>
+  fun (discount_bps : Uint128) =>
+    (* zil times 1 divide by 0.95 *)
+    let rate = builtin sub hundred_bps discount_bps in
+    let inter = builtin mul zil_amount hundred_bps in
+    builtin div inter rate
+
+(* get contribution accounting for discount if eligibility *)
+let getContributionWithDiscount : ByStr20 -> Uint128 -> Option Bool -> Uint128 -> Uint128 =
+  fun (contributor : ByStr20) =>
+  fun (zil_amount : Uint128) =>
+  fun (maybe_whitelisted : Option Bool) =>
+  fun (discount_bps : Uint128) =>
+    let is_whitelisted = 
+      match maybe_whitelisted with
+      | Some whitelisted => whitelisted
+      | None => False
+      end 
+    in
+    match is_whitelisted with
+    | False => zil_amount
+    | True => convertDiscountedContribution zil_amount discount_bps
+    end
+
+let listToMap : List ByStr20 -> Map ByStr20 Bool =
+  fun (list : List ByStr20) =>
+    let fold = @list_foldl ByStr20 Map ByStr20 Bool in
+    let init = Emp ByStr20 Bool in
+    let iter = 
+      fun (map: Map ByStr20 Bool) =>
+      fun (item: ByStr20) =>
+      builtin put map item true
+    in
+    fold iter init list
+
+(* returns True if all items in the list is True *)
+let allTrue : List Bool -> Bool =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+let oneMsg : Message -> List Message =
+  fun (msg : Message) =>
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let twoMsg : Message -> Message -> List Message =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+    let msgs_tmp = oneMsg msg2 in
+    Cons {Message} msg1 msgs_tmp
+
+let threeMsg : Message -> Message -> Message -> List Message =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+    let msgs_tmp = twoMsg msg2 msg3 in
+    Cons {Message} msg1 msgs_tmp
+
+let sixMsgs : Message -> Message -> Message -> Message -> Message -> Message -> List Message =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  fun (msg4 : Message) =>
+  fun (msg5 : Message) =>
+  fun (msg6 : Message) =>
+    let msgs_tmp1 = threeMsg msg1 msg2 msg3 in
+    let msgs_tmp2 = threeMsg msg4 msg5 msg6 in
+    let append = @list_append Message in
+    append msgs_tmp1 msgs_tmp2
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract Zilo
+(
+  token_address: ByStr20,
+  token_amount: Uint128,
+  target_zil_amount: Uint128,
+  minimum_zil_amount: Uint128,
+  liquidity_zil_amount: Uint128,
+  liquidity_token_amount: Uint128,
+  treasury_zil_amount: Uint128,
+  receiver_address: ByStr20,
+  liquidity_address: ByStr20,
+  treasury_address: ByStr20,
+  start_block: BNum,
+  end_block: BNum,
+  discount_bps: Uint128,
+  disc_whitelist: List ByStr20
+)
+
+with
+  let a = builtin lt zero token_amount in
+  let b = builtin lt zero target_zil_amount in
+  let c = builtin lt liquidity_zil_amount target_zil_amount in
+  let d = builtin blt _creation_block start_block in
+  let e = builtin blt start_block end_block in
+  let f = builtin lt discount_bps hundred_bps in
+
+  let nil = Nil {Bool} in
+  let l1 = Cons {Bool} a nil in
+  let l2 = Cons {Bool} b l1 in
+  let l3 = Cons {Bool} c l2 in
+  let l4 = Cons {Bool} d l3 in
+  let l5 = Cons {Bool} e l4 in
+    allTrue l5
+=>
+
+(* Mutable fields *)
+field initialized : Bool = False
+field finalized : Bool = False (* funds paid out to receiver / lp *)
+field discount_whitelist : Map ByStr20 Bool = listToMap disc_whitelist (* $ZWAP holders whitelist for discount *)
+
+(* zil balances contributed by users *)
+field balances : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field total_balance : Uint128 = zero
+
+(* user contributions after discount *)
+field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+field total_contributions : Uint128 = zero
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+(* @dev: Throws the given error. *)
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+(* @maybe_balance: Asserts that t hen given amount is not zero. Throws otherwise. *)
+procedure AssertNotZero(amount : Uint128)
+  is_zero = builtin eq amount zero;
+  match is_zero with
+  | False =>
+  | True =>
+    err = CodeAmountNotPositive;
+    ThrowError err
+  end
+end
+
+(* @dev: Distributes the token amount by contribution ratio to the sender based on the given zil amount.
+  The given amount MUST be less than target_zil_amount, and should be pro-rated downwards first, if it is larger. *)
+procedure Distribute(contribution : Uint128)
+  amount = let x = frac contribution target_zil_amount token_amount in
+    getSomeInt x; (* safe because frac should not overflow as contribution is always <= target_zil_amount due to pro-rating *)
+
+  msg_to_token =  {
+    _tag: "Transfer"; _recipient: token_address; _amount: zero;
+    to: _sender; amount: amount
+  };
+
+  msg_to_sender = {
+    _tag: "Distribute"; _recipient: _sender; _amount: zero;
+    amount: amount
+  };
+
+  msgs = twoMsg msg_to_token msg_to_sender;
+  send msgs;
+
+  e = { _eventname: "Distributed"; amount: amount; to: _sender };
+  event e
+end
+
+(* @dev: Refunds the given zil amount to the sender. *)
+procedure Refund(amount : Uint128)
+  (* refund zil *)
+  msg_to_sender = { _tag: "AddFunds"; _recipient: _sender; _amount: amount };
+
+  (* notify sender *)
+  msg2_to_sender = {
+    _tag: "Refund"; _recipient: _sender; _amount: zero;
+    zil_amount: amount
+  };
+
+  msgs = twoMsg msg_to_sender msg2_to_sender;
+  send msgs;
+
+  e = { _eventname: "Refunded"; zil_amount: amount; to: _sender };
+  event e
+end
+
+(* @dev: Validates that the given sender and amount matches the expected token contract and amount, then initializes the contract state.
+  Reverts the txn otherwise to prevent accidental transfers. *)
+procedure ValidateTransferAndInitialize(sender : ByStr20, amount : Uint128)
+  is_token_contract = builtin eq token_address sender;
+  match is_token_contract with
+  | False =>
+    err = CodeInvalidTransfer; (* reject all other direct token transfers *)
+    ThrowError err
+  | True =>
+    inited <- initialized;
+    match inited with
+    | True =>
+      err = CodeInvalidTransfer; (* already initialized, so just reject *)
+      ThrowError err
+    | False =>
+      required_amount = builtin add token_amount liquidity_token_amount;
+      is_correct_amount = builtin eq required_amount amount;
+      match is_correct_amount with
+      | False =>
+        err = CodeAmountIncorrect;
+        ThrowError err
+      | True =>
+        initialized := true
+      end
+    end
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition Contribute()
+  current_block <- & BLOCKNUMBER;
+  raised_amount <- total_contributions;
+  current_total_balance <- total_balance;
+  inited <- initialized;
+  state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
+  match state with
+  | Active =>
+    AssertNotZero _amount;
+
+    (* update contribution an;d total raise amt  *)
+    maybe_contributed <- contributions[_sender];
+    contributed = getSomeInt maybe_contributed;
+    
+    maybe_whitelisted <- discount_whitelist[_sender];
+    this_contribution = getContributionWithDiscount _sender _amount maybe_whitelisted discount_bps;
+    new_contribution = builtin add contributed this_contribution;
+
+    (* to prevent edge cases with calculated pro-rated contribution,
+      max contrib per account = target_zil_amt *)
+    exceeds_cap = builtin lt target_zil_amount new_contribution;
+    match exceeds_cap with
+    | False =>
+      (* update contribution shares *)
+      contributions[_sender] := new_contribution;
+      new_total_contributions = builtin add raised_amount this_contribution;
+      total_contributions := new_total_contributions;
+
+      (* update contributed zil amounts *)
+      maybe_balance <- balances[_sender];
+      balance = getSomeInt maybe_balance;
+      new_user_balance = builtin add balance _amount;
+      balances[_sender] := new_user_balance;
+      new_total_balance = builtin add current_total_balance _amount;
+      total_balance := new_total_balance;
+
+      (* transfer (all) zil *)
+      accept;
+
+      (* notify sender *)
+      msg_to_sender = {
+        _tag: "Contribute"; _recipient: _sender; _amount: zero;
+        zil_amount: _amount; contribution: this_contribution
+      };
+
+      msgs = oneMsg msg_to_sender;
+      send msgs;
+
+      e = {_eventname: "Contributed"; zil_amount: _amount; contribution: this_contribution };
+      event e
+    | True =>
+      err = CodeAmountTooLarge;
+      ThrowError err
+    end
+  | _ =>
+    err = CodeCannotContributeNow;
+    ThrowError err
+  end
+end
+
+(* @dev: Completes an offering. Not required to begin claiming / refunding. Anyone can call.
+  If raise amt is more than or equal to the minimum threshold:
+    - transfers the raised amount to the token owner and lp address by on a pro-rata basis,
+      up to the maximum given by the offering target and
+    - transfers 15% of raised amount to treasury address
+  If raise amt is less than then minimum threshold,
+    - refunds the tkn distribution amt to the token owner.
+*)
+transition Complete()
+  (* get state *)
+  current_block <- & BLOCKNUMBER;
+  current_total_contributions <- total_contributions;
+  current_total_balance <- total_contributions;
+  done <- finalized;
+  finalized := true;
+  match done with
+  | False =>
+    inited <- initialized;
+    total_contributions_capped = min current_total_contributions target_zil_amount; (* max contributions accepted *)
+    raised_amount_capped = let x = frac current_total_balance current_total_contributions total_contributions_capped in (* zil amount to be distributed *)
+      getSomeInt x;
+    state = getState inited start_block end_block current_block minimum_zil_amount current_total_contributions;
+    match state with
+    | Failed =>
+      (* refund all tkns *)
+      amount = builtin add token_amount liquidity_token_amount;
+      msg_to_token =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: receiver_address; amount: amount
+      };
+      msgs = oneMsg msg_to_token;
+      send msgs;
+
+      e = { _eventname: "Failed"; raised_amount: current_total_contributions; total_zil_received: current_total_balance };
+      event e
+    | Completed =>
+      (* compute lp zil amt *)
+      lp_amount = let x = frac liquidity_zil_amount target_zil_amount raised_amount_capped  in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_lp_for_zils = { _tag: "AddFunds"; _recipient: liquidity_address; _amount: lp_amount };
+
+      (* compute lp tkn amt *)
+      lp_tkn_amount = let x = frac liquidity_token_amount target_zil_amount raised_amount_capped  in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_token_for_lp =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: liquidity_address; amount: lp_tkn_amount
+      };
+
+      (* tell the lp how much liquidity to add *)
+      msg_to_lp = {
+        _tag: "AddLiquidity"; _recipient: liquidity_address; _amount: zero;
+        zil_amount: lp_amount; token_amount: lp_tkn_amount
+      };
+
+      (* compute treasury amt *)
+      treasury_amount = let x = frac treasury_zil_amount target_zil_amount raised_amount_capped in
+        getSomeInt x; (* safe because raised_amount_capped <= target_zil_amount *)
+      msg_to_treasury = { _tag: "AddFunds"; _recipient: treasury_address; _amount: treasury_amount };
+
+      (* compute project amt *)
+      raised_less_lp_amount = builtin sub raised_amount_capped lp_amount;
+      project_amount = builtin sub raised_less_lp_amount treasury_amount;
+      msg_to_project = { _tag: "AddFunds"; _recipient: receiver_address; _amount: project_amount };
+
+      (* compute tkn refund amt *)
+      refund_amount =
+        let x = frac total_contributions_capped target_zil_amount token_amount in
+        let distr_trunc = getSomeInt x in (* safe because raised_amount_capped <= target_zil_amount *)
+        let distr = builtin add distr_trunc one in (* round up as value is truncated *)
+        let distr_capped = min distr token_amount in (* cap at token_amount *)
+        let refund_main = builtin sub token_amount distr_capped in (* this is the unused tkns meant for contributors if target is not reached *)
+        let refund_lp = builtin sub liquidity_token_amount lp_tkn_amount in (* this is the tkns that is meant to be for LP, but no longer required as the pool is smaller *)
+        builtin add refund_main refund_lp;
+      msg_to_token_for_refund =  {
+        _tag: "Transfer"; _recipient: token_address; _amount: zero;
+        to: receiver_address; amount: refund_amount
+      };
+
+      (* send and burn! *)
+      msgs = sixMsgs msg_to_lp_for_zils msg_to_token_for_lp msg_to_lp msg_to_project msg_to_treasury msg_to_token_for_refund;
+      send msgs;
+
+      e = {
+        _eventname: "Completed"; raised_amount: current_total_contributions; (* ignores the cap *)
+        total_zil_received: current_total_balance;
+        refund_amount: refund_amount
+      };
+      event e
+    | _ =>
+      err = CodeCannotCompleteNow;
+      ThrowError err
+    end
+  | True =>
+    err = CodeCannotCompleteNow;
+    ThrowError err
+  end
+end
+
+(* @dev: Transfers the allocated amount of tokens and refunds unused contribution
+  to the sender if the offering is Completed. If the offering is Failed, all contribution
+  is refunded. Reverts if the offering is in any other state. *)
+transition Claim()
+  (* get zil committed by user *)
+  maybe_balance <- balances[_sender];
+  zil_committed = getSomeInt maybe_balance;
+
+  (* check contribution *)
+  maybe_contributed <- contributions[_sender];
+  match maybe_contributed with
+  | None =>
+    err = CodeContributionNotFound;
+    ThrowError err
+  | Some contribution =>
+    delete contributions[_sender];
+    delete balances[_sender];
+    (* check offering state *)
+    current_block <- & BLOCKNUMBER;
+    raised_amount <- total_contributions;
+    inited <- initialized;
+    state = getState inited start_block end_block current_block minimum_zil_amount raised_amount;
+
+    f <- finalized;
+    shouldFinalize = getShouldFinalize state f;
+    match shouldFinalize with
+    | True => 
+      (* auto complete if first claim *)
+      msg_to_self = {
+        _tag: "Complete"; _recipient: _this_address; _amount: zero
+      };
+      msgs = oneMsg msg_to_self;
+      send msgs
+    | False => (* no op *)
+    end;
+
+    match state with
+    | Failed =>
+      (* refund all *)
+
+      Refund zil_committed
+    | Completed =>
+      above_target = builtin lt target_zil_amount raised_amount;
+      match above_target with
+      | False =>
+        (* if not above target cap, use amt directly *)
+        Distribute contribution
+      | True =>
+        (* if above target cap, find pro-rated amt and refund remainder *)
+        prorated_contribution =
+          let x = frac contribution raised_amount target_zil_amount in (* rounded down *)
+          getSomeInt x; (* safe because contribution < raised_amount *)
+        Distribute prorated_contribution;
+
+        (* refund the remiander *)
+        refund_contribution = builtin sub contribution prorated_contribution;
+        refund = let x = frac zil_committed contribution refund_contribution in
+          getSomeInt x;
+        refund_required = builtin lt one refund; (* handle case where exactly 0 refund required *)
+        match refund_required with
+        | False =>
+          (* no op*)
+        | True =>
+          (* refund slightly less to avoid issues caused by rounding down the prorated contribution *)
+          r = builtin sub refund one;
+          Refund r
+        end
+      end
+    | _ =>
+      err = CodeCannotClaimNow;
+      ThrowError err
+    end
+  end
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition TransferSuccessCallBack(sender : ByStr20, recipient : ByStr20, amount : Uint128)
+  (* no-op *)
+end
+
+transition TransferFromSuccessCallBack(initiator : ByStr20, sender : ByStr20, recipient : ByStr20, amount : Uint128)
+  (* no-op *)
+end
+
+transition BurnSuccessCallBack(burner : ByStr20, burn_account : ByStr20, amount : Uint128)
+  (* no-op *)
+end
+
+transition RecipientAcceptTransfer(sender : ByStr20, recipient: ByStr20, amount: Uint128)
+  ValidateTransferAndInitialize _sender amount
+end
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender : ByStr20, recipient: ByStr20, amount : Uint128)
+  ValidateTransferAndInitialize _sender amount
+end

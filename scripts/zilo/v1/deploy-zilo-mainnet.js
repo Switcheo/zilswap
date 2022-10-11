@@ -1,6 +1,6 @@
-const { getDefaultAccount } = require('./account')
-const { getBlockNum } = require('./call.js')
-const { deployZILO, deploySeedLP } = require('./deploy')
+const { getDefaultAccount } = require('../../account')
+const { getBlockNum } = require('../../call.js')
+const { deployZILO, deploySeedLP } = require('../../deploy')
 
 const deploy = async () => {
   const owner = getDefaultAccount()
