@@ -1,6 +1,6 @@
 scilla_version 0
 
-import BoolUtils IntUtils ListUtils
+import BoolUtils IntUtils ListUtils NatUtils
 
 library ZilSwapPool
 
@@ -111,10 +111,29 @@ let reduce =
 let mul_in_precision =
   fun (x : Uint256) =>
   fun (y : Uint256) =>
-  fun (precision : Uint256) =>
     let xy = builtin mul x y in
     builtin div xy precision
 
+
+let get_z_in_precision = 
+  fun (x_in_precision: Uint256) =>
+  fun (k: Uint256)=> 
+    let zero = Uint256 0 in
+    let two = Uint256 2 in
+    let remainder = builtin rem k two in
+    let equal = builtin eq remainder zero in
+    match equal with 
+    | True => precision
+    | False =>  x_in_precision
+    end
+
+let u32_to_nat_or_zero =
+  fun (uint: Uint32) =>
+    let nat = uint32_to_nat uint in
+    match nat with
+    | None => Zero (* uint32 always fits in a nat, so shld nvr happen *)
+    | Some r => r
+    end
 
 (* /// @dev source: dsMath
   /// @param xInPrecision should be < PRECISION, so this can not overflow
@@ -137,30 +156,33 @@ let mul_in_precision =
   } 
 *)
 
-(* WIP *)
 (* let unsafe_pow_in_precision = 
   fun (x_in_precision: Uint256) =>
-  fun (k: Uint256)=> 
-    let zero = Uint256 0 in
-    let one = Uint256 1 in 
-    let two = Uint256 2 in
-    let remainder = builtin rem k two in
-    let equal = builtin eq remainder zero in
-    match equal with 
-    | True => precision
-    | False =>
-    end *)
+  fun (k: Uint256) =>
+    let z_in_precision = get_z_in_precision x_in_precision k in
+
+    let m = Uint32 128 in
+    let m_nat = u32_to_nat_or_zero m in *)(* max no of loops is fixed at 128 times *)
+
+    (*let xz_pair = Pair {Uint256 Uint256} x_in_precision z_in_precision in
+    let init_pair = Pair {Uint256 (Pair Uint256 Uint256)} k xz_pair in*)
+
+    (*let foldk = @nat_foldk Pair Uint256 (Pair Uint256 Uint256) in *)(* k (Pair x_in_precision z_in_precision) *)
+    (*let iter =
+      fun (n : Map Uint256 (Pair Uint256 Uint256)) => fun (ignore : Nat) => fun (recurse : Map Uint256 (Pair Uint256 Uint256) -> Map Uint256 (Pair Uint256 Uint256)) => *)
+
+
 
 
 (* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
+(* Return in Uint256 *)
 let get_ema =
-  fun (ema : Uint128) =>
+  fun (ema : Uint256) =>
   fun (alpha : Uint256) =>
   fun (value : Uint128) =>
-    let e = grow ema in
     let v = grow value in
     let i_a = builtin sub precision alpha in
-    let a = builtin mul i_a e in
+    let a = builtin mul i_a ema in
     let b = builtin mul a v in
     let n = builtin add a b in
     builtin div n precision
@@ -565,10 +587,13 @@ procedure RecordVolume(volume: Uint128)
     current_block_volume := volume;
     prev_short_ema <- short_ema;
     prev_long_ema <- long_ema
+    (* s_e = get_ema prev_short_ema short_alpha volume;
+    l_e = get_ema prev_long_ema long_alpha volume;
 
-    (* WIP *)
-    (* s_e = get_ema prev_short_ema short_alpha current_block_volume;
-    l_e = get_ema prev_long_ema long_alpha current_block_volume; *)
+    s_e_1 = let a = builtin sub precision short_alpha in
+      mul_in_precision s_e a;
+    l_e_1 = let b = builtin sub precision long_alpha in
+      mul_in_precision l_e b *)
 
   end
 end
