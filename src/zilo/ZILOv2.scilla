@@ -428,7 +428,7 @@ transition Complete()
   (* get state *)
   current_block <- & BLOCKNUMBER;
   current_total_contributions <- total_contributions;
-  current_total_balance <- total_contributions;
+  current_total_balance <- total_balance;
   done <- finalized;
   finalized := true;
   match done with
