@@ -232,6 +232,15 @@ const hexNumeric = (number, bytes = 4) => {
   return ("0".repeat(length) + new BigNumber(number).toString(16)).substr(-length);
 }
 
+const getZilPrice = async () => {
+  const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=zilliqa&vs_currencies=usd");
+  const result = await response.json()
+  if (result?.status?.error_message) {
+    console.warn("Could not retrieve ZIL price: " + result?.status?.error_message);
+  }
+  return result?.zilliqa?.usd ?? 0;
+}
+
 module.exports = {
   ZERO_ADDRESS,
 
@@ -244,11 +253,14 @@ module.exports = {
   getPrivateKey,
   getLatestBlockHeight,
 
+  getZilPrice,
+
   createRandomAccount,
   transfer,
   sendTxs,
   callContract,
   nextBlock,
+  hexNumeric,
   verifyDeployment,
 
   param,

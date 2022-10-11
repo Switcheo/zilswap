@@ -27,7 +27,7 @@ const deploy = async () => {
   const receiverAddress = '0x2a93d019d43872060ca2d3d68ac17009b6dd44ec'
   const treasuryAddress = '0x1fa0276d7dab7f6b77c05abf96e3790d355f5519'
   const [zilo, state] = await deployZILOv2(owner.key, {
-    tokenAddress,
+    tokenAddress:                         tokenAddress,
     tokenAmount:             '115500000' + tknDecimals, // TOKEN 115.5m
     targetZilAmount:          '32725000' + zilDecimals, // ZIL 32.725m (~$1m @ $0.031)
     minZilAmount:              '6545000' + zilDecimals, // ZIL 6.545m (20% of target)
@@ -37,8 +37,6 @@ const deploy = async () => {
     receiverAddress:                   receiverAddress,
     treasuryAddress:                   treasuryAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:               (bNum + 165).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
-    endBlock:                 (bNum + 165 + 3960).toString(), // +24 hrs, hopefully
     discountBps:                                 "500",
     discountWhitelist: [
       "0x2a93d019d43872060ca2d3d68ac17009b6dd44ec",
@@ -46,7 +44,9 @@ const deploy = async () => {
       "0xf122f5a9681c1536ba988aad8973462a49137914",
       "0x0aa204b17ef19eb0ab56f2bf74bdb785f4c4217a",
       "0x24dadfccb61671852c36aa5d7043bdfb084b612a",
-    ]
+    ],
+    startBlock:               (bNum + 165).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
+    endBlock:                 (bNum + 165 + 3960).toString(), // +24 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
