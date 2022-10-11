@@ -206,11 +206,6 @@ let unsafe_pow_in_precision =
       in
     foldk iter init_pair m_nat
 
-        
-
-
-
-
 (* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
 (* Return in Uint256 *)
 let get_ema =
@@ -612,9 +607,11 @@ procedure RecordVolume(volume: Uint128)
   | True => current_block
   | False => last
   end;
-  blocks_skipped_u256 = builtin bsub current_block last_block;
-  blocks_skipped = shrink blocks_skipped_u256;
-  already_updated = builtin eq blocks_skipped zero_amount;
+
+  blocks_skipped_int256 = builtin bsub current_block last_block;
+  blocks_skipped_u128 = shrink blocks_skipped_int256;
+  blocks_skipped_u256 = grow blocks_skipped_u128;
+  already_updated = builtin eq blocks_skipped_u128 zero_amount;
   match already_updated with
   | True =>
     v <- current_block_volume;
@@ -622,16 +619,36 @@ procedure RecordVolume(volume: Uint128)
     current_block_volume := new_volume
   | False =>
     current_block_volume := volume;
+    last_trade_block := current_block;
     prev_short_ema <- short_ema;
-    prev_long_ema <- long_ema
-    (* s_e = get_ema prev_short_ema short_alpha volume;
-    l_e = get_ema prev_long_ema long_alpha volume;
+    prev_long_ema <- long_ema;
 
-    s_e_1 = let a = builtin sub precision short_alpha in
-      mul_in_precision s_e a;
-    l_e_1 = let b = builtin sub precision long_alpha in
-      mul_in_precision l_e b *)
+    blocks_skipped_minus_one = builtin sub blocks_skipped_u256 one_u256;
+    new_short_ema_pair = 
+      let s_e = get_ema prev_short_ema short_alpha volume in
+      let p_minus_short_alpha = builtin sub precision short_alpha in
+      let s_e_ = mul_in_precision s_e p_minus_short_alpha in
+      unsafe_pow_in_precision s_e_ blocks_skipped_minus_one;
+    match new_short_ema_pair with
+    | Pair k xz_pair =>
+      match xz_pair with
+      | Pair x_in_precision z_in_precision =>
+        short_ema := z_in_precision
+      end
+    end;
 
+    new_long_ema_pair = 
+      let l_e = get_ema prev_long_ema long_alpha volume in
+      let p_minus_long_alpha = builtin sub precision long_alpha in
+      let l_e_ = mul_in_precision l_e p_minus_long_alpha in
+      unsafe_pow_in_precision l_e_ blocks_skipped_minus_one;
+    match new_long_ema_pair with
+    | Pair k xz_pair =>
+      match xz_pair with
+      | Pair x_in_precision z_in_precision =>
+        long_ema := z_in_precision
+      end
+    end
   end
 end
 
