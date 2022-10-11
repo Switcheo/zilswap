@@ -1,11 +1,12 @@
 const { deployZRC2Token, deployZilSwap, deployZilo, deployZiloSeedLP } = require("./deploy");
 const { getDefaultAccount, nextBlock, ZERO_ADDRESS, callContract, param, getZilliqaInstance, getLatestBlockHeight, createRandomAccount } = require("../../../scripts/utils");
+const { default: BigNumber } = require("bignumber.js");
 
 const tknDecimals = "0".repeat(12);
 const zilDecimals = "0".repeat(12);
 
-const zilAmount = 10000;
-const contributionsAfterDiscount = ~~(10000 / 0.95);
+const zilAmount = new BigNumber(10000).shiftedBy(12);
+const contributionsAfterDiscount = zilAmount.dividedToIntegerBy(0.95);
 
 let key, owner, user1, user2;
 let tknContract, tknAddress;
@@ -40,11 +41,11 @@ beforeAll(async () => {
   [ziloContract] = await deployZilo(key, {
     tokenAddress: tknAddress,
     tokenAmount: "138600000" + tknDecimals,
-    targetZilAmount: "117810000" + zilDecimals,
-    minZilAmount: "23562000" + zilDecimals,
-    lpZilAmount: "58905000" + zilDecimals,
+    targetZilAmount: "200000" + zilDecimals,
+    minZilAmount: "13562" + zilDecimals,
+    lpZilAmount: "58905" + zilDecimals,
     lpTokenAmount: "58905000" + tknDecimals,
-    treasuryZilAmount: "17671500" + zilDecimals,
+    treasuryZilAmount: "670" + zilDecimals,
     treasuryAddress: owner,
     receiverAddress: owner,
     liquidityAddress: seedLPAddress,
@@ -72,52 +73,63 @@ test('zilo should allow contribute when initialized', async () => {
   await nextBlock(5);
 
   const tx = await callContract(user1.key, ziloContract, "Contribute", [], {
-    amount: zilAmount + zilDecimals,
+    amount: zilAmount.toString(),
   });
 
   expect(tx.status).toEqual(2);
 
   const balancesSubState = await ziloContract.getSubState("balances");
   expect(balancesSubState?.balances).toEqual({
-    [user1.address]: zilAmount + zilDecimals,
+    [user1.address]: zilAmount.toString(),
   });
 
   const totalBalanceSubState = await ziloContract.getSubState("total_balance");
-  expect(totalBalanceSubState?.total_balance).toEqual(zilAmount + zilDecimals);
+  expect(totalBalanceSubState?.total_balance).toEqual(zilAmount.toString());
 
   const contributionsSubState = await ziloContract.getSubState("contributions");
   expect(contributionsSubState?.contributions).toEqual({
-    [user1.address]: contributionsAfterDiscount + zilDecimals,
+    [user1.address]: contributionsAfterDiscount.toString(),
   });
 
   const totalContributionsSubState = await ziloContract.getSubState("total_contributions");
-  expect(totalContributionsSubState?.total_contributions).toEqual(contributionsAfterDiscount + zilDecimals);
+  expect(totalContributionsSubState?.total_contributions).toEqual(contributionsAfterDiscount.toString());
 });
 
 test('zilo should compute balances and contributions accurately', async () => {
   await nextBlock(5);
 
   const tx = await callContract(user2.key, ziloContract, "Contribute", [], {
-    amount: zilAmount + zilDecimals,
+    amount: zilAmount.toString(),
   });
 
   expect(tx.status).toEqual(2);
 
   const balancesSubState = await ziloContract.getSubState("balances");
   expect(balancesSubState?.balances).toEqual({
-    [user1.address]: zilAmount + zilDecimals,
-    [user2.address]: zilAmount + zilDecimals,
+    [user1.address]: zilAmount.toString(),
+    [user2.address]: zilAmount.toString(),
   });
 
   const totalBalanceSubState = await ziloContract.getSubState("total_balance");
-  expect(totalBalanceSubState?.total_balance).toEqual((zilAmount * 2) + zilDecimals);
+  expect(totalBalanceSubState?.total_balance).toEqual(zilAmount.times(2).toString());
 
   const contributionsSubState = await ziloContract.getSubState("contributions");
   expect(contributionsSubState?.contributions).toEqual({
-    [user1.address]: contributionsAfterDiscount + zilDecimals,
-    [user2.address]: zilAmount + zilDecimals,
+    [user1.address]: contributionsAfterDiscount.toString(),
+    [user2.address]: zilAmount.toString(),
   });
 
   const totalContributionsSubState = await ziloContract.getSubState("total_contributions");
-  expect(totalContributionsSubState?.total_contributions).toEqual((contributionsAfterDiscount + zilAmount) + zilDecimals);
+  expect(totalContributionsSubState?.total_contributions).toEqual(contributionsAfterDiscount.plus(zilAmount).toString());
+});
+
+
+test('zilo should resolve and calculate tokens accurately', async () => {
+  await nextBlock(5);
+
+  const tx1 = await callContract(user1.key, ziloContract, "Claim");
+  expect(tx1.status).toEqual(2);
+
+  const tx2 = await callContract(user2.key, ziloContract, "Claim");
+  expect(tx2.status).toEqual(2);
 });
