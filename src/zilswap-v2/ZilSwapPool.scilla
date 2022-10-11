@@ -163,7 +163,6 @@ let unsafe_pow_in_precision =
   fun (k: Uint256) =>
     let z_in_precision = get_z_in_precision x_in_precision k in
 
-    let two = Uint128 2 in
     let m = Uint32 128 in
     let m_nat = u32_to_nat_or_zero m in (* max no of loops is fixed at 128 times *)
 
@@ -183,6 +182,7 @@ let unsafe_pow_in_precision =
           | False => 
             match cur_xz_pair with
             | Pair x_in_precision z_in_precision =>
+              let new_k = builtin div k two_u256 in
               let inter_x_in_precision = builtin mul x_in_precision x_in_precision in
               let new_x_in_precision = builtin div inter_x_in_precision precision in
               let mod = builtin rem k two_u256 in
@@ -190,14 +190,14 @@ let unsafe_pow_in_precision =
               match is_odd with
               | False =>
                 let new_xz_pair = Pair {Uint256 Uint256} new_x_in_precision z_in_precision in
-                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} k new_xz_pair in
+                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} new_k new_xz_pair in
                 recurse new_accum
               | True =>
                 let inter_z_in_precision = builtin mul z_in_precision x_in_precision in
                 let new_z_in_precision = builtin div inter_z_in_precision precision in
 
                 let new_xz_pair = Pair {Uint256 Uint256} new_x_in_precision new_z_in_precision in
-                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} k new_xz_pair in
+                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} new_k new_xz_pair in
                 recurse new_accum
               end
             end
