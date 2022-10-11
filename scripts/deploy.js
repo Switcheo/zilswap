@@ -7,6 +7,7 @@ const { BN, Long } = require('@zilliqa-js/util')
 const { callContract, nextBlock, getState } = require('./call.js')
 const { compress } = require('./compile')
 const { VERSION, zilliqa, useKey, chainId, network } = require('./zilliqa')
+const { param, getDeployTx, getZilliqaInstance, sendTxs, verifyDeployment } = require('./utils.js')
 
 const readFile = util.promisify(fs.readFile)
 
@@ -760,6 +761,61 @@ async function deployContract(privateKey, code, init) {
   return [deployedContract, state]
 }
 
+const deployZILOv2 = async (privateKey, {
+  tokenAddress, tokenAmount,
+  targetZilAmount, minZilAmount,
+  lpZilAmount, lpTokenAmount,
+  treasuryZilAmount, treasuryAddress,
+  receiverAddress, liquidityAddress,
+  startBlock, endBlock,
+  discountBps, discountWhitelist = [],
+}) => {
+  const zilliqa = getZilliqaInstance(privateKey);
+
+  console.log([
+    param("_scilla_version", "Uint32", "0"),
+    param("token_address", "ByStr20", tokenAddress),
+    param("token_amount", "Uint128", tokenAmount),
+    param("target_zil_amount", "Uint128", targetZilAmount),
+    param("minimum_zil_amount", "Uint128", minZilAmount),
+    param("liquidity_zil_amount", "Uint128", lpZilAmount),
+    param("liquidity_token_amount", "Uint128", lpTokenAmount),
+    param("treasury_zil_amount", "Uint128", treasuryZilAmount),
+    param("receiver_address", "ByStr20", receiverAddress),
+    param("liquidity_address", "ByStr20", liquidityAddress),
+    param("treasury_address", "ByStr20", treasuryAddress),
+    param("start_block", "BNum", startBlock),
+    param("end_block", "BNum", endBlock),
+    param("discount_bps", "Uint128", discountBps),
+    param("disc_whitelist", "List ByStr20", discountWhitelist),
+  ])
+
+  const deployTx = await deployContract(privateKey, fs.readFileSync("src/zilo/ZILOv2.scilla").toString("utf8"), [
+    param("_scilla_version", "Uint32", "0"),
+    param("token_address", "ByStr20", tokenAddress),
+    param("token_amount", "Uint128", tokenAmount),
+    param("target_zil_amount", "Uint128", targetZilAmount),
+    param("minimum_zil_amount", "Uint128", minZilAmount),
+    param("liquidity_zil_amount", "Uint128", lpZilAmount),
+    param("liquidity_token_amount", "Uint128", lpTokenAmount),
+    param("treasury_zil_amount", "Uint128", treasuryZilAmount),
+    param("receiver_address", "ByStr20", receiverAddress),
+    param("liquidity_address", "ByStr20", liquidityAddress),
+    param("treasury_address", "ByStr20", treasuryAddress),
+    param("start_block", "BNum", startBlock),
+    param("end_block", "BNum", endBlock),
+    param("discount_bps", "Uint128", discountBps),
+    param("disc_whitelist", "List ByStr20", discountWhitelist),
+  ]);
+
+  // console.log("deploy tx", deployTx.hash)
+  // const [confirmedDeployTx] = await sendTxs(privateKey, [deployTx]);
+  // verifyDeployment(confirmedDeployTx);
+
+  // const { result: contractAddress } = await zilliqa.blockchain.getContractAddressFromTransactionID(confirmedDeployTx.id);
+  // return [zilliqa.contracts.at(contractAddress), confirmedDeployTx]
+};
+
 async function getContract(privateKey, contractHash) {
   useKey(privateKey)
   const contract = zilliqa.contracts.at(contractHash)
@@ -774,6 +830,7 @@ exports.deployFungibleToken = deployFungibleToken
 exports.deployNonFungibleToken = deployNonFungibleToken
 exports.deployZilswap = deployZilswap
 exports.deployZILO = deployZILO
+exports.deployZILOv2 = deployZILOv2;
 exports.deploySeedLP = deploySeedLP
 exports.deployARK = deployARK
 exports.useFungibleToken = useFungibleToken
