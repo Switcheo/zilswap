@@ -1,6 +1,7 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
+const { callContract } = require("../../call");
 const { getPrivateKey, param, zilliqa } = require("../../zilliqa");
-const { deployResourceStore, deployResource, deployItems, deployGemRefinery } = require("./helper");
+const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE_HUNY } = require("./helper");
 
 ;
 (async () => {
@@ -9,26 +10,34 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery } = 
 
   const resourceStallContract = zilliqa.contracts.at(process.env.RESOURCE_SHOP_CONTRACT_HASH);
   const geodeContract = zilliqa.contracts.at(process.env.GEODE_CONTRACT_HASH);
-  const geodeAddress = geodeContract.address;
+  const geodeAddress = geodeContract.address.toLowerCase();
   const berryContract = zilliqa.contracts.at(process.env.BERRY_CONTRACT_HASH);
-  const berryAddress = berryContract.address;
+  const berryAddress = berryContract.address.toLowerCase();
   const scrapContract = zilliqa.contracts.at(process.env.SCRAP_CONTRACT_HASH);
-  const scrapAddress = scrapContract.address;
+  const scrapAddress = scrapContract.address.toLowerCase();
+  const emporiumContract = zilliqa.contracts.at(process.env.EMPORIUM_CONTRACT_HASH);
 
-  const txAddMinterStall1 = await callContract(privateKey, geodeContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallContract.address),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall1.id);
+  const resourceStallAddress = resourceStallContract.address.toLowerCase();
 
-  const txAddMinterStall2 = await callContract(privateKey, berryContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall2.id);
+  // const txAddMinterStall1 = await callContract(privateKey, geodeContract, "AddMinter", [
+  //   param('minter', 'ByStr20', resourceStallAddress),
+  // ], 0, false, false);
+  // console.log("add stall minter", txAddMinterStall1.id);
 
-  const txAddMinterStall3 = await callContract(privateKey, scrapContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall3.id);
+  // const txAddMinterStall2 = await callContract(privateKey, berryContract, "AddMinter", [
+  //   param('minter', 'ByStr20', resourceStallAddress),
+  // ], 0, false, false);
+  // console.log("add stall minter", txAddMinterStall2.id);
+
+  // const txAddMinterStall3 = await callContract(privateKey, scrapContract, "AddMinter", [
+  //   param('minter', 'ByStr20', resourceStallAddress),
+  // ], 0, false, false);
+  // console.log("add stall minter", txAddMinterStall3.id);
+
+  const txAddStall = await callContract(privateKey, emporiumContract, "AddItem", [
+    param('stall', 'ByStr20', resourceStallAddress),
+  ], 0, false, false)
+  console.log("add stall", txAddStall.id);
 
   const txAddItem1 = await callContract(privateKey, resourceStallContract, "AddItem", [
     param('item_name', 'String', "Zolar Geode"),

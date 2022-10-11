@@ -187,17 +187,34 @@ let get_buy_cost =
 let get_sell_price =
   fun (price : Price) =>
   fun (transacts : Pair Uint128 Uint128) =>
-    (* 100 x [( net_purchase ) / 100] ^ ( 1 / 3 ) + min_price *)
-    let min_sell_price = match price with
-    | Price min_price _ _ _ => min_price
+    let base_price = match price with
+    | Price base_price _ _ _ => base_price
     end in
-
     match transacts with
     | Pair net_purchase _ =>
-      let p1 = builtin div net_purchase hundred in
-      let p2 = builtin isqrt p1 in (** ?? how to cube root **)
-      let p3 = builtin mul p2 hundred in
-      builtin add p3 min_sell_price
+      let is_lt_zero = builtin lt zero net_purchase in
+      match is_lt_zero with
+      | True =>
+        (* x < 0 : (10 x base_price x net_purchase) / (net_purchase + 500) + base_price *)
+        let multiplier = Uint128 10 in
+        let inter = builtin mul multiplier base_price in
+        let numerator = builtin mul inter net_purchase in
+
+        let modifier = Uint128 500 in
+        let denominator = builtin add net_purchase modifier in
+
+        let price_modifier = builtin div numerator denominator in
+        builtin add base_price price_modifier
+      | False =>
+        (* x >= 0: (base_price x net_purchase) / (net_purchase + 50) + base_price *)
+        let numerator = builtin mul base_price net_purchase in
+
+        let modifier = Uint128 50 in
+        let denominator = builtin add net_purchase modifier in
+
+        let price_modifier = builtin div numerator denominator in
+        builtin add base_price price_modifier
+      end
     end
 
 (***************************************************)
