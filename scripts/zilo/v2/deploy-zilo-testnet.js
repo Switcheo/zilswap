@@ -22,7 +22,7 @@ const deploy = async () => {
   console.log(JSON.stringify(stateLP, null, 2))
 
   // deploy zilo
-  const zilDecimals = '0'.repeat(9) // shifted -3 for easier completion **NOTE**
+  const zilDecimals = '0'.repeat(10) // shifted -2 for easier completion **NOTE**
   const tknDecimals = '0'.repeat(12);
   const receiverAddress = '0x2a93d019d43872060ca2d3d68ac17009b6dd44ec'
   const treasuryAddress = '0x1fa0276d7dab7f6b77c05abf96e3790d355f5519'
@@ -37,14 +37,15 @@ const deploy = async () => {
     receiverAddress:                   receiverAddress,
     treasuryAddress:                   treasuryAddress,
     liquidityAddress:         lp.address.toLowerCase(),
-    startBlock:               (bNum + 30).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
-    endBlock:                 (bNum + 3000).toString(), // +24 hrs, hopefully
+    startBlock:               (bNum + 165).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
+    endBlock:                 (bNum + 165 + 3960).toString(), // +24 hrs, hopefully
     discountBps:                                 "500",
     discountWhitelist: [
       "0x2a93d019d43872060ca2d3d68ac17009b6dd44ec",
       "0xa19e53f40550ac8d405f346e978089c22162944b",
       "0xf122f5a9681c1536ba988aad8973462a49137914",
       "0x0aa204b17ef19eb0ab56f2bf74bdb785f4c4217a",
+      "0x24dadfccb61671852c36aa5d7043bdfb084b612a",
     ]
   })
 

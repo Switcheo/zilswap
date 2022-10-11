@@ -71,9 +71,11 @@ beforeAll(async () => {
 test('zilo should allow contribute when initialized', async () => {
   await nextBlock(5);
 
-  await callContract(user1.key, ziloContract, "Contribute", [], {
+  const tx = await callContract(user1.key, ziloContract, "Contribute", [], {
     amount: zilAmount + zilDecimals,
   });
+
+  expect(tx.status).toEqual(2);
 
   const balancesSubState = await ziloContract.getSubState("balances");
   expect(balancesSubState?.balances).toEqual({
@@ -95,9 +97,11 @@ test('zilo should allow contribute when initialized', async () => {
 test('zilo should compute balances and contributions accurately', async () => {
   await nextBlock(5);
 
-  await callContract(user2.key, ziloContract, "Contribute", [], {
+  const tx = await callContract(user2.key, ziloContract, "Contribute", [], {
     amount: zilAmount + zilDecimals,
   });
+
+  expect(tx.status).toEqual(2);
 
   const balancesSubState = await ziloContract.getSubState("balances");
   expect(balancesSubState?.balances).toEqual({
