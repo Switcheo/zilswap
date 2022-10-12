@@ -263,6 +263,9 @@ field total_balance : Uint128 = zero
 field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field total_contributions : Uint128 = zero
 
+(* user claims, for records *)
+field claimed : Map ByStr20 Uint128 = Emp ByStr20 Uint128
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)
@@ -533,6 +536,9 @@ transition Claim()
   | Some contribution =>
     delete contributions[_sender];
     delete balances[_sender];
+
+    claimed[_sender] := contribution;
+
     (* check offering state *)
     current_block <- & BLOCKNUMBER;
     raised_amount <- total_contributions;

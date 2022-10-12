@@ -69,6 +69,7 @@ test('whitelist initializes successfully from init params', async () => {
       "constructor": "False",
     },
     "balances": {},
+    "claimed": {},
     "total_balance": "0",
     "contributions": {},
     "total_contributions": "0",
