@@ -19,23 +19,23 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
 
   const resourceStallAddress = resourceStallContract.address.toLowerCase();
 
-  // const txAddMinterStall1 = await callContract(privateKey, geodeContract, "AddMinter", [
-  //   param('minter', 'ByStr20', resourceStallAddress),
-  // ], 0, false, false);
-  // console.log("add stall minter", txAddMinterStall1.id);
+  const txAddMinterStall1 = await callContract(privateKey, geodeContract, "AddMinter", [
+    param('minter', 'ByStr20', resourceStallAddress),
+  ], 0, false, false);
+  console.log("add stall minter", txAddMinterStall1.id);
 
-  // const txAddMinterStall2 = await callContract(privateKey, berryContract, "AddMinter", [
-  //   param('minter', 'ByStr20', resourceStallAddress),
-  // ], 0, false, false);
-  // console.log("add stall minter", txAddMinterStall2.id);
+  const txAddMinterStall2 = await callContract(privateKey, berryContract, "AddMinter", [
+    param('minter', 'ByStr20', resourceStallAddress),
+  ], 0, false, false);
+  console.log("add stall minter", txAddMinterStall2.id);
 
-  // const txAddMinterStall3 = await callContract(privateKey, scrapContract, "AddMinter", [
-  //   param('minter', 'ByStr20', resourceStallAddress),
-  // ], 0, false, false);
-  // console.log("add stall minter", txAddMinterStall3.id);
+  const txAddMinterStall3 = await callContract(privateKey, scrapContract, "AddMinter", [
+    param('minter', 'ByStr20', resourceStallAddress),
+  ], 0, false, false);
+  console.log("add stall minter", txAddMinterStall3.id);
 
-  const txAddStall = await callContract(privateKey, emporiumContract, "AddItem", [
-    param('stall', 'ByStr20', resourceStallAddress),
+  const txAddStall = await callContract(privateKey, emporiumContract, "AddStall", [
+    param('address', 'ByStr20', resourceStallAddress),
   ], 0, false, false)
   console.log("add stall", txAddStall.id);
 
