@@ -35,6 +35,7 @@ type Price =
 type Item =
   | Item of String ByStr20 Price Price (* item name, resource token address, buy price, sell price *)
 
+let empty_price = Price zero zero zero zero
 let no_item = None {Item}
 
 let make_error =
@@ -163,7 +164,7 @@ let get_buy_cost =
         let max_inflation_bps = get_max_inflation_bps base_price max_price in 
         let qty_before_max = builtin div max_inflation_bps inflation_bps in
         let is_over_max_1 = builtin lt qty_before_max net_purchase in 
-        match is_over_max_1 with 
+        match is_over_max_1 with
         | True => builtin mul max_price quantity
         | False => 
           let total_qty = builtin add net_purchase quantity in 
@@ -422,6 +423,10 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
         msgs = two_msgs msg_to_emporium msg_to_resource;
         send msgs;
 
+        (* create HUNY selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+        huny_selling_item = let item = Item empty huny_token empty_price empty_price in Some {Item} item;
+        selling_item := huny_selling_item;
+
         UpdateTransactCount item_id quantity zero;
 
         e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
@@ -433,7 +438,6 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
 end
 
 transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
-
   IsValidQuantity quantity;
     
   maybe_item <- items[item_id];
@@ -476,6 +480,10 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
 
         msgs = two_msgs msg_to_huny msg_to_resource;
         send msgs;
+
+        (* create resource selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+        resource_selling_item = let item = Item empty token_address empty_price empty_price in Some {Item} item;
+        selling_item := resource_selling_item;
 
         UpdateTransactCount item_id zero quantity;
 
