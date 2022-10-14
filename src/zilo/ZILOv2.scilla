@@ -233,9 +233,10 @@ contract Zilo
 )
 
 with
+  let out_zil_amount = builtin add treasury_zil_amount liquidity_zil_amount in
   let a = builtin lt zero token_amount in
   let b = builtin lt zero target_zil_amount in
-  let c = builtin lt liquidity_zil_amount target_zil_amount in
+  let c = builtin lt out_zil_amount target_zil_amount in
   let d = builtin blt _creation_block start_block in
   let e = builtin blt start_block end_block in
   let f = builtin lt discount_bps hundred_bps in
@@ -261,6 +262,9 @@ field total_balance : Uint128 = zero
 (* user contributions after discount *)
 field contributions : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field total_contributions : Uint128 = zero
+
+(* user claims, for records *)
+field claimed : Map ByStr20 Uint128 = Emp ByStr20 Uint128
 
 (**************************************)
 (*             Procedures             *)
@@ -428,7 +432,7 @@ transition Complete()
   (* get state *)
   current_block <- & BLOCKNUMBER;
   current_total_contributions <- total_contributions;
-  current_total_balance <- total_contributions;
+  current_total_balance <- total_balance;
   done <- finalized;
   finalized := true;
   match done with
@@ -532,6 +536,9 @@ transition Claim()
   | Some contribution =>
     delete contributions[_sender];
     delete balances[_sender];
+
+    claimed[_sender] := contribution;
+
     (* check offering state *)
     current_block <- & BLOCKNUMBER;
     raised_amount <- total_contributions;
