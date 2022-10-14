@@ -1,8 +1,10 @@
 const { deployZRC2Token, deployZilSwap, deployZilo, deployZiloSeedLP } = require("./deploy");
 const { getDefaultAccount, nextBlock, ZERO_ADDRESS, callContract, param, getZilliqaInstance, getLatestBlockHeight, createRandomAccount } = require("../../../scripts/utils");
 
-const tknDecimals = "0".repeat(12);
+const tknDecimals = "0".repeat(6);
 const zilDecimals = "0".repeat(12);
+
+const whitelist = require("fs").readFileSync("./zilo/zilo-7/whitelist.txt").toString("utf8").split("\n").map(row => row.trim().toLowerCase()).filter(row => row.match(/^0x[0-9a-z]{40}$/i));
 
 let key, owner;
 let tknContract, tknAddress;
@@ -45,7 +47,7 @@ beforeAll(async () => {
     startBlock: `${currentBlockHeight + 3}`,
     endBlock: `${currentBlockHeight + 10}`,
     discountBps: "500",
-    discountWhitelist: [],
+    discountWhitelist: [...whitelist],
   });
   ziloAddress = ziloContract.address.toLowerCase();
 

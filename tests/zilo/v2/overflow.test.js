@@ -2,7 +2,7 @@ const { deployZRC2Token, deployZilSwap, deployZilo, deployZiloSeedLP } = require
 const { getDefaultAccount, nextBlock, ZERO_ADDRESS, callContract, param, getZilliqaInstance, getLatestBlockHeight, createRandomAccount } = require("../../../scripts/utils");
 const { default: BigNumber } = require("bignumber.js");
 
-const tknDecimals = "0".repeat(12);
+const tknDecimals = "0".repeat(6);
 const zilDecimals = "0".repeat(12);
 
 let key, owner;
