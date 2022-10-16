@@ -41,14 +41,14 @@ let frac =
     let xy = builtin mul x y in
     builtin div xy z
 
-(* amountB = amountA.mul(reserveB) / reserveA *)
+(* @dev: amountB = amountA.mul(reserveB) / reserveA *)
 let quote =
   fun (amountA : Uint128) =>
   fun (reserveA : Uint128) =>
   fun (reserveB : Uint128) =>
     frac amountA reserveB reserveA
 
-(* Convert Uint128 to Uint256 *)
+(* @dev: Convert Uint128 to Uint256 *)
 let grow =
   fun (var : Uint128) =>
     let maybe_big = builtin to_uint256 var in
@@ -57,7 +57,7 @@ let grow =
     | None => Uint256 0 (* should never happen *)
     end
 
-(* Convert Uint256 to Uint128 *)
+(* @dev: Convert Uint256 to Uint128 *)
 let reduce =
   fun (var : Uint256) =>
     let maybe_small = builtin to_uint128 var in
@@ -92,6 +92,20 @@ let pool_exists =
     | True => True
     | False => False
     end
+
+(* @dev: Returns init_token pair *)
+let sort_token = 
+  fun (path: Pair ByStr20 ByStr20 ) =>
+  match path with
+  | Pair token_in token_out =>
+    let token_in_u256 = builtin to_uint256 token_in in
+    let token_out_u256 = builtin to_uint256 token_in in
+    let is_init_token0 = uint256_le token_in_u256 token_out_u256 in
+    match is_init_token0 with 
+    | True => path
+    | False => Pair {ByStr20 ByStr20} token_out token_in
+    end
+  end
 
 (* function getTradeInfo()
     external
@@ -233,11 +247,6 @@ let get_amount_in =
     let d_minus_one = builtin sub numerator one in
     let n_a = builtin add numerator d_minus_one in
     builtin div n_a denominator
-
-
-
-
-
 
 (* Error events *)
 type Error =
@@ -971,8 +980,8 @@ end
 } *)
 
 (* Only 1 pool and 1 token pair *)
-(* pools_path: pool_address *)
-(* path: init_token0, init_token1 *)
+(* @dev: pools_path: pool_address *)
+(* @dev: path: token_in, token_out *)
 transition SwapExactTokensForTokens(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1032,8 +1041,8 @@ transition SwapExactTokensForTokens(
       ThrowError err
     end;
   
-    is_eq = builtin eq amp bps;
-    match is_eq with
+    is_amp_pool = builtin eq amp bps;
+    match is_amp_pool with
     | True =>
       v_r_in = r_in;
       v_r_out = r_out;
