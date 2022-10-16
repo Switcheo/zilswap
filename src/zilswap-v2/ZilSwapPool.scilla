@@ -998,12 +998,13 @@ transition Swap(
   is_sending_t0 = uint128_gt amount0_out zero_amount;
   is_sending_t1 = uint128_gt amount1_out zero_amount;
 
-  is_sufficient_output = andb is_sending_t0 is_sending_t1;
-  match is_sufficient_output with
-  | True =>
-  | False =>
-    err = CodeInsufficientOutput;
-    ThrowError err
+  match is_sending_t0 with 
+  | True => | False =>
+    match is_sending_t1 with 
+    | True => | False =>
+      err = CodeInsufficientOutput;
+      ThrowError err
+    end
   end;
 
   amp <- amp_bps;
@@ -1036,7 +1037,8 @@ transition Swap(
     err = CodeInvalidToAddress;
     ThrowError err
   end;
-
+  
+  (* Ask why send to router contract *)
   match is_sending_t0 with
   | False =>
   | True =>
@@ -1088,16 +1090,16 @@ transition Swap(
     | False => zero_amount
     | True => builtin sub new_r1 r1
     end;
-
-  is_sufficient_input =
-    let a0_ok = uint128_gt amount0_in zero_amount in
-    let a1_ok = uint128_gt amount1_in zero_amount in
-    andb a0_ok a1_ok;
-  match is_sufficient_input with
-  | True =>
-  | False =>
-    err = CodeInsufficientInput;
-    ThrowError err
+  
+  a0_ok = uint128_gt amount0_in zero_amount;
+  a1_ok = uint128_gt amount1_in zero_amount;
+  match a0_ok with 
+  | True => | False =>
+    match a1_ok with 
+    | True => | False =>
+      err = CodeInsufficientInput;
+      ThrowError err
+    end
   end;
 
   match new_data with
