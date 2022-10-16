@@ -3,7 +3,7 @@ const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require
 const { callContract } = require('../../scripts/call.js')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 
-let token0, token1, router, pool, owner
+let token0, token1, owner
 
 test('deploy ZilswapV2', async () => {
   owner = getDefaultAccount()
@@ -11,8 +11,6 @@ test('deploy ZilswapV2', async () => {
   token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }))[0]
   const [router, routerState] = await deployZilswapV2Router(owner.key)
   const [pool, poolState] = await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 })
-  // pool = result[0]
-  // const state = result[1]
 
   const [initToken0Address, initToken1Address] = [token0.address.toLowerCase(), token1.address.toLowerCase()].sort();
 
