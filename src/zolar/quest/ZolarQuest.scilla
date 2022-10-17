@@ -14,9 +14,11 @@ let two = Uint32 2
 let five = Uint32 5
 let six = Uint32 6
 let ten = Uint32 10
-let hundred_amt = Uint128 100
+let ten_thousand = Uint32 10000
 let zero_amt = Uint128 0
 let one_amt = Uint128 1
+let hundred_amt = Uint128 100
+let ten_thousand_amt = Uint128 10000
 let none = None {ByStr20}
 let true = True
 let false = False
@@ -403,11 +405,13 @@ procedure HarvestForMetazoa(token_id : Uint256)
                     let init_fee = builtin mul fee_per_epoch num_of_epochs in
                     let fee_to_waive =
                       let num_epochs_squared = builtin pow num_of_epochs_uint32 two in
+                      let num_epochs_squared_4dp = builtin mul num_epochs_squared ten_thousand in
                       let num_epochs_waive_squared = builtin pow epochs_to_waive_harvest two in
-                      let ratio = builtin div num_epochs_squared num_epochs_waive_squared in
+                      let ratio = builtin div num_epochs_squared_4dp num_epochs_waive_squared in
                       let maybe_ratio_uint128 = builtin to_uint128 ratio in
                       let ratio_uint128 = match maybe_ratio_uint128 with | None => zero_amt | Some v => v end in
-                      builtin mul init_fee ratio_uint128 in
+                      let fee_to_waive_4dp = builtin mul init_fee ratio_uint128 in
+                      builtin div fee_to_waive_4dp ten_thousand_amt in
                     sub_or_zero init_fee fee_to_waive;
     
     (* add resource_to_mint, xp_to_gain and fee_to_charge to accumulated contract fields for aggregated harvest *)
