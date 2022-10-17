@@ -194,7 +194,7 @@ const deployZOMGStore = async () => {
   return contract;
 };
 
-const deployQuest = async ({questName, resourceContract, metazoaContract, epoch, resourcePerEpoch, xpPerEpoch, feeContract, harvestFee, returnFee}) => {
+const deployQuest = async ({questName, resourceContract, metazoaContract, epoch, resourcePerEpoch, xpPerEpoch, feeContract, harvestFeePerEpoch, numEpochsWaiveHarvest, returnFee}) => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const code = (await fs.promises.readFile(`./src/zolar/quest/ZolarQuest.scilla`)).toString()
@@ -209,7 +209,8 @@ const deployQuest = async ({questName, resourceContract, metazoaContract, epoch,
     param("initial_resource_per_epoch", "Uint128", resourcePerEpoch),
     param("initial_xp_per_epoch", "Uint128", xpPerEpoch),
     param("initial_fee_contract", "ByStr20", feeContract),
-    param("initial_harvest_fee", "Uint128", harvestFee),
+    param("initial_harvest_fee_per_epoch", "Uint128", harvestFeePerEpoch),
+    param("initial_num_epochs_waive_harvest", "Uint32", numEpochsWaiveHarvest),
     param("initial_return_fee", "Uint128", returnFee),
   ]
 

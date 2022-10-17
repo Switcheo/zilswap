@@ -44,7 +44,8 @@ beforeAll(async () => {
     resourcePerEpoch: "2800",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
+    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   questAddress = questContract.address.toLowerCase();
