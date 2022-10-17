@@ -45,8 +45,8 @@ const deploy = async () => {
       "0x0aa204b17ef19eb0ab56f2bf74bdb785f4c4217a",
       "0x24dadfccb61671852c36aa5d7043bdfb084b612a",
     ],
-    startBlock:               (bNum + 165).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
-    endBlock:                 (bNum + 165 + 3960).toString(), // +24 hrs, hopefully
+    startBlock:               (bNum + 30).toString(),   // start 30mins from now, 165 blocks an hr (testnet)
+    endBlock:                 (bNum + 30 + 165 * 3).toString(), // +24 hrs, hopefully
   })
 
   console.log('Deployed zilo contract:')
