@@ -286,7 +286,8 @@ let make_error =
 
 contract ZilSwapRouter
 (
-  init_governor : ByStr20
+  init_governor : ByStr20,
+  init_codehash : ByStr32
 )
 
 field governor : ByStr20 = init_governor
@@ -296,6 +297,8 @@ field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_add
 field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
 field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map ByStr20 ByStr20)
+
+field codehash : ByStr32 = init_codehash
 
 (**************************************)
 (*             Procedures             *)
@@ -570,6 +573,21 @@ transition AddPool(
     err = CodeNotSelf;
     ThrowError err
   end *)
+
+
+  (* validate the pool contract using codehash *)
+  maybe_pool <- & pool as ByStr20 with _codehash end;
+  match maybe_pool with
+  | None => | Some p =>
+    init_codehash <- codehash;
+    new_codehash <- & p._codehash;
+    is_valid_pool = builtin eq new_codehash init_codehash;
+    match is_valid_pool with
+    | True => | False =>
+      err = CodeInvalidPool;
+      ThrowError err
+    end
+  end;
 
   (* populate pool mapping for both directions *)
   token0 <- & pool.token0;

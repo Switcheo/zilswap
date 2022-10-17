@@ -481,10 +481,14 @@ async function useZilswap(privateKey, params = {}, useExisting = process.env.CON
 }
 
 
-async function deployZilswapV2Router(privateKey, { governor = null } = {}) {
+async function deployZilswapV2Router(privateKey, { governor = null, codehash } = {}) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
+  }
+
+  if (!codehash || codehash === '') {
+    throw new Error('No codehash was provided!')
   }
 
   // Default vars
@@ -503,6 +507,11 @@ async function deployZilswapV2Router(privateKey, { governor = null } = {}) {
       vname: 'init_governor',
       type: 'ByStr20',
       value: governor,
+    },
+    {
+      vname: 'init_codehash',
+      type: 'ByStr32',
+      value: codehash,
     },
   ];
   console.log(init)

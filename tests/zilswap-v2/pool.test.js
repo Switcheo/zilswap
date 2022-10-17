@@ -3,27 +3,31 @@ const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require
 const { callContract } = require('../../scripts/call.js')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 
-let token0, token1, owner, privateKey, feeAccount, tx, poolState
+let token0, token1, owner, privateKey, feeAccount, tx, pool, poolState, router, routerState
 const minimumLiquidity = 1000
-// test amt
 const initToken0Amt = "1000000000000"
 const initToken1Amt = "1000000000000"
+const codehash = "0xdeeb20a34fd14161dcc0bfe247c77fc8ef701389e5686592db0869dc48159208"
+
+// MintFee fails as the pool is not amp pool, resulting in kl/r0 to be 0/0 (MintFee procedure)
+// For non-amp pools, the only way is to addLiquidity once first, then set the fee config
+
 
 // Not_amp pool; fee not on
 test('zilswap addLiquidity and removeLiquidity', async () => {
   owner = getDefaultAccount()
   privateKey = owner.key
-
   feeAccount = await createRandomAccount(privateKey)
-  console.log("feeAccount", feeAccount)
+  // console.log("feeAccount", feeAccount)
 
-  const [router] = await deployZilswapV2Router(owner.key)
+  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
   token0 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN0' }))[0]
   token1 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN1' }))[0]
-  const [pool] = await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 })
+  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 }))[0]
   const [initToken0Address, initToken1Address] = [token0.address.toLowerCase(), token1.address.toLowerCase()].sort();
 
   poolState = await pool.getState()
+  routerState = await router.getState()
 
   // // Need to fix the fee
   // await callContract(
@@ -42,7 +46,6 @@ test('zilswap addLiquidity and removeLiquidity', async () => {
   //   ],
   //   0, false, false
   // )
-  // console.log(await router.getState())
 
   tx = await callContract(
     owner.key, router,
@@ -57,6 +60,8 @@ test('zilswap addLiquidity and removeLiquidity', async () => {
     0, false, false
   )
   expect(tx.status).toEqual(2)
+  routerState = await router.getState()
+  // console.log(routerState)
 
   // AddLiquidity to new Pool
   // amountA = amountA_desired; amountB = amountB_desired;
@@ -116,7 +121,12 @@ test('zilswap addLiquidity and removeLiquidity', async () => {
     ],
     0, false, true
   )
-  expect(tx.status).toEqual(2)
+  // expect(tx.status).toEqual(2)
+  console.log("tx", tx)
+  // console.log("pool address", pool.address.toLowerCase())
+  // console.log("router address", router.address.toLowerCase())
+  // console.log(await token0.getState())
+
 
   poolState = await pool.getState()
   // console.log(poolState)
