@@ -3,6 +3,9 @@ scilla_version 0
 import BoolUtils IntUtils ListUtils
 library ZilSwapRouter
 
+type ReserveData =
+| ReserveData of Uint128 Uint128 Uint128 Uint128 (* reserve0, reserve1, vReserve0, vReserve1 *)
+
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
 let zero_amount_u256 = Uint256 0
@@ -107,32 +110,30 @@ let sort_token =
     end
   end
 
-(* function getTradeInfo()
-    external
-    virtual
-    override
-    view
-    returns (
-        uint112 _reserve0,
-        uint112 _reserve1,
-        uint112 _vReserve0,
-        uint112 _vReserve1,
-        uint256 feeInPrecision
-    )
-{
-    // gas saving to read reserve data
-    _reserve0 = reserve0;
-    _reserve1 = reserve1;
-    uint32 _ampBps = ampBps;
-    _vReserve0 = vReserve0;
-    _vReserve1 = vReserve1;
-    if (_ampBps == BPS) {
-        _vReserve0 = _reserve0;
-        _vReserve1 = _reserve1;
-    }
-    uint256 rFactorInPrecision = getRFactor(block.number);
-    feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), _ampBps);
-} *)
+let get_trade_info = 
+  fun (r_0: Uint128) =>
+  fun (r_1: Uint128) =>
+  fun (v_r_0: Uint128) =>
+  fun (v_r_1: Uint128) =>
+  fun (is_eq: Bool) =>
+  fun (is_same_order: Bool) =>
+  match is_eq with
+  | True =>
+    match is_same_order with
+    | True =>
+      ReserveData r_0 r_1 r_0 r_1
+    | False =>
+      ReserveData r_1 r_0 r_1 r_0
+    end
+  | False =>
+    match is_same_order with
+    | True =>
+      ReserveData r_0 r_1 v_r_0 v_r_1
+    | False =>
+      ReserveData r_1 r_0 v_r_1 v_r_0
+    end
+  end
+
 
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
@@ -410,6 +411,19 @@ procedure Send(amount: Uint128, to_address : ByStr20)
   send msgs
 end
 
+
+procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Uint128, amount_out: Uint128)
+  is_sufficient_liquidity = 
+    let a = uint128_gt r_in amount_in in
+    let b = uint128_gt r_out amount_out in
+    andb a b;
+  match is_sufficient_liquidity with
+  | True =>
+  | False =>
+  err = CodeInsufficientLiquidity;
+  ThrowError err
+  end
+end
 
 (* function verifyPoolsPathSwap(address[] memory poolsPath, IERC20[] memory path) internal view {
   require(path.length >= 2, "DMMRouter: INVALID_PATH");
@@ -946,7 +960,7 @@ transition RemoveLiquidity(
   VerifyBlock deadline_block;
   VerifyPoolAddress tokenA tokenB pool;
 
-  (* Sends liquidity to Pool *)
+  (* Sends LP tokens to Pool *)
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
   (* Calls Burn transition on Pool *)
@@ -979,9 +993,9 @@ end
   _swap(amounts, poolsPath, path, to);
 } *)
 
-(* Only 1 pool and 1 token pair *)
 (* @dev: pools_path: pool_address *)
 (* @dev: path: token_in, token_out *)
+(* @dev: to refers to the address of the last pool *)
 transition SwapExactTokensForTokens(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1018,67 +1032,68 @@ transition SwapExactTokensForTokens(
   end;
 
   match path with 
-  | Pair token0 token1 =>
-    VerifyPoolAddress token0 token1 pool_path;
-    
-    (* getTradeInfo *)
-    r_in <- & pool_path.reserve0;
-    r_out <- & pool_path.reserve1;
-    amp <- & pool_path.amp_bps;
-    s_e <- & pool_path.short_ema;
-    l_e <- & pool_path.long_ema;
-    r_factor_in_precision = calculate_r_factor s_e l_e;
-    fee_in_precision = get_final_fee r_factor_in_precision amp;
-
-    is_sufficient_liquidity = 
-      let a = uint128_gt r_in zero_amount in
-      let b = uint128_gt r_out zero_amount in
-      andb a b;
-    match is_sufficient_liquidity with
-    | True =>
-    | False =>
-      err = CodeInsufficientLiquidity;
-      ThrowError err
-    end;
+  | Pair token_in token_out =>
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      VerifyPoolAddress init_token0 init_token1 pool_path;
+      r_0 <- & pool_path.reserve0;
+      r_1 <- & pool_path.reserve1;
+      v_r_0 <- & pool_path.v_reserve0;
+      v_r_1 <- & pool_path.v_reserve1;
+      amp <- & pool_path.amp_bps;
+      s_e <- & pool_path.short_ema;
+      l_e <- & pool_path.long_ema;
+      r_factor_in_precision = calculate_r_factor s_e l_e;
+      fee_in_precision = get_final_fee r_factor_in_precision amp;
   
-    is_amp_pool = builtin eq amp bps;
-    match is_amp_pool with
-    | True =>
-      v_r_in = r_in;
-      v_r_out = r_out;
-      amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
-      amount = Pair {Uint128 Uint128} amount_in amount_out;
-      is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
-      match is_valid_amount_out_min with 
-      | True =>
-        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
-                        from: _sender; to: to; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
-        msgs = two_msgs msg_to_token0 msg_to_pool;
-        send msgs
-      | False =>
-        err = CodeInsufficientOutputAmt;
-        ThrowError err
-      end
-      
-    | False =>
-      v_r_in <- & pool_path.v_reserve0;
-      v_r_out <- & pool_path.v_reserve1;
-      amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
-      amount = Pair {Uint128 Uint128} amount_in amount_out;
-      is_valid_amount_out = uint128_gt amount_out amount_out_min;
-      match is_valid_amount_out with 
-      | True =>
-        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
-                        from: _sender; to: to; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
-        msgs = two_msgs msg_to_token0 msg_to_pool;
-        send msgs
-      | False =>
-        err = CodeInsufficientOutputAmt;
-        ThrowError err
+      is_eq = builtin eq amp bps;
+      is_same_order = builtin eq token_in init_token0;
+  
+      (* getAmountsOut *)
+      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
+      match data with 
+      | ReserveData r_in r_out v_r_in v_r_out =>
+        amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
+        amount = Pair {Uint128 Uint128} amount_in amount_out;
+  
+        VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
+
+        is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
+        match is_valid_amount_out_min with 
+        | True => | False => 
+          err = CodeInsufficientOutputAmt;
+          ThrowError err
+        end;
+
+        is_valid_reserve_out = uint128_gt r_out amount_out;
+        match is_valid_reserve_out with 
+        | True => | False => 
+          err = CodeInsufficientLiquidity;
+          ThrowError err
+        end;
+
+        (* _swap *)
+        match is_same_order with
+        | True =>
+          amount0_out = zero_amount;
+          amount1_out = amount_out;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
+                          from: _sender; to: to; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        | False =>
+          amount0_out = amount_out;
+          amount1_out = zero_amount;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
+                          from: _sender; to: to; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        end
       end
     end
   end
@@ -1098,6 +1113,10 @@ end
   path[0].safeTransferFrom(msg.sender, poolsPath[0], amounts[0]);
   _swap(amounts, poolsPath, path, to);
 } *)
+
+(* @dev: pools_path: pool_address *)
+(* @dev: path: token_in, token_out *)
+(* @dev: to refers to the address of the last pool *)
 transition SwapTokensForExactTokens(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1133,68 +1152,63 @@ transition SwapTokensForExactTokens(
     ThrowError err
   end;
 
-  match path with 
-  | Pair token0 token1 =>
-    VerifyPoolAddress token0 token1 pool_path;
-        
-    (* getTradeInfo *)
-    r_in <- & pool_path.reserve0;
-    r_out <- & pool_path.reserve1;
-    amp <- & pool_path.amp_bps;
-    s_e <- & pool_path.short_ema;
-    l_e <- & pool_path.long_ema;
-    r_factor_in_precision = calculate_r_factor s_e l_e;
-    fee_in_precision = get_final_fee r_factor_in_precision amp;
+  match path with
+  | Pair token_in token_out => 
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      VerifyPoolAddress init_token0 init_token1 pool_path;
 
-    is_sufficient_liquidity = 
-      let a = uint128_gt r_in zero_amount in
-      let b = uint128_gt r_out amount_out in
-      andb a b;
-    match is_sufficient_liquidity with
-    | True =>
-    | False =>
-      err = CodeInsufficientLiquidity;
-      ThrowError err
-    end;
+      r_0 <- & pool_path.reserve0;
+      r_1 <- & pool_path.reserve1;
+      v_r_0 <- & pool_path.v_reserve0;
+      v_r_1 <- & pool_path.v_reserve1;
+      amp <- & pool_path.amp_bps;
+      s_e <- & pool_path.short_ema;
+      l_e <- & pool_path.long_ema;
+      r_factor_in_precision = calculate_r_factor s_e l_e;
+      fee_in_precision = get_final_fee r_factor_in_precision amp;
 
-    is_eq = builtin eq amp bps;
-    match is_eq with
-    | True =>
-      v_r_in = r_in;
-      v_r_out = r_out;
-      amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
-      amount = Pair {Uint128 Uint128} amount_in amount_out;
-      is_valid_amount_in = uint128_le amount_in amount_in_max;
-      match is_valid_amount_in with 
-      | True =>
-        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
-                        from: _sender; to: to; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
-        msgs = two_msgs msg_to_token0 msg_to_pool;
-        send msgs
-      | False =>
-        err = CodeExcessiveInputAmt;
-        ThrowError err
-      end
-      
-    | False =>
-      v_r_in <- & pool_path.v_reserve0;
-      v_r_out <- & pool_path.v_reserve1;
-      amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
-      amount = Pair {Uint128 Uint128} amount_in amount_out;
-      is_valid_amount_in = uint128_le amount_in amount_in_max;
-      match is_valid_amount_in with 
-      | True =>
-        msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
-                        from: _sender; to: to; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                      amount0_out: zero_amount; amount1_out: amount_out; to: to};
-        msgs = two_msgs msg_to_token0 msg_to_pool;
-        send msgs
-      | False =>
-        err = CodeExcessiveInputAmt;
-        ThrowError err
+      is_eq = builtin eq amp bps;
+      is_same_order = builtin eq token_in init_token0;
+
+      (* getAmountsIn *)
+      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
+      match data with 
+      | ReserveData r_in r_out v_r_in v_r_out =>
+        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+        amount = Pair {Uint128 Uint128} amount_in amount_out;
+
+        VerifySufficientLiquidity r_in r_out zero_amount amount_out;
+
+        is_valid_amount_in = uint128_le amount_in amount_in_max;
+        match is_valid_amount_in with 
+        | True => | False =>
+          err = CodeExcessiveInputAmt;
+          ThrowError err
+        end;
+
+        (* _swap *)
+        match is_same_order with
+        | True =>
+          amount0_out = zero_amount;
+          amount1_out = amount_out;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
+                          from: _sender; to: to; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        | False =>
+          amount0_out = amount_out;
+          amount1_out = zero_amount;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
+                          from: _sender; to: to; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        end
       end
     end
   end
