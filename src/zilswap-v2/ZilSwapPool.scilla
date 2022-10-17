@@ -514,7 +514,7 @@ procedure MintFee(is_amp_pool: Bool)
         (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
         let t_r1 = builtin div t r1 in
         let sqrt = builtin isqrt t_r1 in
-        builtin sub r0 t_r1
+        builtin sub r0 sqrt
       | False =>
         (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
         let kl_r1 = builtin div kl r1 in
@@ -528,7 +528,7 @@ procedure MintFee(is_amp_pool: Bool)
         let numerator = let a = builtin mul ts collected_fee in builtin mul a fee_bps in
         let denominator = let a = builtin sub pool_value collected_fee in builtin mul a half_bps in
         builtin div numerator denominator;
-      has_fee = builtin eq liquidity zero_amount;
+      has_fee = uint128_gt liquidity zero_amount;
       match has_fee with | False =>
       | True =>
         AuthorizedMint fee_to liquidity
