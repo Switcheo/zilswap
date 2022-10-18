@@ -10,12 +10,15 @@ library ZolarQuest
 let block_zero = BNum 0
 let zero = Uint32 0
 let one = Uint32 1
+let two = Uint32 2
 let five = Uint32 5
 let six = Uint32 6
 let ten = Uint32 10
-let hundred_amt = Uint128 100
+let ten_thousand = Uint32 10000
 let zero_amt = Uint128 0
 let one_amt = Uint128 1
+let hundred_amt = Uint128 100
+let ten_thousand_amt = Uint128 10000
 let none = None {ByStr20}
 let true = True
 let false = False
@@ -128,7 +131,8 @@ contract ZolarQuest
   initial_resource_per_epoch: Uint128,
   initial_xp_per_epoch: Uint128,
   initial_fee_contract: ByStr20,
-  initial_harvest_fee: Uint128,
+  initial_harvest_fee_per_epoch: Uint128,
+  initial_num_epochs_waive_harvest: Uint32,
   initial_return_fee: Uint128
 )
 
@@ -151,8 +155,11 @@ field xp_per_epoch : Uint128 = initial_xp_per_epoch
 (* token address for fee ($HUNY) *)
 field fee_contract : ByStr20 = initial_fee_contract
 
-(* fee charged per metazoa per harvest *)
-field harvest_fee : Uint128 = initial_harvest_fee
+(* fee charged per metazoa per harvest per epoch *)
+field harvest_fee_per_epoch : Uint128 = initial_harvest_fee_per_epoch
+
+(* number of epochs to waive harvest fee*)
+field num_epochs_waive_harvest : Uint32 = initial_num_epochs_waive_harvest
 
 (* fee charged per metazoa per return to base *)
 field return_fee : Uint128 = initial_return_fee
@@ -368,6 +375,8 @@ procedure HarvestForMetazoa(token_id : Uint256)
     fee_discount = match maybe_fee_discount with | None => zero_amt | Some v => v end;
 
     num_of_epochs = builtin div num_blocks min_harvest_blocks;
+    maybe_num_of_epochs_uint32 = builtin to_uint32 num_of_epochs;
+    num_of_epochs_uint32 = match maybe_num_of_epochs_uint32 with | None => zero | Some v => v end;
     blocks_to_add = builtin mul num_of_epochs min_harvest_blocks;
 
     resource_per_unit <- resource_per_epoch;
@@ -382,10 +391,28 @@ procedure HarvestForMetazoa(token_id : Uint256)
                  let product = builtin mul base total_percent in
                  builtin div product hundred_amt;
 
-    fee <- harvest_fee;
+    (*
+      init_fee = fee_per_epoch * num_of_epochs
+      x = (number of epochs passed)^2
+      y = (number of epochs to waive harvest fee)^2
+      final_fee_to_charge = Math.min(init_fee - (init_fee * (x / y)), zero)
+    *)
+    fee <- harvest_fee_per_epoch;
+    epochs_to_waive_harvest <- num_epochs_waive_harvest;
     fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
                     let product = builtin mul fee new_percent in
-                    builtin div product hundred_amt;
+                    let fee_per_epoch = builtin div product hundred_amt in
+                    let init_fee = builtin mul fee_per_epoch num_of_epochs in
+                    let fee_to_waive =
+                      let num_epochs_squared = builtin pow num_of_epochs_uint32 two in
+                      let num_epochs_squared_4dp = builtin mul num_epochs_squared ten_thousand in
+                      let num_epochs_waive_squared = builtin pow epochs_to_waive_harvest two in
+                      let ratio = builtin div num_epochs_squared_4dp num_epochs_waive_squared in
+                      let maybe_ratio_uint128 = builtin to_uint128 ratio in
+                      let ratio_uint128 = match maybe_ratio_uint128 with | None => zero_amt | Some v => v end in
+                      let fee_to_waive_4dp = builtin mul init_fee ratio_uint128 in
+                      builtin div fee_to_waive_4dp ten_thousand_amt in
+                    sub_or_zero init_fee fee_to_waive;
     
     (* add resource_to_mint, xp_to_gain and fee_to_charge to accumulated contract fields for aggregated harvest *)
     maybe_current_accumulated_resource <- accumulated_resources[_sender];
@@ -754,10 +781,18 @@ transition SetFeeContract(address : ByStr20)
 end
 
 (* @dev: Sets the harvest fee per metazoa. Can be overriden at any time. *)
-transition SetHarvestFee(fee : Uint128)
+transition SetHarvestFeePerEpoch(fee : Uint128)
   IsOwner _sender;
-  harvest_fee := fee;
-  e = {_eventname : "HarvestFeeSet"; fee : fee};
+  harvest_fee_per_epoch := fee;
+  e = {_eventname : "HarvestFeePerEpochSet"; fee : fee};
+  event e
+end
+
+(* @dev: Sets the number of epochs required to waive harvest fee. Can be overriden at any time. *)
+transition SetNumberOfEpochsWaiveHarvest(num_epochs : Uint32)
+  IsOwner _sender;
+  num_epochs_waive_harvest := num_epochs;
+  e = {_eventname : "NumberOfEpochsWaiveHarvestSet"; num_epochs : num_epochs};
   event e
 end
 

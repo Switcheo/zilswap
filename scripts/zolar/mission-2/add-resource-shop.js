@@ -16,6 +16,7 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
   const scrapContract = zilliqa.contracts.at(process.env.SCRAP_CONTRACT_HASH);
   const scrapAddress = scrapContract.address.toLowerCase();
   const emporiumContract = zilliqa.contracts.at(process.env.EMPORIUM_CONTRACT_HASH);
+  const hunyContract = zilliqa.contracts.at(process.env.HUNY_CONTRACT_HASH);
 
   const resourceStallAddress = resourceStallContract.address.toLowerCase();
 
@@ -34,6 +35,11 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
   ], 0, false, false);
   console.log("add stall minter", txAddMinterStall3.id);
 
+  const txAddMinterStall4 = await callContract(privateKey, hunyContract, "AddMinter", [
+    param('minter', 'ByStr20', resourceStallAddress),
+  ], 0, false, false);
+  console.log("add stall minter", txAddMinterStall4)
+
   const txAddStall = await callContract(privateKey, emporiumContract, "AddStall", [
     param('address', 'ByStr20', resourceStallAddress),
   ], 0, false, false)
@@ -45,12 +51,12 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
     param('buy_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
     }),
     param('sell_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(5).toString(10), ONE_HUNY.times(5_000).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
     })], 0, false, false)
   console.log("add item", txAddItem1.id);
 
@@ -60,12 +66,12 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
     param('buy_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(100).toString(10), ONE_HUNY.times(10_000).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(80).toString(10), ONE_HUNY.times(8_500).toString(10), "100", "50"]
     }),
     param('sell_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(5).toString(10), ONE_HUNY.times(5_000).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(40).toString(10), ONE_HUNY.times(1_200).toString(10), "50", "100"]
     })], 0, false, false)
   console.log("add item", txAddItem2.id);
 
@@ -75,12 +81,12 @@ const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE
     param('buy_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
     }),
     param('sell_price', `${resourceStallAddress}.Price`, {
       constructor: `${resourceStallAddress}.Price`,
       argtypes: [],
-      arguments: [ONE_HUNY.times(5).toString(10), ONE_HUNY.times(5_000).toString(10), "100", "50"]
+      arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
     })], 0, false, false)
   console.log("add item", txAddItem3.id);
 })();

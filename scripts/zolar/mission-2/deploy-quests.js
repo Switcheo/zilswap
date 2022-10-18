@@ -20,7 +20,8 @@ const { callContract } = require("../../call");
     resourcePerEpoch: "2800",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
+    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questScrapAddress = questScrapContract.address.toLowerCase();
@@ -33,7 +34,8 @@ const { callContract } = require("../../call");
     resourcePerEpoch: "2800",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
+    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questGeodeAddress = questGeodeContract.address.toLowerCase();
@@ -46,7 +48,8 @@ const { callContract } = require("../../call");
     resourcePerEpoch: "1000",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFee: ONE_HUNY.times(100), // 100 HUNY
+    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
+    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questBerryAddress = questBerryContract.address.toLowerCase();
