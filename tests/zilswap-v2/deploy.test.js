@@ -1,18 +1,19 @@
 const { getDefaultAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployContract } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
-const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
+const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto');
+const { getContractCodeHash } = require('./helper.js');
 
 let token0, token1, owner, tx, router, routerState, pool, poolState
 
 test('deploy ZilswapV2', async () => {
-  const codehash = "0xdeeb20a34fd14161dcc0bfe247c77fc8ef701389e5686592db0869dc48159208"
+  const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
-  owner = getDefaultAccount()
-  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }))[0]
-  token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }))[0]
-  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
-  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 }))[0]
+  owner = getDefaultAccount();
+  [token0] = await useFungibleToken(owner.key, { symbol: 'TKN0' });
+  [token1] = await useFungibleToken(owner.key, { symbol: 'TKN1' });
+  [router] = await deployZilswapV2Router(owner.key, { governor: null, codehash });
+  [pool] = await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 });
   const [initToken0Address, initToken1Address] = [token0.address.toLowerCase(), token1.address.toLowerCase()].sort();
 
   poolState = await pool.getState()
@@ -43,7 +44,7 @@ test('deploy ZilswapV2', async () => {
   expect(routerState).toEqual({
     "_balance": "0",
     "all_pools": [],
-    "codehash": `${codehash}`,
+    "pool_codehash": `${codehash}`,
     "fee_configuration": {
       "argtypes": [
         "ByStr20",
@@ -66,51 +67,4 @@ test('deploy ZilswapV2', async () => {
     "pools": {},
     "unamplified_pools": {}
   })
-
-  tx = await callContract(
-    owner.key, router,
-    'AddPool',
-    [
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: pool.address.toLowerCase(),
-      },
-    ],
-    0, false, false
-  )
-  expect(tx.status).toEqual(2)
-  console.log(await router.getState())
-
-  // Deploy CodeHash contract
-  const file = './src/zilswap-v2/PoolCodeHash.scilla'
-  const init = [
-    {
-      vname: '_scilla_version',
-      type: 'Uint32',
-      value: '0',
-    },
-    {
-      vname: 'owner',
-      type: 'ByStr20',
-      value: `${owner.address.toLowerCase()}`,
-    }
-  ]
-  const codeHashContract = (await deployContract(owner.key, file, init))[0]
-
-  // Call GetCodeHash transition
-  tx = await callContract(
-    owner.key, codeHashContract,
-    'GetCodeHash',
-    [
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool.address.toLowerCase()}`,
-      }
-    ],
-    0, false, false
-  )
-  expect(tx.status).toEqual(2)
-  console.log(tx)
 })

@@ -5,7 +5,8 @@ const readFile = util.promisify(fs.readFile)
 
 async function compile(file) {
   const code = (await readFile(file)).toString()
-  return compress(code)
+  // return compress(code)
+  return code;
 }
 
 function compress(code) {

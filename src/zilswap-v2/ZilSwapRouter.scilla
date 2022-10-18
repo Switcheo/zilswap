@@ -298,7 +298,7 @@ field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
 field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map ByStr20 ByStr20)
 
-field codehash : ByStr32 = init_codehash
+field pool_codehash : ByStr32 = init_codehash
 
 (**************************************)
 (*             Procedures             *)
@@ -318,6 +318,24 @@ procedure IsSelf(address : ByStr20)
   | False =>
     err = CodeNotSelf;
     ThrowError err
+  end
+end
+
+(* validate the pool contract with correct codehash *)
+procedure IsValidPoolContract(pool_address : ByStr20)
+  maybe_pool <- & pool_address as ByStr20 with _codehash end;
+  match maybe_pool with
+  | None =>
+  | Some p =>
+    required_codehash <- pool_codehash;
+    codehash <- & p._codehash;
+    is_valid_pool = builtin eq codehash required_codehash;
+    match is_valid_pool with
+    | True =>
+    | False =>
+      err = CodeInvalidPool;
+      ThrowError err
+    end
   end
 end
 
@@ -563,6 +581,8 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
+  IsValidPoolContract pool;
+
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
   (* t0 <- & pool.token0;
@@ -573,21 +593,6 @@ transition AddPool(
     err = CodeNotSelf;
     ThrowError err
   end *)
-
-
-  (* validate the pool contract using codehash *)
-  maybe_pool <- & pool as ByStr20 with _codehash end;
-  match maybe_pool with
-  | None => | Some p =>
-    init_codehash <- codehash;
-    new_codehash <- & p._codehash;
-    is_valid_pool = builtin eq new_codehash init_codehash;
-    match is_valid_pool with
-    | True => | False =>
-      err = CodeInvalidPool;
-      ThrowError err
-    end
-  end;
 
   (* populate pool mapping for both directions *)
   token0 <- & pool.token0;

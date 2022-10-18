@@ -1,13 +1,14 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
-const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
+const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto');
+const { getContractCodeHash } = require('./helper.js');
 
 let token0, token1, owner, feeAccount, router, pool
 const minimumLiquidity = 1000
 const initToken0Amt = "1000000000000"
 const initToken1Amt = "1000000000000"
-const codehash = "0xdeeb20a34fd14161dcc0bfe247c77fc8ef701389e5686592db0869dc48159208"
+const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 // Not_amp pool; fee not on
 test('zilswap addLiquidity and removeLiquidity', async () => {
