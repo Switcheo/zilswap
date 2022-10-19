@@ -49,6 +49,7 @@ beforeAll(async () => {
     feeContract: hunyAddress,
     harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
     numEpochsWaiveHarvest: '10',
+    percentageBps: '5000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   questAddress = questContract.address.toLowerCase();
@@ -187,10 +188,10 @@ test('harvest half-way from waive harvest fee', async () => {
   ], 0, false, false)
   expect(txHarvest.receipt.success).toEqual(true)
   const fee = new BigNumber(txHarvest.receipt.event_logs[3].params[2].value)
-  expect(fee).toEqual(ONE_HUNY.times(192))
+  expect(fee).toEqual(ONE_HUNY.times(196))
 })
 
-test('harvest after harvest fee waived', async () => {
+test('harvest after percentage of harvest fee waived', async () => {
   const txSetNumEpochsWaiveHarvest = await callContract(user1PrivateKey, questContract, "SetNumberOfEpochsWaiveHarvest", [
     param('num_epochs', 'Uint32', '3'),
   ], 0, false, false)
@@ -203,7 +204,6 @@ test('harvest after harvest fee waived', async () => {
     param('token_ids', 'List Uint256', ["1"]),
   ], 0, false, false)
   expect(txHarvest.receipt.success).toEqual(true)
-  const events = txHarvest.receipt.event_logs
-  const isFeeWaived = events.find(event => event._eventname === 'Burnt')
-  expect(isFeeWaived).toEqual(undefined)
+  const fee = new BigNumber(txHarvest.receipt.event_logs[3].params[2].value)
+  expect(fee).toEqual(ONE_HUNY.times(150))
 })
