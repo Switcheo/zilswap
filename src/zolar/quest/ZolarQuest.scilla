@@ -18,6 +18,7 @@ let ten_thousand = Uint32 10000
 let zero_amt = Uint128 0
 let one_amt = Uint128 1
 let hundred_amt = Uint128 100
+let thousand_amt = Uint128 1000
 let ten_thousand_amt = Uint128 10000
 let none = None {ByStr20}
 let true = True
@@ -405,9 +406,9 @@ procedure HarvestForMetazoa(token_id : Uint256)
     fee <- harvest_fee_per_epoch;
     epochs_to_waive_harvest <- num_epochs_waive_harvest;
     percentage_bps <- waive_harvest_percentage_bps;
-    fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
+    fee_to_charge = let new_percent = sub_or_zero thousand_amt fee_discount in
                     let product = builtin mul fee new_percent in
-                    let fee_per_epoch = builtin div product hundred_amt in
+                    let fee_per_epoch = builtin div product thousand_amt in
                     let init_fee = builtin mul fee_per_epoch num_of_epochs in
                     let fee_after_percentage =
                         let fee_product = builtin mul init_fee percentage_bps in
