@@ -485,7 +485,6 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
 end
 
 transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
-
   IsValidQuantity quantity;
     
   maybe_item <- items[item_id];

@@ -5,7 +5,7 @@ const { callContract } = require("../../../scripts/call");
 const { deployItems, deployMetazoa } = require("../../../scripts/zolar/mission-2/helper");
 const { generateErrorMsg } = require('../bank/helper')
 
-let privateKey, memberPrivateKey, address, memberAddress, itemsAddress, itemsContract
+let user1PrivateKey, user2PrivateKey, user1Address, user2Address, itemsAddress, itemsContract
 
 beforeAll(async () => {
   // deploy metazoa
@@ -28,10 +28,10 @@ beforeAll(async () => {
   // equip item and transfer parent, check who can unequip it and check if item ownership changes
 
 
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
+  user1PrivateKey = getPrivateKey();
+  user1Address = getAddressFromPrivateKey(user1PrivateKey).toLowerCase();
 
-  ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
+  ; ({ key: user2PrivateKey, address: user2Address } = await createRandomAccount(user1PrivateKey, '1000'))
 
   metazoaContract = await deployMetazoa()
   metazoaAddress = metazoaContract.address.toLowerCase();
@@ -39,39 +39,39 @@ beforeAll(async () => {
   itemsContract = await deployItems({ baseUri: "https://test-api.zolar.io/items/metadata/" });
   itemsAddress = itemsContract.address.toLowerCase();
 
-  const txMintMetazoa = await callContract(privateKey, metazoaContract, "Mint", [
-    param('to', 'ByStr20', address),
+  const txMintMetazoa = await callContract(user1PrivateKey, metazoaContract, "Mint", [
+    param('to', 'ByStr20', user1Address),
     param('token_uri', 'String', "testing mint metazoa")
   ], 0, false, false)
   console.log(txMintMetazoa.id)
 
-  const txMintItem1 = await callContract(privateKey, itemsContract, "Mint", [
-    param('to', 'ByStr20', address),
+  const txMintItem1 = await callContract(user1PrivateKey, itemsContract, "Mint", [
+    param('to', 'ByStr20', user1Address),
     param('token_uri', 'String', "testing mint item 1")
   ], 0, false, false)
   console.log(txMintItem1.id)
 
-  const txMintItem2 = await callContract(privateKey, itemsContract, "Mint", [
-    param('to', 'ByStr20', address),
+  const txMintItem2 = await callContract(user1PrivateKey, itemsContract, "Mint", [
+    param('to', 'ByStr20', user1Address),
     param('token_uri', 'String', "testing mint item 2")
   ], 0, false, false)
   console.log(txMintItem2.id)
 
-  const txMintItem3 = await callContract(privateKey, itemsContract, "Mint", [
-    param('to', 'ByStr20', address),
+  const txMintItem3 = await callContract(user1PrivateKey, itemsContract, "Mint", [
+    param('to', 'ByStr20', user1Address),
     param('token_uri', 'String', "testing mint item 3")
   ], 0, false, false)
   console.log(txMintItem3.id)
 
-  const txMintItem4 = await callContract(privateKey, itemsContract, "Mint", [
-    param('to', 'ByStr20', memberAddress),
+  const txMintItem4 = await callContract(user1PrivateKey, itemsContract, "Mint", [
+    param('to', 'ByStr20', user2Address),
     param('token_uri', 'String', "testing mint item 4")
   ], 0, false, false)
   console.log(txMintItem4.id)
 })
 
 test('equip and unequip item to and from metazoa', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '1'),
         param('to_contract', 'ByStr20', metazoaAddress)
@@ -79,7 +79,7 @@ test('equip and unequip item to and from metazoa', async () => {
     console.log(txEquip.id)
     expect(txEquip.receipt.success).toEqual(true)
     
-    const txUnequip = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '1'),
         param('from_token_id', 'Uint256', '1'),
         param('from_contract', 'ByStr20', metazoaAddress)
@@ -89,7 +89,7 @@ test('equip and unequip item to and from metazoa', async () => {
 })
 
 test('equip and unequip item to and from item', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -97,7 +97,7 @@ test('equip and unequip item to and from item', async () => {
     console.log(txEquip.id)
     expect(txEquip.receipt.success).toEqual(true)
     
-    const txUnequip = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '1'),
         param('from_token_id', 'Uint256', '2'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -107,7 +107,7 @@ test('equip and unequip item to and from item', async () => {
 })
 
 test('equipping an already equipped item', async () => {
-    const txEquip1 = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip1 = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -115,7 +115,7 @@ test('equipping an already equipped item', async () => {
     console.log(txEquip1.id)
     expect(txEquip1.receipt.success).toEqual(true)
     
-    const txEquip2 = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip2 = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -124,7 +124,7 @@ test('equipping an already equipped item', async () => {
     expect(txEquip2.receipt.success).toEqual(false)
     expect(txEquip2.receipt.exceptions[0].message).toEqual(generateErrorMsg(19)) // throws ItemOwnedError
 
-    const txUnequip = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '1'),
         param('from_token_id', 'Uint256', '2'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -134,7 +134,7 @@ test('equipping an already equipped item', async () => {
 })
 
 test('unequipping an unequipped item', async () => {
-    const txUnequip = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '1'),
         param('from_token_id', 'Uint256', '2'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -145,7 +145,7 @@ test('unequipping an unequipped item', async () => {
 })
 
 test('equipping item to itself', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '1'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -156,7 +156,7 @@ test('equipping item to itself', async () => {
 })
 
 test('transfer and burn an equipped item', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -164,22 +164,22 @@ test('transfer and burn an equipped item', async () => {
     console.log(txEquip.id)
     expect(txEquip.receipt.success).toEqual(true)
 
-    const txTransfer = await callContract(privateKey, itemsContract, "TransferFrom", [
-        param('to', 'ByStr20', memberAddress),
+    const txTransfer = await callContract(user1PrivateKey, itemsContract, "TransferFrom", [
+        param('to', 'ByStr20', user2Address),
         param('token_id', 'Uint256', '1'),
     ], 0, false, false)
     console.log(txTransfer.id)
     expect(txTransfer.receipt.success).toEqual(false)
     expect(txTransfer.receipt.exceptions[0].message).toEqual(generateErrorMsg(19)) // throws ItemOwnedError
 
-    const txBurn = await callContract(privateKey, itemsContract, "Burn", [
+    const txBurn = await callContract(user1PrivateKey, itemsContract, "Burn", [
         param('token_id', 'Uint256', '1'),
     ], 0, false, false)
     console.log(txBurn.id)
     expect(txBurn.receipt.success).toEqual(false)
     expect(txBurn.receipt.exceptions[0].message).toEqual(generateErrorMsg(19)) // throws ItemOwnedError
 
-    const txUnequip = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '1'),
         param('from_token_id', 'Uint256', '2'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -189,7 +189,7 @@ test('transfer and burn an equipped item', async () => {
 })
 
 test('equip item that belongs to another user', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '4'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -200,7 +200,7 @@ test('equip item that belongs to another user', async () => {
 })
 
 test('equip item where parent belongs to another user', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '4'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -211,7 +211,7 @@ test('equip item where parent belongs to another user', async () => {
 })
 
 test('equip item where target parent is already a child of the item', async () => {
-    const txEquip1 = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip1 = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '2'),
         param('to_token_id', 'Uint256', '1'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -219,7 +219,7 @@ test('equip item where target parent is already a child of the item', async () =
     console.log(txEquip1.id)
     expect(txEquip1.receipt.success).toEqual(true)
 
-    const txEquip2 = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip2 = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '3'),
         param('to_token_id', 'Uint256', '2'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -227,7 +227,7 @@ test('equip item where target parent is already a child of the item', async () =
     console.log(txEquip2.id)
     expect(txEquip2.receipt.success).toEqual(true)
 
-    const txEquip3 = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip3 = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '1'),
         param('to_token_id', 'Uint256', '3'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -236,7 +236,7 @@ test('equip item where target parent is already a child of the item', async () =
     expect(txEquip3.receipt.success).toEqual(false)
     expect(txEquip3.receipt.exceptions[0].message).toEqual(generateErrorMsg(29)) // throws ItemCannotBeParentError2
 
-    const txUnequip1 = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip1 = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '2'),
         param('from_token_id', 'Uint256', '1'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -244,7 +244,7 @@ test('equip item where target parent is already a child of the item', async () =
     console.log(txUnequip1.id)
     expect(txUnequip1.receipt.success).toEqual(true)
 
-    const txUnequip2 = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip2 = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '3'),
         param('from_token_id', 'Uint256', '2'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -254,7 +254,7 @@ test('equip item where target parent is already a child of the item', async () =
 })
 
 test('equip items and transfer parent, to check if ownership of child items is transferred too', async () => {
-    const txEquip = await callContract(privateKey, itemsContract, "TransferToParent", [
+    const txEquip = await callContract(user1PrivateKey, itemsContract, "TransferToParent", [
         param('item_id', 'Uint256', '2'),
         param('to_token_id', 'Uint256', '1'),
         param('to_contract', 'ByStr20', itemsAddress)
@@ -262,14 +262,14 @@ test('equip items and transfer parent, to check if ownership of child items is t
     console.log(txEquip.id)
     expect(txEquip.receipt.success).toEqual(true)
 
-    const txTransfer = await callContract(privateKey, itemsContract, "TransferFrom", [
-        param('to', 'ByStr20', memberAddress),
+    const txTransfer = await callContract(user1PrivateKey, itemsContract, "TransferFrom", [
+        param('to', 'ByStr20', user2Address),
         param('token_id', 'Uint256', '1'),
     ], 0, false, false)
     console.log(txTransfer.id)
     expect(txTransfer.receipt.success).toEqual(true)
 
-    const txUnequip1 = await callContract(privateKey, itemsContract, "TransferFromParent", [
+    const txUnequip1 = await callContract(user1PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '2'),
         param('from_token_id', 'Uint256', '1'),
         param('from_contract', 'ByStr20', itemsAddress)
@@ -278,7 +278,7 @@ test('equip items and transfer parent, to check if ownership of child items is t
     expect(txUnequip1.receipt.success).toEqual(false)
     expect(txUnequip1.receipt.exceptions[0].message).toEqual(generateErrorMsg(23)) // throws NotRootOwnerError
 
-    const txUnequip2 = await callContract(memberPrivateKey, itemsContract, "TransferFromParent", [
+    const txUnequip2 = await callContract(user2PrivateKey, itemsContract, "TransferFromParent", [
         param('item_id', 'Uint256', '2'),
         param('from_token_id', 'Uint256', '1'),
         param('from_contract', 'ByStr20', itemsAddress)

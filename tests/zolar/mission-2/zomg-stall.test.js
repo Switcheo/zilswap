@@ -9,7 +9,7 @@ const { adt } = require("./helper")
 
 const MINT_ITEM_COUNT = 6
 
-let privateKey, memberPrivateKey, address, memberAddress, hunyAddress, emporiumAddress, itemsAddress, zomgStoreAddress, hunyContract, emporiumContract, itemsContract, zomgStoreContract
+let user1PrivateKey, user2PrivateKey, user1Address, user2Address, hunyAddress, emporiumAddress, itemsAddress, zomgStoreAddress, hunyContract, emporiumContract, itemsContract, zomgStoreContract
 
 beforeAll(async () => {
   // deploy huny
@@ -22,10 +22,10 @@ beforeAll(async () => {
   // mint 6 x gems (Type Gem, Affinity INT, Tier C) for self 
   // add zomg stall as item operator for self and member
 
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
+  user1PrivateKey = getPrivateKey();
+  user1Address = getAddressFromPrivateKey(user1PrivateKey).toLowerCase();
 
-  ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
+  ; ({ key: user2PrivateKey, address: user2Address } = await createRandomAccount(user1PrivateKey, '1000'))
 
   hunyContract = await deployHunyToken({ name: "Huny Token", symbol: "HUNY", decimals: "12" });
   hunyAddress = hunyContract.address.toLowerCase();
@@ -39,30 +39,30 @@ beforeAll(async () => {
   zomgStoreContract = await deployZOMGStore();
   zomgStoreAddress = zomgStoreContract.address.toLowerCase();
 
-  const txMintSelf = await callContract(privateKey, hunyContract, "Mint", [
-    param('recipient', 'ByStr20', address),
+  const txMintSelf = await callContract(user1PrivateKey, hunyContract, "Mint", [
+    param('recipient', 'ByStr20', user1Address),
     param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
   ], 0, false, false)
   console.log("mint", txMintSelf.id);
 
-  const txMintMember = await callContract(privateKey, hunyContract, "Mint", [
-    param('recipient', 'ByStr20', memberAddress),
+  const txMintMember = await callContract(user1PrivateKey, hunyContract, "Mint", [
+    param('recipient', 'ByStr20', user2Address),
     param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
   ], 0, false, false)
   console.log("mint", txMintMember.id);
 
-  const txAddHunyMinter = await callContract(privateKey, hunyContract, "AddMinter", [
+  const txAddHunyMinter = await callContract(user1PrivateKey, hunyContract, "AddMinter", [
     param('minter', 'ByStr20', zomgStoreAddress)], 0, false, false);
   console.log("add zomg store as huny minter", txAddHunyMinter.id)
 
-  const txAddMinterZOMG = await callContract(privateKey, itemsContract, "AddMinter", [
+  const txAddMinterZOMG = await callContract(user1PrivateKey, itemsContract, "AddMinter", [
     param('minter', 'ByStr20', zomgStoreAddress)], 0, false, false);
   console.log("add zomg store as item minter", txAddMinterZOMG.id)
 
   for (let i = 0; i < MINT_ITEM_COUNT; i++) {
     const mid = Math.floor(MINT_ITEM_COUNT / 2)
-    const currentAddress = i < mid ? address : memberAddress
-    const txMintGemAndSetTraits = await callContract(privateKey, itemsContract, "MintAndSetTraits", [
+    const currentAddress = i < mid ? user1Address : user2Address
+    const txMintGemAndSetTraits = await callContract(user1PrivateKey, itemsContract, "MintAndSetTraits", [
       param('to', 'ByStr20', currentAddress),
       param('token_uri', 'String', ''),
       param('proposed_traits', 'List (Pair String String)', [
@@ -74,12 +74,12 @@ beforeAll(async () => {
     console.log(`mint and set token trait for gem ${i + 1}`, txMintGemAndSetTraits.id);
   }
 
-  const txZOMGStoreAddOperatorSelf = await callContract(privateKey, itemsContract, "AddOperator", [
+  const txZOMGStoreAddOperatorSelf = await callContract(user1PrivateKey, itemsContract, "AddOperator", [
     param('operator', 'ByStr20', zomgStoreAddress),
   ], 0, false, false)
   console.log("item add zomg store as operator for self", txZOMGStoreAddOperatorSelf.id);
 
-  const txZOMGStoreAddOperatorMember = await callContract(memberPrivateKey, itemsContract, "AddOperator", [
+  const txZOMGStoreAddOperatorMember = await callContract(user2PrivateKey, itemsContract, "AddOperator", [
     param('operator', 'ByStr20', zomgStoreAddress),
   ], 0, false, false)
   console.log("item add zomg store as operator for member", txZOMGStoreAddOperatorMember.id);
@@ -99,7 +99,7 @@ test('add item to zomg store (independent of emporium)', async () => {
     "0", // ignored for zrc6 
     gemAttributes])
 
-  const txAddWeapon = await callContract(privateKey, zomgStoreContract, "AddItem", [
+  const txAddWeapon = await callContract(user1PrivateKey, zomgStoreContract, "AddItem", [
     param('item_name', 'String', 'HA13-Hand of Death'),
     param('token_address', 'ByStr20', itemsAddress),
     param('traits', 'List (Pair String String)', [
@@ -121,7 +121,7 @@ test('add item to zomg store (independent of emporium)', async () => {
 
 test('(fail) craft item with non-matching (length) paymentItems and craftingCost)', async () => {
   // test length of cost token vs payment token should match (9 - CodeInvalidPaymentItemCount)
-  const txCraftWeaponExcess = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeaponExcess = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -137,7 +137,7 @@ test('(fail) craft item with non-matching (length) paymentItems and craftingCost
   expect(txCraftWeaponExcess.receipt.exceptions[0].message).toEqual(generateErrorMsg(9)) // throws CodeInvalidPaymentItemCount
   expect(txCraftWeaponExcess.receipt.success).toEqual(false)
 
-  const txCraftWeaponDeficit = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeaponDeficit = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -154,7 +154,7 @@ test('(fail) craft item with non-matching (length) paymentItems and craftingCost
 
 test('(fail) craft item with non-matching (order) paymentItems and craftingCost', async () => {
   // test order of cost token vs payment token should match (10 - CodeInvalidPaymentItemToken) 
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeapon = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [itemsAddress, "1"]), // pay gem
@@ -172,8 +172,8 @@ test('(fail) craft item with non-matching (order) paymentItems and craftingCost'
 
 test('(fail) craft item with non-matching (traits) paymentItems and craftingCost', async () => {
   // test traits of cost token vs payment token should match (11 - CodeInvalidPaymentItemTraits) 
-  const txMintGemAndSetTraits = await callContract(privateKey, itemsContract, "MintAndSetTraits", [
-    param('to', 'ByStr20', address),
+  const txMintGemAndSetTraits = await callContract(user1PrivateKey, itemsContract, "MintAndSetTraits", [
+    param('to', 'ByStr20', user1Address),
     param('token_uri', 'String', ''),
     param('proposed_traits', 'List (Pair String String)', [
       adt('Pair', ['String', 'String'], ['Type', 'Gem']),
@@ -183,7 +183,7 @@ test('(fail) craft item with non-matching (traits) paymentItems and craftingCost
   ], 0, false, false);
   console.log("mint Tier B gem", txMintGemAndSetTraits.id);
 
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeapon = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -200,7 +200,7 @@ test('(fail) craft item with non-matching (traits) paymentItems and craftingCost
 })
 
 test(`(fail) craft item using other users' gems for payment`, async () => {
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeapon = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -219,7 +219,7 @@ test('(success) craft item', async () => {
   const hunyStateBeforeTx = await hunyContract.getState()
 
   // test zrc-2 and zrc-6 payment tokens correctly deducted (burnt)
-  const txCraftWeapon = await callContract(privateKey, zomgStoreContract, "CraftItem", [
+  const txCraftWeapon = await callContract(user1PrivateKey, zomgStoreContract, "CraftItem", [
     param('item_id', 'Uint128', "0"),
     param('payment_items', `List ${zomgStoreAddress}.PaymentItem`, [
       adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, "0"]), // pay huny
@@ -233,7 +233,7 @@ test('(success) craft item', async () => {
   const hunyStateAfterTx = await hunyContract.getState()
   const itemsStateAfterTx = await itemsContract.getState()
 
-  const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
+  const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(user1Address, hunyStateBeforeTx, hunyStateAfterTx)
   const hunyBurnt = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
 
   expect(hunyBurnt.toString()).toEqual(ONE_HUNY.times(27000).toString())
@@ -245,7 +245,7 @@ test('(success) craft item', async () => {
 
 test('(success) batch craft item', async () => {
   const hunyCost = adt(`${zomgStoreAddress}.CraftingCost`, [], [hunyAddress, ONE_HUNY.times(100), []])
-  const txAddElderberryJuice = await callContract(privateKey, zomgStoreContract, "AddItem", [
+  const txAddElderberryJuice = await callContract(user1PrivateKey, zomgStoreContract, "AddItem", [
     param('item_name', 'String', 'Elderberry Juice'),
     param('token_address', "ByStr20", itemsAddress),
     param('traits', 'List (Pair String String)', [
@@ -258,7 +258,7 @@ test('(success) batch craft item', async () => {
   ], 0, false, false)
   console.log('add elderberry juice', txAddElderberryJuice)
 
-  const txBatchCraftElderberry = await callContract(privateKey, zomgStoreContract, "BatchCraftItem", [
+  const txBatchCraftElderberry = await callContract(user1PrivateKey, zomgStoreContract, "BatchCraftItem", [
     param('item_id_payment_items_pair_list', `List (Pair Uint128 (List ${zomgStoreAddress}.PaymentItem))`, [
       adt('Pair', ['Uint128', `List ${zomgStoreAddress}.PaymentItem`], [
         '1', [adt(`${zomgStoreAddress}.PaymentItem`, [], [hunyAddress, '0'])]
@@ -271,56 +271,6 @@ test('(success) batch craft item', async () => {
       ]),
     ])
   ], 0, false, false)
-
-  const params = [
-    {
-      itemId: 0,
-      paymentItem: [
-        {
-          constructor: `${zomgStoreAddress}.PaymentItem`,
-          argtypes: [],
-          arguments: [hunyAddress, "0"]
-        },
-        {
-          constructor: `${zomgStoreAddress}.PaymentItem`,
-          argtypes: [],
-          arguments: [berryAddress, "0"]
-        },
-      ]
-    },
-    {
-      itemId: 0,
-      paymentItem: [
-        {
-          constructor: `${zomgStoreAddress}.PaymentItem`,
-          argtypes: [],
-          arguments: [hunyAddress, "0"]
-        },
-        {
-          constructor: `${zomgStoreAddress}.PaymentItem`,
-          argtypes: [],
-          arguments: [berryAddress, "0"]
-        },
-      ]
-    },  
-  ]
-
-  const argList = params.map(param => {
-    return {
-      constructor: "Pair",
-      argtypes: ['Uint128', `List ${zomgStoreAddress}.PaymentItem`],
-      arguments: [param.itemId, param.paymentItem]
-    }
-  })
-
-  const args = [
-    {
-      vname: 'item_id_payment_items_pair_list',
-      type: `List (Pair Uint128 (List ${zomgStoreAddress}.PaymentItem))`,
-      value: argList
-    }
-  ]
-
   console.log('batch craft elderberry juice', txBatchCraftElderberry)
   expect(txBatchCraftElderberry.receipt.success).toEqual(true)
 })
