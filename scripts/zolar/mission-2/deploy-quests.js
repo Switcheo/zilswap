@@ -21,7 +21,8 @@ const { callContract } = require("../../call");
     xpPerEpoch: "5",
     feeContract: hunyAddress,
     harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
+    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questScrapAddress = questScrapContract.address.toLowerCase();
@@ -35,7 +36,8 @@ const { callContract } = require("../../call");
     xpPerEpoch: "5",
     feeContract: hunyAddress,
     harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
+    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questGeodeAddress = questGeodeContract.address.toLowerCase();
@@ -49,7 +51,8 @@ const { callContract } = require("../../call");
     xpPerEpoch: "5",
     feeContract: hunyAddress,
     harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '30', // 1 month to waive harvest fee
+    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
   const questBerryAddress = questBerryContract.address.toLowerCase();

@@ -133,6 +133,7 @@ contract ZolarQuest
   initial_fee_contract: ByStr20,
   initial_harvest_fee_per_epoch: Uint128,
   initial_num_epochs_waive_harvest: Uint32,
+  initial_waive_harvest_percentage_bps: Uint128,
   initial_return_fee: Uint128
 )
 
@@ -160,6 +161,9 @@ field harvest_fee_per_epoch : Uint128 = initial_harvest_fee_per_epoch
 
 (* number of epochs to waive harvest fee*)
 field num_epochs_waive_harvest : Uint32 = initial_num_epochs_waive_harvest
+
+(* percentage of harvest fee to waive after num epochs calculation *)
+field waive_harvest_percentage_bps : Uint128 = initial_waive_harvest_percentage_bps
 
 (* fee charged per metazoa per return to base *)
 field return_fee : Uint128 = initial_return_fee
@@ -395,22 +399,33 @@ procedure HarvestForMetazoa(token_id : Uint256)
       init_fee = fee_per_epoch * num_of_epochs
       x = (number of epochs passed)^2
       y = (number of epochs to waive harvest fee)^2
-      final_fee_to_charge = Math.min(init_fee - (init_fee * (x / y)), zero)
+      z = percentage waived (e.g 1/2: half of init fee will be waived at the end of all the epochs)
+      final_fee_to_charge = init_fee - (init_fee * (x / y) * z)
     *)
     fee <- harvest_fee_per_epoch;
     epochs_to_waive_harvest <- num_epochs_waive_harvest;
+    percentage_bps <- waive_harvest_percentage_bps;
     fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
                     let product = builtin mul fee new_percent in
                     let fee_per_epoch = builtin div product hundred_amt in
                     let init_fee = builtin mul fee_per_epoch num_of_epochs in
+                    let fee_after_percentage =
+                        let fee_product = builtin mul init_fee percentage_bps in
+                        builtin div fee_product ten_thousand_amt in
                     let fee_to_waive =
                       let num_epochs_squared = builtin pow num_of_epochs_uint32 two in
                       let num_epochs_squared_4dp = builtin mul num_epochs_squared ten_thousand in
                       let num_epochs_waive_squared = builtin pow epochs_to_waive_harvest two in
-                      let ratio = builtin div num_epochs_squared_4dp num_epochs_waive_squared in
+                      let raw_ratio = builtin div num_epochs_squared_4dp num_epochs_waive_squared in
+                      let ratio =
+                        let is_greater_than_max_ratio = builtin lt ten_thousand raw_ratio in
+                        match is_greater_than_max_ratio with
+                        | True => ten_thousand
+                        | False => raw_ratio
+                        end in
                       let maybe_ratio_uint128 = builtin to_uint128 ratio in
                       let ratio_uint128 = match maybe_ratio_uint128 with | None => zero_amt | Some v => v end in
-                      let fee_to_waive_4dp = builtin mul init_fee ratio_uint128 in
+                      let fee_to_waive_4dp = builtin mul fee_after_percentage ratio_uint128 in
                       builtin div fee_to_waive_4dp ten_thousand_amt in
                     sub_or_zero init_fee fee_to_waive;
     
@@ -793,6 +808,14 @@ transition SetNumberOfEpochsWaiveHarvest(num_epochs : Uint32)
   IsOwner _sender;
   num_epochs_waive_harvest := num_epochs;
   e = {_eventname : "NumberOfEpochsWaiveHarvestSet"; num_epochs : num_epochs};
+  event e
+end
+
+(* @dev: Sets the percentage of harvest fee to be paid, before accounting for number of epochs passed. Can be overriden at any time. *)
+transition SetWaiveHarvestPercentage(percentage_bps : Uint128)
+  IsOwner _sender;
+  waive_harvest_percentage_bps := percentage_bps;
+  e = {_eventname : "WaiveHarvestPercentageSet"; percentage_bps : percentage_bps};
   event e
 end
 
