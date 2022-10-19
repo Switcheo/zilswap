@@ -808,12 +808,12 @@ const deployZILOv2 = async (privateKey, {
     param("disc_whitelist", "List ByStr20", discountWhitelist),
   ]);
 
-  // console.log("deploy tx", deployTx.hash)
-  // const [confirmedDeployTx] = await sendTxs(privateKey, [deployTx]);
-  // verifyDeployment(confirmedDeployTx);
+  console.log("deploy tx", deployTx.hash)
+  const [confirmedDeployTx] = await sendTxs(privateKey, [deployTx]);
+  verifyDeployment(confirmedDeployTx);
 
-  // const { result: contractAddress } = await zilliqa.blockchain.getContractAddressFromTransactionID(confirmedDeployTx.id);
-  // return [zilliqa.contracts.at(contractAddress), confirmedDeployTx]
+  const { result: contractAddress } = await zilliqa.blockchain.getContractAddressFromTransactionID(confirmedDeployTx.id);
+  return [zilliqa.contracts.at(contractAddress), confirmedDeployTx]
 };
 
 async function getContract(privateKey, contractHash) {
