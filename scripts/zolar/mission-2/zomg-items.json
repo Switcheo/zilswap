@@ -173,6 +173,10 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
                     "arguments": ["Affinity", "END"]
                   }, {
                     "constructor": "Pair",
@@ -250,20 +254,7 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
-                    "arguments": ["Affinity", "STR"]
-                  }, {
-                    "constructor": "Pair",
-                    "argtypes": ["String", "String"],
-                    "arguments": ["Tier", "C"]
-                  }]
-            },
-            {
-                "material": "ITEM",
-                "quantity": "0",
-                "traits": [{
-                    "constructor": "Pair",
-                    "argtypes": ["String", "String"],
-                    "arguments": ["Type", "Gem"]
+                    "arguments": ["Condition", "Normal"]
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
@@ -284,6 +275,10 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
                     "arguments": ["Affinity", "STR"]
                   }, {
                     "constructor": "Pair",
@@ -301,6 +296,31 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "STR"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
                     "arguments": ["Affinity", "INT"]
                   }, {
                     "constructor": "Pair",
@@ -318,20 +338,7 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
-                    "arguments": ["Affinity", "INT"]
-                  }, {
-                    "constructor": "Pair",
-                    "argtypes": ["String", "String"],
-                    "arguments": ["Tier", "C"]
-                  }]
-            },
-            {
-                "material": "ITEM",
-                "quantity": "0",
-                "traits": [{
-                    "constructor": "Pair",
-                    "argtypes": ["String", "String"],
-                    "arguments": ["Type", "Gem"]
+                    "arguments": ["Condition", "Normal"]
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
@@ -349,6 +356,31 @@
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
                     "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "INT"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
@@ -369,6 +401,10 @@
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
                     "arguments": ["Affinity", "DEX"]
                   }, {
                     "constructor": "Pair",
@@ -383,6 +419,10 @@
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
                     "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
                   }, {
                     "constructor": "Pair",
                     "argtypes": ["String", "String"],
