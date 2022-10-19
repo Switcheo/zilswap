@@ -347,6 +347,7 @@ procedure ExpendZRC6(token_address: ByStr20, token_id: Uint256)
   send msgs
 end
 
+(* batch burns accumulated zrc6 tokens per buyer's transaction *)
 procedure BatchExpendZRC6(token_address_id_list_pair: Pair ByStr20 (List Uint256))
   match token_address_id_list_pair with
   | Pair token_address id_list =>
@@ -362,6 +363,7 @@ procedure BatchExpendZRC6(token_address_id_list_pair: Pair ByStr20 (List Uint256
   end
 end
 
+(* calls batch burn for each item contract in the list of crafting costs, and burns their respective token ids *)
 procedure HandleExpendZRC6()
   maybe_buyer_zrc6_expend <- ongoing_zrc6_expend[_sender];
   buyer_zrc6_expend = match maybe_buyer_zrc6_expend with | None => empty_zrc6_map | Some v => v end;
@@ -385,6 +387,7 @@ procedure ExpendZRC2(token_address_quantity_pair: Pair ByStr20 Uint128)
   end
 end
 
+(* calls burn for each zrc-2 token contract in the list of crafting costs *)
 procedure HandleExpendZRC2()
   maybe_buyer_zrc2_expend <- ongoing_zrc2_expend[_sender];
   buyer_zrc2_expend = match maybe_buyer_zrc2_expend with | None => empty_zrc2_map | Some v => v end;
@@ -392,6 +395,7 @@ procedure HandleExpendZRC2()
   forall buyer_zrc2_expend_list ExpendZRC2
 end
 
+(* accumulate an ongoing mint item, to be batch minted later, per buyer per transaction *)
 procedure AddOngoingMintItem(item_id: Uint128)
   maybe_buyer_ongoing_mint <- ongoing_mint[_sender][item_id];
   buyer_ongoing_mint_quantity = match maybe_buyer_ongoing_mint with | None => uint32_zero | Some v => v end;
@@ -399,6 +403,7 @@ procedure AddOngoingMintItem(item_id: Uint128)
   ongoing_mint[_sender][item_id] := new_buyer_ongoing_mint_quantity
 end
 
+(* batch mints items per buyer per transaction *)
 procedure BatchMintItem(item_id_quantity_pair: Pair Uint128 Uint32)
   match item_id_quantity_pair with
   | Pair item_id quantity =>
@@ -425,6 +430,7 @@ procedure BatchMintItem(item_id_quantity_pair: Pair Uint128 Uint32)
   end
 end
 
+(* splits into respective item ids, and call batch mint for each item id *)
 procedure HandleOngoingMint()
   maybe_buyer_ongoing_mint <- ongoing_mint[_sender];
   buyer_ongoing_mint = match maybe_buyer_ongoing_mint with | None => empty_mint_map | Some v => v end;
@@ -432,6 +438,7 @@ procedure HandleOngoingMint()
   forall buyer_ongoing_mint_list BatchMintItem
 end
 
+(* reset aggregated fields for next buyer transaction *)
 procedure ResetOngoingCraftFields()
   delete ongoing_zrc2_expend[_sender];
   delete ongoing_zrc6_expend[_sender];
@@ -529,6 +536,7 @@ procedure VerifyAndReceivePayment(crafting_costs: List CraftingCost, payment_ite
   forall pairs VerifyAndReceiveCraftingCost
 end
 
+(* batch burns all accumulated consumables per consumer per transaction and emit event for backend to update *)
 procedure BatchExpendConsume(token_address_token_consumer_list_pair: Pair ByStr20 (List OngoingConsumeParams))
   match token_address_token_consumer_list_pair with
   | Pair token_contract_address token_consumer_list =>
@@ -552,6 +560,7 @@ procedure BatchExpendConsume(token_address_token_consumer_list_pair: Pair ByStr2
   end
 end
 
+(* split consumables into their different item contracts and batch burn the respective consumables *)
 procedure HandleOngoingConsume()
   maybe_ongoing_consume_map <- ongoing_consume[_sender];
   ongoing_consume_map = match maybe_ongoing_consume_map with | None => empty_ongoing_consume_map | Some v => v end;
@@ -559,6 +568,7 @@ procedure HandleOngoingConsume()
   forall ongoing_consume_list BatchExpendConsume
 end
 
+(* reset aggregated ongoing consume fields for next consumer transaction *)
 procedure ResetOngoingConsumeField()
   delete ongoing_consume[_sender]
 end
