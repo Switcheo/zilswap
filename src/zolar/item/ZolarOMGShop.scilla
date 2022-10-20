@@ -25,8 +25,8 @@ let item_type_key = "Type"
 let item_name_key = "Name"
 let empty_string = ""
 let empty_zrc2_map = Emp ByStr20 Uint128 (* none zero *)
-let empty_zrc6_map = Emp ByStr20 List Uint256 (* none empty_list_uint256 *)
-let empty_mint_map = Emp Uint128 Uint32  (* zero uint32_zero *)
+let empty_zrc6_map = Emp ByStr20 (List Uint256) (* none empty_list_uint256 *)
+let empty_ongoing_mint_map = Emp Uint128 Uint32  (* zero uint32_zero *)
 
 (* Error events *)
 type Error =
@@ -251,10 +251,10 @@ field items : Map Uint128 Item = Emp Uint128 Item
 field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_purchase, net_inflation) *)
 field next_item_id : Uint128 = zero
 field consumable_whitelist : Map String Bool = Emp String Bool (* map of consumableName : isConsumable *)
-field ongoing_zrc2_expend : Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128) (* map of buyer : zrc2 token_address : accumulated_quantity_to_burn *)
-field ongoing_zrc6_expend : Map ByStr20 (Map ByStr20 (List Uint256)) = Emp ByStr20 (Map ByStr20 (List Uint256)) (* map of buyer : zrc6 token_address : list_token_ids_to_burn *)
-field ongoing_mint : Map ByStr20 (Map Uint128 Uint32) = Emp ByStr20 (Map Uint128 Uint32) (* map of buyer : item_id to mint : quantity_to_mint *)
-field ongoing_consume : Map ByStr20 (Map ByStr20 (List OngoingConsumeParams)) = Emp ByStr20 (Map ByStr20 (List OngoingConsumeParams)) (* map of consumer : token_address : list of items to be consumed *)
+field ongoing_zrc2_expend : Map ByStr20 Uint128 = Emp ByStr20 Uint128 (* map of zrc2 token_address : accumulated_quantity_to_burn *)
+field ongoing_zrc6_expend : Map ByStr20 (List Uint256) = Emp ByStr20 (List Uint256) (* map of zrc6 token_address : list_token_ids_to_burn *)
+field ongoing_mint : Map Uint128 Uint32 = Emp Uint128 Uint32 (* map of item_id to mint : quantity_to_mint *)
+field ongoing_consume : Map ByStr20 (List OngoingConsumeParams) = Emp ByStr20 (List OngoingConsumeParams) (* map of token_address : list of items to be consumed *)
 
 (**************************************)
 (*             Procedures             *)
@@ -365,8 +365,7 @@ end
 
 (* calls batch burn for each item contract in the list of crafting costs, and burns their respective token ids *)
 procedure HandleExpendZRC6()
-  maybe_buyer_zrc6_expend <- ongoing_zrc6_expend[_sender];
-  buyer_zrc6_expend = match maybe_buyer_zrc6_expend with | None => empty_zrc6_map | Some v => v end;
+  buyer_zrc6_expend <- ongoing_zrc6_expend;
   buyer_zrc6_expend_list = builtin to_list buyer_zrc6_expend;
   forall buyer_zrc6_expend_list BatchExpendZRC6
 end
@@ -389,18 +388,17 @@ end
 
 (* calls burn for each zrc-2 token contract in the list of crafting costs *)
 procedure HandleExpendZRC2()
-  maybe_buyer_zrc2_expend <- ongoing_zrc2_expend[_sender];
-  buyer_zrc2_expend = match maybe_buyer_zrc2_expend with | None => empty_zrc2_map | Some v => v end;
+  buyer_zrc2_expend <- ongoing_zrc2_expend;
   buyer_zrc2_expend_list = builtin to_list buyer_zrc2_expend;
   forall buyer_zrc2_expend_list ExpendZRC2
 end
 
 (* accumulate an ongoing mint item, to be batch minted later, per buyer per transaction *)
 procedure AddOngoingMintItem(item_id: Uint128)
-  maybe_buyer_ongoing_mint <- ongoing_mint[_sender][item_id];
+  maybe_buyer_ongoing_mint <- ongoing_mint[item_id];
   buyer_ongoing_mint_quantity = match maybe_buyer_ongoing_mint with | None => uint32_zero | Some v => v end;
   new_buyer_ongoing_mint_quantity = builtin add buyer_ongoing_mint_quantity uint32_one;
-  ongoing_mint[_sender][item_id] := new_buyer_ongoing_mint_quantity
+  ongoing_mint[item_id] := new_buyer_ongoing_mint_quantity
 end
 
 (* batch mints items per buyer per transaction *)
@@ -432,17 +430,16 @@ end
 
 (* splits into respective item ids, and call batch mint for each item id *)
 procedure HandleOngoingMint()
-  maybe_buyer_ongoing_mint <- ongoing_mint[_sender];
-  buyer_ongoing_mint = match maybe_buyer_ongoing_mint with | None => empty_mint_map | Some v => v end;
+  buyer_ongoing_mint <- ongoing_mint;
   buyer_ongoing_mint_list = builtin to_list buyer_ongoing_mint;
   forall buyer_ongoing_mint_list BatchMintItem
 end
 
 (* reset aggregated fields for next buyer transaction *)
 procedure ResetOngoingCraftFields()
-  delete ongoing_zrc2_expend[_sender];
-  delete ongoing_zrc6_expend[_sender];
-  delete ongoing_mint[_sender]
+  ongoing_zrc2_expend := empty_zrc2_map;
+  ongoing_zrc6_expend := empty_zrc6_map;
+  ongoing_mint := empty_ongoing_mint_map
 end
 
 
@@ -504,17 +501,17 @@ procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
           VerifyItemTraits item_traits token_address token_id;
 
           (* add to ongoing_zrc6_expend token_id_list for batch burn later*)
-          maybe_buyer_zrc6_expend_list <- ongoing_zrc6_expend[_sender][token_address];
+          maybe_buyer_zrc6_expend_list <- ongoing_zrc6_expend[token_address];
           buyer_zrc6_expend_list = match maybe_buyer_zrc6_expend_list with | None => empty_list_uint256 | Some v => v end;
           new_buyer_zrc_expend_list = Cons {Uint256} token_id buyer_zrc6_expend_list;
-          ongoing_zrc6_expend[_sender][token_address] := new_buyer_zrc_expend_list
+          ongoing_zrc6_expend[token_address] := new_buyer_zrc_expend_list
         | False =>
           (* zrc2 token cost *)
           (* add to ongoing_zrc2_expend quantity for batch burn later*)
-          maybe_buyer_zrc2_expend_quantity <- ongoing_zrc2_expend[_sender][token_address];
+          maybe_buyer_zrc2_expend_quantity <- ongoing_zrc2_expend[token_address];
           buyer_zrc2_expend_quantity = match maybe_buyer_zrc2_expend_quantity with | None => zero | Some v => v end;
           new_buyer_zrc2_expend_quantity = builtin add buyer_zrc2_expend_quantity quantity;
-          ongoing_zrc2_expend[_sender][token_address] := new_buyer_zrc2_expend_quantity
+          ongoing_zrc2_expend[token_address] := new_buyer_zrc2_expend_quantity
         end
       end
     end
@@ -562,15 +559,14 @@ end
 
 (* split consumables into their different item contracts and batch burn the respective consumables *)
 procedure HandleOngoingConsume()
-  maybe_ongoing_consume_map <- ongoing_consume[_sender];
-  ongoing_consume_map = match maybe_ongoing_consume_map with | None => empty_ongoing_consume_map | Some v => v end;
+  ongoing_consume_map <- ongoing_consume;
   ongoing_consume_list = builtin to_list ongoing_consume_map;
   forall ongoing_consume_list BatchExpendConsume
 end
 
 (* reset aggregated ongoing consume fields for next consumer transaction *)
 procedure ResetOngoingConsumeField()
-  delete ongoing_consume[_sender]
+  ongoing_consume := empty_ongoing_consume_map
 end
 
 procedure VerifyAndConsumeItem(token_consumer: ConsumeItem)
@@ -602,10 +598,10 @@ procedure VerifyAndConsumeItem(token_consumer: ConsumeItem)
         | True =>
           (* add to ongoing_consume token_id_list for batch burn later*)
           ongoing_consume_params = OngoingConsumeParams item_name token_id consumer_contract_address consumer_id;
-          maybe_ongoing_consume_list <- ongoing_consume[_sender][token_contract_address];
+          maybe_ongoing_consume_list <- ongoing_consume[token_contract_address];
           ongoing_consume_list = match maybe_ongoing_consume_list with | None => empty_ongoing_consume_params_list | Some v => v end;
           new_ongoing_consume_list = Cons {OngoingConsumeParams} ongoing_consume_params ongoing_consume_list;
-          ongoing_consume[_sender][token_contract_address] := new_ongoing_consume_list
+          ongoing_consume[token_contract_address] := new_ongoing_consume_list
         | False =>
           (* throw error as item not a valid consumable *)
           err = CodeItemNotValidConsumable;
