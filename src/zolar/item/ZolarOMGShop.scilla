@@ -554,7 +554,7 @@ procedure BatchExpendConsume(token_address_token_consumer_list_pair: Pair ByStr2
     e = {
       _eventname: "BatchItemConsumed";
       token_contract_address: token_contract_address;
-      token_consumers_list: token_consumer_list
+      token_consumer_list: token_consumer_list
     };
     event e
   end
