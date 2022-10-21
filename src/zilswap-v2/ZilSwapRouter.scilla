@@ -12,9 +12,9 @@ let zero_amount_u256 = Uint256 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let none = None {ByStr20}
-let two = Uint128 2
+let two_u256 = Uint256 2
 let one_hundred_and_twelve = Uint32 112
-let q112 = builtin pow two one_hundred_and_twelve
+let q112 = builtin pow two_u256 one_hundred_and_twelve
 let bps = Uint128 10000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
 let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
@@ -292,13 +292,12 @@ contract ZilSwapRouter
 
 field governor : ByStr20 = init_governor
 field pending_governor : Option ByStr20 = none
+field pool_codehash : ByStr32 = init_codehash
 field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount
 
 field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
 field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map ByStr20 ByStr20)
-
-field pool_codehash : ByStr32 = init_codehash
 
 (**************************************)
 (*             Procedures             *)
@@ -721,7 +720,7 @@ transition AddLiquidity(
   amountB_desired: Uint128,
   amountA_min: Uint128,
   amountB_min: Uint128,
-  v_reserve_ratio_bounds: Pair Uint128 Uint128,
+  v_reserve_ratio_bounds: Pair Uint256 Uint256,
   to: ByStr20,
   deadline_block: BNum
 )
@@ -760,19 +759,24 @@ transition AddLiquidity(
       amountB = amountB_desired;
       TransferZRC2ToPool pool tokenA tokenB amountA amountB
     end;
-    current_rate = frac v_r_b q112 v_r_a;
-    
+    current_rate = 
+      let v_r_a_u256 = grow v_r_a in
+      let v_r_b_u256 = grow v_r_b in
+      let a = builtin mul v_r_b_u256 q112 in
+      builtin div a v_r_a_u256;
+
     (* require(
       currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
       "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
     ); *)
+    (* Always returns CodeOutOfBoundVReserve *)
     match v_reserve_ratio_bounds with
     | Pair l_bound u_bound =>
-      is_out_of_bound_vreserve = 
-        let l_b = uint128_ge current_rate l_bound in
-        let u_b = uint128_le current_rate u_bound in
+      is_not_out_of_bound_vreserve = 
+        let l_b = uint256_ge current_rate l_bound in
+        let u_b = uint256_le current_rate u_bound in
         andb l_b u_b;
-      match is_out_of_bound_vreserve with 
+      match is_not_out_of_bound_vreserve with 
       | True =>
       | False =>
         err = CodeOutOfBoundVReserve;
@@ -856,10 +860,10 @@ transition AddLiquidityZIL(
   to: ByStr20,
   deadline_block: BNum
 )
-  VerifyBlock deadline_block;
-  VerifyPoolAddress token wZIL pool; (* Order should not matter here *)
+  (* VerifyBlock deadline_block; *)
+  (* VerifyPoolAddress token wZIL pool; *)(* Order should not matter here *)
 
-  r_a <- & pool.reserve0;
+  (* r_a <- & pool.reserve0;
   r_b <- & pool.reserve1;
   v_r_a <- & pool.v_reserve0;
   v_r_b <- & pool.v_reserve1;
@@ -871,10 +875,10 @@ transition AddLiquidityZIL(
   match e with 
   | True =>
     amount_token = amount_token_desired;
-    amount_wZIL = amount_wZIL_desired;
+    amount_wZIL = amount_wZIL_desired; *)
 
     (* Send ZIL to wZIL contract and mint wZIL *)
-    accept;
+    (* accept;
     msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
     msg = one_msg msg_to_wZIL;
     send msg;
@@ -927,12 +931,12 @@ transition AddLiquidityZIL(
         ThrowError err
       end
     end
-  end;
+  end; *)
   
   (* Calls Mint transition on Pool *)
-  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  (* msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
   msg = one_msg msg_to_pool;
-  send msg
+  send msg *)
 end
 
 (* // **** REMOVE LIQUIDITY ****
