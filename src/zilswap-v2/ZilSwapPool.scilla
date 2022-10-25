@@ -966,12 +966,12 @@ transition Burn(to : ByStr20)
 
   msg_to_token0 = {
     _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-    to: _sender; amount: amount0
+    to: _origin; amount: amount0
   };
 
   msg_to_token1 = {
     _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-    to: _sender; amount: amount1
+    to: _origin; amount: amount1
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
@@ -1051,13 +1051,12 @@ transition Swap(
     ThrowError err
   end;
   
-  (* Ask why send to router contract *)
   match is_sending_t0 with
   | False =>
   | True =>
     msg_to_token0 = {
       _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-      to: _sender; amount: amount0_out
+      to: _origin; amount: amount0_out
     };
     msgs = one_msg msg_to_token0;
     send msgs
@@ -1068,7 +1067,7 @@ transition Swap(
   | True =>
     msg_to_token1 = {
       _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-      to: _sender; amount: amount1_out
+      to: _origin; amount: amount1_out
     };
     msgs = one_msg msg_to_token1;
     send msgs
