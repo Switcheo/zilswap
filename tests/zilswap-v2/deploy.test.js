@@ -8,11 +8,10 @@ const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 beforeAll(async () => {
   owner = getDefaultAccount()
-  privateKey = owner.key
-  feeAccount = await createRandomAccount(privateKey)
+  feeAccount = await createRandomAccount(owner.key)
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
-  token0 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN0' }))[0]
-  token1 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN1' }))[0]
+  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }, router.address.toLowerCase(), null))[0]
+  token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }, router.address.toLowerCase(), null))[0]
 
   routerState = await router.getState()
 

@@ -3,7 +3,7 @@ const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require
 const { callContract } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 
-let token0, token1, owner, privateKey, feeAccount, tx, pool, poolState, router, routerState
+let token0, token1, owner, feeAccount, tx, pool, poolState, router, routerState
 const minimumLiquidity = 1000
 const token0Amt = "100000"
 const token1Amt = "100000"
@@ -14,11 +14,10 @@ const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 beforeAll(async () => {
   owner = getDefaultAccount()
-  privateKey = owner.key
-  feeAccount = await createRandomAccount(privateKey)
+  feeAccount = await createRandomAccount(owner.key)
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
-  token0 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN0' }))[0]
-  token1 = (await useFungibleToken(owner.key, undefined, router.address.toLowerCase(), null, { symbol: 'TKN1' }))[0]
+  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }, router.address.toLowerCase(), null))[0]
+  token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }, router.address.toLowerCase(), null))[0]
 
   tx = await callContract(
     owner.key, router,
@@ -62,7 +61,7 @@ test('zilswap ampPool addLiquidity and removeLiquidity', async () => {
   // AddLiquidity to new Pool
   // amountA = amountA_desired; amountB = amountB_desired;
   tx = await callContract(
-    privateKey, router,
+    owner.key, router,
     'AddLiquidity',
     [
       {
@@ -119,9 +118,9 @@ test('zilswap ampPool addLiquidity and removeLiquidity', async () => {
   )
   expect(tx.status).toEqual(2)
 
-  // Increase Allowance for LP Token
+  // Increase Allowance for LP Token (to transfer LP token to Pool)
   tx = await callContract(
-    privateKey, pool,
+    owner.key, pool,
     'IncreaseAllowance',
     [
       {
@@ -141,7 +140,7 @@ test('zilswap ampPool addLiquidity and removeLiquidity', async () => {
 
   // RemoveLiquidity
   tx = await callContract(
-    privateKey, router,
+    owner.key, router,
     'RemoveLiquidity',
     [
       {
@@ -219,7 +218,7 @@ test('zilswap notAmpPool addLiquidity and removeLiquidity', async () => {
   // AddLiquidity to new Pool
   // amountA = amountA_desired; amountB = amountB_desired;
   tx = await callContract(
-    privateKey, router,
+    owner.key, router,
     'AddLiquidity',
     [
       {
@@ -278,7 +277,7 @@ test('zilswap notAmpPool addLiquidity and removeLiquidity', async () => {
 
   // Increase Allowance for LP Token
   tx = await callContract(
-    privateKey, pool,
+    owner.key, pool,
     'IncreaseAllowance',
     [
       {
@@ -298,7 +297,7 @@ test('zilswap notAmpPool addLiquidity and removeLiquidity', async () => {
 
   // RemoveLiquidity
   tx = await callContract(
-    privateKey, router,
+    owner.key, router,
     'RemoveLiquidity',
     [
       {
