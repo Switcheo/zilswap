@@ -56,21 +56,32 @@ beforeAll(async () => {
   ], 0, false, false)
   console.log("mint", txMint.id);
 
-  const txAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [
+  const txHunyAllowance = await callContract(privateKey, hunyContract, "IncreaseAllowance", [
     param('spender', 'ByStr20', emporiumAddress),
     param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
   ], 0, false, false)
-  console.log("increase allowance huny", txAllowance.id);
+  console.log("increase allowance huny", txHunyAllowance.id);
+
+  const txGeodeAllowance = await callContract(privateKey, geodeContract, "IncreaseAllowance", [
+    param('spender', 'ByStr20', resourceStallAddress),
+    param('amount', 'Uint128', new BigNumber(1).shiftedBy(12 + 9).toString(10)),
+  ], 0, false, false)
+  console.log("increase allowance geode", txGeodeAllowance.id);
 
   const txAddStall = await callContract(privateKey, emporiumContract, "AddStall", [
     param('address', 'ByStr20', resourceStallAddress),
   ], 0, false, false);
   console.log("add stall", txAddStall.id);
 
-  const txAddMinterStall = await callContract(privateKey, geodeContract, "AddMinter", [
+  const txAddGeodeMinterStall = await callContract(privateKey, geodeContract, "AddMinter", [
     param('minter', 'ByStr20', resourceStallAddress),
   ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall.id);
+  console.log("add stall minter for geode", txAddGeodeMinterStall.id);
+
+  const txAddHunyMinterStall = await callContract(privateKey, hunyContract, "AddMinter", [
+    param('minter', 'ByStr20', resourceStallAddress),
+  ], 0, false, false);
+  console.log("add stall minter for huny", txAddHunyMinterStall.id);
 })
 
 test('add item (resource) to resource stall -> emporium', async () => {
@@ -99,96 +110,117 @@ test('add item (resource) to resource stall -> emporium', async () => {
   expect(Object.keys(state.items).length).toEqual(1)
 })
 
-describe('test inflation mechanism', () => {
-  // < 10th item is subjected to linear inflation 
-  // >= 10th item is priced at max price
-  test('purchase 9 units of resource; net purchase = 9', async () => {
-    const qtyPurchased = 9
-    netPurchase += qtyPurchased
-    const hunyStateBeforeTx = await hunyContract.getState()
-
-    const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
-      param('item_id', 'Uint128', "0"),
-      param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
-      param('purchase_data', 'String', "9"),
-    ], 0, false, false)
-    console.log("purchase geode; net purchase = 9", txPurchaseGeode.id);
-
-    const hunyStateAfterTx = await hunyContract.getState()
-    const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
-    const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
-
-    const avgInflationBPS = getAvgInflationBPS(0, qtyPurchased, GEODE_INFLATION_BPS)
-    const avgInflation = GEODE_BASE_PRICE * Math.floor(avgInflationBPS / HUNDRED_PERCENT_BPS)
-    const avgPrice = GEODE_BASE_PRICE.plus(avgInflation)
-    const hunySpentExpected = avgPrice.multipliedBy(qtyPurchased)
-
-    expect(hunySpentActual).toEqual(hunySpentExpected)
-  })
-
-  test('purchase 1 unit of resource; net purchase = 10', async () => {
-    const qtyPurchased = 1
-    netPurchase += qtyPurchased
-    const hunyStateBeforeTx = await hunyContract.getState()
-
-    const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
-      param('item_id', 'Uint128', "0"),
-      param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
-      param('purchase_data', 'String', `${qtyPurchased}`),
-    ], 0, false, false)
-    console.log("purchase geode; net purchase = 10", txPurchaseGeode.id);
-
-    const resourceStallStateAfterTx = await resourceStallContract.getState()
-    const hunyStateAfterTx = await hunyContract.getState()
-    const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
-    const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
-
-    expect(hunySpentActual).toEqual(GEODE_MAX_PRICE)
-
-    maxInflationBPS = (GEODE_MAX_PRICE.minus(GEODE_BASE_PRICE)).dividedBy(GEODE_BASE_PRICE).multipliedBy(HUNDRED_PERCENT_BPS)
-
-    const geodeTransact = resourceStallStateAfterTx.transact_count[0]
-    expect(geodeTransact.arguments[0]).toEqual(netPurchase.toString())
-    expect(geodeTransact.arguments[1]).toEqual(maxInflationBPS.toString())
-  })
-
-  test('purchase 1 unit of resource; net purchase = 11', async () => {
-    const qtyPurchased = 1
-    netPurchase += qtyPurchased
-    const hunyStateBeforeTx = await hunyContract.getState()
-
-    const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
-      param('item_id', 'Uint128', "0"),
-      param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
-      param('purchase_data', 'String', `${qtyPurchased}`),
-    ], 0, false, false)
-    console.log("purchase geode; net purchase = 11", txPurchaseGeode.id);
-
-    const resourceStallStateAfterTx = await resourceStallContract.getState()
-    const hunyStateAfterTx = await hunyContract.getState()
-    const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
-    const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
-
-    expect(hunySpentActual).toEqual(GEODE_MAX_PRICE)
-
-    maxInflationBPS = (GEODE_MAX_PRICE.minus(GEODE_BASE_PRICE)).dividedBy(GEODE_BASE_PRICE).multipliedBy(HUNDRED_PERCENT_BPS)
-
-    const geodeTransact = resourceStallStateAfterTx.transact_count[0]
-    expect(geodeTransact.arguments[0]).toEqual(netPurchase.toString())
-    expect(geodeTransact.arguments[1]).toEqual(maxInflationBPS.toString())
-  })
-})
-
-test('make purchase with insufficient max_price', async () => {
-  // test max_price < cost (throws CodeItemTooExpensive)
+test('buy resource', async () => {
   const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
     param('item_id', 'Uint128', "0"),
-    param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12).toString(10)),
-    param('purchase_data', 'String', "1"),
+    param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
+    param('purchase_data', 'String', "10"),
   ], 0, false, false)
-  console.log("purchase geode with insufficient max_price", txPurchaseGeode.id);
-
-  expect(txPurchaseGeode.status).toEqual(3)
-  expect(txPurchaseGeode.receipt.exceptions[0].message).toEqual(generateErrorMsg(6)) // throws CodeItemTooExpensive
-  expect(txPurchaseGeode.receipt.success).toEqual(false)
+  console.log("purchase geode; net purchase = 10", txPurchaseGeode.id);
+  expect(txPurchaseGeode.receipt.success).toEqual(true)
 })
+
+test('sell resource', async () => {
+  const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
+    param('item_id', 'Uint128', "0"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "10"),
+  ], 0, false, false)
+  console.log("purchase geode; net purchase = 10", txSellGeode.id);
+  console.log(txSellGeode.receipt.event_logs[2])
+  expect(txSellGeode.receipt.success).toEqual(true)
+})
+
+// describe('test inflation mechanism', () => {
+//   // < 10th item is subjected to linear inflation 
+//   // >= 10th item is priced at max price
+//   test('purchase 9 units of resource; net purchase = 9', async () => {
+//     const qtyPurchased = 9
+//     netPurchase += qtyPurchased
+//     const hunyStateBeforeTx = await hunyContract.getState()
+
+//     const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+//       param('item_id', 'Uint128', "0"),
+//       param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
+//       param('purchase_data', 'String', "9"),
+//     ], 0, false, false)
+//     console.log("purchase geode; net purchase = 9", txPurchaseGeode.id);
+
+//     const hunyStateAfterTx = await hunyContract.getState()
+//     const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
+//     const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
+
+//     const avgInflationBPS = getAvgInflationBPS(0, qtyPurchased, GEODE_INFLATION_BPS)
+//     const avgInflation = GEODE_BASE_PRICE * Math.floor(avgInflationBPS / HUNDRED_PERCENT_BPS)
+//     const avgPrice = GEODE_BASE_PRICE.plus(avgInflation)
+//     const hunySpentExpected = avgPrice.multipliedBy(qtyPurchased)
+
+//     expect(hunySpentActual).toEqual(hunySpentExpected)
+//   })
+
+//   test('purchase 1 unit of resource; net purchase = 10', async () => {
+//     const qtyPurchased = 1
+//     netPurchase += qtyPurchased
+//     const hunyStateBeforeTx = await hunyContract.getState()
+
+//     const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+//       param('item_id', 'Uint128', "0"),
+//       param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
+//       param('purchase_data', 'String', `${qtyPurchased}`),
+//     ], 0, false, false)
+//     console.log("purchase geode; net purchase = 10", txPurchaseGeode.id);
+
+//     const resourceStallStateAfterTx = await resourceStallContract.getState()
+//     const hunyStateAfterTx = await hunyContract.getState()
+//     const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
+//     const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
+
+//     expect(hunySpentActual).toEqual(GEODE_MAX_PRICE)
+
+//     maxInflationBPS = (GEODE_MAX_PRICE.minus(GEODE_BASE_PRICE)).dividedBy(GEODE_BASE_PRICE).multipliedBy(HUNDRED_PERCENT_BPS)
+
+//     const geodeTransact = resourceStallStateAfterTx.transact_count[0]
+//     expect(geodeTransact.arguments[0]).toEqual(netPurchase.toString())
+//     expect(geodeTransact.arguments[1]).toEqual(maxInflationBPS.toString())
+//   })
+
+//   test('purchase 1 unit of resource; net purchase = 11', async () => {
+//     const qtyPurchased = 1
+//     netPurchase += qtyPurchased
+//     const hunyStateBeforeTx = await hunyContract.getState()
+
+//     const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+//       param('item_id', 'Uint128', "0"),
+//       param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
+//       param('purchase_data', 'String', `${qtyPurchased}`),
+//     ], 0, false, false)
+//     console.log("purchase geode; net purchase = 11", txPurchaseGeode.id);
+
+//     const resourceStallStateAfterTx = await resourceStallContract.getState()
+//     const hunyStateAfterTx = await hunyContract.getState()
+//     const [balanceBeforeTx, balanceAfterTx] = getBalanceFromStates(address, hunyStateBeforeTx, hunyStateAfterTx)
+//     const hunySpentActual = (new BigNumber(balanceBeforeTx)).minus(balanceAfterTx)
+
+//     expect(hunySpentActual).toEqual(GEODE_MAX_PRICE)
+
+//     maxInflationBPS = (GEODE_MAX_PRICE.minus(GEODE_BASE_PRICE)).dividedBy(GEODE_BASE_PRICE).multipliedBy(HUNDRED_PERCENT_BPS)
+
+//     const geodeTransact = resourceStallStateAfterTx.transact_count[0]
+//     expect(geodeTransact.arguments[0]).toEqual(netPurchase.toString())
+//     expect(geodeTransact.arguments[1]).toEqual(maxInflationBPS.toString())
+//   })
+// })
+
+// test('make purchase with insufficient max_price', async () => {
+//   // test max_price < cost (throws CodeItemTooExpensive)
+//   const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+//     param('item_id', 'Uint128', "0"),
+//     param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12).toString(10)),
+//     param('purchase_data', 'String', "1"),
+//   ], 0, false, false)
+//   console.log("purchase geode with insufficient max_price", txPurchaseGeode.id);
+
+//   expect(txPurchaseGeode.status).toEqual(3)
+//   expect(txPurchaseGeode.receipt.exceptions[0].message).toEqual(generateErrorMsg(6)) // throws CodeItemTooExpensive
+//   expect(txPurchaseGeode.receipt.success).toEqual(false)
+// })

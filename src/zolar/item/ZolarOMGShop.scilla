@@ -62,7 +62,7 @@ type OngoingConsumeParams =
   | OngoingConsumeParams of String Uint256 ByStr20 Uint256 (* consumable name, consumable id, consumer address, consumer id *)
 
 let empty_ongoing_consume_params_list = Nil {OngoingConsumeParams}
-let empty_ongoing_consume_map = Emp ByStr20 List OngoingConsumeParams
+let empty_ongoing_consume_map = Emp ByStr20 (List OngoingConsumeParams)
 
 let make_error =
   fun (result : Error) =>

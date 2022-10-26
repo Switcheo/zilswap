@@ -87,6 +87,8 @@ field balances: Map ByStr20 Uint128
 field allowances: Map ByStr20 (Map ByStr20 Uint128)
   = Emp ByStr20 (Map ByStr20 Uint128)
 
+field final_decimals : Uint32 = decimals
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)

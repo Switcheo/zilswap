@@ -17,6 +17,7 @@ let hundred_percent_bps = Uint128 10000
 let hundred = Uint128 100
 let empty_pair = Pair {Uint128 Uint128} zero zero
 let zero_address = 0x0000000000000000000000000000000000000000
+let ten_uint32 = Uint32 10
 
 (* Error events *)
 type Error =
@@ -28,6 +29,7 @@ type Error =
   | CodeItemTooExpensive
   | CodeCannotAchieveSellPrice
   | CodeInvalidQuantity
+  | CodeItemInvalidContract
 
 type Price =
   | Price of Uint128 Uint128 Uint128 Uint128 (* base price, max price, inflation bps, deflation bps *)
@@ -50,6 +52,7 @@ let make_error =
       | CodeItemTooExpensive                  => Int32 -6
       | CodeCannotAchieveSellPrice            => Int32 -7
       | CodeInvalidQuantity                   => Int32 -8
+      | CodeItemInvalidContract               => Int32 -9
       end
     in
     { _exception : "Error"; code : result_code }
@@ -249,6 +252,14 @@ let get_sell_price =
       end
     end
   end
+
+  let multiply_dp =
+    fun (quantity : Uint128) =>
+    fun (decimals : Uint32) =>
+      let power = builtin pow ten_uint32 decimals in
+      let maybe_power_uint128 = builtin to_uint128 power in
+      let power_uint128 = match maybe_power_uint128 with | None => one | Some v => v end in
+      builtin mul quantity power_uint128
 
 (***************************************************)
 (*             The contract definition             *)
@@ -450,35 +461,51 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
         err = CodeItemTooExpensive;
         ThrowError err
       | False =>
-        msg_to_emporium = {
-          _tag: "TransferToken";
-          _recipient: emporium;
-          _amount: zero;
-          token: huny_token;
-          from: purchaser;
-          amount: amount
-        };
+        (* remote fetch token_address_contract to get token decimals *)
+        maybe_token_contract <- & token_address as ByStr20 with contract
+          field final_decimals : Uint32
+        end;
 
-        msg_to_resource = {
-          _tag: "Mint";
-          _recipient: token_address;
-          _amount: zero;
-          recipient: purchaser;
-          amount: quantity
-        };
+        match maybe_token_contract with
+        | None =>
+          (* token_contract does not exist, throw error *)
+          err = CodeItemInvalidContract;
+          ThrowError err
+        | Some token_contract =>
+          decimals <- & token_contract.final_decimals;
+          quantity_dp = multiply_dp quantity decimals;
 
-        msgs = two_msgs msg_to_emporium msg_to_resource;
-        send msgs;
+          msg_to_emporium = {
+            _tag: "TransferToken";
+            _recipient: emporium;
+            _amount: zero;
+            token: huny_token;
+            from: purchaser;
+            amount: amount
+          };
+  
+          msg_to_resource = {
+            _tag: "Mint";
+            _recipient: token_address;
+            _amount: zero;
+            recipient: purchaser;
+            amount: quantity_dp
+          };
+  
+          msgs = two_msgs msg_to_emporium msg_to_resource;
+          send msgs;
+  
+          (* create HUNY selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+          huny_selling_item = let item = Item empty huny_token empty_price empty_price in Some {Item} item;
+          selling_item := huny_selling_item;
+  
+          UpdateTransactCount item_id quantity zero;
+  
+          e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
+              purchaser: purchaser; price: amount; quantity: quantity_dp };
+          event e
 
-        (* create HUNY selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
-        huny_selling_item = let item = Item empty huny_token empty_price empty_price in Some {Item} item;
-        selling_item := huny_selling_item;
-
-        UpdateTransactCount item_id quantity zero;
-
-        e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
-            purchaser: purchaser; price: amount; quantity: quantity };
-        event e
+        end
       end
     end
   end
@@ -508,36 +535,49 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
         err = CodeCannotAchieveSellPrice;
         ThrowError err
       | False =>
+        (* remote fetch token_address_contract to get token decimals *)
+        maybe_token_contract <- & token_address as ByStr20 with contract
+          field final_decimals : Uint32
+        end;
+      
+        match maybe_token_contract with
+        | None =>
+          err = CodeItemInvalidContract;
+          ThrowError err
+        | Some token_contract =>
+          decimals <- & token_contract.final_decimals;
+          quantity_dp = multiply_dp quantity decimals;
 
-        msg_to_huny = {
-          _tag: "Mint";
-          _recipient: huny_token;
-          _amount: zero;
-          recipient: _sender;
-          amount: amount
-        };
-
-        msg_to_resource = {
-          _tag: "TransferFrom";
-          _recipient: token_address;
-          _amount: zero;
-          from: _sender;
-          to: _this_address;
-          amount: quantity
-        };
-
-        msgs = two_msgs msg_to_huny msg_to_resource;
-        send msgs;
-
-        (* create resource selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
-        resource_selling_item = let item = Item empty token_address empty_price empty_price in Some {Item} item;
-        selling_item := resource_selling_item;
-
-        UpdateTransactCount item_id zero quantity;
-
-        e = {_eventname : "ItemSold"; item_id : item_id; item_name: name;
-            seller: _sender; price: amount; quantity: quantity };
-        event e
+          msg_to_huny = {
+            _tag: "Mint";
+            _recipient: huny_token;
+            _amount: zero;
+            recipient: _sender;
+            amount: amount
+          };
+  
+          msg_to_resource = {
+            _tag: "TransferFrom";
+            _recipient: token_address;
+            _amount: zero;
+            from: _sender;
+            to: _this_address;
+            amount: quantity_dp
+          };
+  
+          msgs = two_msgs msg_to_huny msg_to_resource;
+          send msgs;
+  
+          (* create resource selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+          resource_selling_item = let item = Item empty token_address empty_price empty_price in Some {Item} item;
+          selling_item := resource_selling_item;
+  
+          UpdateTransactCount item_id zero quantity;
+  
+          e = {_eventname : "ItemSold"; item_id : item_id; item_name: name;
+              seller: _sender; price: amount; quantity: quantity_dp };
+          event e
+        end
       end
     end
   end

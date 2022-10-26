@@ -11,7 +11,10 @@ const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
   useKey(privateKey)
   const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
   const txList = []
-  const itemsToRemove = ['7', '10']
+  const itemsToRemove = []
+  for (let i = 0; i < 21; i++) {
+    itemsToRemove.push(i.toString())
+  }
 
   console.log('removing ZOMG Store items')
   for (const id of itemsToRemove) {
@@ -22,7 +25,7 @@ const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
         ]
     })
 
-    console.log(`removing item ${id} to ZOMG store`)
+    console.log(`removing item ${id} from ZOMG store`)
 
     const bech32ZomgAddress = toBech32Address(zomgAddress)
     const newTx = await createTransaction(bech32ZomgAddress, data, minGasPrice)
