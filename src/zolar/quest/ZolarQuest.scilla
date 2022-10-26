@@ -17,6 +17,7 @@ let ten = Uint32 10
 let ten_thousand = Uint32 10000
 let zero_amt = Uint128 0
 let one_amt = Uint128 1
+let ten_amt = Uint128 10
 let hundred_amt = Uint128 100
 let thousand_amt = Uint128 1000
 let ten_thousand_amt = Uint128 10000
@@ -41,8 +42,8 @@ type Error =
   | CodeInsufficientFuel
   | CodeSupplyExceeded
   | CodeInvalidBurnCount
-  | QuestOverError
-  | CodeMaxDepthReached
+  | CodeQuestOverError
+  | CodeQuestNotAbandoned
 
 type TokenBonus =
   | TokenBonus of Uint256 Uint128 Uint128 Uint128 (* token_id, resource_bonus, mastery_bonus, fee_discount *)
@@ -62,8 +63,8 @@ let make_error =
       | CodeInsufficientFuel            => Int32 -9
       | CodeSupplyExceeded              => Int32 -10
       | CodeInvalidBurnCount            => Int32 -11
-      | QuestOverError                  => Int32 -12
-      | CodeMaxDepthReached             => Int32 -13
+      | CodeQuestOverError              => Int32 -12
+      | CodeQuestNotAbandoned           => Int32 -13
       end
     in
     { _exception : "Error"; code : result_code }
@@ -114,6 +115,26 @@ let sub_or_zero =
     | True => zero_amt
     | False => builtin sub a b
     end
+
+let form_batch_transfer_params = 
+  fun (token_ids : List Uint256) =>
+  fun (recipient : ByStr20) =>
+    let fold = @list_map Uint256 (Pair ByStr20 Uint256) in
+    let fn : Uint256 -> Pair ByStr20 Uint256 =
+      fun (token_id: Uint256) =>
+        Pair {ByStr20 Uint256} recipient token_id
+    in fold fn token_ids
+
+let reverse_transfer_pair_list = 
+  fun (token_id_to_pair_list : List (Pair Uint256 ByStr20)) =>
+    let fold = @list_map (Pair Uint256 ByStr20) (Pair ByStr20 Uint256) in
+    let fn : (Pair Uint256 ByStr20) -> (Pair ByStr20 Uint256) =
+      fun (token_id_recipient_pair: Pair Uint256 ByStr20) =>
+        match token_id_recipient_pair with
+        | Pair token_id recipient =>
+          Pair {ByStr20 Uint256} recipient token_id
+        end
+    in fold fn token_id_to_pair_list
 
 (***************************************************)
 (*             The contract definition             *)
@@ -178,13 +199,13 @@ field last_harvested: Map Uint256 BNum = Emp Uint256 BNum
 (* max harvest block for minting of resource and xp gain*)
 field max_harvest_block: Option BNum = None {BNum}
 
-(* map to track metazoa resource gathering bonus *)
+(* map to track metazoa resource gathering bonus (0 dp, always in whole numbers) *)
 field resource_gathering_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
 
-(* map to track metazoa mastery leveling bonus *)
+(* map to track metazoa mastery leveling bonus (0 dp, always in whole numbers) *)
 field mastery_leveling_bonus: Map Uint256 Uint128 = Emp Uint256 Uint128
 
-(* map to track accuracy bonus fee discount *)
+(* map to track accuracy bonus fee discount (1 dp, up to 0.5%) *)
 field accuracy_fee_discount: Map Uint256 Uint128 = Emp Uint256 Uint128
 
 (* map to track accumulated resources for each commander *)
@@ -456,9 +477,9 @@ procedure ChargeReturnFee(token_id: Uint256)
   fee_discount = match maybe_fee_discount with | None => zero_amt | Some v => v end;
   
   fee <- return_fee;
-  fee_to_charge = let new_percent = sub_or_zero hundred_amt fee_discount in
+  fee_to_charge = let new_percent = sub_or_zero thousand_amt fee_discount in
                   let product = builtin mul fee new_percent in
-                  builtin div product hundred_amt;
+                  builtin div product thousand_amt;
           
   maybe_current_accumulated_fee <- accumulated_fees[_sender];
   current_accumulated_fee = match maybe_current_accumulated_fee with | None => zero_amt | Some v => v end;
@@ -539,9 +560,21 @@ procedure HarvestForCommander(token_ids: List Uint256)
   end
 end
 
-(* transfers a metazoa to this contract for quest under the tx sender as the commander *)
-procedure TransferToQuest(token_id: Uint256)
-  (* if current blk >= max_harvest_block, throw QuestOverError *)
+(* transfers a list of metazoas to this quest contract (_this_address) *)
+procedure BatchTransferFrom(to_token_id_pair_list: List (Pair ByStr20 Uint256))
+  msg_to_metazoa = {
+    _tag: "BatchTransferFrom";
+    _recipient: metazoa_contract;
+    _amount: zero_amt;
+    to_token_id_pair_list: to_token_id_pair_list
+  };
+  msgs = one_msg msg_to_metazoa;
+  send msgs
+end
+
+(* sets relevant contract field details for token_id, preparing for staking *)
+procedure PrepareForQuest(token_id: Uint256)
+  (* if current blk >= max_harvest_block, throw CodeQuestOverError *)
   current_block <- & BLOCKNUMBER;
   maybe_max_block <- max_harvest_block;
   match maybe_max_block with
@@ -551,7 +584,7 @@ procedure TransferToQuest(token_id: Uint256)
     match is_quest_ongoing with
       | True =>
       | False =>
-        err = QuestOverError;
+        err = CodeQuestOverError;
         ThrowError err
     end
   end;
@@ -561,43 +594,7 @@ procedure TransferToQuest(token_id: Uint256)
   accumulated_xp[_sender] := empty_token_xp_map;
   
   (* update metazoa_commanders field with _sender *)
-  metazoa_commanders[token_id] := _sender;
-
-  msg_to_metazoa = {
-    _tag: "TransferFrom";
-    _recipient: metazoa_contract;
-    _amount: zero_amt;
-    to: _this_address;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_metazoa;
-  send msgs
-end
-
-(* transfers a metazoa from this contract to the _sender *)
-procedure TransferFromQuest(token_id: Uint256)
-  msg_to_metazoa = {
-    _tag: "TransferFrom";
-    _recipient: metazoa_contract;
-    _amount: zero_amt;
-    to: _sender;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_metazoa;
-  send msgs
-end
-
-(* transfers a metazoa from this contract to the commander, used in EjectQuest *)
-procedure TransferToCommander(token_id: Uint256, commander: ByStr20)
-  msg_to_metazoa = {
-    _tag: "TransferFrom";
-    _recipient: metazoa_contract;
-    _amount: zero_amt;
-    to: commander;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_metazoa;
-  send msgs
+  metazoa_commanders[token_id] := _sender
 end
 
 (* removes a metazoa from its current commander *)
@@ -605,36 +602,10 @@ procedure RemoveCommander(token_id: Uint256)
   delete metazoa_commanders[token_id]
 end
 
-(* throws error if max depth is reached *)
-procedure CheckMaxDepth(is_max_depth: Bool)
-  match is_max_depth with
-  | True =>
-    (* throw error *)
-    err = CodeMaxDepthReached;
-    ThrowError err
-  | False =>
-    (* good to go *)
-  end
-end
-
-procedure HandleValidateCommander(token_id_commander_pair: Pair Uint256 ByStr20)
-  match token_id_commander_pair with
-  | Pair token_id commander =>
-    ValidateCommander token_id
-  end
-end
-
 procedure HandleRemoveCommander(token_id_commander_pair: Pair Uint256 ByStr20)
   match token_id_commander_pair with
   | Pair token_id commander =>
     RemoveCommander token_id
-  end
-end
-
-procedure HandleTransferToCommander(token_id_commander_pair: Pair Uint256 ByStr20)
-  match token_id_commander_pair with
-  | Pair token_id commander =>
-    TransferToCommander token_id commander
   end
 end
 
@@ -661,14 +632,11 @@ end
 (*               Quest Transitions                *)
 (***************************************************)
 
-(* max depth = 6 *)
 transition EnterQuest(token_ids : List Uint256)
-  list_length = u256_list_length token_ids;
-  is_max_depth = builtin lt six list_length;
-  CheckMaxDepth is_max_depth;
-
   forall token_ids ValidateMetazoaOwnership;
-  forall token_ids TransferToQuest;
+  forall token_ids PrepareForQuest;
+  to_token_id_pair_list = form_batch_transfer_params token_ids _this_address;
+  BatchTransferFrom to_token_id_pair_list;
   UpdateQuestBonus token_ids
 end
 
@@ -678,18 +646,14 @@ transition HarvestResource(token_ids : List Uint256)
   HarvestForCommander token_ids
 end
 
-(* max depth = 5 *)
 transition ReturnToBase(token_ids : List Uint256)
-  list_length = u256_list_length token_ids;
-  is_max_depth = builtin lt five list_length;
-  CheckMaxDepth is_max_depth;
-
   forall token_ids ValidateCommander;
   forall token_ids RemoveCommander;
   forall token_ids HarvestForMetazoa;
   forall token_ids ChargeReturnFee;
   HarvestForCommander token_ids;
-  forall token_ids TransferFromQuest
+  to_token_id_pair_list = form_batch_transfer_params token_ids _sender;
+  BatchTransferFrom to_token_id_pair_list
 end
 
 (* transition for oracle to invoke after picking up 'UpdateQuestBonus' event, to set back-end calculated bonus *)
@@ -697,29 +661,6 @@ transition SetQuestBonus(token_bonus_list: List TokenBonus)
   (* check if _sender is oracle *)
   IsOracle _sender;
   forall token_bonus_list HandleSetQuestBonus
-end
-
-transition EjectQuest()
-  is_abandoned <- abandoned;
-  match is_abandoned with
-  | True =>
-    token_id_commander_map <- metazoa_commanders;
-    token_id_commander_list = builtin to_list token_id_commander_map;
-    forall token_id_commander_list HandleValidateCommander;
-    forall token_id_commander_list HandleRemoveCommander;
-    forall token_id_commander_list HandleTransferToCommander
-  | False => (* no-op *)
-  end
-end
-
-transition AbandonQuest(token_ids : List Uint256)
-  is_abandoned <- abandoned;
-  match is_abandoned with
-  | False => (* no-op *)
-  | True =>
-    forall token_ids ValidateMetazoaOwnership;
-    forall token_ids TransferFromQuest
-  end
 end
 
 (***************************************************)
@@ -844,12 +785,29 @@ transition SetQuestAbandoned(a: Bool)
   event e
 end
 
+(* @dev: Withdraw all metazoas from quest without harvest and penalty. *)
+transition EjectQuest()
+  IsOwner _sender;
+  is_abandoned <- abandoned;
+  match is_abandoned with
+  | True =>
+    token_id_commander_map <- metazoa_commanders;
+    token_id_commander_list = builtin to_list token_id_commander_map;
+    forall token_id_commander_list HandleRemoveCommander;
+    to_token_id_pair_list = reverse_transfer_pair_list token_id_commander_list;
+    BatchTransferFrom to_token_id_pair_list
+  | False =>
+    err = CodeQuestNotAbandoned;
+    ThrowError err
+  end
+end
+
 (***************************************************)
 (*                     Callbacks                   *)
 (***************************************************)
 
 (* send metazoa *)
-transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
+transition ZRC6_BatchTransferFromCallback()
   (* no-op *)
 end
 

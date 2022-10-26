@@ -1,12 +1,11 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
-const { callContract } = require("../../call");
-const { getPrivateKey, param, zilliqa } = require("../../zilliqa");
+const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
 const { deployZOMGStore } = require("./helper");
+const { createTransaction } = require("../../call");
+const { toBech32Address } = require("@zilliqa-js/crypto")
 
 ;
 (async () => {
   const privateKey = getPrivateKey();
-  const address = getAddressFromPrivateKey(privateKey).toLowerCase();
 
   const itemsAddress = process.env.ITEMS_CONTRACT_HASH;
   const hunyAddress = process.env.HUNY_CONTRACT_HASH;
@@ -17,17 +16,44 @@ const { deployZOMGStore } = require("./helper");
   const zomgStallContract = await deployZOMGStore();
   const zomgStallAddress = zomgStallContract.address.toLowerCase();
 
-  const txAddConsumable = await callContract(privateKey, zomgStallContract, "AddConsumable", [
-    param('name', 'String', 'Consumable')
-  ], 0, false, false)
-  console.log('add consumable type into consumable whitelist', txAddConsumable)
+  useKey(privateKey)
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const txList = []
 
-  for (const contract_address of [itemsAddress, hunyAddress, geodeAddress, berryAddress, scrapAddress]) {
-    const contract = zilliqa.contracts.at(contract_address);
-    const txAddMinter = await callContract(privateKey, contract, "AddMinter", [
-      param('minter', 'ByStr20', zomgStallAddress),
-    ], 0, false, false);
-    console.log("add zomg store as minter", contract_address, txAddMinter.id);
+  // add consumable type into list of white-listed consumables
+  const dataAddConsumable = JSON.stringify({
+    _tag: "AddConsumable",
+    params: [
+      param('name', 'String', 'Consumable'),
+    ]
+  })
+  const bech32ZomgStallAddress = toBech32Address(zomgStallAddress)
+  const txAddConsumable = await createTransaction(bech32ZomgStallAddress, dataAddConsumable, minGasPrice)
+  txList.push(txAddConsumable)
+  console.log('add consumable type into consumable whitelist', zomgStallAddress)
+
+  for (const contractAddress of [itemsAddress, hunyAddress, geodeAddress, berryAddress, scrapAddress]) {
+    // add zomgStall as minter for the following contracts
+    const dataAddMinter = JSON.stringify({
+      _tag: "AddMinter",
+      params: [
+        param('minter', 'ByStr20', zomgStallAddress),
+      ]
+    })
+    const bech32Address = toBech32Address(contractAddress)
+    const txAddMinter = await createTransaction(bech32Address, dataAddMinter, minGasPrice)
+    txList.push(txAddMinter)
+    console.log("add zomg store as minter", contractAddress);
+  }
+
+  console.log('signing transactions...')
+  const signedTxList = await zilliqa.wallet.signBatch(txList)
+
+  console.log('sending batch transactions...')
+  const batchResult = await zilliqa.blockchain.createBatchTransaction(signedTxList);
+
+  for (const result of batchResult) {
+    if (!result?.receipt?.success) console.log('the following tx failed:\n', result)
   }
 
   console.log(`\n\n======================`)

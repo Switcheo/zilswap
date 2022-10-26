@@ -5,6 +5,7 @@ const { callContract, nextBlock } = require("../../../scripts/call");
 const { deployMetazoa, deployHunyToken, deployResource, deployQuest, ONE_HUNY } = require("../../../scripts/zolar/mission-2/helper");
 const { generateErrorMsg } = require('../bank/helper')
 const { BigNumber } = require('bignumber.js')
+const { adt } = require("./helper")
 
 let user1PrivateKey, user2PrivateKey, user1Address, user2Address, metazoaContract, metazoaAddress, hunyContract, hunyAddress, resourceContract, resourceAddress, questContract, questAddress
 
@@ -97,6 +98,17 @@ beforeAll(async () => {
     param('operator', 'ByStr20', questAddress),
   ], 0, false, false)
   console.log(txAddOperator2.id)
+
+  const batchMintParams = []
+
+  for (let i = 0; i < 100; i++) {
+    batchMintParams.push(adt('Pair', ['ByStr20', 'String'], [user2Address, 'test-uri']))
+  }
+
+  const txBatchMintMetazoa = await callContract(user1PrivateKey, metazoaContract, "BatchMint", [
+    param('to_token_uri_pair_list', 'List (Pair ByStr20 String)', batchMintParams)
+  ], 0, false, false)
+  console.log(txBatchMintMetazoa)
 })
 
 test('enter quest with owned metazoas', async () => {
@@ -206,4 +218,49 @@ test('harvest after percentage of harvest fee waived', async () => {
   expect(txHarvest.receipt.success).toEqual(true)
   const fee = new BigNumber(txHarvest.receipt.event_logs[3].params[2].value)
   expect(fee).toEqual(ONE_HUNY.times(150))
+})
+
+test('batch enter quest', async () => {
+  tokenIds = []
+  for (let i = 3; i < 103; i++) {
+    tokenIds.push(i.toString())
+  }
+  const txEnterQuest = await callContract(user2PrivateKey, questContract, "EnterQuest", [
+    param('token_ids', 'List Uint256', tokenIds),
+  ], 0, false, false)
+  console.log(txEnterQuest.id)
+  expect(txEnterQuest.receipt.success).toEqual(true)
+})
+
+test('batch return to base', async () => {
+  const txMintHuny = await callContract(user1PrivateKey, hunyContract, "Mint", [
+    param('recipient', 'ByStr20', user2Address),
+    param('amount', 'Uint128', '1000000000000000000')
+  ], 0, false, false)
+  console.log(txMintHuny.id)
+
+  tokenIds = []
+  for (let i = 3; i < 53; i++) {
+    tokenIds.push(i.toString())
+  }
+  const txReturnToBase = await callContract(user2PrivateKey, questContract, "ReturnToBase", [
+    param('token_ids', 'List Uint256', tokenIds),
+  ], 0, false, false)
+  console.log(txReturnToBase.id)
+  expect(txReturnToBase.receipt.success).toEqual(true)
+})
+
+test('test eject quest', async () => {
+  const txAbandonQuest = await callContract(user1PrivateKey, questContract, "SetQuestAbandoned",[
+    param('a', 'Bool', adt('True', [], []))
+  ], 0, false, false)
+  console.log(txAbandonQuest.id)
+
+  tokenIds = []
+  for (let i = 53; i < 103; i++) {
+    tokenIds.push(i.toString())
+  }
+  const txEjectQuest = await callContract(user1PrivateKey, questContract, "EjectQuest", [], 0, false, false)
+  console.log(txEjectQuest.id)
+  expect(txEjectQuest.receipt.success).toEqual(true)
 })

@@ -1,92 +1,124 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
-const { callContract } = require("../../call");
-const { getPrivateKey, param, zilliqa } = require("../../zilliqa");
-const { deployResourceStore, deployResource, deployItems, deployGemRefinery, ONE_HUNY } = require("./helper");
+const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
+const { ONE_HUNY } = require("./helper");
+const { createTransaction } = require("../../call");
+const { toBech32Address } = require("@zilliqa-js/crypto")
 
 ;
 (async () => {
   const privateKey = getPrivateKey();
-  const address = getAddressFromPrivateKey(privateKey).toLowerCase();
 
-  const resourceStallContract = zilliqa.contracts.at(process.env.RESOURCE_SHOP_CONTRACT_HASH);
-  const geodeContract = zilliqa.contracts.at(process.env.GEODE_CONTRACT_HASH);
-  const geodeAddress = geodeContract.address.toLowerCase();
-  const berryContract = zilliqa.contracts.at(process.env.BERRY_CONTRACT_HASH);
-  const berryAddress = berryContract.address.toLowerCase();
-  const scrapContract = zilliqa.contracts.at(process.env.SCRAP_CONTRACT_HASH);
-  const scrapAddress = scrapContract.address.toLowerCase();
-  const emporiumContract = zilliqa.contracts.at(process.env.EMPORIUM_CONTRACT_HASH);
-  const hunyContract = zilliqa.contracts.at(process.env.HUNY_CONTRACT_HASH);
+  const resourceStallAddress = process.env.RESOURCE_SHOP_CONTRACT_HASH.toLowerCase();
+  const geodeAddress = process.env.GEODE_CONTRACT_HASH.toLowerCase();
+  const berryAddress = process.env.BERRY_CONTRACT_HASH.toLowerCase();
+  const scrapAddress = process.env.SCRAP_CONTRACT_HASH.toLowerCase();
+  const emporiumAddress = process.env.EMPORIUM_CONTRACT_HASH.toLowerCase();
+  const hunyAddress = process.env.HUNY_CONTRACT_HASH.toLowerCase();
 
-  const resourceStallAddress = resourceStallContract.address.toLowerCase();
+  useKey(privateKey)
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const txList = []
 
-  const txAddMinterStall1 = await callContract(privateKey, geodeContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall1.id);
+  for (const contractAddress of [geodeAddress, berryAddress, scrapAddress, hunyAddress]) {
+    // add resource stall as minter for the following contracts
+    const dataAddMinter = JSON.stringify({
+      _tag: "AddMinter",
+      params: [
+        param('minter', 'ByStr20', resourceStallAddress),
+      ]
+    })
+    const bech32Address = toBech32Address(contractAddress)
+    const txAddMinter = await createTransaction(bech32Address, dataAddMinter, minGasPrice)
+    txList.push(txAddMinter)
+    console.log("add resource stall as minter", contractAddress);
+  }
 
-  const txAddMinterStall2 = await callContract(privateKey, berryContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall2.id);
+  // add resource stall into grand emporium
+  const dataAddStall = JSON.stringify({
+    _tag: "AddStall",
+    params: [
+      param('address', 'ByStr20', resourceStallAddress),
+    ]
+  })
+  const bech32EmporiumAddress = toBech32Address(emporiumAddress)
+  const txAddStall = await createTransaction(bech32EmporiumAddress, dataAddStall, minGasPrice)
+  txList.push(txAddStall)
+  console.log("add resource stall to grand emporium", emporiumAddress);
 
-  const txAddMinterStall3 = await callContract(privateKey, scrapContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall3.id);
+  // add resources to stall
+  // add geode to stall
+  const dataAddItem1 = JSON.stringify({
+    _tag: "AddItem",
+    params: [
+      param('item_name', 'String', "Zolar Geode"),
+      param('resource', 'ByStr20', geodeAddress),
+      param('buy_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
+      }),
+      param('sell_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
+      })]
+  })
+  const bech32StallAddress = toBech32Address(resourceStallAddress)
+  const txAddItem1 = await createTransaction(bech32StallAddress, dataAddItem1, minGasPrice)
+  txList.push(txAddItem1)
+  console.log("add geode to stall", geodeAddress);
+  
+  // add berry to stall
+  const dataAddItem2 = JSON.stringify({
+    _tag: "AddItem",
+    params: [
+      param('item_name', 'String', "Zolar Elderberry"),
+      param('resource', 'ByStr20', berryAddress),
+      param('buy_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(80).toString(10), ONE_HUNY.times(8_500).toString(10), "100", "50"]
+      }),
+      param('sell_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(40).toString(10), ONE_HUNY.times(1_200).toString(10), "50", "100"]
+      })]
+  })
+  const txAddItem2 = await createTransaction(bech32StallAddress, dataAddItem2, minGasPrice)
+  txList.push(txAddItem2)
+  console.log("add berry to stall", berryAddress);
 
-  const txAddMinterStall4 = await callContract(privateKey, hunyContract, "AddMinter", [
-    param('minter', 'ByStr20', resourceStallAddress),
-  ], 0, false, false);
-  console.log("add stall minter", txAddMinterStall4)
+  // add scrap to stall
+  const dataAddItem3 = JSON.stringify({
+    _tag: "AddItem",
+    params: [
+      param('item_name', 'String', "Zolranium Scraps"),
+      param('resource', 'ByStr20', geodeAddress),
+      param('buy_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
+      }),
+      param('sell_price', `${resourceStallAddress}.Price`, {
+        constructor: `${resourceStallAddress}.Price`,
+        argtypes: [],
+        arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
+      })]
+  })
+  const txAddItem3 = await createTransaction(bech32StallAddress, dataAddItem3, minGasPrice)
+  txList.push(txAddItem3)
+  console.log("add scrap to stall", scrapAddress);
 
-  const txAddStall = await callContract(privateKey, emporiumContract, "AddStall", [
-    param('address', 'ByStr20', resourceStallAddress),
-  ], 0, false, false)
-  console.log("add stall", txAddStall.id);
+  console.log('signing transactions...')
+  const signedTxList = await zilliqa.wallet.signBatch(txList)
 
-  const txAddItem1 = await callContract(privateKey, resourceStallContract, "AddItem", [
-    param('item_name', 'String', "Zolar Geode"),
-    param('resource', 'ByStr20', geodeAddress),
-    param('buy_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
-    }),
-    param('sell_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
-    })], 0, false, false)
-  console.log("add item", txAddItem1.id);
+  console.log('sending batch transactions...')
+  const batchResult = await zilliqa.blockchain.createBatchTransaction(signedTxList);
 
-  const txAddItem2 = await callContract(privateKey, resourceStallContract, "AddItem", [
-    param('item_name', 'String', "Zolar Elderberry"),
-    param('resource', 'ByStr20', berryAddress),
-    param('buy_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(80).toString(10), ONE_HUNY.times(8_500).toString(10), "100", "50"]
-    }),
-    param('sell_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(40).toString(10), ONE_HUNY.times(1_200).toString(10), "50", "100"]
-    })], 0, false, false)
-  console.log("add item", txAddItem2.id);
+  if (!batchResult) console.log(`error adding resources to shop`)
+  else console.log(`successfuly added resources to shop`)
 
-  const txAddItem3 = await callContract(privateKey, resourceStallContract, "AddItem", [
-    param('item_name', 'String', "Zolranium Scraps"),
-    param('resource', 'ByStr20', scrapAddress),
-    param('buy_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
-    }),
-    param('sell_price', `${resourceStallAddress}.Price`, {
-      constructor: `${resourceStallAddress}.Price`,
-      argtypes: [],
-      arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
-    })], 0, false, false)
-  console.log("add item", txAddItem3.id);
+  for (const result of batchResult) {
+    if (!result?.receipt?.success) console.log('the following tx failed:\n', result)
+  }
 })();

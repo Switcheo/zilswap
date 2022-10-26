@@ -1,12 +1,12 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
-const { callContract } = require("../../call");
-const { getPrivateKey, param, zilliqa } = require("../../zilliqa");
+const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
 const { deployGemRefinery, ONE_HUNY } = require("./helper");
+const { createTransaction } = require("../../call");
+const { toBech32Address } = require("@zilliqa-js/crypto")
+
 
 ;
 (async () => {
   const privateKey = getPrivateKey();
-  const address = getAddressFromPrivateKey(privateKey).toLowerCase();
 
   const itemsAddress = process.env.ITEMS_CONTRACT_HASH;
   const geodeAddress = process.env.GEODE_CONTRACT_HASH;
@@ -15,20 +15,33 @@ const { deployGemRefinery, ONE_HUNY } = require("./helper");
   const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress, feeAddress: hunyAddress, refinementFee: ONE_HUNY.times(10), enhancementFee: ONE_HUNY.times(100)});
   const gemRefineryAddress = gemRefineryContract.address.toLowerCase();
 
-  const txAddMinterItemsRefinery = await callContract(privateKey, zilliqa.contracts.at(itemsAddress), "AddMinter", [
-    param('minter', 'ByStr20', gemRefineryAddress),
-  ], 0, false, false);
-  console.log("add refinery as items minter", txAddMinterItemsRefinery.id);
+  useKey(privateKey)
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const txList = []
 
-  const txAddMinterGeodeRefinery = await callContract(privateKey, zilliqa.contracts.at(geodeAddress), "AddMinter", [
-    param('minter', 'ByStr20', gemRefineryAddress),
-  ], 0, false, false);
-  console.log("add refinery as geode minter", txAddMinterGeodeRefinery.id);
+  for (const contractAddress of [itemsAddress, hunyAddress, geodeAddress]) {
+    // add gemRefinery as minter for the following contracts
+    const dataAddMinter = JSON.stringify({
+      _tag: "AddMinter",
+      params: [
+        param('minter', 'ByStr20', gemRefineryAddress),
+      ]
+    })
+    const bech32Address = toBech32Address(contractAddress)
+    const txAddMinter = await createTransaction(bech32Address, dataAddMinter, minGasPrice)
+    txList.push(txAddMinter)
+    console.log("add gem refinery as minter", contractAddress);
+  }
 
-  const txAddMinterHunyRefinery = await callContract(privateKey, zilliqa.contracts.at(hunyAddress), "AddMinter", [
-    param('minter', 'ByStr20', gemRefineryAddress),
-  ], 0, false, false);
-  console.log("add refinery as huny minter", txAddMinterHunyRefinery.id);
+  console.log('signing transactions...')
+  const signedTxList = await zilliqa.wallet.signBatch(txList)
+
+  console.log('sending batch transactions...')
+  const batchResult = await zilliqa.blockchain.createBatchTransaction(signedTxList);
+
+  for (const result of batchResult) {
+    if (!result?.receipt?.success) console.log('the following tx failed:\n', result)
+  }
 
   console.log(`\n\n======================`)
   console.log(`\n  Contracts`)

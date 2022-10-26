@@ -1,7 +1,7 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa");
-const { getPrivateKey, zilliqa, param } = require("../../zilliqa");
+const { getPrivateKey, zilliqa, param, useKey } = require("../../zilliqa");
 const { deployQuest, ONE_HUNY } = require("./helper");
-const { callContract } = require("../../call");
+const { createTransaction } = require("../../call");
+const { toBech32Address } = require("@zilliqa-js/crypto")
 
 ;
 (async () => {
@@ -59,34 +59,68 @@ const { callContract } = require("../../call");
 
   // add questContracts as minter for their respective resource + huny (for resource minting plus fees)
 
+  useKey(privateKey)
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const txList = []
+
   // add questScrap as minter for z-scraps
-  const scrapContract = zilliqa.contracts.at(scrapAddress);
-  const txAddMinter1 = await callContract(privateKey, scrapContract, "AddMinter", [
-    param('minter', 'ByStr20', questScrapAddress),
-  ], 0, false, false);
-  console.log(`add quest: ${questScrapAddress} as minter for z-scrap contract`, scrapAddress, txAddMinter1.id);
+  const dataAddMinter1 = JSON.stringify({
+    _tag: "AddMinter",
+    params: [
+      param('minter', 'ByStr20', questScrapAddress),
+    ]
+  })
+  const bech32ScrapAddress = toBech32Address(scrapAddress)
+  const txAddMinter1 = await createTransaction(bech32ScrapAddress, dataAddMinter1, minGasPrice)
+  txList.push(txAddMinter1)
+  console.log(`add quest: ${questScrapAddress} as minter for z-scrap contract`, scrapAddress);
 
   // add questGeode as minter for geodes
-  const geodeContract = zilliqa.contracts.at(geodeAddress);
-  const txAddMinter2 = await callContract(privateKey, geodeContract, "AddMinter", [
-    param('minter', 'ByStr20', questGeodeAddress),
-  ], 0, false, false);
-  console.log(`add quest: ${questGeodeAddress} as minter for geode contract`, geodeAddress, txAddMinter2.id);
+  const dataAddMinter2 = JSON.stringify({
+    _tag: "AddMinter",
+    params: [
+      param('minter', 'ByStr20', questGeodeAddress),
+    ]
+  })
+  const bech32GeodeAddress = toBech32Address(geodeAddress)
+  const txAddMinter2 = await createTransaction(bech32GeodeAddress, dataAddMinter2, minGasPrice)
+  txList.push(txAddMinter2)
+  console.log(`add quest: ${questGeodeAddress} as minter for geode contract`, geodeAddress);
 
   // add questBerry as minter for berry
-  const berryContract = zilliqa.contracts.at(berryAddress);
-  const txAddMinter3 = await callContract(privateKey, berryContract, "AddMinter", [
-    param('minter', 'ByStr20', questBerryAddress),
-  ], 0, false, false);
-  console.log(`add quest: ${questBerryAddress} as minter for berry contract`, berryAddress, txAddMinter3.id);
+  const dataAddMinter3 = JSON.stringify({
+    _tag: "AddMinter",
+    params: [
+      param('minter', 'ByStr20', questBerryAddress),
+    ]
+  })
+  const bech32BerryAddress = toBech32Address(berryAddress)
+  const txAddMinter3 = await createTransaction(bech32BerryAddress, dataAddMinter3, minGasPrice)
+  txList.push(txAddMinter3)
+  console.log(`add quest: ${questBerryAddress} as minter for berry contract`, berryAddress);
 
   // add questContracts as minter for huny
-  for (const contract_address of [questScrapAddress, questGeodeAddress, questBerryAddress]) {
-    const hunyContract = zilliqa.contracts.at(hunyAddress);
-    const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [
-      param('minter', 'ByStr20', contract_address),
-    ], 0, false, false);
-    console.log(`add quest: ${contract_address} as minter for huny contract`, hunyAddress, txAddMinter.id);
+  for (const contractAddress of [questScrapAddress, questGeodeAddress, questBerryAddress]) {
+    const dataAddMinter = JSON.stringify({
+      _tag: "AddMinter",
+      params: [
+        param('minter', 'ByStr20', contractAddress),
+      ]
+    })
+    const bech32HunyAddress = toBech32Address(hunyAddress)
+    const txAddMinter = await createTransaction(bech32HunyAddress, dataAddMinter, minGasPrice)
+    txList.push(txAddMinter)
+    console.log(`add quest: ${contractAddress} as minter for huny contract`, hunyAddress);
+  }
+
+  console.log('signing transactions...')
+  const signedTxList = await zilliqa.wallet.signBatch(txList)
+
+  console.log('sending batch transactions...')
+  const batchResult = await zilliqa.blockchain.createBatchTransaction(signedTxList);
+
+  for (const result of batchResult) {
+    if (!result?.receipt?.success) console.log('failed to add minter: \n', result)
   }
 
   console.log(`\n\n======================`)
