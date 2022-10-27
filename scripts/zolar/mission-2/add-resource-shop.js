@@ -54,12 +54,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
+        arguments: [ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
       })]
   })
   const bech32StallAddress = toBech32Address(resourceStallAddress)
@@ -76,12 +76,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(80).toString(10), ONE_HUNY.times(8_500).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(100).toString(10), ONE_HUNY.times(10_000).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(40).toString(10), ONE_HUNY.times(1_200).toString(10), "50", "100"]
+        arguments: [ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "100"]
       })]
   })
   const txAddItem2 = await createTransaction(bech32StallAddress, dataAddItem2, minGasPrice)
@@ -97,12 +97,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(28).toString(10), ONE_HUNY.times(2_800).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(14).toString(10), ONE_HUNY.times(420).toString(10), "50", "100"]
+        arguments: [ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
       })]
   })
   const txAddItem3 = await createTransaction(bech32StallAddress, dataAddItem3, minGasPrice)
