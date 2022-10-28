@@ -199,7 +199,7 @@ test('harvest half-way from waive harvest fee', async () => {
     param('token_ids', 'List Uint256', ["1"]),
   ], 0, false, false)
   expect(txHarvest.receipt.success).toEqual(true)
-  const fee = new BigNumber(txHarvest.receipt.event_logs[3].params[2].value)
+  const fee = new BigNumber(txHarvest.receipt.event_logs[4].params[2].value)
   expect(fee).toEqual(ONE_HUNY.times(196))
 })
 
@@ -216,7 +216,7 @@ test('harvest after percentage of harvest fee waived', async () => {
     param('token_ids', 'List Uint256', ["1"]),
   ], 0, false, false)
   expect(txHarvest.receipt.success).toEqual(true)
-  const fee = new BigNumber(txHarvest.receipt.event_logs[3].params[2].value)
+  const fee = new BigNumber(txHarvest.receipt.event_logs[4].params[2].value)
   expect(fee).toEqual(ONE_HUNY.times(150))
 })
 

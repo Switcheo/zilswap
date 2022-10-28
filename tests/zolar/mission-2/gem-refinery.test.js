@@ -183,26 +183,8 @@ test('refine geodes with insufficient huny', async () => {
     param('quantity', 'Uint128', "500")
   ], 0, false, false)
   console.log(txRefine.id)
-  expect(txRefine.receipt.success).toEqual(true)
-  
-  let gems = []
-  for (let i = 0; i < 10; i++) {
-    gems.push(
-        adt(`${gemRefineryAddress}.Gem`, [], [
-          'INT',
-          adt(`${gemRefineryAddress}.TierC`, [], []),
-          adt('False', [], [])
-        ])
-    )
-  }
-  
-  const txConcludeRefine = await callContract(user1PrivateKey, gemRefineryContract, "ConcludeRefinement", [
-    param('refinement_id', 'Uint256', "2"),
-    param('gems', `List ${gemRefineryAddress}.Gem`, gems)
-  ], 0, false, false)
-  console.log(txConcludeRefine.id)
-  expect(txConcludeRefine.receipt.success).toEqual(false)
-  expect(txConcludeRefine.receipt.exceptions[0].message).toEqual(generateErrorMsg(2)) // throws CodeInsufficientFunds
+  expect(txRefine.receipt.success).toEqual(false)
+  expect(txRefine.receipt.exceptions[0].message).toEqual(generateErrorMsg(2)) // throws CodeInsufficientFunds
 })
 
 test('enhance gems with insufficient huny', async () => {
@@ -233,26 +215,8 @@ test('enhance gems with insufficient huny', async () => {
       param('material_gem_token_ids', 'List Uint256', materialGemsId)
     ], 0, false, false)
     console.log(txEnhance.id)
-    expect(txEnhance.receipt.success).toEqual(true)
-  
-    let enhancedGems = []
-    for (let i = 0; i < 1; i++) {
-      enhancedGems.push(
-        adt(`${gemRefineryAddress}.Gem`, [], [
-          'INT',
-          adt(`${gemRefineryAddress}.TierB`, [], []),
-          adt('False', [], [])
-        ])
-    )
-    }
-  
-    const txConcludeRefine = await callContract(user1PrivateKey, gemRefineryContract, "ConcludeRefinement", [
-      param('refinement_id', 'Uint256', "3"),
-      param('gems', `List ${gemRefineryAddress}.Gem`, enhancedGems)
-    ], 0, false, false)
-    console.log(txConcludeRefine.id)
-    expect(txConcludeRefine.receipt.success).toEqual(false)
-    expect(txConcludeRefine.receipt.exceptions[0].message).toEqual(generateErrorMsg(2)) // throws CodeInsufficientFunds
+    expect(txEnhance.receipt.success).toEqual(false)
+    expect(txEnhance.receipt.exceptions[0].message).toEqual(generateErrorMsg(2)) // throws CodeInsufficientFunds
 })
 
 test('enhance gem C with insufficient base gems', async () => {

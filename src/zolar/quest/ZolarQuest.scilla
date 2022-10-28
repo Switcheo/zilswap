@@ -467,6 +467,17 @@ procedure HarvestForMetazoa(token_id : Uint256)
     new_accumulated_fee = builtin add current_accumulated_fee fee_to_charge;
     accumulated_fees[_sender] := new_accumulated_fee;
 
+    e = {
+      _eventname: "HarvestMetazoa";
+      token_id: token_id;
+      metazoa_contract: metazoa_contract;
+      resource_contract: resource_contract;
+      resource_to_mint: resource_to_mint;
+      fee_to_charge: fee_to_charge;
+      xp_to_gain: xp_to_gain
+    };
+    event e;
+
     UpdateHarvest token_id blocks_to_add
   end
 end
@@ -484,7 +495,15 @@ procedure ChargeReturnFee(token_id: Uint256)
   maybe_current_accumulated_fee <- accumulated_fees[_sender];
   current_accumulated_fee = match maybe_current_accumulated_fee with | None => zero_amt | Some v => v end;
   new_accumulated_fee = builtin add current_accumulated_fee fee_to_charge;
-  accumulated_fees[_sender] := new_accumulated_fee
+  accumulated_fees[_sender] := new_accumulated_fee;
+
+  e = {
+    _eventname: "ReturnMetazoaFee";
+    token_id: token_id;
+    metazoa_contract: metazoa_contract;
+    fee_to_charge: fee_to_charge
+  };
+  event e
 end
 
 (* mint and grant the accumulated amount of resources and xp of the _sender *)
@@ -524,6 +543,7 @@ procedure HarvestForCommander(token_ids: List Uint256)
       metazoa_contract: metazoa_contract;
       resource_contract: resource_contract;
       resource_to_mint: current_accumulated_resource;
+      fee_to_charge: current_accumulated_fee;
       xp_to_gain: current_accumulated_xp_list
     };
     event e;

@@ -508,6 +508,10 @@ transition BeginGemEnhancement(output_tier: GemTier, base_gem_token_id: Uint256,
 
     ReceiveGems all_gem_token_ids;
 
+    (* charge base enhancement fee per enhancement *)
+    fee <- enhancement_fee;
+    ChargeFees _sender fee;
+
     refinement = GemEnhancement _sender output_tier base_gem_token_id material_gem_token_ids;
     AddRefinement refinement
   end
@@ -517,6 +521,11 @@ transition BeginGeodeRefinement(quantity: Uint128)
   VerifyAndConsumeGeodes quantity;
   gem_quantity = builtin div quantity hundred;
 
+  (* charge base refinement fee per geode *)
+  fee <- refinement_fee;
+  total_fees = builtin mul fee gem_quantity;
+  ChargeFees _sender total_fees;
+  
   refinement = GeodeRefinement _sender gem_quantity;
   AddRefinement refinement
 end
@@ -536,9 +545,6 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Gem))
 
     match ongoing_refinement with
     | GemEnhancement recipient _ base_gem_token_id material_gem_token_ids =>
-      (* charge base enhancement fee per enhancement *)
-      fee <- enhancement_fee;
-      ChargeFees recipient fee;
       ConsumeGems material_gem_token_ids;
 
       base_gem_list = let l0 = Nil {Uint256} in Cons {Uint256} base_gem_token_id l0;
@@ -548,11 +554,7 @@ transition ConcludeRefinement(refinement_id: Uint256, gems: List (Gem))
       | False =>
         RefundGems recipient base_gem_list
       end
-    | GeodeRefinement recipient gem_quantity =>
-      (* charge base refinement fee per geode *)
-      fee <- refinement_fee;
-      total_fees = builtin mul fee gem_quantity;
-      ChargeFees recipient total_fees
+    | GeodeRefinement recipient gem_quantity => (* no op *)
     end;
 
     match has_output with
