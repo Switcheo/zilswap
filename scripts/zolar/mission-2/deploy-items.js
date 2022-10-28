@@ -8,7 +8,7 @@ const { deployItems } = require("./helper");
   const address = getAddressFromPrivateKey(privateKey).toLowerCase();
 
   const itemsContract = await deployItems({
-    baseUri: "https://test-api.zolar.io/items/metadata/"
+    baseUri: "https://api.zolar.io/items/metadata/"
   });
   const itemsAddress = itemsContract.address.toLowerCase();
 

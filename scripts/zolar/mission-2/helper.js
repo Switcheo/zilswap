@@ -115,8 +115,10 @@ const deployItems = async ({
     param("_scilla_version", "Uint32", "0"),
     param("initial_contract_owner", "ByStr20", address),
     param("initial_base_uri", "String", baseUri),
+    param("initial_royalty_recipient", "ByStr20", address),
+    param("initial_royalty_bps", "Uint128", "500"),
     param("name", "String", "Zolar Items"),
-    param("symbol", "String", "ITEM"),
+    param("symbol", "String", "zlrITEM"),
   ]
 
   console.info(`Deploying ZolarItems...`)

@@ -79,6 +79,7 @@ type Error =
   | ConsumerFoundError
   | ConsumerNotFoundError
   | ItemSelfError
+  | InvalidFeeBPSError
 
 let make_error =
   fun (result: Error) =>
@@ -118,6 +119,7 @@ let make_error =
       | ConsumerFoundError                 => Int32 -32
       | ConsumerNotFoundError              => Int32 -33
       | ItemSelfError                      => Int32 -34
+      | InvalidFeeBPSError                 => Int32 -35
       end
     in
     { _exception: "Error"; code: result_code }
@@ -131,6 +133,8 @@ contract Item
   initial_contract_owner: ByStr20,
   (* Initial Base URI. e.g. `https://creatures-api.zilliqa.com/api/creature/` *)
   initial_base_uri: String,
+  initial_royalty_bps: Uint128,
+  initial_royalty_recipient: ByStr20,
   name: String,
   symbol: String
 )
@@ -173,6 +177,15 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Address to send royalties to *)
+(* Defaults to `initial_contract_owner` *)
+field royalty_recipient: ByStr20 = initial_royalty_recipient
+
+(* Royalty fee BPS *)
+(* e.g. 1 = 0.01%, 10000 = 100% *)
+(* Defaults to 1000 *)
+field royalty_fee_bps: Uint128 = initial_royalty_bps
 
 (* Base URI *)
 (* Defaults to `initial_base_uri` *)
@@ -234,6 +247,19 @@ procedure RequireNotPaused()
     (* Contract is paused *)
     error = PausedError;
     Throw error
+  end
+end
+
+procedure RequireValidRoyaltyFee(fee_bps: Uint128)
+  is_gte_min = uint128_ge fee_bps min_fee_bps;
+  is_lte_max = uint128_le fee_bps max_fee_bps;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidFeeBPSError;
+      Throw error
   end
 end
 
@@ -1114,6 +1140,58 @@ transition Unpause()
     _recipient: _sender;
     _amount: Uint128 0;
     is_paused: false
+  };
+  msgs = one_msg msg_to_sender;
+  send msgs
+end
+
+(* Sets `to` as the royalty recipient. *)
+(* @param: to - Royalty recipient address  *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `to` must not be the zero address. Otherwise, it must throw `ZeroAddressDestinationError` *)
+(* - `to` must not be `_this_address`. Otherwise, it must throw `ThisAddressDestinationError` *)
+transition SetRoyaltyRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireValidDestination to;
+  
+  royalty_recipient := to;
+  
+  e = { 
+    _eventname: "SetRoyaltyRecipient";
+    to: to
+  };
+  event e;
+  msg_to_sender = {
+    _tag: "ZRC6_SetRoyaltyRecipientCallback"; 
+    _recipient: _sender;
+    _amount: Uint128 0;
+    to: to
+  };
+  msgs = one_msg msg_to_sender;
+  send msgs  
+end
+
+(* Sets `fee_bps` as royalty fee bps. *)
+(* @param: fee_bps - Royalty fee BPS *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `fee_bps` must be in the range of 1 and 10000. Otherwise, it must throw `InvalidFeeBPSError` *)
+transition SetRoyaltyFeeBPS(fee_bps: Uint128)
+  RequireContractOwner;
+  RequireValidRoyaltyFee fee_bps;
+  royalty_fee_bps := fee_bps;
+  
+  e = { 
+    _eventname: "SetRoyaltyFeeBPS";
+    royalty_fee_bps: fee_bps
+  };
+  event e;
+  msg_to_sender = {
+    _tag: "ZRC6_SetRoyaltyFeeBPSCallback"; 
+    _recipient: _sender;
+    _amount: Uint128 0;
+    royalty_fee_bps: fee_bps
   };
   msgs = one_msg msg_to_sender;
   send msgs

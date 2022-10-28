@@ -20,8 +20,8 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
     resourcePerEpoch: "2800",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    harvestFeePerEpoch: ONE_HUNY.times(1200), // 1200 HUNY
+    numEpochsWaiveHarvest: '21', // 3 weeks to waive percentage harvest fee
     percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
@@ -35,8 +35,8 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
     resourcePerEpoch: "2800",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    harvestFeePerEpoch: ONE_HUNY.times(1200), // 1200 HUNY
+    numEpochsWaiveHarvest: '21', // 3 weeks to waive percentage harvest fee
     percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
@@ -50,8 +50,8 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
     resourcePerEpoch: "1000",
     xpPerEpoch: "5",
     feeContract: hunyAddress,
-    harvestFeePerEpoch: ONE_HUNY.times(100), // 100 HUNY
-    numEpochsWaiveHarvest: '14', // 2 weeks to waive percentage harvest fee
+    harvestFeePerEpoch: ONE_HUNY.times(1200), // 1200 HUNY
+    numEpochsWaiveHarvest: '21', // 3 weeks to waive percentage harvest fee
     percentageBps: '10000', // percentage of init harvest fee to be waived
     returnFee: ONE_HUNY.times(200), // 200 HUNY
   });
