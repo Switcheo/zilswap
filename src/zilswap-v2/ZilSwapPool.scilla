@@ -631,14 +631,13 @@ procedure RecordVolume(volume: Uint128)
     new_volume = builtin add volume v;
     current_block_volume := new_volume
   | False =>
-    current_block_volume := volume;
-    last_trade_block := current_block;
+    old_block_volume <- current_block_volume;
     prev_short_ema <- short_ema;
     prev_long_ema <- long_ema;
 
     blocks_skipped_minus_one = builtin sub blocks_skipped_u256 one_u256;
     new_short_ema_pair = 
-      let s_e = get_ema prev_short_ema short_alpha volume in
+      let s_e = get_ema prev_short_ema short_alpha old_block_volume in
       let p_minus_short_alpha = builtin sub precision short_alpha in
       let s_e_ = mul_in_precision s_e p_minus_short_alpha in
       unsafe_pow_in_precision s_e_ blocks_skipped_minus_one;
@@ -651,7 +650,7 @@ procedure RecordVolume(volume: Uint128)
     end;
 
     new_long_ema_pair = 
-      let l_e = get_ema prev_long_ema long_alpha volume in
+      let l_e = get_ema prev_long_ema long_alpha old_block_volume in
       let p_minus_long_alpha = builtin sub precision long_alpha in
       let l_e_ = mul_in_precision l_e p_minus_long_alpha in
       unsafe_pow_in_precision l_e_ blocks_skipped_minus_one;
@@ -661,7 +660,10 @@ procedure RecordVolume(volume: Uint128)
       | Pair x_in_precision z_in_precision =>
         long_ema := z_in_precision
       end
-    end
+    end;
+
+    current_block_volume := volume;
+    last_trade_block := current_block
   end
 end
 
@@ -689,7 +691,7 @@ procedure VerifyBalanceAndUpdateEMA(
         "DMM: K"
     );
   *)
-  volume = let amt1_in_0 = frac before_reserve0 amount1_in before_reserve1 in builtin add amt1_in_0 amount0_in;
+  volume = let a = frac before_reserve0 amount1_in before_reserve1 in builtin add a amount0_in;
   RecordVolume volume;
   amp <- amp_bps;
   s_e <- short_ema;
@@ -933,7 +935,7 @@ transition Burn(to : ByStr20)
 
   is_reserves_synced =
     let b0_ok = uint128_ge balance0 r0 in
-    let b1_ok = uint128_ge balance1 r0 in
+    let b1_ok = uint128_ge balance1 r1 in
     andb b0_ok b1_ok;
   match is_reserves_synced with
   | True =>
@@ -1073,6 +1075,8 @@ transition Swap(
     send msgs
   end;
 
+  (* Obtains balance before transferring *)
+  (* Calculates amount left after transferring ie reserves of the pool *)
   m_b0 <- & init_token0.balances[_this_address];
   b0 = get_amount_or_zero m_b0;
   new_r0 = builtin sub b0 amount0_out;
