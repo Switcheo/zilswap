@@ -102,7 +102,7 @@ let sort_token =
   match path with
   | Pair token_in token_out =>
     let token_in_u256 = builtin to_uint256 token_in in
-    let token_out_u256 = builtin to_uint256 token_in in
+    let token_out_u256 = builtin to_uint256 token_out in
     let is_init_token0 = uint256_le token_in_u256 token_out_u256 in
     match is_init_token0 with 
     | True => path
@@ -1103,22 +1103,24 @@ transition SwapExactTokensForTokens(
         (* _swap *)
         match is_same_order with
         | True =>
+        (* Swap exact amt of init_token0 for init_token1 *)
           amount0_out = zero_amount;
           amount1_out = amount_out;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
-                          from: _sender; to: to; amount: amount_in};
+          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                          from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
-          msgs = two_msgs msg_to_token0 msg_to_pool;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool_path};
+          msgs = two_msgs msg_to_token msg_to_pool;
           send msgs
         | False =>
+        (* Swap exact amt of init_token1 for init_token0 *)
           amount0_out = amount_out;
           amount1_out = zero_amount;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
-                          from: _sender; to: to; amount: amount_in};
+          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                          from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
-          msgs = two_msgs msg_to_token0 msg_to_pool;
+                        amount0_out: amount_out; amount1_out: zero_amount; to: pool_path};
+          msgs = two_msgs msg_to_token msg_to_pool;
           send msgs
         end
       end
@@ -1218,21 +1220,23 @@ transition SwapTokensForExactTokens(
         (* _swap *)
         match is_same_order with
         | True =>
+        (* Swap exact amt of init_token0 for init_token1 *)
           amount0_out = zero_amount;
           amount1_out = amount_out;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
-                          from: _sender; to: to; amount: amount_in};
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
+                          from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool_path};
           msgs = two_msgs msg_to_token0 msg_to_pool;
           send msgs
         | False =>
+        (* Swap exact amt of init_token1 for init_token0 *)
           amount0_out = amount_out;
           amount1_out = zero_amount;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: token_in; _amount: zero_amount;
-                          from: _sender; to: to; amount: amount_in};
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                          from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: to};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool_path};
           msgs = two_msgs msg_to_token0 msg_to_pool;
           send msgs
         end
