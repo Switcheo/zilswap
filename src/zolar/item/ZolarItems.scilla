@@ -43,6 +43,16 @@ let get_bal =
     | Some bal => bal
     end
 
+let map_batch_mint_list = 
+  fun (list_with_traits : List (Pair (Pair ByStr20 String) (List (Pair String String)))) =>
+    let fold = @list_map (Pair (Pair ByStr20 String) (List (Pair String String))) (Pair ByStr20 String) in
+    let fn : (Pair (Pair ByStr20 String) (List (Pair String String))) -> Pair ByStr20 String =
+      fun (to_token_uri_traits: Pair (Pair ByStr20 String) (List (Pair String String))) =>
+        match to_token_uri_traits with
+        | Pair to_token_uri _ => to_token_uri
+        end
+    in fold fn list_with_traits
+
 (* Error exception *)
 type Error =
   | NotPausedError
@@ -1256,6 +1266,15 @@ transition MintAndSetTraits(
   token_id <- token_id_count;
   SetTokenURI token_id token_uri;
 
+  (* @dev: duplicated BatchMint event for ZRC6 compatibility *)
+  e = {
+    _eventname: "Mint";
+    to: to;
+    token_id: token_id;
+    token_uri: token_uri
+  };
+  event e;
+
   e = {
     _eventname: "MintAndSetTraits";
     to: to;
@@ -1290,6 +1309,16 @@ transition BatchMintAndSetTraits(
   start_id = builtin add cur_id one;
   forall to_token_uri_proposed_traits_list HandleMintAndSetTraits;
   end_id <- token_id_count;
+
+  (* @dev: duplicated BatchMint event for ZRC6 compatibility *)
+  to_token_uri_pair_list = map_batch_mint_list to_token_uri_proposed_traits_list;
+  e = {
+    _eventname: "BatchMint";
+    to_token_uri_pair_list: to_token_uri_pair_list;
+    start_id: start_id;
+    end_id: end_id
+  };
+  event e;
 
   e = {
     _eventname: "BatchMintAndSetTraits";
