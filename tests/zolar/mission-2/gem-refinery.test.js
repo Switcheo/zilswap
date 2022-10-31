@@ -37,7 +37,7 @@ beforeAll(async () => {
   geodeContract = await deployResource("ZolarGeode", { name: "Geode - Zolar Resource", symbol: "zlrGEODE", decimals: "2" });
   geodeAddress = geodeContract.address.toLowerCase();
 
-  gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress, feeAddress: hunyAddress, refinementFee: ONE_HUNY.times(10), enhancementFee: ONE_HUNY.times(100)});
+  gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress, feeAddress: hunyAddress, refinementFee: ONE_HUNY.times(10), enhancementFee: ONE_HUNY.times(100), oracleAddress: user1Address });
   gemRefineryAddress = gemRefineryContract.address.toLowerCase();
 
   const txAddMinterHuny = await callContract(user1PrivateKey, hunyContract, "AddMinter", [

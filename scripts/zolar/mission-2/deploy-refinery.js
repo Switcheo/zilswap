@@ -11,8 +11,9 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
   const itemsAddress = process.env.ITEMS_CONTRACT_HASH;
   const geodeAddress = process.env.GEODE_CONTRACT_HASH;
   const hunyAddress = process.env.HUNY_CONTRACT_HASH;
+  const oracleAddress = process.env.ORACLE_ADDRESS;
 
-  const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress, feeAddress: hunyAddress, refinementFee: ONE_HUNY.times(5), enhancementFee: ONE_HUNY.times(250)});
+  const gemRefineryContract = await deployGemRefinery({ geodeAddress, itemsAddress, feeAddress: hunyAddress, oracleAddress, refinementFee: ONE_HUNY.times(5), enhancementFee: ONE_HUNY.times(250)});
   const gemRefineryAddress = gemRefineryContract.address.toLowerCase();
 
   useKey(privateKey)

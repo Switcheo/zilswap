@@ -52,6 +52,7 @@ type Error =
   | CodeGemTraitNotFound
   | CodeInvalidGemTier
   | CodeInvalidMaterial
+  | CodeNotOracle
 
 let make_error =
   fun (result : Error) =>
@@ -68,6 +69,7 @@ let make_error =
       | CodeGemTraitNotFound                  => Int32 -9
       | CodeInvalidGemTier                    => Int32 -10
       | CodeInvalidMaterial                   => Int32 -11
+      | CodeNotOracle                         => Int32 -12
       end
     in
     { _exception : "Error"; code : result_code }
@@ -214,6 +216,7 @@ contract ZolarGemRefinery(
   initial_geode_address : ByStr20,
   initial_gem_affinities : List String,
   initial_fee_contract: ByStr20,
+  initial_oracle: ByStr20,
   initial_refinement_fee: Uint128,
   initial_enhancement_fee: Uint128
 )
@@ -226,6 +229,8 @@ field items_address : ByStr20 with contract
   field token_owners : Map Uint256 ByStr20,
   field parent_owners : Map Uint256 (Pair ByStr20 Uint256)
 end = initial_items_address
+
+field current_oracle : ByStr20 = initial_oracle
 
 field geode_address : ByStr20 = initial_geode_address
 field gem_affinities : List String = initial_gem_affinities
@@ -275,6 +280,17 @@ procedure IsPendingOwner(address: ByStr20)
     end
   | None =>
     err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsOracle(address: ByStr20)
+  oracle <- current_oracle;
+  is_oracle = builtin eq oracle address;
+  match is_oracle with
+  | True =>
+  | False =>
+    err = CodeNotOracle;
     ThrowError err
   end
 end
@@ -531,6 +547,7 @@ transition BeginGeodeRefinement(quantity: Uint128)
 end
 
 transition ConcludeRefinement(refinement_id: Uint256, gems: List (Gem))
+  IsOracle _sender;
   forall gems VerifyAffinity;
   maybe_ongoing_refinement <- refinements[refinement_id];
   match maybe_ongoing_refinement with
@@ -613,6 +630,14 @@ transition AcceptOwnership()
   contract_owner := o;
   pending_owner := none;
   e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Sets the RNG oracle address. Can be overriden at any time. *)
+transition SetOracle(oracle : ByStr20)
+  IsOwner _sender;
+  current_oracle := oracle;
+  e = {_eventname : "OracleSet"; oracle : oracle};
   event e
 end
 

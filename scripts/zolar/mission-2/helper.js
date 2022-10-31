@@ -130,6 +130,7 @@ const deployGemRefinery = async ({
   itemsAddress,
   geodeAddress,
   feeAddress,
+  oracleAddress,
   refinementFee,
   enhancementFee
 } = {}) => {
@@ -143,6 +144,7 @@ const deployGemRefinery = async ({
     param("initial_geode_address", "ByStr20", geodeAddress),
     param("initial_gem_affinities", "List String", ["INT", "STR", "DEX", "LUK", "SPD", "END", "ACC"]),
     param("initial_fee_contract", "ByStr20", feeAddress),
+    param("initial_oracle", "ByStr20", oracleAddress),
     param("initial_refinement_fee", "Uint128", refinementFee),
     param("initial_enhancement_fee", "Uint128", enhancementFee),
   ]
@@ -184,7 +186,7 @@ const deployResourceStore = async ({ emporium, huny_token }) => {
 
 const deployZOMGStore = async () => {
   const privateKey = getPrivateKey();
-  const address = getAddressFromPrivateKey(privateKey)
+  const address = getAddressFromPrivateKey(privateKey).toLowerCase()
   const code = (await fs.promises.readFile(`./src/zolar/item/ZolarOMGShop.scilla`)).toString()
   const init = [
     param("_scilla_version", "Uint32", "0"),
