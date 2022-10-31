@@ -1106,7 +1106,7 @@ transition SwapExactTokensForTokens(
         (* Swap exact amt of init_token0 for init_token1 *)
           amount0_out = zero_amount;
           amount1_out = amount_out;
-          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
                           from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
                         amount0_out: amount0_out; amount1_out: amount1_out; to: pool_path};
@@ -1119,7 +1119,7 @@ transition SwapExactTokensForTokens(
           msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
                           from: _sender; to: pool_path; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool_path; _amount: zero_amount;
-                        amount0_out: amount_out; amount1_out: zero_amount; to: pool_path};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool_path};
           msgs = two_msgs msg_to_token msg_to_pool;
           send msgs
         end
