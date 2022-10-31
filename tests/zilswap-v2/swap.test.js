@@ -346,6 +346,11 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
 
 
 // Helper functions
+getAmpBps = (isAmpPool) => {
+  ampBps = isAmpPool ? "15000" : "10000";
+  return ampBps;
+}
+
 setup = async () => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
@@ -372,7 +377,7 @@ setup = async () => {
   expect(tx.status).toEqual(2)
 
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0]
-  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1 }))[0]
+  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(false) }))[0]
 
   tx = await callContract(
     owner.key, router,
@@ -514,6 +519,7 @@ validateBalances = async (token0, token1, transition, direction) => {
           expect(newToken1State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken0State.balances[pool.address.toLowerCase()]).gt(prevToken0State.balances[pool.address.toLowerCase()])).toBeTruthy()
           break;
+          
         case 'Token1ToToken0':
           newBalance = (new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
           expect(newToken0State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
