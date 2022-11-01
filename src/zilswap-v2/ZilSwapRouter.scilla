@@ -697,6 +697,7 @@ end
   liquidity = IDMMPool(pool).mint(to);
 } *)
 (* @params: tokenA < tokenB (ie tokenA == token0, tokenB == token1 on Pool) *)
+(* @params: v_reserve_ratio_bounds only applies for amp_pool *)
 transition AddLiquidity(
   tokenA : ByStr20,
   tokenB : ByStr20,
@@ -714,7 +715,8 @@ transition AddLiquidity(
     field reserve0 : Uint128,
     field reserve1 : Uint128,
     field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128
   end,
   amountA_desired: Uint128,
   amountB_desired: Uint128,
@@ -738,10 +740,12 @@ transition AddLiquidity(
     andb r_a_ r_b_;
   match e with 
   | True =>
+  (* pool with no liquidity *)
     amountA = amountA_desired;
     amountB = amountB_desired;
     TransferZRC2ToPool pool tokenA tokenB amountA amountB
   | False =>
+  (* pool with existing liquidity *)
     Quote amountA_desired r_a r_b;
     amountB_optimal = quote amountA_desired r_a r_b;
     is_sufficient_amountB = uint128_le amountB_optimal amountB_desired;
@@ -759,28 +763,35 @@ transition AddLiquidity(
       amountB = amountB_desired;
       TransferZRC2ToPool pool tokenA tokenB amountA amountB
     end;
-    current_rate = 
-      let v_r_a_u256 = grow v_r_a in
-      let v_r_b_u256 = grow v_r_b in
-      let a = builtin mul v_r_b_u256 q112 in
-      builtin div a v_r_a_u256;
 
-    (* require(
-      currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
-      "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
-    ); *)
-    (* Always returns CodeOutOfBoundVReserve *)
-    match v_reserve_ratio_bounds with
-    | Pair l_bound u_bound =>
-      is_not_out_of_bound_vreserve = 
-        let l_b = uint256_ge current_rate l_bound in
-        let u_b = uint256_le current_rate u_bound in
-        andb l_b u_b;
-      match is_not_out_of_bound_vreserve with 
-      | True =>
-      | False =>
-        err = CodeOutOfBoundVReserve;
-        ThrowError err
+    amp <- & pool.amp_bps;
+    is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+    match is_amp_pool with 
+    | False => 
+    | True =>
+    (* only for amp pool *)
+      current_rate = 
+        let v_r_a_u256 = grow v_r_a in
+        let v_r_b_u256 = grow v_r_b in
+        let a = builtin mul v_r_b_u256 q112 in
+        builtin div a v_r_a_u256;
+      (* require(
+        currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
+        "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
+      ); *)
+      (* Always returns CodeOutOfBoundVReserve *)
+      match v_reserve_ratio_bounds with
+      | Pair l_bound u_bound =>
+        is_not_out_of_bound_vreserve = 
+          let l_b = uint256_ge current_rate l_bound in
+          let u_b = uint256_le current_rate u_bound in
+          andb l_b u_b;
+        match is_not_out_of_bound_vreserve with 
+        | True =>
+        | False =>
+          err = CodeOutOfBoundVReserve;
+          ThrowError err
+        end
       end
     end
   end;
