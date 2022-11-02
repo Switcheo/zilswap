@@ -298,6 +298,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
 
     await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token0ToToken1")
     await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token0ToToken1")
+    console.log("newPoolState", newPoolState)
   })
 
   test('swap token1 for exact token0 (Non-amp pool)', async () => {
@@ -462,11 +463,15 @@ validatePoolReserves = async (pool, transition, direction) => {
         case 'Token0ToToken1':
           expect(newPoolState.reserve0).toEqual((parseInt(prevPoolState.reserve0) + amountIn).toString())
           expect(parseInt(newPoolState.reserve1)).toBeLessThan(parseInt(prevPoolState.reserve1))
+          expect(newPoolState.v_reserve0).toEqual('0')
+          expect(newPoolState.v_reserve1).toEqual('0')
           break;
 
         case 'Token1ToToken0':
           expect(parseInt(newPoolState.reserve0)).toBeLessThan(parseInt(prevPoolState.reserve0))
           expect(newPoolState.reserve1).toEqual((parseInt(prevPoolState.reserve1) + amountIn).toString())
+          expect(newPoolState.v_reserve0).toEqual('0')
+          expect(newPoolState.v_reserve1).toEqual('0')
           break;
       }
       break;
@@ -477,11 +482,15 @@ validatePoolReserves = async (pool, transition, direction) => {
         case 'Token0ToToken1':
           expect(parseInt(prevPoolState.reserve0)).toBeLessThan(parseInt(newPoolState.reserve0))
           expect(prevPoolState.reserve1).toEqual((parseInt(newPoolState.reserve1) + amountOut).toString())
+          expect(newPoolState.v_reserve0).toEqual('0')
+          expect(newPoolState.v_reserve1).toEqual('0')
           break;
 
         case 'Token1ToToken0':
           expect(prevPoolState.reserve0).toEqual((parseInt(newPoolState.reserve0) + amountOut).toString())
           expect(parseInt(prevPoolState.reserve1)).toBeLessThan(parseInt(newPoolState.reserve1))
+          expect(newPoolState.v_reserve0).toEqual('0')
+          expect(newPoolState.v_reserve1).toEqual('0')
           break;
       }
       break;
@@ -519,7 +528,7 @@ validateBalances = async (token0, token1, transition, direction) => {
           expect(newToken1State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken0State.balances[pool.address.toLowerCase()]).gt(prevToken0State.balances[pool.address.toLowerCase()])).toBeTruthy()
           break;
-          
+
         case 'Token1ToToken0':
           newBalance = (new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
           expect(newToken0State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
