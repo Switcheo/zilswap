@@ -108,7 +108,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
           value: `${amountOutMin}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -120,12 +120,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -151,7 +146,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
           value: `${amountOutMin}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -163,12 +158,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -272,7 +262,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
           value: `${amountInMax}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -284,12 +274,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -315,7 +300,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
           value: `${amountInMax}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -327,12 +312,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -438,7 +418,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
           value: `${amountOutMin}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -450,12 +430,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -481,7 +456,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
           value: `${amountOutMin}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -493,12 +468,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -602,7 +572,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
           value: `${amountInMax}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -614,12 +584,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
@@ -645,7 +610,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
           value: `${amountInMax}`,
         },
         {
-          vname: 'pool_path',
+          vname: 'pool',
           type: 'ByStr20',
           value: pool.address.toLowerCase(),
         },
@@ -657,12 +622,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
             "argtypes": ["ByStr20", "ByStr20"],
             "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
+        }
       ],
       0, false, true
     )
