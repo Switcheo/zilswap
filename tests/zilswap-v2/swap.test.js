@@ -16,7 +16,7 @@ const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
 
   beforeAll(async () => {
-    await setup()
+    await setup(false)
   })
 
   afterAll(async () => {
@@ -131,7 +131,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token0ToToken1")
+    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token0ToToken1", false)
     await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token0ToToken1")
   })
 
@@ -172,16 +172,15 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
       ],
       0, false, true
     )
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token1ToToken0", false)
     await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token1ToToken0")
   })
 })
 
-
 describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
 
   beforeAll(async () => {
-    await setup()
+    await setup(false)
   })
 
   afterAll(async () => {
@@ -298,7 +297,6 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
 
     await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token0ToToken1")
     await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token0ToToken1")
-    console.log("newPoolState", newPoolState)
   })
 
   test('swap token1 for exact token0 (Non-amp pool)', async () => {
@@ -340,11 +338,340 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token1ToToken0", false)
     await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token1ToToken0")
   })
 })
 
+describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(true)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        {
+          vname: 'spender',
+          type: 'ByStr20',
+          value: router.address.toLowerCase(),
+        },
+        {
+          vname: 'amount',
+          type: 'Uint128',
+          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        {
+          vname: 'tokenA',
+          type: 'ByStr20',
+          value: `${token0.address.toLowerCase()}`,
+        },
+        {
+          vname: 'tokenB',
+          type: 'ByStr20',
+          value: `${token1.address.toLowerCase()}`,
+        },
+        {
+          vname: 'pool',
+          type: 'ByStr20',
+          value: `${pool.address.toLowerCase()}`,
+        },
+        {
+          vname: 'liquidity',
+          type: 'Uint128',
+          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+        {
+          vname: 'amountA_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'amountB_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: `${owner.address.toLowerCase()}`,
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPoolState = await pool.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+  })
+
+  test('swap exact token0 for token1 (Amp pool)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokens',
+      [
+        {
+          vname: 'amount_in',
+          type: 'Uint128',
+          value: `${amountIn}`,
+        },
+        {
+          vname: 'amount_out_min',
+          type: 'Uint128',
+          value: `${amountOutMin}`,
+        },
+        {
+          vname: 'pool_path',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+        {
+          vname: 'path',
+          type: 'Pair (ByStr20) (ByStr20)',
+          value: {
+            "constructor": "Pair",
+            "argtypes": ["ByStr20", "ByStr20"],
+            "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+          }
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token0ToToken1", true)
+    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token0ToToken1")
+  })
+
+  test('swap exact token1 for token0 (Amp pool)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokens',
+      [
+        {
+          vname: 'amount_in',
+          type: 'Uint128',
+          value: `${amountIn}`,
+        },
+        {
+          vname: 'amount_out_min',
+          type: 'Uint128',
+          value: `${amountOutMin}`,
+        },
+        {
+          vname: 'pool_path',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+        {
+          vname: 'path',
+          type: 'Pair (ByStr20) (ByStr20)',
+          value: {
+            "constructor": "Pair",
+            "argtypes": ["ByStr20", "ByStr20"],
+            "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+          }
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+      ],
+      0, false, true
+    )
+    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token1ToToken0", true)
+    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token1ToToken0")
+  })
+})
+
+describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(true)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        {
+          vname: 'spender',
+          type: 'ByStr20',
+          value: router.address.toLowerCase(),
+        },
+        {
+          vname: 'amount',
+          type: 'Uint128',
+          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        {
+          vname: 'tokenA',
+          type: 'ByStr20',
+          value: `${token0.address.toLowerCase()}`,
+        },
+        {
+          vname: 'tokenB',
+          type: 'ByStr20',
+          value: `${token1.address.toLowerCase()}`,
+        },
+        {
+          vname: 'pool',
+          type: 'ByStr20',
+          value: `${pool.address.toLowerCase()}`,
+        },
+        {
+          vname: 'liquidity',
+          type: 'Uint128',
+          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+        {
+          vname: 'amountA_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'amountB_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: `${owner.address.toLowerCase()}`,
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPoolState = await pool.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+  })
+
+  test('swap token0 for exact token1 (Amp pool)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokens',
+      [
+        {
+          vname: 'amount_out',
+          type: 'Uint128',
+          value: `${amountOut}`,
+        },
+        {
+          vname: 'amount_in_max',
+          type: 'Uint128',
+          value: `${amountInMax}`,
+        },
+        {
+          vname: 'pool_path',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+        {
+          vname: 'path',
+          type: 'Pair (ByStr20) (ByStr20)',
+          value: {
+            "constructor": "Pair",
+            "argtypes": ["ByStr20", "ByStr20"],
+            "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+          }
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token0ToToken1", true)
+    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token0ToToken1")
+  })
+
+  test('swap token1 for exact token0 (Amp pool)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokens',
+      [
+        {
+          vname: 'amount_out',
+          type: 'Uint128',
+          value: `${amountOut}`,
+        },
+        {
+          vname: 'amount_in_max',
+          type: 'Uint128',
+          value: `${amountInMax}`,
+        },
+        {
+          vname: 'pool_path',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+        {
+          vname: 'path',
+          type: 'Pair (ByStr20) (ByStr20)',
+          value: {
+            "constructor": "Pair",
+            "argtypes": ["ByStr20", "ByStr20"],
+            "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+          }
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: pool.address.toLowerCase(),
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token1ToToken0", true)
+    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token1ToToken0")
+  })
+})
 
 // Helper functions
 getAmpBps = (isAmpPool) => {
@@ -352,7 +679,7 @@ getAmpBps = (isAmpPool) => {
   return ampBps;
 }
 
-setup = async () => {
+setup = async (isAmpPool) => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
@@ -378,7 +705,7 @@ setup = async () => {
   expect(tx.status).toEqual(2)
 
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0]
-  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(false) }))[0]
+  pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(isAmpPool) }))[0]
 
   tx = await callContract(
     owner.key, router,
@@ -453,25 +780,20 @@ setup = async () => {
   expect(tx.status).toEqual(2)
 }
 
-// validate pool reserves
-validatePoolReserves = async (pool, transition, direction) => {
+// validate pool reserves (both amp and non-amp pools)
+validatePoolReserves = async (pool, transition, direction, isAmpPool) => {
   newPoolState = await pool.getState()
-  console.log("newPoolState", newPoolState)
   switch (transition) {
     case 'SwapExactTokensForTokens': {
       switch (direction) {
         case 'Token0ToToken1':
-          expect(newPoolState.reserve0).toEqual((parseInt(prevPoolState.reserve0) + amountIn).toString())
-          expect(parseInt(newPoolState.reserve1)).toBeLessThan(parseInt(prevPoolState.reserve1))
-          expect(newPoolState.v_reserve0).toEqual('0')
-          expect(newPoolState.v_reserve1).toEqual('0')
+          expect(newPoolState.reserve0).toEqual((new BigNumber(prevPoolState.reserve0).plus(amountIn)).toString())
+          expect((new BigNumber(newPoolState.reserve1)).lt(new BigNumber(prevPoolState.reserve1))).toBeTruthy()
           break;
 
         case 'Token1ToToken0':
-          expect(parseInt(newPoolState.reserve0)).toBeLessThan(parseInt(prevPoolState.reserve0))
-          expect(newPoolState.reserve1).toEqual((parseInt(prevPoolState.reserve1) + amountIn).toString())
-          expect(newPoolState.v_reserve0).toEqual('0')
-          expect(newPoolState.v_reserve1).toEqual('0')
+          expect((new BigNumber(newPoolState.reserve0)).lt(new BigNumber(prevPoolState.reserve0))).toBeTruthy()
+          expect(newPoolState.reserve1).toEqual((new BigNumber(prevPoolState.reserve1).plus(amountIn)).toString())
           break;
       }
       break;
@@ -480,21 +802,26 @@ validatePoolReserves = async (pool, transition, direction) => {
     case 'SwapTokensForExactTokens': {
       switch (direction) {
         case 'Token0ToToken1':
-          expect(parseInt(prevPoolState.reserve0)).toBeLessThan(parseInt(newPoolState.reserve0))
-          expect(prevPoolState.reserve1).toEqual((parseInt(newPoolState.reserve1) + amountOut).toString())
-          expect(newPoolState.v_reserve0).toEqual('0')
-          expect(newPoolState.v_reserve1).toEqual('0')
+          expect((new BigNumber(prevPoolState.reserve0)).lt(new BigNumber(newPoolState.reserve0))).toBeTruthy()
+          expect(prevPoolState.reserve1).toEqual((new BigNumber(newPoolState.reserve1).plus(amountOut)).toString())
           break;
 
         case 'Token1ToToken0':
-          expect(prevPoolState.reserve0).toEqual((parseInt(newPoolState.reserve0) + amountOut).toString())
-          expect(parseInt(prevPoolState.reserve1)).toBeLessThan(parseInt(newPoolState.reserve1))
-          expect(newPoolState.v_reserve0).toEqual('0')
-          expect(newPoolState.v_reserve1).toEqual('0')
+          expect(prevPoolState.reserve0).toEqual((new BigNumber(newPoolState.reserve0).plus(amountOut)).toString())
+          expect((new BigNumber(prevPoolState.reserve1)).lt(new BigNumber(newPoolState.reserve1))).toBeTruthy()
           break;
       }
       break;
     }
+  }
+
+  if (isAmpPool) {
+    expect(newPoolState.v_reserve0).toEqual((new BigNumber(prevPoolState.v_reserve0).plus(newPoolState.reserve0).minus(prevPoolState.reserve0)).toString())
+    expect(newPoolState.v_reserve1).toEqual((new BigNumber(prevPoolState.v_reserve1).plus(newPoolState.reserve1).minus(prevPoolState.reserve1)).toString())
+  }
+  else {
+    expect(newPoolState.v_reserve0).toEqual('0')
+    expect(newPoolState.v_reserve1).toEqual('0')
   }
 }
 
