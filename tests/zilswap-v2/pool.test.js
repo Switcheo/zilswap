@@ -4,7 +4,7 @@ const { callContract } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
-let token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router
+let token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, amp
 const bps = 10000
 const minimumLiquidity = 1000
 const token0Amt = 100000
@@ -36,7 +36,6 @@ beforeAll(async () => {
     0, false, false
   )
   expect(tx.status).toEqual(2)
-  console.log("setFeeConfig", tx)
 })
 
 describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
@@ -141,9 +140,9 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
   test('zilswap ampPool addLiquidity to pool with existing liquidity', async () => {
     const v_reserve_a = parseInt(prevPoolState.v_reserve0)
     const v_reserve_b = parseInt(prevPoolState.v_reserve1)
-    const q112 = 2 ** 112
-    const v_reserve_min = new BigNumber((v_reserve_b / v_reserve_a) * q112 / 1.05).toString()
-    const v_reserve_max = new BigNumber((v_reserve_b / v_reserve_a) * q112 * 1.05).toString()
+    const q112 = new BigNumber(2).pow(112)
+    const v_reserve_min = new BigNumber((v_reserve_b / v_reserve_a) * q112 / 1.05).toString(10)
+    const v_reserve_max = new BigNumber((v_reserve_b / v_reserve_a) * q112 * 1.05).toString(10)
 
     tx = await callContract(
       owner.key, router,
@@ -203,99 +202,101 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     )
     expect(tx.status).toEqual(2)
 
-    // expect(poolState).toEqual(expect.objectContaining({
-    //   "reserve0": `${token0Amt}`,
-    //   "reserve1": `${token1Amt}`,
-    //   "v_reserve0": `${getInitVReserve(token0Amt)}`,
-    //   "v_reserve1": `${getInitVReserve(token1Amt)}`,
-    //   "balances": {
-    //     "0x0000000000000000000000000000000000000000": `${minimumLiquidity}`,
-    //     [`${owner.address}`]: `${getInitLiquidity()}`,
-    //   },
-    //   "total_supply": `${getInitLiquidity() + minimumLiquidity}`
-    // }))
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(expect.objectContaining({
+      reserve0: `${parseInt(prevPoolState.reserve0) + token0Amt}`,
+      reserve1: `${parseInt(prevPoolState.reserve1) + token0Amt}`,
+      v_reserve0: `${getIntermediateVReserve('reserve0')}`,
+      v_reserve1: `${getIntermediateVReserve('reserve1')}`,
+      balances: {
+        ['0x0000000000000000000000000000000000000000']: `${minimumLiquidity}`,
+        [`${owner.address}`]: `${parseInt(prevPoolState.balances[owner.address]) + getIntermediateLiquidity()}`,
+      },
+      total_supply: `${parseInt(prevPoolState.total_supply) + getIntermediateLiquidity()}`
+    }))
   })
 
-  // test('zilswap ampPool removeLiquidity', async () => {
-  //   // Increase Allowance for LP Token (to transfer LP token to Pool)
-  //   tx = await callContract(
-  //     owner.key, pool,
-  //     'IncreaseAllowance',
-  //     [
-  //       {
-  //         vname: 'spender',
-  //         type: 'ByStr20',
-  //         value: router.address.toLowerCase(),
-  //       },
-  //       {
-  //         vname: 'amount',
-  //         type: 'Uint128',
-  //         value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-  //       },
-  //     ],
-  //     0, false, false
-  //   )
-  //   expect(tx.status).toEqual(2)
+  test('zilswap ampPool removeLiquidity', async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        {
+          vname: 'spender',
+          type: 'ByStr20',
+          value: router.address.toLowerCase(),
+        },
+        {
+          vname: 'amount',
+          type: 'Uint128',
+          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
 
-  //   // RemoveLiquidity
-  //   tx = await callContract(
-  //     owner.key, router,
-  //     'RemoveLiquidity',
-  //     [
-  //       {
-  //         vname: 'tokenA',
-  //         type: 'ByStr20',
-  //         value: `${token0.address.toLowerCase()}`,
-  //       },
-  //       {
-  //         vname: 'tokenB',
-  //         type: 'ByStr20',
-  //         value: `${token1.address.toLowerCase()}`,
-  //       },
-  //       {
-  //         vname: 'pool',
-  //         type: 'ByStr20',
-  //         value: `${pool.address.toLowerCase()}`,
-  //       },
-  //       {
-  //         vname: 'liquidity',
-  //         type: 'Uint128',
-  //         value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-  //       },
-  //       {
-  //         vname: 'amountA_min',
-  //         type: 'Uint128',
-  //         value: '0',
-  //       },
-  //       {
-  //         vname: 'amountB_min',
-  //         type: 'Uint128',
-  //         value: '0',
-  //       },
-  //       {
-  //         vname: 'to',
-  //         type: 'ByStr20',
-  //         value: `${owner.address.toLowerCase()}`,
-  //       },
-  //     ],
-  //     0, false, true
-  //   )
-  //   expect(tx.status).toEqual(2)
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        {
+          vname: 'tokenA',
+          type: 'ByStr20',
+          value: `${token0.address.toLowerCase()}`,
+        },
+        {
+          vname: 'tokenB',
+          type: 'ByStr20',
+          value: `${token1.address.toLowerCase()}`,
+        },
+        {
+          vname: 'pool',
+          type: 'ByStr20',
+          value: `${pool.address.toLowerCase()}`,
+        },
+        {
+          vname: 'liquidity',
+          type: 'Uint128',
+          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
+        },
+        {
+          vname: 'amountA_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'amountB_min',
+          type: 'Uint128',
+          value: '0',
+        },
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: `${owner.address.toLowerCase()}`,
+        },
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
 
-  //   newPoolState = await pool.getState()
-  //   // expect(newPoolState).toEqual(expect.objectContaining({
-  //   //   reserve0: `${getFinalReserve("reserve0")}`,
-  //   //   reserve1: `${getFinalReserve("reserve1")}`,
-  //   //   v_reserve0: '0',
-  //   //   v_reserve1: '0',
-  //   //   balances: {
-  //   //     ['0x0000000000000000000000000000000000000000']: `${minimumLiquidity}`,
-  //   //     [`${owner.address}`]: '0',
-  //   //     [`${pool.address.toLowerCase(0)}`]: '0'
-  //   //   },
-  //   //   total_supply: `${minimumLiquidity}`
-  //   // }))
-  // })
+    newPoolState = await pool.getState()
+    console.log(newPoolState)
+    expect(newPoolState).toEqual(expect.objectContaining({
+      reserve0: `${getFinalReserve("reserve0")}`,
+      reserve1: `${getFinalReserve("reserve1")}`,
+      v_reserve0: `${getFinalVReserve()[0]}`,
+      v_reserve1: `${getFinalVReserve()[1]}`,
+      balances: {
+        ['0x0000000000000000000000000000000000000000']: `${minimumLiquidity}`,
+        [`${owner.address}`]: '0',
+        [`${pool.address.toLowerCase(0)}`]: '0'
+      },
+      total_supply: `${minimumLiquidity}`
+    }))
+  })
 })
 
 
@@ -564,12 +565,35 @@ getAmpBps = (isAmpPool) => {
 
 // init v_reserve for amp pool
 getInitVReserve = (newReserve) => {
-  const amp = getAmpBps(true)
+  amp = getAmpBps(true)
   return newReserve * amp / bps
 }
 
+// intermediate v_reserve for amp pool
+getIntermediateVReserve = (reserve) => {
+  amp = getAmpBps(true)
+  switch (reserve) {
+    case "reserve0":
+      return newPoolState.reserve0 * amp / bps
+    case "reserve1":
+      return newPoolState.reserve1 * amp / bps
+  }
+}
+
+// final v_reserve for amp pool
+getFinalVReserve = () => {
+  let x = new BigNumber(newPoolState.reserve0 * newPoolState.total_supply / prevPoolState.reserve0)
+  let y = new BigNumber(newPoolState.reserve1 * newPoolState.total_supply / prevPoolState.reserve1)
+  let b = BigNumber.min(x, y)
+  let vx = new BigNumber(prevPoolState.v_reserve0 * b / newPoolState.total_supply)
+  let vy = new BigNumber(prevPoolState.v_reserve1 * b / newPoolState.total_supply)
+  let v_r0 = BigNumber.max(vx, prevPoolState.reserve0).toString()
+  let v_r1 = BigNumber.max(vy, prevPoolState.reserve1).toString()
+  return [v_r0, v_r1]
+}
+
 // final reserves for non-amp pool
-const getFinalReserve = (reserve) => {
+getFinalReserve = (reserve) => {
   let balance
   let liquidity = newPoolState.balances[pool.address.toLowerCase()]
   let supply = parseInt(newPoolState.total_supply)
@@ -585,7 +609,7 @@ const getFinalReserve = (reserve) => {
 }
 
 // init LP tokens minted for user
-const getInitLiquidity = () => {
+getInitLiquidity = () => {
   return (Math.sqrt(token0Amt * token1Amt) - minimumLiquidity);
 }
 
