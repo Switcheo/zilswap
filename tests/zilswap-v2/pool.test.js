@@ -283,7 +283,6 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    console.log(newPoolState)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${getFinalReserve("reserve0")}`,
       reserve1: `${getFinalReserve("reserve1")}`,
@@ -539,8 +538,6 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    console.log(newPoolState)
-
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${getFinalReserve("reserve0")}`,
       reserve1: `${getFinalReserve("reserve1")}`,
