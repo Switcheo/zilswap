@@ -1441,7 +1441,7 @@ transition SwapTokensForExactTokensTwice(
 
   SwapZRC2Once pool1 path1 init_amt_in intermediate_amt_out;
   SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
-  amt_in = zero_amount (* Reassign back to 0 *)
+  amt_in := zero_amount (* Reassign back to 0 *)
 end
 
 transition SwapExactZILForTokens()
