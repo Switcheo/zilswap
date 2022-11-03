@@ -95,7 +95,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
   test('swap exact token0 for token1 (Non-amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapExactTokensForTokens',
+      'SwapExactTokensForTokensOnce',
       [
         {
           vname: 'amount_in',
@@ -126,14 +126,14 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token0ToToken1", false)
-    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token0ToToken1")
+    await validatePoolReserves(pool, "SwapExactTokensForTokensOnce", "Token0ToToken1", false)
+    await validateBalances(token0, token1, "SwapExactTokensForTokensOnce", "Token0ToToken1")
   })
 
   test('swap exact token1 for token0 (Non-amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapExactTokensForTokens',
+      'SwapExactTokensForTokensOnce',
       [
         {
           vname: 'amount_in',
@@ -162,8 +162,8 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
       ],
       0, false, true
     )
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token1ToToken0", false)
-    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapExactTokensForTokensOnce", "Token1ToToken0", false)
+    await validateBalances(token0, token1, "SwapExactTokensForTokensOnce", "Token1ToToken0")
   })
 })
 
@@ -249,7 +249,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
   test('swap token0 for exact token1 (Non-amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapTokensForExactTokens',
+      'SwapTokensForExactTokensOnce',
       [
         {
           vname: 'amount_out',
@@ -280,14 +280,14 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token0ToToken1")
-    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token0ToToken1")
+    await validatePoolReserves(pool, "SwapTokensForExactTokensOnce", "Token0ToToken1")
+    await validateBalances(token0, token1, "SwapTokensForExactTokensOnce", "Token0ToToken1")
   })
 
   test('swap token1 for exact token0 (Non-amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapTokensForExactTokens',
+      'SwapTokensForExactTokensOnce',
       [
         {
           vname: 'amount_out',
@@ -318,8 +318,8 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token1ToToken0", false)
-    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapTokensForExactTokensOnce", "Token1ToToken0", false)
+    await validateBalances(token0, token1, "SwapTokensForExactTokensOnce", "Token1ToToken0")
   })
 })
 
@@ -405,7 +405,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
   test('swap exact token0 for token1 (Amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapExactTokensForTokens',
+      'SwapExactTokensForTokensOnce',
       [
         {
           vname: 'amount_in',
@@ -436,14 +436,14 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token0ToToken1", true)
-    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token0ToToken1")
+    await validatePoolReserves(pool, "SwapExactTokensForTokensOnce", "Token0ToToken1", true)
+    await validateBalances(token0, token1, "SwapExactTokensForTokensOnce", "Token0ToToken1")
   })
 
   test('swap exact token1 for token0 (Amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapExactTokensForTokens',
+      'SwapExactTokensForTokensOnce',
       [
         {
           vname: 'amount_in',
@@ -472,8 +472,8 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
       ],
       0, false, true
     )
-    await validatePoolReserves(pool, "SwapExactTokensForTokens", "Token1ToToken0", true)
-    await validateBalances(token0, token1, "SwapExactTokensForTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapExactTokensForTokensOnce", "Token1ToToken0", true)
+    await validateBalances(token0, token1, "SwapExactTokensForTokensOnce", "Token1ToToken0")
   })
 })
 
@@ -559,7 +559,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
   test('swap token0 for exact token1 (Amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapTokensForExactTokens',
+      'SwapTokensForExactTokensOnce',
       [
         {
           vname: 'amount_out',
@@ -590,14 +590,14 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token0ToToken1", true)
-    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token0ToToken1")
+    await validatePoolReserves(pool, "SwapTokensForExactTokensOnce", "Token0ToToken1", true)
+    await validateBalances(token0, token1, "SwapTokensForExactTokensOnce", "Token0ToToken1")
   })
 
   test('swap token1 for exact token0 (Amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
-      'SwapTokensForExactTokens',
+      'SwapTokensForExactTokensOnce',
       [
         {
           vname: 'amount_out',
@@ -628,8 +628,8 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    await validatePoolReserves(pool, "SwapTokensForExactTokens", "Token1ToToken0", true)
-    await validateBalances(token0, token1, "SwapTokensForExactTokens", "Token1ToToken0")
+    await validatePoolReserves(pool, "SwapTokensForExactTokensOnce", "Token1ToToken0", true)
+    await validateBalances(token0, token1, "SwapTokensForExactTokensOnce", "Token1ToToken0")
   })
 })
 
@@ -744,7 +744,7 @@ setup = async (isAmpPool) => {
 validatePoolReserves = async (pool, transition, direction, isAmpPool) => {
   newPoolState = await pool.getState()
   switch (transition) {
-    case 'SwapExactTokensForTokens': {
+    case 'SwapExactTokensForTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
           expect(newPoolState.reserve0).toEqual((new BigNumber(prevPoolState.reserve0).plus(amountIn)).toString())
@@ -759,7 +759,7 @@ validatePoolReserves = async (pool, transition, direction, isAmpPool) => {
       break;
     }
 
-    case 'SwapTokensForExactTokens': {
+    case 'SwapTokensForExactTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
           expect((new BigNumber(prevPoolState.reserve0)).lt(new BigNumber(newPoolState.reserve0))).toBeTruthy()
@@ -791,7 +791,7 @@ validateBalances = async (token0, token1, transition, direction) => {
   newToken1State = await token1.getState()
   let newBalance;
   switch (transition) {
-    case 'SwapExactTokensForTokens': {
+    case 'SwapExactTokensForTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
           newBalance = (new BigNumber(prevToken0State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString()
@@ -808,7 +808,7 @@ validateBalances = async (token0, token1, transition, direction) => {
       break;
     }
 
-    case 'SwapTokensForExactTokens': {
+    case 'SwapTokensForExactTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
           newBalance = (new BigNumber(prevToken1State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
