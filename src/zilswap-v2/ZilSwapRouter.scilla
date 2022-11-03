@@ -8,6 +8,7 @@ type ReserveData =
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
+let zero_amount_u32 = Uint32 0
 let zero_amount_u256 = Uint256 0
 let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
@@ -33,8 +34,6 @@ let two_msgs =
   Cons {Message} msg1 msgs_tmp
 
 let list_exists_bystr20 = @list_exists ByStr20
-let list_length_bystr20 = @list_length(ByStr20)
-let list_zip_poolspath_path = @list_zip ByStr20 (Pair ByStr20 ByStr20)
 
 (* @dev: (x * y) / z *)
 let frac =
@@ -299,6 +298,9 @@ field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
 field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map ByStr20 ByStr20)
 
+field amt_out : Uint128 = zero_amount
+field amt_in : Uint128 = zero_amount
+
 (**************************************)
 (*             Procedures             *)
 (**************************************)
@@ -321,7 +323,7 @@ procedure IsSelf(address : ByStr20)
 end
 
 (* validate the pool contract with correct codehash *)
-procedure IsValidPoolContract(pool_address : ByStr20)
+(* procedure IsValidPoolContract(pool_address : ByStr20)
   maybe_pool <- & pool_address as ByStr20 with _codehash end;
   match maybe_pool with
   | None =>
@@ -336,7 +338,7 @@ procedure IsValidPoolContract(pool_address : ByStr20)
       ThrowError err
     end
   end
-end
+end *)
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   p <- pools[tokenA][tokenB];
@@ -445,7 +447,9 @@ procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Ui
   end
 end
 
-procedure SwapZRC2Once(
+(* @dev: Swaps exact zrc2 to zrc2 once *)
+procedure GetAmountOut(
+  amount_in: Uint128,
   pool: ByStr20 with contract 
     field token0 : ByStr20 with contract
       field total_supply : Uint128,
@@ -466,10 +470,82 @@ procedure SwapZRC2Once(
     field long_ema : Uint256
   end,
   path: Pair ByStr20 ByStr20,
-  amount_in: Uint128,
+  deadline_block: BNum
+)
+  VerifyBlock deadline_block;
+  is_valid_amount_in = uint128_gt amount_in zero_amount;
+  match is_valid_amount_in with
+  | True =>
+  | False =>
+    err = CodeInsufficientInputAmt;
+    ThrowError err
+  end;
+
+  match path with 
+  | Pair token_in token_out =>
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      VerifyPoolAddress init_token0 init_token1 pool;
+      r_0 <- & pool.reserve0;
+      r_1 <- & pool.reserve1;
+      v_r_0 <- & pool.v_reserve0;
+      v_r_1 <- & pool.v_reserve1;
+      amp <- & pool.amp_bps;
+      s_e <- & pool.short_ema;
+      l_e <- & pool.long_ema;
+      r_factor_in_precision = calculate_r_factor s_e l_e;
+      fee_in_precision = get_final_fee r_factor_in_precision amp;
+  
+      is_eq = builtin eq amp bps;
+      is_same_order = builtin eq token_in init_token0;
+  
+      (* getAmountsOut *)
+      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
+      match data with 
+      | ReserveData r_in r_out v_r_in v_r_out =>
+        amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
+        amt_out := amount_out;
+  
+        VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
+
+        is_valid_reserve_out = uint128_gt r_out amount_out;
+        match is_valid_reserve_out with 
+        | True => | False => 
+          err = CodeInsufficientLiquidity;
+          ThrowError err
+        end
+
+      end
+    end
+  end
+end
+
+procedure SwapZRC2Once(
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path: Pair ByStr20 ByStr20, 
+  amount_in: Uint128, 
   amount_out: Uint128
 )
-  match path with 
+  match path with
   | Pair token_in token_out =>
     init_token_pair = sort_token path;
     match init_token_pair with
@@ -483,7 +559,7 @@ procedure SwapZRC2Once(
         amount0_out = zero_amount;
         amount1_out = amount_out;
         msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
-                        from: _sender; to: pool; amount: amount_in};
+                      from: _sender; to: pool; amount: amount_in};
         msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
                       amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
         msgs = two_msgs msg_to_token msg_to_pool;
@@ -502,6 +578,74 @@ procedure SwapZRC2Once(
     end
   end
 end
+
+procedure GetAmountIn(
+  amount_out: Uint128,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  VerifyBlock deadline_block;
+  is_valid_amount_out = uint128_gt amount_out zero_amount;
+  match is_valid_amount_out with
+  | True =>
+  | False =>
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  match path with
+  | Pair token_in token_out => 
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      VerifyPoolAddress init_token0 init_token1 pool;
+
+      r_0 <- & pool.reserve0;
+      r_1 <- & pool.reserve1;
+      v_r_0 <- & pool.v_reserve0;
+      v_r_1 <- & pool.v_reserve1;
+      amp <- & pool.amp_bps;
+      s_e <- & pool.short_ema;
+      l_e <- & pool.long_ema;
+      r_factor_in_precision = calculate_r_factor s_e l_e;
+      fee_in_precision = get_final_fee r_factor_in_precision amp;
+
+      is_eq = builtin eq amp bps;
+      is_same_order = builtin eq token_in init_token0;
+
+      (* getAmountsIn *)
+      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
+      match data with 
+      | ReserveData r_in r_out v_r_in v_r_out =>
+        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+        amt_in := amount_in;
+
+        VerifySufficientLiquidity r_in r_out zero_amount amount_out
+      end
+    end
+  end
+end
+
+
 
 
 
@@ -561,7 +705,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-  IsValidPoolContract pool;
+  (* IsValidPoolContract pool; *)
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
@@ -941,8 +1085,7 @@ end
 
 (* @dev: pools_path: pool_address *)
 (* @dev: path: token_in, token_out *)
-(* @dev: to refers to the address of the last pool *)
-transition SwapExactTokensForTokens(
+transition SwapExactTokensForTokensOnce(
   amount_in: Uint128,
   amount_out_min: Uint128,
   pool: ByStr20 with contract 
@@ -1016,16 +1159,117 @@ transition SwapExactTokensForTokens(
           err = CodeInsufficientLiquidity;
           ThrowError err
         end;
-        SwapZRC2Once pool path amount_in amount_out
+
+        (* _swap *)
+        match is_same_order with
+        | True =>
+        (* Swap exact amt of init_token0 for init_token1 *)
+          amount0_out = zero_amount;
+          amount1_out = amount_out;
+          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
+                          from: _sender; to: pool; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+          msgs = two_msgs msg_to_token msg_to_pool;
+          send msgs
+        | False =>
+        (* Swap exact amt of init_token1 for init_token0 *)
+          amount0_out = amount_out;
+          amount1_out = zero_amount;
+          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                          from: _sender; to: pool; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+          msgs = two_msgs msg_to_token msg_to_pool;
+          send msgs
+        end
       end
     end
   end
 end
 
+transition SwapExactTokensForTokensTwice(
+  amount_in: Uint128,
+  amount_out_min: Uint128,
+  pool1: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_out == 0 *)
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  GetAmountOut amount_in pool1 path1 deadline_block;
+  intermediate_amount_out <- amt_out;
+  SwapZRC2Once pool1 path1 amount_in intermediate_amount_out;
+
+  intermediate_amount_in = intermediate_amount_out;
+  is_valid_intermediate_amount_in = let a = builtin eq intermediate_amount_in zero_amount in negb a;
+  match is_valid_intermediate_amount_in with
+  | True => | False =>
+    err = CodeInsufficientInputAmt;
+    ThrowError err
+  end;
+
+  GetAmountOut intermediate_amount_in pool1 path1 deadline_block;
+  final_amount_out <- amt_out;
+  SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
+
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  amt_out := zero_amount (* Reassign back to 0 *)
+end
+
 (* @dev: pools_path: pool_address *)
 (* @dev: path: token_in, token_out *)
-(* @dev: to refers to the address of the last pool *)
-transition SwapTokensForExactTokens(
+transition SwapTokensForExactTokensOnce(
   amount_out: Uint128,
   amount_in_max: Uint128,
   pool: ByStr20 with contract 
@@ -1094,10 +1338,110 @@ transition SwapTokensForExactTokens(
           ThrowError err
         end;
 
-        SwapZRC2Once pool path amount_in amount_out
+        (* _swap *)
+        match is_same_order with
+        | True =>
+        (* Swap exact amt of init_token0 for init_token1 *)
+          amount0_out = zero_amount;
+          amount1_out = amount_out;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
+                          from: _sender; to: pool; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        | False =>
+        (* Swap exact amt of init_token1 for init_token0 *)
+          amount0_out = amount_out;
+          amount1_out = zero_amount;
+          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                          from: _sender; to: pool; amount: amount_in};
+          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+          msgs = two_msgs msg_to_token0 msg_to_pool;
+          send msgs
+        end
       end
     end
   end
+end
+
+transition SwapTokensForExactTokensTwice(
+  amount_out: Uint128,
+  amount_in_max: Uint128,
+  pool1: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool1 path1 deadline_block;
+  intermediate_amt_in <- amt_in;
+  is_valid_intermediate_amt_in = let a = builtin eq intermediate_amt_in zero_amount in negb a;
+  match is_valid_intermediate_amt_in with
+  | True => | False =>
+    err = CodeInsufficientInputAmt;
+    ThrowError err
+  end;
+
+  intermediate_amt_out = intermediate_amt_in;
+  GetAmountIn intermediate_amt_out pool2 path2 deadline_block;
+  init_amt_in <- amt_in;
+
+  is_valid_init_amt_in = let a = builtin eq init_amt_in zero_amount in negb a;
+  match is_valid_init_amt_in with
+  | True => | False =>
+    err = CodeInsufficientInputAmt;
+    ThrowError err
+  end;
+
+  SwapZRC2Once pool1 path1 init_amt_in intermediate_amt_out;
+  SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
+  amt_in = zero_amount (* Reassign back to 0 *)
 end
 
 transition SwapExactZILForTokens()
