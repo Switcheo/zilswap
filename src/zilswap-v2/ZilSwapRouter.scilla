@@ -1253,7 +1253,7 @@ transition SwapExactTokensForTokensTwice(
     ThrowError err
   end;
 
-  GetAmountOut intermediate_amount_in pool1 path1 deadline_block;
+  GetAmountOut intermediate_amount_in pool2 path2 deadline_block;
   final_amount_out <- amt_out;
   SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
 
