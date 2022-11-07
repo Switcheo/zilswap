@@ -1,12 +1,10 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
-const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto');
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
 let token0, token1, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State
-const minimumLiquidity = 1000
 const init_liquidity = 1000000000
 let amountIn = amountInMax = 100000;
 let amountOutMin = amountOut = 10000;
