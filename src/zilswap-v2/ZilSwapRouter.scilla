@@ -1939,6 +1939,25 @@ transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, rec
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
 transition RecipientAcceptTransfer (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+(* @dev: Handle callback when minting wZIL tokens to the contract *)
+transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* transfer wZIL back to user *)
+  (* msg_to_wZIL = {_tag: "Transfer"; _recipient: _sender; _amount: zero_amount; to: pool; amount: amount};
+  msgs = one_msg msg_to_wZIL;
+  send msgs *)
+(* no-op *)
+end
+
+(* @dev: Handle callback when minting wZIL tokens to the contract *)
+transition MintSuccessCallBack (minter: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
