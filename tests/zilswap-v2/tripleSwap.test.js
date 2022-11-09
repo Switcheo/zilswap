@@ -1798,7 +1798,7 @@ validateBalances = async (transition, direction) => {
           amt_in = new BigNumber(prevToken3State.balances[owner.address.toLowerCase()]).minus(newToken3State.balances[owner.address.toLowerCase()])
           expect(amt_in).toEqual(new BigNumber(amountIn))
 
-          newPool3Token3Balance = (new BigNumber(prevToken3State.balances[pool2.address.toLowerCase()])).plus(amountIn).toString()
+          newPool3Token3Balance = (new BigNumber(prevToken3State.balances[pool3.address.toLowerCase()])).plus(amountIn).toString()
           expect(newToken3State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token3Balance)
 
           newPool3Token2Balance = (new BigNumber(prevToken2State.balances[pool3.address.toLowerCase()])).minus(first_intermediate_amt_out).toString()
