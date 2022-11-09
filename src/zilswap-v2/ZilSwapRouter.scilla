@@ -417,7 +417,18 @@ procedure VerifyBlock(deadline_block : BNum)
   end
 end
 
-(* Transfer ZRC-2 tokens to pool *)
+(* Transfer wZIL/ZRC2 pair tokens to pool *)
+procedure TransferWrappedZilPairToPool(pool: ByStr20, token0: ByStr20, wZIL: ByStr20, amount0: Uint128, wZIL_amount: Uint128)
+  msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
+                  from: _sender; to: pool; amount: amount0};
+  (* transfers wZIL balance from this contract to pool for user, that was obtained by using user's ZIL to mint wZIL *)
+  msg_to_wZIL = {_tag: "Transfer"; _recipient: wZIL; _amount: zero_amount;
+                  to: pool; amount: wZIL_amount};
+  msgs = two_msgs msg_to_token0 msg_to_wZIL;
+  send msgs
+end
+
+(* Transfer ZRC-2 token + wZIL to pool *)
 procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, amount0: Uint128, amount1: Uint128)
   msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
                   from: _sender; to: pool; amount: amount0};
@@ -813,7 +824,9 @@ transition AddLiquidity(
   to: ByStr20,
   deadline_block: BNum
 )
+  (* check if current_block has passed the deadline block to process this transaction *)
   VerifyBlock deadline_block;
+  (* check if pool contract for tokenA and tokenB exists *)
   VerifyPoolAddress tokenA tokenB pool;
 
   r_a <- & pool.reserve0;
@@ -958,10 +971,12 @@ transition AddLiquidityZIL(
   to: ByStr20,
   deadline_block: BNum
 )
-  (* VerifyBlock deadline_block; *)
-  (* VerifyPoolAddress token wZIL pool; *)(* Order should not matter here *)
+  (* check if current_block has passed the deadline block to process this transaction *)
+  VerifyBlock deadline_block;
+  (* check if pool contract for tokenA and tokenB exists *)
+  VerifyPoolAddress token wZIL pool;(* Order should not matter here *)
 
-  (* r_a <- & pool.reserve0;
+  r_a <- & pool.reserve0;
   r_b <- & pool.reserve1;
   v_r_a <- & pool.v_reserve0;
   v_r_b <- & pool.v_reserve1;
@@ -972,39 +987,56 @@ transition AddLiquidityZIL(
     andb r_a_ r_b_;
   match e with 
   | True =>
+    (* pool with no liquidity,  *)
     amount_token = amount_token_desired;
-    amount_wZIL = amount_wZIL_desired; *)
+    amount_wZIL = amount_wZIL_desired;
 
     (* Send ZIL to wZIL contract and mint wZIL *)
-    (* accept;
+    accept;
     msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
     msg = one_msg msg_to_wZIL;
     send msg;
-    TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+    TransferWrappedZilPairToPool pool token wZIL amount_token amount_wZIL
 
   | False =>
+    (* pool with existing liquidity *)
+    (* check how much wZIL is required to fulfil amount_token_desired pairing *)
     Quote amount_token_desired r_a r_b;
     amount_wZIL_optimal = quote amount_token_desired r_a r_b;
 
+    (* check if sufficient wZIL is provided to fulfil pairing *)
     is_sufficient_wZIL = uint128_le amount_wZIL_optimal amount_wZIL_desired;
     match is_sufficient_wZIL with
     | True =>
+      (* sufficient wZIL is provided *)
+      (* check if amount of wZIL to be deposited in pool is greater than or equal to themin_wZIL user wants to deposit *)
       VerifyAmount amount_wZIL_optimal amount_wZIL_min;
+      (* check if amount of token to be deposited in pool is greater than or equal to the min_token user wants to deposit *)
+      VerifyAmount amount_token_desired amount_token_min;
       amount_token = amount_token_desired;
       amount_wZIL = amount_wZIL_optimal;
 
+      (* Send ZIL to wZIL contract and mint wZIL *)
       accept;
       msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
       msg = one_msg msg_to_wZIL;
       send msg;
+      (* refund back remaining ZIL not used up in conversion to wZIL *)
       refund = builtin sub _amount amount_wZIL;
       Send refund _sender;
-      TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+      (* Transfer pairing of wZIL and token to pool *)
+      TransferWrappedZilPairToPool pool token wZIL amount_token amount_wZIL
       
     | False =>
+      (* insufficient wZIL provided *)
+      (* check how many tokens are required to fulfil wZIL pairing, based on insufficient wZIL provided *)
       amount_token_optimal = quote amount_wZIL_desired r_b r_a;
+      (* check if amount of tokens provided is greater than or equal to the tokens required to fulfil the wZIL pairing *)
       VerifyAmount amount_token_desired amount_token_optimal;
+      (* check if amount of wZIL to be deposited in pool is greater than or equal to the min_wZIL user wants to deposit *)
       VerifyAmount amount_wZIL_optimal amount_wZIL_min;
+      (* check if amount of token to be deposited in pool is greater than or equal to the min_token user wants to deposit *)
+      VerifyAmount amount_token_optimal amount_token_min;
       amount_token = amount_token_optimal;
       amount_wZIL = amount_wZIL_desired;
 
@@ -1012,7 +1044,7 @@ transition AddLiquidityZIL(
       msg_to_wZIL = { _tag: "Mint"; _recipient: wZIL; _amount: amount_wZIL };
       msg = one_msg msg_to_wZIL;
       send msg;
-      TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
+      TransferWrappedZilPairToPool pool token wZIL amount_token amount_wZIL
 
     end;
     current_rate = frac v_r_b q112 v_r_a;
@@ -1029,12 +1061,12 @@ transition AddLiquidityZIL(
         ThrowError err
       end
     end
-  end; *)
+  end;
   
   (* Calls Mint transition on Pool *)
-  (* msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
   msg = one_msg msg_to_pool;
-  send msg *)
+  send msg
 end
 
 (* // **** REMOVE LIQUIDITY **** *)
@@ -1062,7 +1094,6 @@ transition RemoveLiquidity(
   liquidity: Uint128,
   amountA_min: Uint128,
   amountB_min: Uint128,
-  to: ByStr20,
   deadline_block: BNum
 )
   VerifyBlock deadline_block;
@@ -1072,13 +1103,65 @@ transition RemoveLiquidity(
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
   (* Calls Burn transition on Pool *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: to};
+  msg_to_pool_2 = {
+    _tag: "Burn";
+    _recipient: pool;
+    _amount: zero_amount;
+    amountA_min: amountA_min;
+    amountB_min: amountB_min
+  };
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
+  (* add checks for min amts of token A and token B *)
 end
 
-transition RemoveLiquidityZIL()
+transition RemoveLiquidityZIL(
+  token : ByStr20,
+  wZIL : ByStr20,
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128
+  end,
+  liquidity: Uint128,
+  amount_token_min: Uint128,
+  amount_wZIL_min: Uint128,
+  deadline_block: BNum
+)
   (* TODO *)
+  (* call removeliquidity, which will transfer wZIL back to _sender *)
+  (* transfer wZIL to contract, to be burnt back to ZIL *)
+  (* call Burn on wZIL contract, which will send ZIL back to this contract *)
+  (* transfer back ZIL to _sender *)
+  VerifyBlock deadline_block;
+  VerifyPoolAddress token wZIL pool;
+
+  (* Sends LP tokens to Pool *)
+  msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
+                from: _sender; to: pool; amount: liquidity};
+  (* Calls Burn transition on Pool *)
+  msg_to_pool_2 = {
+    _tag: "Burn";
+    _recipient: pool;
+    _amount: zero_amount;
+    amountA_min: amount_token_min;
+    amountB_min: amount_wZIL_min
+  };
+  msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
+  send msgs;
+
+  (* transfer wZIL to this contract *)
 end
 
 (*** SWAP ***)
@@ -1460,7 +1543,6 @@ transition SwapZILForExactTokens()
   (* TODO *)
 end
 
-
 (*************************************)
 (*             Callbacks             *)
 (*************************************)
@@ -1471,6 +1553,26 @@ transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, rec
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
 transition RecipientAcceptTransfer (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+(* @dev: Handle callback when minting wZIL tokens to the contract *)
+transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* transfer wZIL back to user *)
+  (* msg_to_wZIL = {_tag: "Transfer"; _recipient: _sender; _amount: zero_amount; to: pool; amount: amount};
+  msgs = one_msg msg_to_wZIL;
+  send msgs *)
+(* no-op *)
+end
+
+(* @dev: Handle callback when minting wZIL tokens to the contract *)
+transition MintSuccessCallBack (minter: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
