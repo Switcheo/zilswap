@@ -323,7 +323,7 @@ procedure IsSelf(address : ByStr20)
 end
 
 (* validate the pool contract with correct codehash *)
-(* procedure IsValidPoolContract(pool_address : ByStr20)
+procedure IsValidPoolContract(pool_address : ByStr20)
   maybe_pool <- & pool_address as ByStr20 with _codehash end;
   match maybe_pool with
   | None =>
@@ -338,7 +338,7 @@ end
       ThrowError err
     end
   end
-end *)
+end
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   p <- pools[tokenA][tokenB];
@@ -705,7 +705,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-  (* IsValidPoolContract pool; *)
+  IsValidPoolContract pool;
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
@@ -1062,7 +1062,6 @@ transition RemoveLiquidity(
   liquidity: Uint128,
   amountA_min: Uint128,
   amountB_min: Uint128,
-  to: ByStr20,
   deadline_block: BNum
 )
   VerifyBlock deadline_block;
@@ -1072,7 +1071,8 @@ transition RemoveLiquidity(
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
   (* Calls Burn transition on Pool *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: to};
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; 
+                amountA_min: amountA_min; amountB_min: amountB_min};
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end

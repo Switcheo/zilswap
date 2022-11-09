@@ -72,12 +72,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -226,12 +221,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -382,12 +372,7 @@ describe('Zilswap swap exact zrc2 for zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -536,12 +521,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )

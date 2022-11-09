@@ -21,7 +21,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
   afterAll(async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool1,
       'IncreaseAllowance',
       [
         {
@@ -73,12 +73,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -86,7 +81,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
 
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool2,
       'IncreaseAllowance',
       [
         {
@@ -138,12 +133,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -204,6 +194,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
       ],
       0, false, true
     )
+    expect(tx.status).toEqual(2)
 
     newPool1State = await pool1.getState()
     newPool2State = await pool2.getState()
@@ -211,8 +202,8 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapExactTokensForTokensTwice", "Token0ToToken2", false)
-    validateBalances("SwapExactTokensForTokensTwice", "Token0ToToken2")
+    await validatePoolReserves("SwapExactTokensForTokensTwice", "Token0ToToken2", false)
+    await validateBalances("SwapExactTokensForTokensTwice", "Token0ToToken2")
   })
 
   test('swap exact token2 for token0 (Non-amp pool)', async () => {
@@ -268,8 +259,8 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapExactTokensForTokensTwice", "Token2ToToken0", false)
-    validateBalances("SwapExactTokensForTokensTwice", "Token2ToToken0")
+    await validatePoolReserves("SwapExactTokensForTokensTwice", "Token2ToToken0", false)
+    await validateBalances("SwapExactTokensForTokensTwice", "Token2ToToken0")
   })
 })
 
@@ -283,7 +274,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
   afterAll(async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool1,
       'IncreaseAllowance',
       [
         {
@@ -335,12 +326,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -348,7 +334,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
 
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool2,
       'IncreaseAllowance',
       [
         {
@@ -400,12 +386,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -474,8 +455,8 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapTokensForExactTokensTwice", "Token0ToToken2", false)
-    validateBalances("SwapTokensForExactTokensTwice", "Token0ToToken2")
+    await validatePoolReserves("SwapTokensForExactTokensTwice", "Token0ToToken2", false)
+    await validateBalances("SwapTokensForExactTokensTwice", "Token0ToToken2")
   })
 
   test('swap token2 for exact token0 (Non-amp pool)', async () => {
@@ -532,8 +513,8 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapTokensForExactTokensTwice", "Token2ToToken0", false)
-    validateBalances("SwapTokensForExactTokensTwice", "Token2ToToken0")
+    await validatePoolReserves("SwapTokensForExactTokensTwice", "Token2ToToken0", false)
+    await validateBalances("SwapTokensForExactTokensTwice", "Token2ToToken0")
   })
 })
 
@@ -547,7 +528,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
   afterAll(async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool1,
       'IncreaseAllowance',
       [
         {
@@ -599,12 +580,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -612,7 +588,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
 
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool2,
       'IncreaseAllowance',
       [
         {
@@ -664,12 +640,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -730,6 +701,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
       ],
       0, false, true
     )
+    expect(tx.status).toEqual(2)
 
     newPool1State = await pool1.getState()
     newPool2State = await pool2.getState()
@@ -737,8 +709,8 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapExactTokensForTokensTwice", "Token0ToToken2", true)
-    validateBalances("SwapExactTokensForTokensTwice", "Token0ToToken2")
+    await validatePoolReserves("SwapExactTokensForTokensTwice", "Token0ToToken2", true)
+    await validateBalances("SwapExactTokensForTokensTwice", "Token0ToToken2")
   })
 
   test('swap exact token2 for token0 (Amp pool)', async () => {
@@ -787,6 +759,7 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
       ],
       0, false, true
     )
+    expect(tx.status).toEqual(2)
 
     newPool1State = await pool1.getState()
     newPool2State = await pool2.getState()
@@ -794,8 +767,8 @@ describe('Zilswap double-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapExactTokensForTokensTwice", "Token2ToToken0", true)
-    validateBalances("SwapExactTokensForTokensTwice", "Token2ToToken0")
+    await validatePoolReserves("SwapExactTokensForTokensTwice", "Token2ToToken0", true)
+    await validateBalances("SwapExactTokensForTokensTwice", "Token2ToToken0")
   })
 })
 
@@ -808,7 +781,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
   afterAll(async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool1,
       'IncreaseAllowance',
       [
         {
@@ -860,12 +833,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -873,7 +841,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
 
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
-      owner.key, pool,
+      owner.key, pool2,
       'IncreaseAllowance',
       [
         {
@@ -925,12 +893,7 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -999,8 +962,8 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapTokensForExactTokensTwice", "Token0ToToken2", true)
-    validateBalances("SwapTokensForExactTokensTwice", "Token0ToToken2")
+    await validatePoolReserves("SwapTokensForExactTokensTwice", "Token0ToToken2", true)
+    await validateBalances("SwapTokensForExactTokensTwice", "Token0ToToken2")
   })
 
   test('swap token2 for exact token0 (Amp pool)', async () => {
@@ -1057,8 +1020,8 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
     newToken1State = await token1.getState()
     newToken2State = await token2.getState()
 
-    validatePoolReserves("SwapTokensForExactTokensTwice", "Token2ToToken0", true)
-    validateBalances("SwapTokensForExactTokensTwice", "Token2ToToken0")
+    await validatePoolReserves("SwapTokensForExactTokensTwice", "Token2ToToken0", true)
+    await validateBalances("SwapTokensForExactTokensTwice", "Token2ToToken0")
   })
 })
 

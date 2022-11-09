@@ -297,6 +297,7 @@ type Error =
 | CodeInvalidToAddress
 | CodeUnsyncedReserves
 | CodeInvalidBalance
+| CodeInsufficientAmount
 
 let make_error =
   fun (result : Error) =>
@@ -312,6 +313,7 @@ let make_error =
       | CodeInvalidToAddress      => Int32 -8
       | CodeUnsyncedReserves      => Int32 -9
       | CodeInvalidBalance        => Int32 -10
+      | CodeInsufficientAmount    => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -478,6 +480,17 @@ procedure AuthorizedBurnIfSufficientBalance(from: ByStr20, amount: Uint128)
 end
 
 (*** pool ***)
+
+(* Checks if amountA >= AmountB *)
+procedure VerifyAmount(amountA : Uint128, amountB : Uint128)
+  is_sufficient_amount = uint128_ge amountA amountB;
+  match is_sufficient_amount with
+  | True =>
+  | False =>
+    err = CodeInsufficientAmount;
+    ThrowError err
+  end
+end
 
 procedure IsFactory(address: ByStr20)
   f <- factory;
@@ -918,7 +931,7 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks.
    User must transfer LP token to this contract before call burn *)
-transition Burn(to : ByStr20)
+transition Burn(amountA_min: Uint128, amountB_min: Uint128)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
@@ -953,6 +966,9 @@ transition Burn(to : ByStr20)
   amount0 = frac liquidity balance0 supply;
   amount1 = frac liquidity balance1 supply;
 
+  VerifyAmount amount0 amountA_min;
+  VerifyAmount amount1 amountB_min;
+  
   is_sufficient_liquidity_burnt =
     let a0_ok = uint128_gt amount0 zero_amount in
     let a1_ok = uint128_gt amount1 zero_amount in
