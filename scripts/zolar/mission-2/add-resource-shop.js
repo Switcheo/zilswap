@@ -93,7 +93,7 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
     _tag: "AddItem",
     params: [
       param('item_name', 'String', "Zolranium Scraps"),
-      param('resource', 'ByStr20', geodeAddress),
+      param('resource', 'ByStr20', scrapAddress),
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
