@@ -975,7 +975,6 @@ transition Burn(amountA_min: Uint128, amountB_min: Uint128)
 
   VerifyAmount amount0 amountA_min;
   VerifyAmount amount1 amountB_min;
-
   is_sufficient_liquidity_burnt =
     let a0_ok = uint128_gt amount0 zero_amount in
     let a1_ok = uint128_gt amount1 zero_amount in
