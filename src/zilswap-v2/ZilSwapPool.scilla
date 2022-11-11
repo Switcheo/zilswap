@@ -38,6 +38,13 @@ let two_msgs =
   let msgs_tmp = one_msg msg2 in
   Cons {Message} msg1 msgs_tmp
 
+let three_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+    let msgs_tmp = two_msgs msg2 msg3 in
+    Cons {Message} msg1 msgs_tmp
+
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
@@ -993,6 +1000,199 @@ transition Burn(amountA_min: Uint128, amountB_min: Uint128)
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs;
+
+  new_r0 = builtin sub balance0 amount0;
+  new_r1 = builtin sub balance1 amount1;
+
+  data = match is_amp_pool with
+  | True =>
+    let x = frac new_r0 supply r0 in
+    let y = frac new_r1 supply r1 in
+    let b = min x y in
+    let vx = frac v_r0 b supply in
+    let vy = frac v_r1 b supply in
+    let v_r0 = max vx r0 in
+    let v_r1 = max vy r1 in
+    ReserveData new_r0 new_r1 v_r0 v_r1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
+  end;
+
+  Update is_amp_pool data;
+  UpdateLastK is_amp_pool data;
+
+  e = {_eventname: "PoolBurnt"; burner: _sender; amount0: amount0; amount1: amount1};
+  event e
+end
+
+(* @dev This low-level function should be called from a contract
+   which performs important safety checks.
+   User must transfer LP token to this contract before call burn *)
+transition Burn(amountA_min: Uint128, amountB_min: Uint128)
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  supply <- total_supply;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  v_r0 <- v_reserve0;
+  v_r1 <- v_reserve1;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  is_reserves_synced =
+    let b0_ok = uint128_ge balance0 r0 in
+    let b1_ok = uint128_ge balance1 r1 in
+    andb b0_ok b1_ok;
+  match is_reserves_synced with
+  | True =>
+  | False =>
+    err = CodeUnsyncedReserves;
+    ThrowError err
+  end;
+
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+  m_l <- balances[_this_address];
+  liquidity = get_amount_or_zero m_l;
+
+  amount0 = frac liquidity balance0 supply;
+  amount1 = frac liquidity balance1 supply;
+
+  VerifyAmount amount0 amountA_min;
+  VerifyAmount amount1 amountB_min;
+
+  is_sufficient_liquidity_burnt =
+    let a0_ok = uint128_gt amount0 zero_amount in
+    let a1_ok = uint128_gt amount1 zero_amount in
+    andb a0_ok a1_ok;
+  match is_sufficient_liquidity_burnt with
+  | True =>
+  | False =>
+    err = CodeInsufficientLiquidity;
+    ThrowError err
+  end;
+
+  AuthorizedBurnIfSufficientBalance _this_address liquidity;
+
+  msg_to_token0 = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: _origin; amount: amount0
+  };
+
+  msg_to_token1 = {
+    _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+    to: _origin; amount: amount1
+  };
+
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs;
+
+  new_r0 = builtin sub balance0 amount0;
+  new_r1 = builtin sub balance1 amount1;
+
+  data = match is_amp_pool with
+  | True =>
+    let x = frac new_r0 supply r0 in
+    let y = frac new_r1 supply r1 in
+    let b = min x y in
+    let vx = frac v_r0 b supply in
+    let vy = frac v_r1 b supply in
+    let v_r0 = max vx r0 in
+    let v_r1 = max vy r1 in
+    ReserveData new_r0 new_r1 v_r0 v_r1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
+  end;
+
+  Update is_amp_pool data;
+  UpdateLastK is_amp_pool data;
+
+  e = {_eventname: "PoolBurnt"; burner: _sender; amount0: amount0; amount1: amount1};
+  event e
+end
+
+(* @dev This low-level function should be called from a contract
+   which performs important safety checks.
+   User must transfer LP token to this contract before call burn
+   Specific transition to convert wZIL back to ZIL before transferring back to user *)
+transition BurnZIL(amountA_min: Uint128, amountB_min: Uint128)
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  supply <- total_supply;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  v_r0 <- v_reserve0;
+  v_r1 <- v_reserve1;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  is_reserves_synced =
+    let b0_ok = uint128_ge balance0 r0 in
+    let b1_ok = uint128_ge balance1 r1 in
+    andb b0_ok b1_ok;
+  match is_reserves_synced with
+  | True =>
+  | False =>
+    err = CodeUnsyncedReserves;
+    ThrowError err
+  end;
+
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+  m_l <- balances[_this_address];
+  liquidity = get_amount_or_zero m_l;
+
+  amount0 = frac liquidity balance0 supply;
+  amount1 = frac liquidity balance1 supply;
+
+  VerifyAmount amount0 amountA_min;
+  VerifyAmount amount1 amountB_min;
+
+  is_sufficient_liquidity_burnt =
+    let a0_ok = uint128_gt amount0 zero_amount in
+    let a1_ok = uint128_gt amount1 zero_amount in
+    andb a0_ok a1_ok;
+  match is_sufficient_liquidity_burnt with
+  | True =>
+  | False =>
+    err = CodeInsufficientLiquidity;
+    ThrowError err
+  end;
+
+  AuthorizedBurnIfSufficientBalance _this_address liquidity;
+
+  msg_to_token0 = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: _origin; amount: amount0
+  };
+
+  (* call Burn on wZIL to convert back to ZIL *)
+  msg_to_wZIL = {
+    _tag: "Burn";
+    _recipient: init_token1;
+    _amount: zero_amount;
+    amount: amount1
+  }
+
+  (* Transfer ZIL to _origin *)
+  msg_to_origin = {
+    _tag: "AddFunds";
+    _recipient: _origin;
+    _amount : amount1
+  };
+
+  msgs = three_msgs msg_to_token0 msg_to_wZIL msg_to_origin;
   send msgs;
 
   new_r0 = builtin sub balance0 amount0;

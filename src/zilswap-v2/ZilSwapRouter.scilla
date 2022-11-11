@@ -1112,7 +1112,6 @@ transition RemoveLiquidity(
   };
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
-  (* add checks for min amts of token A and token B *)
 end
 
 transition RemoveLiquidityZIL(
@@ -1140,8 +1139,7 @@ transition RemoveLiquidityZIL(
   deadline_block: BNum
 )
   (* TODO *)
-  (* call removeliquidity, which will transfer wZIL back to _sender *)
-  (* transfer wZIL to contract, to be burnt back to ZIL *)
+  (* call BurnZIL, which will transfer wZIL back to this contract instead of sender *)
   (* call Burn on wZIL contract, which will send ZIL back to this contract *)
   (* transfer back ZIL to _sender *)
   VerifyBlock deadline_block;
@@ -1150,18 +1148,18 @@ transition RemoveLiquidityZIL(
   (* Sends LP tokens to Pool *)
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
-  (* Calls Burn transition on Pool *)
+
+  (* Calls BurnZIL transition on Pool *)
   msg_to_pool_2 = {
-    _tag: "Burn";
+    _tag: "BurnZIL";
     _recipient: pool;
     _amount: zero_amount;
     amountA_min: amount_token_min;
     amountB_min: amount_wZIL_min
   };
-  msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
-  send msgs;
 
-  (* transfer wZIL to this contract *)
+  msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
+  send msgs
 end
 
 (*** SWAP ***)
