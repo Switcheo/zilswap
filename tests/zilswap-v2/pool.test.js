@@ -271,12 +271,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -526,12 +521,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
           vname: 'amountB_min',
           type: 'Uint128',
           value: '0',
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
