@@ -292,7 +292,7 @@ contract ZilSwapRouter
 field governor : ByStr20 = init_governor
 field pending_governor : Option ByStr20 = none
 field pool_codehash : ByStr32 = init_codehash
-field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount
+field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount (* fee_to fee_bps *)
 
 field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
@@ -322,7 +322,7 @@ procedure IsSelf(address : ByStr20)
   end
 end
 
-(* validate the pool contract with correct codehash *)
+(* @dev: Validate the pool contract with correct codehash *)
 procedure IsValidPoolContract(pool_address : ByStr20)
   maybe_pool <- & pool_address as ByStr20 with _codehash end;
   match maybe_pool with
@@ -394,7 +394,7 @@ procedure Quote(amountA : Uint128, reserveA : Uint128, reserveB : Uint128)
   end
 end
 
-(* Checks if amountA >= AmountB *)
+(* @dev: Checks if amountA >= AmountB *)
 procedure VerifyAmount(amountA : Uint128, amountB : Uint128)
   is_sufficient_amount = uint128_ge amountA amountB;
   match is_sufficient_amount with
@@ -405,7 +405,7 @@ procedure VerifyAmount(amountA : Uint128, amountB : Uint128)
   end
 end
 
-(* Checks if current_block >= deadline_block *)
+(* @dev: Checks if current_block >= deadline_block *)
 procedure VerifyBlock(deadline_block : BNum)
   current_block <- & BLOCKNUMBER;
   is_expired = builtin blt deadline_block current_block;
@@ -417,7 +417,7 @@ procedure VerifyBlock(deadline_block : BNum)
   end
 end
 
-(* Transfer ZRC-2 tokens to pool *)
+(* @dev: Transfer ZRC-2 tokens to pool *)
 procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, amount0: Uint128, amount1: Uint128)
   msg_to_token0 = {_tag: "TransferFrom"; _recipient: token0; _amount: zero_amount;
                   from: _sender; to: pool; amount: amount0};
@@ -433,7 +433,7 @@ procedure Send(amount: Uint128, to_address : ByStr20)
   send msgs
 end
 
-
+(* @dev: Checks if r_in > amount_in && r_out > amount_out *)
 procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Uint128, amount_out: Uint128)
   is_sufficient_liquidity = 
     let a = uint128_gt r_in amount_in in
@@ -447,7 +447,7 @@ procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Ui
   end
 end
 
-(* checks if amount in more than 0 *)
+(* @dev: Checks if amount in more than 0 *)
 procedure VerifyValidAmountIn(amount_in: Uint128)
   is_valid_amount_in = let a = builtin eq amount_in zero_amount in negb a;
   match is_valid_amount_in with
@@ -458,7 +458,7 @@ procedure VerifyValidAmountIn(amount_in: Uint128)
 end
 
 
-(* @dev: Swaps exact zrc2 to zrc2 once *)
+(* @dev: Calculates the amount_out and assigns to amt_out *)
 procedure GetAmountOut(
   amount_in: Uint128,
   pool: ByStr20 with contract 
@@ -532,64 +532,7 @@ procedure GetAmountOut(
   end
 end
 
-procedure SwapZRC2Once(
-  pool: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  path: Pair ByStr20 ByStr20, 
-  amount_in: Uint128, 
-  amount_out: Uint128
-)
-  match path with
-  | Pair token_in token_out =>
-    init_token_pair = sort_token path;
-    match init_token_pair with
-    | Pair init_token0 init_token1 =>
-      is_same_order = builtin eq token_in init_token0;
-
-      (* _swap *)
-      match is_same_order with
-      | True =>
-      (* Swap exact amt of init_token0 for init_token1 *)
-        amount0_out = zero_amount;
-        amount1_out = amount_out;
-        msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
-                      from: _sender; to: pool; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                      amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-        msgs = two_msgs msg_to_token msg_to_pool;
-        send msgs
-      | False =>
-      (* Swap exact amt of init_token1 for init_token0 *)
-        amount0_out = amount_out;
-        amount1_out = zero_amount;
-        msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
-                        from: _sender; to: pool; amount: amount_in};
-        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                      amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-        msgs = two_msgs msg_to_token msg_to_pool;
-        send msgs
-      end
-    end
-  end
-end
-
+(* @dev: Calculates the amount_in and assigns to amt_in *)
 procedure GetAmountIn(
   amount_out: Uint128,
   pool: ByStr20 with contract 
@@ -656,9 +599,65 @@ procedure GetAmountIn(
   end
 end
 
+(* @dev: Swaps ZRC2 for ZRC2 in one pool *)
+(* @param path: token_in token_out *)
+procedure SwapZRC2Once(
+  pool: ByStr20 with contract 
+    field token0 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field token1 : ByStr20 with contract
+      field total_supply : Uint128,
+      field balances: Map ByStr20 Uint128,
+      field allowances: Map ByStr20 (Map ByStr20 Uint128)
+    end,
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path: Pair ByStr20 ByStr20,
+  amount_in: Uint128, 
+  amount_out: Uint128
+)
+  match path with
+  | Pair token_in token_out =>
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      is_same_order = builtin eq token_in init_token0;
 
-
-
+      (* _swap *)
+      match is_same_order with
+      | True =>
+      (* Swap exact amt of init_token0 for init_token1 *)
+        amount0_out = zero_amount;
+        amount1_out = amount_out;
+        msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
+                      from: _sender; to: pool; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
+        msgs = two_msgs msg_to_token msg_to_pool;
+        send msgs
+      | False =>
+      (* Swap exact amt of init_token1 for init_token0 *)
+        amount0_out = amount_out;
+        amount1_out = zero_amount;
+        msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
+                        from: _sender; to: pool; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
+        msgs = two_msgs msg_to_token msg_to_pool;
+        send msgs
+      end
+    end
+  end
+end
 
 (*** Governance ***)
 
@@ -762,6 +761,7 @@ end
 
 (*** Governance ***)
 
+(* @param config: fee_to fee_bps *)
 transition SetFeeConfiguration(config: Pair ByStr20 Uint128)
     fee_configuration := config;
     e = {_eventname: "FeeConfigurationSet"; fee_configuration: config};
@@ -900,48 +900,6 @@ transition AddLiquidity(
   send msg
 end
 
-(* function addLiquidityETH(
-  IERC20 token,
-  address pool,
-  uint256 amountTokenDesired,
-  uint256 amountTokenMin,
-  uint256 amountETHMin,
-  uint256[2] memory vReserveRatioBounds,
-  address to,
-  uint256 deadline
-)
-  public
-  override
-  payable
-  ensure(deadline)
-  returns (
-      uint256 amountToken,
-      uint256 amountETH,
-      uint256 liquidity
-  )
-{
-  verifyPoolAddress(token, weth, pool);
-  (amountToken, amountETH) = _addLiquidity(
-      token,
-      weth,
-      pool,
-      amountTokenDesired,
-      msg.value,
-      amountTokenMin,
-      amountETHMin,
-      vReserveRatioBounds
-  );
-  token.safeTransferFrom(msg.sender, pool, amountToken);
-  weth.deposit{value: amountETH}();
-  weth.safeTransfer(pool, amountETH);
-  liquidity = IDMMPool(pool).mint(to);
-  // refund dust eth, if any
-  if (msg.value > amountETH) {
-      TransferHelper.safeTransferETH(msg.sender, msg.value - amountETH);
-  }
-} *)
-
-(* transition should be called with _amount *)
 transition AddLiquidityZIL(
   token : ByStr20,
   wZIL : ByStr20,
@@ -1094,8 +1052,7 @@ end
 
 (*** SWAP ***)
 
-(* @dev: pools_path: pool_address *)
-(* @dev: path: token_in, token_out *)
+(* @param path: token_in token_out *)
 transition SwapExactTokensForTokensOnce(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1121,85 +1078,28 @@ transition SwapExactTokensForTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  VerifyBlock deadline_block;
-  is_valid_amount_in = uint128_gt amount_in zero_amount;
-  match is_valid_amount_in with
-  | True =>
-  | False =>
-    err = CodeInsufficientInputAmt;
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  GetAmountOut amount_in pool path deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
     ThrowError err
   end;
 
-  match path with 
-  | Pair token_in token_out =>
-    init_token_pair = sort_token path;
-    match init_token_pair with
-    | Pair init_token0 init_token1 =>
-      VerifyPoolAddress init_token0 init_token1 pool;
-      r_0 <- & pool.reserve0;
-      r_1 <- & pool.reserve1;
-      v_r_0 <- & pool.v_reserve0;
-      v_r_1 <- & pool.v_reserve1;
-      amp <- & pool.amp_bps;
-      s_e <- & pool.short_ema;
-      l_e <- & pool.long_ema;
-      r_factor_in_precision = calculate_r_factor s_e l_e;
-      fee_in_precision = get_final_fee r_factor_in_precision amp;
-  
-      is_eq = builtin eq amp bps;
-      is_same_order = builtin eq token_in init_token0;
-  
-      (* getAmountsOut *)
-      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
-      match data with 
-      | ReserveData r_in r_out v_r_in v_r_out =>
-        amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
-  
-        VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
-
-        is_valid_amount_out_min = uint128_gt amount_out amount_out_min;
-        match is_valid_amount_out_min with 
-        | True => | False => 
-          err = CodeInsufficientOutputAmt;
-          ThrowError err
-        end;
-
-        is_valid_reserve_out = uint128_gt r_out amount_out;
-        match is_valid_reserve_out with 
-        | True => | False => 
-          err = CodeInsufficientLiquidity;
-          ThrowError err
-        end;
-
-        (* _swap *)
-        match is_same_order with
-        | True =>
-        (* Swap exact amt of init_token0 for init_token1 *)
-          amount0_out = zero_amount;
-          amount1_out = amount_out;
-          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
-                          from: _sender; to: pool; amount: amount_in};
-          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-          msgs = two_msgs msg_to_token msg_to_pool;
-          send msgs
-        | False =>
-        (* Swap exact amt of init_token1 for init_token0 *)
-          amount0_out = amount_out;
-          amount1_out = zero_amount;
-          msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
-                          from: _sender; to: pool; amount: amount_in};
-          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-          msgs = two_msgs msg_to_token msg_to_pool;
-          send msgs
-        end
-      end
-    end
-  end
+  SwapZRC2Once pool path amount_in final_amount_out;
+  amt_out := zero_amount (* Reassign back to 0 *)
 end
 
 (* @dev: amount_in -> pool1 -> intermediate_amount_out === intermediate_amount_in -> pool2 -> final_amount_out *)
+(* @param path: token_in token_out *)
 transition SwapExactTokensForTokensTwice(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1276,6 +1176,7 @@ end
 (* @dev: amount_in -> pool1 -> first_intermediate_amount_out === first_intermediate_amount_in *)
 (* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
 (* @dev: second_intermediate_amount_in -> pool3 -> final_amount_out *)
+(* @param path: token_in token_out *)
 transition SwapExactTokensForTokensThrice(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1375,137 +1276,8 @@ transition SwapExactTokensForTokensThrice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: amount_in -> pool1 -> first_intermediate_amount_out === first_intermediate_amount_in *)
-(* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
-(* @dev: second_intermediate_amount_in -> pool3 -> third_intermediate_amount_out === third_intermediate_amount_in *)
-(* @dev: third_intermediate_amount_in -> pool4 -> final_amount_out *)
-transition SwapExactTokensForTokensFourth(
-  amount_in: Uint128,
-  amount_out_min: Uint128,
-  pool1: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool2: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool3: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool4: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  path1: Pair ByStr20 ByStr20,
-  path2: Pair ByStr20 ByStr20,
-  path3: Pair ByStr20 ByStr20,
-  path4: Pair ByStr20 ByStr20,
-  deadline_block: BNum
-)
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
-
-  GetAmountOut amount_in pool1 path1 deadline_block;
-  first_intermediate_amount_out <- amt_out;
-  first_intermediate_amount_in = first_intermediate_amount_out;
-  VerifyValidAmountIn first_intermediate_amount_out;
-
-  GetAmountOut first_intermediate_amount_in pool2 path2 deadline_block;
-  second_intermediate_amount_out <- amt_out;
-  second_intermediate_amount_in = second_intermediate_amount_out;
-  VerifyValidAmountIn second_intermediate_amount_in;
-
-  GetAmountOut second_intermediate_amount_in pool3 path3 deadline_block;
-  third_intermediate_amount_out <- amt_out;
-  third_intermediate_amount_in = third_intermediate_amount_out;
-  VerifyValidAmountIn third_intermediate_amount_in;
-
-  GetAmountOut third_intermediate_amount_in pool4 path4 deadline_block;
-  final_amount_out <- amt_out;
-  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
-  match is_valid_final_amount_out with 
-  | True => | False => 
-    err = CodeInsufficientOutputAmt;
-    ThrowError err
-  end;
-
-  SwapZRC2Once pool1 path1 amount_in first_intermediate_amount_out;
-  SwapZRC2Once pool2 path2 first_intermediate_amount_in second_intermediate_amount_out;
-  SwapZRC2Once pool3 path3 second_intermediate_amount_in third_intermediate_amount_out;
-  SwapZRC2Once pool4 path4 third_intermediate_amount_in final_amount_out;
-
-  amt_out := zero_amount (* Reassign back to 0 *)
-end
-
-(* @dev: pools_path: pool_address *)
-(* @dev: path: token_in, token_out *)
+(* @dev: init_amt_in -> pool1 -> intermediate_amount_out === intermediate_amount_in -> pool2 -> amount_out *)
+(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensOnce(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1531,76 +1303,28 @@ transition SwapTokensForExactTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  VerifyBlock deadline_block;
-  is_valid_amount_out = uint128_gt amount_out zero_amount;
-  match is_valid_amount_out with
-  | True =>
-  | False =>
-    err = CodeInsufficientOutputAmt;
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool path deadline_block;
+  init_amt_in <- amt_in;
+  VerifyValidAmountIn init_amt_in;
+
+  is_valid_amount_in = uint128_le init_amt_in amount_in_max;
+  match is_valid_amount_in with 
+  | True => | False =>
+    err = CodeExcessiveInputAmt;
     ThrowError err
   end;
 
-  match path with
-  | Pair token_in token_out => 
-    init_token_pair = sort_token path;
-    match init_token_pair with
-    | Pair init_token0 init_token1 =>
-      VerifyPoolAddress init_token0 init_token1 pool;
+  SwapZRC2Once pool path init_amt_in amount_out;
 
-      r_0 <- & pool.reserve0;
-      r_1 <- & pool.reserve1;
-      v_r_0 <- & pool.v_reserve0;
-      v_r_1 <- & pool.v_reserve1;
-      amp <- & pool.amp_bps;
-      s_e <- & pool.short_ema;
-      l_e <- & pool.long_ema;
-      r_factor_in_precision = calculate_r_factor s_e l_e;
-      fee_in_precision = get_final_fee r_factor_in_precision amp;
-
-      is_eq = builtin eq amp bps;
-      is_same_order = builtin eq token_in init_token0;
-
-      (* getAmountsIn *)
-      data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
-      match data with 
-      | ReserveData r_in r_out v_r_in v_r_out =>
-        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
-
-        VerifySufficientLiquidity r_in r_out zero_amount amount_out;
-
-        is_valid_amount_in = uint128_le amount_in amount_in_max;
-        match is_valid_amount_in with 
-        | True => | False =>
-          err = CodeExcessiveInputAmt;
-          ThrowError err
-        end;
-
-        (* _swap *)
-        match is_same_order with
-        | True =>
-        (* Swap exact amt of init_token0 for init_token1 *)
-          amount0_out = zero_amount;
-          amount1_out = amount_out;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
-                          from: _sender; to: pool; amount: amount_in};
-          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-          msgs = two_msgs msg_to_token0 msg_to_pool;
-          send msgs
-        | False =>
-        (* Swap exact amt of init_token1 for init_token0 *)
-          amount0_out = amount_out;
-          amount1_out = zero_amount;
-          msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
-                          from: _sender; to: pool; amount: amount_in};
-          msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
-          msgs = two_msgs msg_to_token0 msg_to_pool;
-          send msgs
-        end
-      end
-    end
-  end
+  amt_out := zero_amount (* Reassign back to 0 *)
 end
 
 transition SwapTokensForExactTokensTwice(
@@ -1674,12 +1398,14 @@ transition SwapTokensForExactTokensTwice(
 
   SwapZRC2Once pool1 path1 init_amt_in intermediate_amt_out;
   SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
+
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
 (* @dev: init_amount_in -> pool1 -> first_intermediate_amount_out === first_intermediate_amount_in *)
 (* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
 (* @dev: second_intermediate_amount_in -> pool3 -> amount_out *)
+(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensThrice(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1781,137 +1507,6 @@ transition SwapTokensForExactTokensThrice(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amount_in -> pool1 -> first_intermediate_amt_out === first_intermediate_amt_in *)
-(* @dev: first_intermediate_amt_in -> pool2 -> second_intermediate_amt_out === second_intermediate_amt_in *)
-(* @dev: second_intermediate_amt_in -> pool3 -> third_intermediate_amt_out === third_intermediate_amt_in *)
-(* @dev: third_intermediate_amt_in -> pool4 -> amount_out *)
-transition SwapTokensForExactTokensFourth(
-  amount_out: Uint128,
-  amount_in_max: Uint128,
-  pool1: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool2: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool3: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  pool4: ByStr20 with contract 
-    field token0 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field token1 : ByStr20 with contract
-      field total_supply : Uint128,
-      field balances: Map ByStr20 Uint128,
-      field allowances: Map ByStr20 (Map ByStr20 Uint128)
-    end,
-    field reserve0 : Uint128,
-    field reserve1 : Uint128,
-    field amp_bps : Uint128,
-    field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128,
-    field short_ema : Uint256,
-    field long_ema : Uint256
-  end,
-  path1: Pair ByStr20 ByStr20,
-  path2: Pair ByStr20 ByStr20,
-  path3: Pair ByStr20 ByStr20,
-  path4: Pair ByStr20 ByStr20,
-  deadline_block: BNum
-)
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
-
-  GetAmountIn amount_out pool4 path4 deadline_block;
-  third_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn third_intermediate_amt_in;
-
-  third_intermediate_amt_out = third_intermediate_amt_in;
-  GetAmountIn third_intermediate_amt_out pool3 path3 deadline_block;
-  second_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn second_intermediate_amt_in;
-
-  second_intermediate_amt_out = second_intermediate_amt_in;
-  GetAmountIn second_intermediate_amt_out pool2 path2 deadline_block;
-  first_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn first_intermediate_amt_in;
-
-  first_intermediate_amt_out = first_intermediate_amt_in;
-  GetAmountIn first_intermediate_amt_out pool1 path1 deadline_block;
-  init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
-
-  is_valid_amount_in = uint128_le init_amt_in amount_in_max;
-  match is_valid_amount_in with 
-  | True => | False =>
-    err = CodeExcessiveInputAmt;
-    ThrowError err
-  end;
-
-  SwapZRC2Once pool1 path1 init_amt_in first_intermediate_amt_out;
-  SwapZRC2Once pool2 path2 first_intermediate_amt_in second_intermediate_amt_out;
-  SwapZRC2Once pool3 path3 second_intermediate_amt_in third_intermediate_amt_out;
-  SwapZRC2Once pool4 path4 third_intermediate_amt_in amount_out;
-
-  amt_in := zero_amount (* Reassign back to 0 *)
-end
-
 transition SwapExactZILForTokens()
   (* TODO *)
 end
@@ -1934,22 +1529,22 @@ end
 (*************************************)
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
-transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition RecipientAcceptTransfer (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when minting wZIL tokens to the contract *)
-transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* transfer wZIL back to user *)
   (* msg_to_wZIL = {_tag: "Transfer"; _recipient: _sender; _amount: zero_amount; to: pool; amount: amount};
   msgs = one_msg msg_to_wZIL;
@@ -1958,6 +1553,6 @@ transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uin
 end
 
 (* @dev: Handle callback when minting wZIL tokens to the contract *)
-transition MintSuccessCallBack (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end

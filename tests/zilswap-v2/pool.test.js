@@ -216,6 +216,40 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     }))
   })
 
+  test('zilswap ampPool Skim', async () => {
+    tx = await callContract(
+      owner.key, pool,
+      'Skim',
+      [
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: `${owner.address.toLowerCase()}`,
+        },
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // Should not have any change to state
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(prevPoolState)
+  })
+
+  test('zilswap ampPool Sync', async () => {
+    tx = await callContract(
+      owner.key, pool,
+      'Sync',
+      [],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // Should not have any change to state
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(prevPoolState)
+  })
+
   test('zilswap ampPool removeLiquidity', async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
@@ -466,6 +500,40 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     }))
   })
 
+  test('zilswap non-ampPool Skim', async () => {
+    tx = await callContract(
+      owner.key, pool,
+      'Skim',
+      [
+        {
+          vname: 'to',
+          type: 'ByStr20',
+          value: `${owner.address.toLowerCase()}`,
+        },
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // Should not have any change to state
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(prevPoolState)
+  })
+
+  test('zilswap non-ampPool Sync', async () => {
+    tx = await callContract(
+      owner.key, pool,
+      'Sync',
+      [],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // Should not have any change to state
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(prevPoolState)
+  })
+
   test('zilswap ampPool removeLiquidity', async () => {
     // Increase Allowance for LP Token (to transfer LP token to Pool)
     tx = await callContract(
@@ -574,8 +642,8 @@ getFinalVReserve = () => {
   let b = BigNumber.min(x, y)
   let vx = new BigNumber(prevPoolState.v_reserve0 * b / newPoolState.total_supply)
   let vy = new BigNumber(prevPoolState.v_reserve1 * b / newPoolState.total_supply)
-  let v_r0 = BigNumber.max(vx, prevPoolState.reserve0).toString()
-  let v_r1 = BigNumber.max(vy, prevPoolState.reserve1).toString()
+  let v_r0 = BigNumber.max(vx, newPoolState.reserve0).toString()
+  let v_r1 = BigNumber.max(vy, newPoolState.reserve1).toString()
   return [v_r0, v_r1]
 }
 
