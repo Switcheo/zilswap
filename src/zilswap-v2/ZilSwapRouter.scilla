@@ -292,7 +292,7 @@ contract ZilSwapRouter
 field governor : ByStr20 = init_governor
 field pending_governor : Option ByStr20 = none
 field pool_codehash : ByStr32 = init_codehash
-field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount
+field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount (* fee_to fee_bps *)
 
 field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
@@ -572,7 +572,7 @@ procedure SwapZRC2Once(
         msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
                       from: _sender; to: pool; amount: amount_in};
         msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                      amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
         msgs = two_msgs msg_to_token msg_to_pool;
         send msgs
       | False =>
@@ -582,7 +582,7 @@ procedure SwapZRC2Once(
         msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
                         from: _sender; to: pool; amount: amount_in};
         msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                      amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
         msgs = two_msgs msg_to_token msg_to_pool;
         send msgs
       end
@@ -762,6 +762,7 @@ end
 
 (*** Governance ***)
 
+(* @param config: fee_to fee_bps *)
 transition SetFeeConfiguration(config: Pair ByStr20 Uint128)
     fee_configuration := config;
     e = {_eventname: "FeeConfigurationSet"; fee_configuration: config};
@@ -1180,7 +1181,7 @@ transition SwapExactTokensForTokensOnce(
           msg_to_token = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
                           from: _sender; to: pool; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
           msgs = two_msgs msg_to_token msg_to_pool;
           send msgs
         | False =>
@@ -1190,7 +1191,7 @@ transition SwapExactTokensForTokensOnce(
           msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
                           from: _sender; to: pool; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
           msgs = two_msgs msg_to_token msg_to_pool;
           send msgs
         end
@@ -1379,7 +1380,7 @@ end
 (* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
 (* @dev: second_intermediate_amount_in -> pool3 -> third_intermediate_amount_out === third_intermediate_amount_in *)
 (* @dev: third_intermediate_amount_in -> pool4 -> final_amount_out *)
-transition SwapExactTokensForTokensFourth(
+transition SwapExactTokensForTokensFour(
   amount_in: Uint128,
   amount_out_min: Uint128,
   pool1: ByStr20 with contract 
@@ -1584,7 +1585,7 @@ transition SwapTokensForExactTokensOnce(
           msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token0; _amount: zero_amount;
                           from: _sender; to: pool; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
           msgs = two_msgs msg_to_token0 msg_to_pool;
           send msgs
         | False =>
@@ -1594,7 +1595,7 @@ transition SwapTokensForExactTokensOnce(
           msg_to_token0 = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
                           from: _sender; to: pool; amount: amount_in};
           msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
-                        amount0_out: amount0_out; amount1_out: amount1_out; to: pool};
+                        amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
           msgs = two_msgs msg_to_token0 msg_to_pool;
           send msgs
         end
@@ -1785,7 +1786,7 @@ end
 (* @dev: first_intermediate_amt_in -> pool2 -> second_intermediate_amt_out === second_intermediate_amt_in *)
 (* @dev: second_intermediate_amt_in -> pool3 -> third_intermediate_amt_out === third_intermediate_amt_in *)
 (* @dev: third_intermediate_amt_in -> pool4 -> amount_out *)
-transition SwapTokensForExactTokensFourth(
+transition SwapTokensForExactTokensFour(
   amount_out: Uint128,
   amount_in_max: Uint128,
   pool1: ByStr20 with contract 
@@ -1934,22 +1935,22 @@ end
 (*************************************)
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
-transition TransferFromSuccessCallBack (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition RecipientAcceptTransfer (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when minting wZIL tokens to the contract *)
-transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptMint(minter: ByStr20, recipient: ByStr20, amount: Uint128)
   (* transfer wZIL back to user *)
   (* msg_to_wZIL = {_tag: "Transfer"; _recipient: _sender; _amount: zero_amount; to: pool; amount: amount};
   msgs = one_msg msg_to_wZIL;
@@ -1958,6 +1959,6 @@ transition RecipientAcceptMint (minter: ByStr20, recipient: ByStr20, amount: Uin
 end
 
 (* @dev: Handle callback when minting wZIL tokens to the contract *)
-transition MintSuccessCallBack (minter: ByStr20, recipient: ByStr20, amount: Uint128)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end

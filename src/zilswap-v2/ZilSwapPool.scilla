@@ -503,7 +503,7 @@ procedure IsFactory(address: ByStr20)
   end
 end
 
-(* @dev: mints fee to fee address via liquidity tokens *)
+(* @dev: If fee is on, mint LP tokens equivalent to configured fee of the growth in sqrt(k)*)
 procedure MintFee(is_amp_pool: Bool)
   fee_config <- & init_factory.fee_configuration;
   match fee_config with
@@ -563,7 +563,7 @@ procedure MintFee(is_amp_pool: Bool)
   end
 end
 
-(* @dev: update reserves *)
+(* @dev: Update reserves *)
 procedure Update(is_amp_pool: Bool, data: ReserveData)
   match data with
   | ReserveData r0 r1 vr0 vr1 =>
@@ -580,7 +580,7 @@ procedure Update(is_amp_pool: Bool, data: ReserveData)
   event e
 end
 
-(* @dev: update last k value *)
+(* @dev: Update last k value *)
 procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
   match data with
   | ReserveData r0 r1 vr0 vr1 =>
@@ -935,7 +935,6 @@ transition Burn(amountA_min: Uint128, amountB_min: Uint128)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
-  supply <- total_supply;
   r0 <- reserve0;
   r1 <- reserve1;
   v_r0 <- v_reserve0;
@@ -1005,8 +1004,8 @@ transition Burn(amountA_min: Uint128, amountB_min: Uint128)
     let b = min x y in
     let vx = frac v_r0 b supply in
     let vy = frac v_r1 b supply in
-    let v_r0 = max vx r0 in
-    let v_r1 = max vy r1 in
+    let v_r0 = max vx new_r0 in
+    let v_r1 = max vy new_r1 in
     ReserveData new_r0 new_r1 v_r0 v_r1
   | False =>
     ReserveData new_r0 new_r1 zero_amount zero_amount
@@ -1051,12 +1050,12 @@ transition Swap(
     let a0_ok = builtin lt amount0_out r0 in
     let a1_ok = builtin lt amount1_out r1 in
     andb a0_ok a1_ok;
-    match is_sufficient_liquidity with
-    | True =>
-    | False =>
-      err = CodeInsufficientLiquidity;
-      ThrowError err
-    end;
+  match is_sufficient_liquidity with
+  | True =>
+  | False =>
+    err = CodeInsufficientLiquidity;
+    ThrowError err
+  end;
 
   is_valid_to =
     let t0_ok = let e0 = builtin eq init_token0 to in negb e0 in
@@ -1074,7 +1073,7 @@ transition Swap(
   | True =>
     msg_to_token0 = {
       _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-      to: _origin; amount: amount0_out
+      to: to; amount: amount0_out
     };
     msgs = one_msg msg_to_token0;
     send msgs
@@ -1085,14 +1084,12 @@ transition Swap(
   | True =>
     msg_to_token1 = {
       _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-      to: _origin; amount: amount1_out
+      to: to; amount: amount1_out
     };
     msgs = one_msg msg_to_token1;
     send msgs
   end;
 
-  (* Obtains balance before transferring *)
-  (* Calculates amount left after transferring ie reserves of the pool *)
   m_b0 <- & init_token0.balances[_this_address];
   b0 = get_amount_or_zero m_b0;
   new_r0 = builtin sub b0 amount0_out;
@@ -1161,14 +1158,8 @@ transition Swap(
   event e
 end
 
-(* @dev: Transfers tokens such that balances match reserves *)
-transition Skim(
-  to: ByStr20
-)
-(*
-  token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
-  token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
-*)
+(* @dev: Transfer tokens such that balances match reserves *)
+transition Skim(to: ByStr20)
   r_0 <- reserve0;
   r_1 <- reserve1;
   m_b0 <- & init_token0.balances[_this_address];
@@ -1192,34 +1183,12 @@ transition Skim(
   msgs = two_msgs msg_to_token0 msg_to_token1;
   send msgs;
 
-  e = {
-    _eventname: "Skim"; to: to; amount0: amount0; amount1: amount1
-  };
+  e = {_eventname: "Skim"; to: to; amount0: amount0; amount1: amount1};
   event e
 end
 
-(* @dev: force reserves to match balances *)
+(* @dev: Force reserves to match balances *)
 transition Sync()
-  (* TODO:
-    (bool isAmpPool, ReserveData memory data) = getReservesData();
-    bool feeOn = _mintFee(isAmpPool, data);
-    ReserveData memory newData;
-    newData.reserve0 = IERC20(token0).balanceOf(address(this));
-    newData.reserve1 = IERC20(token1).balanceOf(address(this));
-    // update virtual reserves if this is amp pool
-    if (isAmpPool) {
-        uint256 _totalSupply = totalSupply();
-        uint256 b = Math.min(
-            newData.reserve0.mul(_totalSupply) / data.reserve0,
-            newData.reserve1.mul(_totalSupply) / data.reserve1
-        );
-        newData.vReserve0 = Math.max(data.vReserve0.mul(b) / _totalSupply, newData.reserve0);
-        newData.vReserve1 = Math.max(data.vReserve1.mul(b) / _totalSupply, newData.reserve1);
-    }
-    _update(isAmpPool, newData);
-    if (feeOn) kLast = getK(isAmpPool, newData);
-  *)
-
   r0 <- reserve0;
   r1 <- reserve1;
   vr0 <- v_reserve0;
@@ -1235,12 +1204,13 @@ transition Sync()
 
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+  MintFee is_amp_pool;
 
   supply <- total_supply;
 
   data = match is_amp_pool with 
   | False =>
-    ReserveData new_r0 new_r1 vr0 vr1
+    ReserveData new_r0 new_r1 zero_amount zero_amount
   | True =>
     let b = 
       let c = frac new_r0 supply r0 in 
