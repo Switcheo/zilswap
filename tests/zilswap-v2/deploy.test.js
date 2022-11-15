@@ -20,6 +20,8 @@ beforeAll(async () => {
     "_balance": "0",
     "all_pools": [],
     "pool_codehash": `${codehash}`,
+    "amt_in": "0",
+    "amt_out": "0",
     "fee_configuration": {
       "argtypes": [
         "ByStr20",

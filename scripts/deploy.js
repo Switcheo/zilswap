@@ -9,7 +9,7 @@ const { compile } = require('./compile')
 const { VERSION, zilliqa, useKey, chainId } = require('./zilliqa')
 
 async function deployFungibleToken(
-  privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('1000000000000000000000') } = {}
+  privateKey, { name = 'ZS Test Token', symbol: _symbol = null, decimals = 12, supply = new BN('100000000000000000000000000000000000000') } = {}
 ) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -208,6 +208,87 @@ async function useBearV2(privateKey, params = {}, useExisting = process.env.META
     return getContract(privateKey, useExisting)
   }
   return deployBearV2(privateKey, params)
+}
+
+async function deployWrappedZIL(privateKey, { name = 'WZIL Token', symbol = 'WZIL', decimals = 12, initSupply = '1000000000000000000000'}) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Generate default vars
+  const address = getAddressFromPrivateKey(privateKey)
+
+  // Load file and contract initialization variables
+  const file = './src/zilswap-v2/WrappedZil.scilla'
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: `${name}`,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: `${symbol}`,
+    },
+    {
+      vname: 'decimals',
+      type: 'Uint32',
+      value: `${decimals}`,
+    },
+    {
+      vname: 'init_supply',
+      type: 'Uint128',
+      value: `${initSupply}`,
+    },
+    {
+      vname: 'contract_owner',
+      type: 'ByStr20',
+      value: `${address}`,
+    },
+  ]
+
+  console.info(`Deploying Wrapped Zil Token...`)
+  return deployContract(privateKey, file, init)
+}
+
+async function useWrappedZIL(privateKey, params = undefined, approveContractAddress = null, useExisting = process.env.TOKEN_HASH) {
+  const [contract, state] = await (useExisting ?
+    getContract(privateKey, useExisting) : deployWrappedZIL(privateKey, params))
+
+  if (!!approveContractAddress) {
+    const address = getAddressFromPrivateKey(privateKey).toLowerCase()
+    const allowance = new BigNumber(state.allowances[address] ? state.allowances[address][approveContractAddress.toLowerCase()] : 0)
+    if (allowance.isNaN() || allowance.eq(0)) {
+      await callContract(
+        privateKey, contract,
+        'IncreaseAllowance',
+        [
+          {
+            vname: 'spender',
+            type: 'ByStr20',
+            value: approveContractAddress,
+          },
+          {
+            vname: 'amount',
+            type: 'Uint128',
+            value: state.total_supply.toString(),
+          },
+        ],
+        0, false, false
+      )
+      return [contract, await contract.getState()]
+    }
+  }
+
+  return [contract, state]
 }
 
 async function deployHuny(
@@ -914,6 +995,8 @@ exports.deployZilswapV2Pool = deployZilswapV2Pool
 exports.useZilswap = useZilswap
 exports.useZilswapV2Router = useZilswapV2Router
 exports.useZilswapV2Pool = useZilswapV2Pool
+exports.deployWrappedZIL = deployWrappedZIL
+exports.useWrappedZIL = useWrappedZIL
 
 exports.deployZILO = deployZILO
 exports.deploySeedLP = deploySeedLP
