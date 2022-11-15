@@ -42,6 +42,13 @@ let two_msgs =
 
 let list_exists_bystr20 = @list_exists ByStr20
 
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero_amount
+    end
+
 (* @dev: (x * y) / z *)
 let frac =
   fun (x : Uint128) =>
@@ -671,6 +678,18 @@ procedure MintZRC2(token_address: ByStr20, amount: Uint128)
   send msg
 end
 
+procedure BurnZRC2(token_address: ByStr20, amount: Uint128)
+  msg_to_token = {
+    _tag: "Burn";
+    _recipient: token_address;
+    _amount: zero_amount;
+    amount: amount
+  };
+
+  msg = one_msg msg_to_token;
+  send msg
+end
+
 (***************************************)
 (*         Factory Transitions         *)
 (***************************************)
@@ -989,9 +1008,15 @@ end
 
 (* @params: tokenA < tokenB (ie tokenA == token0, tokenB == token1 on Pool) *)
 transition RemoveLiquidity(
-  tokenA : ByStr20,
-  tokenB : ByStr20,
-  pool: ByStr20,
+  tokenA : ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  tokenB : ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  pool: ByStr20 with contract
+    field total_supply: Uint128
+  end,
   liquidity: Uint128,
   amountA_min: Uint128,
   amountB_min: Uint128,
@@ -1000,52 +1025,91 @@ transition RemoveLiquidity(
   VerifyBlock deadline_block;
   VerifyPoolAddress tokenA tokenB pool;
 
+  (* fetch token and wZIL balance held by pool *)
+  m_b0 <- & tokenA.balances[pool];
+  tokenA_balance = get_amount_or_zero m_b0;
+  m_b1 <- & tokenB.balances[pool];
+  tokenB_balance = get_amount_or_zero m_b1;
+
+  (* fetch the total supply in the pool *)
+  supply <- & pool.total_supply;
+
+  (* calculate amount of tokens and wZIL removed based on amount of liquidity provided *)
+  tokenA_amount = frac liquidity tokenA_balance supply;
+  tokenB_amount = frac liquidity tokenB_balance supply;
+
+  (* check if amount of tokens and wZIL removed matches min *)
+  VerifyAmount tokenA_amount amountA_min;
+  VerifyAmount tokenB_amount amountB_min;
+
   (* Sends LP tokens to Pool *)
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
-  (* Calls Burn transition on Pool *)
+
+  (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
   msg_to_pool_2 = {
     _tag: "Burn";
     _recipient: pool;
-    _amount: zero_amount;
-    amountA_min: amountA_min;
-    amountB_min: amountB_min
+    _amount: zero_amount
   };
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end
 
 transition RemoveLiquidityZIL(
-  token : ByStr20,
-  wZIL : ByStr20,
-  pool: ByStr20,
+  token: ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  wZIL: ByStr20 with contract
+    field balances: Map ByStr20 Uint128
+  end,
+  pool: ByStr20 with contract
+    field total_supply: Uint128
+  end,
   liquidity: Uint128,
   amount_token_min: Uint128,
   amount_wZIL_min: Uint128,
   deadline_block: BNum
 )
-  (* TODO *)
-  (* call BurnZIL, which will transfer wZIL back to this contract instead of sender *)
-  (* call Burn on wZIL contract, which will send ZIL back to this contract *)
-  (* transfer back ZIL to _sender *)
   VerifyBlock deadline_block;
   VerifyPoolAddress token wZIL pool;
+
+  (* fetch token and wZIL balance held by pool *)
+  m_b0 <- & token.balances[pool];
+  token_balance = get_amount_or_zero m_b0;
+  m_b1 <- & wZIL.balances[pool];
+  wZil_balance = get_amount_or_zero m_b1;
+
+  (* fetch the total supply in the pool *)
+  supply <- & pool.total_supply;
+
+  (* calculate amount of tokens and wZIL removed based on amount of liquidity provided *)
+  token_amount = frac liquidity token_balance supply;
+  wZil_amount = frac liquidity wZil_balance supply;
+
+  (* check if amount of tokens and wZIL removed matches min *)
+  VerifyAmount token_amount amount_token_min;
+  VerifyAmount wZil_amount amount_wZIL_min;
 
   (* Sends LP tokens to Pool *)
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
 
-  (* Calls BurnZIL transition on Pool *)
+  (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
   msg_to_pool_2 = {
-    _tag: "BurnZIL";
+    _tag: "Burn";
     _recipient: pool;
-    _amount: zero_amount;
-    amountA_min: amount_token_min;
-    amountB_min: amount_wZIL_min
+    _amount: zero_amount
   };
 
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
-  send msgs
+  send msgs;
+
+  (* transfer wZIL to this contract *)
+  TransferFromZRC2 wZIL _sender _this_address wZil_amount;
+
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to _sender *)
+  BurnZRC2 wZIL wZil_amount
 end
 
 (*** SWAP ***)
@@ -1470,16 +1534,8 @@ transition SwapTokensForExactZILOnce(
   wZil_address = get_to_address path;
   TransferFromZRC2 wZil_address _sender _this_address amount_out;
 
-  (* call Burn on wZIL to convert back to ZIL *)
-  msg_to_wZIL = {
-    _tag: "Burn";
-    _recipient: wZil_address;
-    _amount: zero_amount;
-    amount: amount_out
-  };
-
-  msg = one_msg msg_to_wZIL;
-  send msg;
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
+  BurnZRC2 wZil_address amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
 end
@@ -1523,16 +1579,8 @@ transition SwapExactTokensForZILOnce(
   wZil_address = get_to_address path;
   TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
 
-  (* call Burn on wZIL to convert back to ZIL *)
-  msg_to_wZIL = {
-    _tag: "Burn";
-    _recipient: wZil_address;
-    _amount: zero_amount;
-    amount: final_amount_out
-  };
-
-  msg = one_msg msg_to_wZIL;
-  send msg;
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
+  BurnZRC2 wZil_address final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
 end

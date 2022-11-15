@@ -1,14 +1,14 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, useWrappedZIL } = require('../../scripts/deploy.js');
-const { callContract } = require('../../scripts/call.js')
+const { callContract, getBalance } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
 let token0, token1, token, wZil, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State
-const init_liquidity = 100000000
-let amountIn = 100;
-let amountInMax = 100000;
-let amountOut = 100;
+const init_liquidity = 100
+let amountIn = 10;
+let amountInMax = 100;
+let amountOut = 10;
 let amountOutMin = 1;
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
@@ -88,8 +88,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
   })
 
   test('swap exact ZIL for token (Non-amp pool)', async () => {
-    console.log('TOKEN 0 STATE: ', prevToken0State)
-    console.log('TOKEN 1 STATE: ', prevToken1State)
     tx = await callContract(
       owner.key, router,
       'SwapExactZILForTokensOnce',
@@ -123,7 +121,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
   })
 
   test('swap exact token for ZIL (Non-amp pool)', async () => {
-    console.log("BEFORE", await router.getState())
     tx = await callContract(
       owner.key, router,
       'SwapExactTokensForZILOnce',
@@ -155,7 +152,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
       ],
       0, false, true
     )
-    console.log("AFTER", await router.getState())
     await validatePoolReserves(pool, "SwapExactTokensForZILOnce", false)
     await validateBalances(token0, token1, "SwapExactTokensForZILOnce")
   })
