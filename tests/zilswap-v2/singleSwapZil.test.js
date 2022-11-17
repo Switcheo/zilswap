@@ -4,14 +4,13 @@ const { callContract, getBalance } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
-let token0, token1, token, wZil, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State
-const init_liquidity = 100
-let amountIn = 10;
-let amountInMax = 100;
-let amountOut = 10;
-let amountOutMin = 1;
+let token0, token1, token, wZil, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State, prevOwnerZilBalance, newOwnerZilBalance
+const init_liquidity = 10000
+let amountIn = 100;
+let amountInMax = 1000;
+let amountOut = 100;
+let amountOutMin = 10;
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
-
 
 describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
 
@@ -85,6 +84,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
     prevPoolState = await pool.getState()
     prevToken0State = await token0.getState()
     prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
   })
 
   test('swap exact ZIL for token (Non-amp pool)', async () => {
@@ -95,7 +95,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -128,12 +128,12 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -152,6 +152,8 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
       ],
       0, false, true
     )
+    expect(tx.status).toEqual(2)
+
     await validatePoolReserves(pool, "SwapExactTokensForZILOnce", false)
     await validateBalances(token0, token1, "SwapExactTokensForZILOnce")
   })
@@ -229,6 +231,7 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
     prevPoolState = await pool.getState()
     prevToken0State = await token0.getState()
     prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
   })
 
   test('swap token for exact ZIL (Non-amp pool)', async () => {
@@ -239,12 +242,12 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${new BigNumber(amountInMax).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -277,7 +280,7 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -375,6 +378,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
     prevPoolState = await pool.getState()
     prevToken0State = await token0.getState()
     prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
   })
 
   test('swap exact token for zil (Amp pool)', async () => {
@@ -385,12 +389,12 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -423,7 +427,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -519,6 +523,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
     prevPoolState = await pool.getState()
     prevToken0State = await token0.getState()
     prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
   })
 
   test('swap token for exact ZIL (Amp pool)', async () => {
@@ -529,12 +534,12 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${(new BigNumber(amountInMax)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -567,7 +572,7 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
         },
         {
           vname: 'pool',
@@ -603,7 +608,7 @@ setup = async (isAmpPool) => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
-  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0', decimals: 12 }, router.address.toLowerCase(), null))[0]
+  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0', decimals: 12, supply: '100000000000000000000000000000000000000' }, router.address.toLowerCase(), null))[0]
   token1 = (await useWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }, router.address.toLowerCase(), null))[0]
   token = token0.address.toLowerCase()
   wZil = token1.address.toLowerCase()
@@ -665,7 +670,7 @@ setup = async (isAmpPool) => {
       {
         vname: 'amount_token_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amount_token_min',
@@ -700,29 +705,61 @@ setup = async (isAmpPool) => {
 // validate pool reserves (both amp and non-amp pools)
 validatePoolReserves = async (pool, transition, isAmpPool) => {
   newPoolState = await pool.getState()
+  let newAmountIn = (new BigNumber(amountIn)).shiftedBy(12)
+  let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
+
+  let poolPrevReserve0 = new BigNumber(prevPoolState.reserve0)
+  let poolNewReserve0 = new BigNumber(newPoolState.reserve0)
+  let poolPrevReserve1 = new BigNumber(prevPoolState.reserve1)
+  let poolNewReserve1 = new BigNumber(newPoolState.reserve1)
+  
   switch (transition) {
     case 'SwapExactTokensForZILOnce': {
-      expect(newPoolState.reserve0).toEqual((new BigNumber(prevPoolState.reserve0).plus(amountIn)).toString())
-      expect((new BigNumber(newPoolState.reserve1)).lt(new BigNumber(prevPoolState.reserve1))).toBeTruthy()
-      break;
+      if (newPoolState.token0.toLowerCase() === token) {
+        expect(poolNewReserve0).toEqual(poolPrevReserve0.plus(newAmountIn))
+        expect(poolNewReserve1.lt(poolPrevReserve1)).toBeTruthy()
+        break;
+      } else {
+        expect(poolNewReserve1).toEqual(poolPrevReserve1.plus(newAmountIn))
+        expect(poolNewReserve0.lt(poolPrevReserve0)).toBeTruthy()
+        break;
+      }
     }
 
     case 'SwapExactZILForTokensOnce': {
-      expect((new BigNumber(newPoolState.reserve0)).lt(new BigNumber(prevPoolState.reserve0))).toBeTruthy()
-      expect(newPoolState.reserve1).toEqual((new BigNumber(prevPoolState.reserve1).plus(amountIn)).toString())
-      break;
+      if (newPoolState.token0.toLowerCase() === token) {
+        expect(poolNewReserve0.lt(poolPrevReserve0)).toBeTruthy()
+        expect(poolNewReserve1).toEqual(poolPrevReserve1.plus(newAmountIn))
+        break;
+      } else {
+        expect(poolNewReserve1.lt(poolPrevReserve1)).toBeTruthy()
+        expect(poolNewReserve0).toEqual(poolPrevReserve0.plus(newAmountIn))
+        break;
+      }
     }
 
     case 'SwapTokensForExactZILOnce': {
-      expect((new BigNumber(prevPoolState.reserve0)).lt(new BigNumber(newPoolState.reserve0))).toBeTruthy()
-      expect(prevPoolState.reserve1).toEqual((new BigNumber(newPoolState.reserve1).plus(amountOut)).toString())
-      break;
+      if (newPoolState.token0.toLowerCase() === token) {
+        expect(poolPrevReserve0.lt(poolNewReserve0)).toBeTruthy()
+        expect(poolPrevReserve1).toEqual(poolNewReserve1.plus(newAmountOut))
+        break;
+      } else {
+        expect(poolPrevReserve1.lt(poolNewReserve1)).toBeTruthy()
+        expect(poolPrevReserve0).toEqual(poolNewReserve0.plus(newAmountOut))
+        break;
+      }
     }
 
     case 'SwapZILForExactTokensOnce': {
-      expect(prevPoolState.reserve0).toEqual((new BigNumber(newPoolState.reserve0).plus(amountOut)).toString())
-      expect((new BigNumber(prevPoolState.reserve1)).lt(new BigNumber(newPoolState.reserve1))).toBeTruthy()
-      break;
+      if (newPoolState.token0.toLowerCase() === token) {
+        expect(poolPrevReserve0).toEqual(poolNewReserve0.plus(newAmountOut))
+        expect(poolPrevReserve1.lt(poolNewReserve1)).toBeTruthy()
+        break;
+      } else {
+        expect(poolPrevReserve1).toEqual(poolNewReserve1.plus(newAmountOut))
+        expect(poolPrevReserve0.lt(poolNewReserve0)).toBeTruthy()
+        break;
+      }
     }
   }
 
@@ -740,34 +777,76 @@ validatePoolReserves = async (pool, transition, isAmpPool) => {
 validateBalances = async (token0, token1, transition) => {
   newToken0State = await token0.getState()
   newToken1State = await token1.getState()
+  newOwnerZilBalance = await getBalance(owner.address)
   let newBalance;
+  let newAmountIn = (new BigNumber(amountIn)).shiftedBy(12)
+  let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
+
+  let poolPrevToken0Balance = new BigNumber(prevToken0State.balances[pool.address.toLowerCase()])
+  let poolPrevToken1Balance = new BigNumber(prevToken1State.balances[pool.address.toLowerCase()])
+  let poolNewToken0Balance = new BigNumber(newToken0State.balances[pool.address.toLowerCase()])
+  let poolNewToken1Balance = new BigNumber(newToken1State.balances[pool.address.toLowerCase()])
+
+  let ownerPrevToken0Balance = new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])
+  let ownerPrevToken1Balance = new BigNumber(prevToken1State.balances[owner.address.toLowerCase()])
+  let ownerNewToken0Balance = new BigNumber(newToken0State.balances[owner.address.toLowerCase()])
+  let ownerNewToken1Balance = new BigNumber(newToken1State.balances[owner.address.toLowerCase()])
+
   switch (transition) {
     case 'SwapExactTokensForZILOnce': {
-      newBalance = (new BigNumber(prevToken0State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString()
-      expect(newToken0State.balances[pool.address.toLowerCase()]).toEqual(newBalance)
-      expect(new BigNumber(newToken1State.balances[owner.address.toLowerCase()]).gt(prevToken1State.balances[owner.address.toLowerCase()])).toBeTruthy()
-      break;
+      if (token0.address.toLowerCase() === token) {
+        newBalance = poolPrevToken0Balance.plus(newAmountIn)
+        expect(poolNewToken0Balance).toEqual(newBalance)
+        expect(newOwnerZilBalance.gt(prevOwnerZilBalance)).toBeTruthy()
+        break;
+      } else {
+        newBalance = poolPrevToken1Balance.plus(newAmountIn)
+        expect(poolNewToken1Balance).toEqual(newBalance)
+        expect(newOwnerZilBalance.gt(prevOwnerZilBalance)).toBeTruthy()
+        break;
+      }
     }
     
     case 'SwapExactZILForTokensOnce': {
-      newBalance = (new BigNumber(prevToken1State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString()
-      expect(newToken1State.balances[pool.address.toLowerCase()]).toEqual(newBalance)
-      expect(new BigNumber(newToken0State.balances[owner.address.toLowerCase()]).gt(prevToken0State.balances[owner.address.toLowerCase()])).toBeTruthy()
-      break;
+      if (token0.address.toLowerCase() === token) {
+        newBalance = poolPrevToken1Balance.plus(newAmountIn)
+        expect(poolNewToken1Balance).toEqual(newBalance)
+        expect(ownerNewToken0Balance.gt(ownerPrevToken0Balance)).toBeTruthy()
+        break;
+      } else {
+        newBalance = poolPrevToken0Balance.plus(newAmountIn)
+        expect(poolNewToken0Balance).toEqual(newBalance)
+        expect(ownerNewToken1Balance.gt(ownerPrevToken1Balance)).toBeTruthy()
+        break;
+      }
     }
 
     case 'SwapTokensForExactZILOnce': {
-      newBalance = (new BigNumber(prevToken1State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
-      expect(newToken1State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
-      expect(new BigNumber(newToken0State.balances[pool.address.toLowerCase()]).gt(prevToken0State.balances[pool.address.toLowerCase()])).toBeTruthy()
-      break;
+      if (token0.address.toLowerCase() === token) {
+        newBalance = prevOwnerZilBalance.plus(newAmountOut)
+        expect(newOwnerZilBalance.lte(newBalance)).toBeTruthy()
+        expect(poolNewToken0Balance.gt(poolPrevToken0Balance)).toBeTruthy()
+        break;
+      } else {
+        newBalance = (prevOwnerZilBalance).plus(newAmountOut)
+        expect(newOwnerZilBalance.lte(newBalance)).toBeTruthy()
+        expect(poolNewToken1Balance.gt(poolPrevToken1Balance)).toBeTruthy()
+        break;
+      }
     }
 
     case 'SwapZILForExactTokensOnce': {
-      newBalance = (new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
-      expect(newToken0State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
-      expect(new BigNumber(newToken1State.balances[pool.address.toLowerCase()]).gt(prevToken1State.balances[pool.address.toLowerCase()])).toBeTruthy()
-      break;
+      if (token0.address.toLowerCase() === token) {
+        newBalance = ownerPrevToken0Balance.plus(newAmountOut)
+        expect(ownerNewToken0Balance).toEqual(newBalance)
+        expect(poolNewToken1Balance.gt(poolPrevToken1Balance)).toBeTruthy()
+        break;
+      } else {
+        newBalance = ownerPrevToken1Balance.plus(newAmountOut)
+        expect(ownerNewToken1Balance).toEqual(newBalance)
+        expect(poolNewToken0Balance.gt(poolPrevToken0Balance)).toBeTruthy()
+        break;
+      }
     }
   }
 }

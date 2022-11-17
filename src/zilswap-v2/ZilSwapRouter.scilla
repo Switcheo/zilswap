@@ -49,21 +49,6 @@ let get_amount_or_zero =
     | None => zero_amount
     end
 
-(* @dev: (x * y) / z *)
-let frac =
-  fun (x : Uint128) =>
-  fun (y : Uint128) =>
-  fun (z : Uint128) =>
-    let xy = builtin mul x y in
-    builtin div xy z
-
-(* @dev: amountB = amountA.mul(reserveB) / reserveA *)
-let quote =
-  fun (amountA : Uint128) =>
-  fun (reserveA : Uint128) =>
-  fun (reserveB : Uint128) =>
-    frac amountA reserveB reserveA
-
 (* @dev: Convert Uint128 to Uint256 *)
 let grow =
   fun (var : Uint128) =>
@@ -81,6 +66,25 @@ let reduce =
     | Some small => small
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
+
+(* @dev: (x * y) / z *)
+let frac =
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+  fun (z : Uint128) =>
+    let x_u256 = grow x in
+    let y_u256 = grow y in
+    let z_u256 = grow z in
+    let xy_u256 = builtin mul x_u256 y_u256 in
+    let ans_u256 = builtin div xy_u256 z_u256 in
+    reduce ans_u256
+
+(* @dev: amountB = amountA.mul(reserveB) / reserveA *)
+let quote =
+  fun (amountA : Uint128) =>
+  fun (reserveA : Uint128) =>
+  fun (reserveB : Uint128) =>
+    frac amountA reserveB reserveA
 
 let list_or_empty =
   fun (maybe_list : Option (List ByStr20)) =>
@@ -1473,6 +1477,146 @@ transition SwapExactZILForTokensOnce(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
+transition SwapExactZILForTokensTwice(
+  amount_out_min: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_out == 0 *)
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  (* accept ZIL *)
+  accept;
+
+  (* convert ZIL to wZIL *)
+  wZil_address = get_from_address path1;
+  MintZRC2 wZil_address _amount;
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  TransferZRC2 wZil_address _sender _amount;
+
+  GetAmountOut _amount pool1 path1 deadline_block;
+  intermediate_amount_out <- amt_out;
+  intermediate_amount_in = intermediate_amount_out;
+  VerifyValidAmountIn intermediate_amount_in;
+
+  GetAmountOut intermediate_amount_in pool2 path2 deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  SwapZRC2Once pool1 path1 _amount intermediate_amount_out;
+  SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
+
+  amt_out := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapExactZILForTokensThrice(
+  amount_out_min: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool3: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  path3: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_out == 0 *)
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  (* accept ZIL *)
+  accept;
+
+  (* convert ZIL to wZIL *)
+  wZil_address = get_from_address path1;
+  MintZRC2 wZil_address _amount;
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  TransferZRC2 wZil_address _sender _amount;
+
+  GetAmountOut _amount pool1 path1 deadline_block;
+  first_intermediate_amount_out <- amt_out;
+  first_intermediate_amount_in = first_intermediate_amount_out;
+  VerifyValidAmountIn first_intermediate_amount_in;
+
+  GetAmountOut first_intermediate_amount_in pool2 path2 deadline_block;
+  second_intermediate_amount_out <- amt_out;
+  second_intermediate_amount_in = second_intermediate_amount_out;
+  VerifyValidAmountIn second_intermediate_amount_in;
+
+  GetAmountOut second_intermediate_amount_out pool3 path3 deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  SwapZRC2Once pool1 path1 _amount first_intermediate_amount_out;
+  SwapZRC2Once pool2 path2 first_intermediate_amount_in second_intermediate_amount_out;
+  SwapZRC2Once pool3 path3 second_intermediate_amount_in final_amount_out;
+
+  amt_out := zero_amount (* Reassign back to 0 *)
+end
+
 transition SwapTokensForExactZILOnce(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1520,6 +1664,148 @@ transition SwapTokensForExactZILOnce(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
+transition SwapTokensForExactZILTwice(
+  amount_out: Uint128,
+  amount_in_max: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool2 path2 deadline_block;
+  intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn intermediate_amt_in;
+  
+  intermediate_amt_out = intermediate_amt_in;
+  GetAmountIn intermediate_amt_out pool1 path1 deadline_block;
+  init_amt_in <- amt_in;
+  VerifyValidAmountIn init_amt_in;
+
+  is_valid_amount_in = uint128_le init_amt_in amount_in_max;
+  match is_valid_amount_in with 
+  | True => | False =>
+    err = CodeExcessiveInputAmt;
+    ThrowError err
+  end;
+
+  (* swap need to burn wZIL back to ZIL and transfer *)
+  SwapZRC2Once pool1 path1 init_amt_in intermediate_amt_out;
+  SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
+
+  (* transfer wZIL to this contract *)
+  wZil_address = get_to_address path2;
+  TransferFromZRC2 wZil_address _sender _this_address amount_out;
+
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
+  BurnZRC2 wZil_address amount_out;
+
+  amt_in := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapTokensForExactZILThrice(
+  amount_out: Uint128,
+  amount_in_max: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool3: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  path3: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool3 path3 deadline_block;
+  second_intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn second_intermediate_amt_in;
+
+  second_intermediate_amt_out = second_intermediate_amt_in;
+  GetAmountIn second_intermediate_amt_out pool2 path2 deadline_block;
+  first_intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn first_intermediate_amt_in;
+  
+  first_intermediate_amt_out = first_intermediate_amt_in;
+  GetAmountIn first_intermediate_amt_out pool1 path1 deadline_block;
+  init_amt_in <- amt_in;
+  VerifyValidAmountIn init_amt_in;
+
+  is_valid_amount_in = uint128_le init_amt_in amount_in_max;
+  match is_valid_amount_in with 
+  | True => | False =>
+    err = CodeExcessiveInputAmt;
+    ThrowError err
+  end;
+
+  (* swap need to burn wZIL back to ZIL and transfer *)
+  SwapZRC2Once pool1 path1 init_amt_in first_intermediate_amt_out;
+  SwapZRC2Once pool2 path2 first_intermediate_amt_in second_intermediate_amt_out;
+  SwapZRC2Once pool3 path3 second_intermediate_amt_in amount_out;
+
+  (* transfer wZIL to this contract *)
+  wZil_address = get_to_address path3;
+  TransferFromZRC2 wZil_address _sender _this_address amount_out;
+
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
+  BurnZRC2 wZil_address amount_out;
+
+  amt_in := zero_amount (* Reassign back to 0 *)
+end
+
 transition SwapExactTokensForZILOnce(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1557,6 +1843,144 @@ transition SwapExactTokensForZILOnce(
 
   (* transfer wZIL to this contract *)
   wZil_address = get_to_address path;
+  TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
+
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
+  BurnZRC2 wZil_address final_amount_out;
+
+  amt_out := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapExactTokensForZILTwice(
+  amount_in: Uint128,
+  amount_out_min: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_out == 0 *)
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  GetAmountOut amount_in pool1 path1 deadline_block;
+  intermediate_amount_out <- amt_out;
+  intermediate_amount_in = intermediate_amount_out;
+  VerifyValidAmountIn intermediate_amount_in;
+
+  GetAmountOut intermediate_amount_in pool2 path2 deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  (* swap need to burn wZIL back to ZIL and transfer *)
+  SwapZRC2Once pool1 path1 amount_in intermediate_amount_out;
+  SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
+
+  (* transfer wZIL to this contract *)
+  wZil_address = get_to_address path2;
+  TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
+
+  (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
+  BurnZRC2 wZil_address final_amount_out;
+
+  amt_out := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapExactTokensForZILThrice(
+  amount_in: Uint128,
+  amount_out_min: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool3: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  path3: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_out == 0 *)
+  amount_out <- amt_out;
+  is_valid_amount_out = builtin eq amount_out zero_amount;
+  match is_valid_amount_out with
+  | True => | False =>
+    amt_out := zero_amount
+  end;
+
+  GetAmountOut amount_in pool1 path1 deadline_block;
+  first_intermediate_amount_out <- amt_out;
+  first_intermediate_amount_in = first_intermediate_amount_out;
+  VerifyValidAmountIn first_intermediate_amount_in;
+
+  GetAmountOut first_intermediate_amount_in pool2 path2 deadline_block;
+  second_intermediate_amount_out <- amt_out;
+  second_intermediate_amount_in = second_intermediate_amount_out;
+  VerifyValidAmountIn second_intermediate_amount_in;
+
+  GetAmountOut second_intermediate_amount_in pool3 path3 deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
+  (* swap need to burn wZIL back to ZIL and transfer *)
+  SwapZRC2Once pool1 path1 amount_in first_intermediate_amount_out;
+  SwapZRC2Once pool2 path2 first_intermediate_amount_in second_intermediate_amount_out;
+  SwapZRC2Once pool3 path3 second_intermediate_amount_in final_amount_out;
+
+  (* transfer wZIL to this contract *)
+  wZil_address = get_to_address path3;
   TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
@@ -1613,6 +2037,158 @@ transition SwapZILForExactTokensOnce(
   Send refund _sender;
 
   SwapZRC2Once pool path init_amt_in amount_out;
+
+  amt_in := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapZILForExactTokensTwice(
+  amount_out: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool2 path2 deadline_block;
+  intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn intermediate_amt_in;
+
+  intermediate_amt_out = intermediate_amt_in;
+  GetAmountIn intermediate_amt_out pool1 path1 deadline_block;
+  init_amt_in <- amt_in;
+  VerifyValidAmountIn init_amt_in;
+
+  is_valid_amount_in = uint128_le init_amt_in _amount;
+  match is_valid_amount_in with 
+  | True => | False =>
+    err = CodeExcessiveInputAmt;
+    ThrowError err
+  end;
+
+  (* accept ZIL *)
+  accept;
+
+  (* convert ZIL to wZIL *)
+  wZil_address = get_from_address path1;
+  MintZRC2 wZil_address init_amt_in;
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  TransferZRC2 wZil_address _sender init_amt_in;  
+
+  (* refund back remaining ZIL not used up in conversion to wZIL *)
+  refund = builtin sub _amount init_amt_in;
+  Send refund _sender;
+
+  SwapZRC2Once pool1 path1 init_amt_in intermediate_amt_out;
+  SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
+
+  amt_in := zero_amount (* Reassign back to 0 *)
+end
+
+transition SwapZILForExactTokensThrice(
+  amount_out: Uint128,
+  pool1: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool2: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  pool3: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field short_ema : Uint256,
+    field long_ema : Uint256
+  end,
+  path1: Pair ByStr20 ByStr20,
+  path2: Pair ByStr20 ByStr20,
+  path3: Pair ByStr20 ByStr20,
+  deadline_block: BNum
+)
+  (* Checks if amt_in == 0 *)
+  amount_in <- amt_in;
+  is_valid_amt_in = builtin eq amount_in zero_amount;
+  match is_valid_amt_in with 
+  | True => | False =>
+    amt_in := zero_amount
+  end;
+
+  GetAmountIn amount_out pool3 path3 deadline_block;
+  second_intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn second_intermediate_amt_in;
+  
+  second_intermediate_amt_out = second_intermediate_amt_in;
+  GetAmountIn second_intermediate_amt_out pool2 path2 deadline_block;
+  first_intermediate_amt_in <- amt_in;
+  VerifyValidAmountIn first_intermediate_amt_in;
+
+  first_intermediate_amt_out = first_intermediate_amt_in;
+  GetAmountIn first_intermediate_amt_out pool1 path1 deadline_block;
+  init_amt_in <- amt_in;
+  VerifyValidAmountIn init_amt_in;
+
+  is_valid_amount_in = uint128_le init_amt_in _amount;
+  match is_valid_amount_in with 
+  | True => | False =>
+    err = CodeExcessiveInputAmt;
+    ThrowError err
+  end;
+
+  (* accept ZIL *)
+  accept;
+
+  (* convert ZIL to wZIL *)
+  wZil_address = get_from_address path1;
+  MintZRC2 wZil_address init_amt_in;
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  TransferZRC2 wZil_address _sender init_amt_in;  
+
+  (* refund back remaining ZIL not used up in conversion to wZIL *)
+  refund = builtin sub _amount init_amt_in;
+  Send refund _sender;
+
+  SwapZRC2Once pool1 path1 init_amt_in first_intermediate_amt_out;
+  SwapZRC2Once pool2 path2 first_intermediate_amt_in second_intermediate_amt_out;
+  SwapZRC2Once pool3 path3 second_intermediate_amt_in amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
 end

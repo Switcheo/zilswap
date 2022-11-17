@@ -80,14 +80,6 @@ let max =
     | False => a
     end
 
-(* @dev: (x * y) / z *)
-let frac =
-  fun (x : Uint128) =>
-  fun (y : Uint128) =>
-  fun (z : Uint128) =>
-    let xy = builtin mul x y in
-    builtin div xy z
-
 let grow =
   fun (var : Uint128) =>
     let maybe_big = builtin to_uint256 var in
@@ -111,6 +103,25 @@ let reduce =
     | Some small => small
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
+    
+(* @dev: (x * y) / z *)
+let frac =
+  fun (x : Uint128) =>
+  fun (y : Uint128) =>
+  fun (z : Uint128) =>
+    let x_u256 = grow x in
+    let y_u256 = grow y in
+    let z_u256 = grow z in
+    let xy_u256 = builtin mul x_u256 y_u256 in
+    let ans_u256 = builtin div xy_u256 z_u256 in
+    reduce ans_u256
+
+let u128_mul_grow =
+  fun (x: Uint128) =>
+  fun (y: Uint128) =>
+    let x_u256 = grow x in
+    let y_u256 = grow y in
+    builtin mul x_u256 y_u256
 
 (* @dev Returns x*y in precision *)
 (* function mulInPrecision(uint256 x, uint256 y) internal pure returns (uint256) {
@@ -467,6 +478,9 @@ procedure MintFee(is_amp_pool: Bool)
     r1_ <- reserve1;
     r0 = match is_amp_pool with | False => r0_ | True => v_r0_ end;
     r1 = match is_amp_pool with | False => r1_ | True => v_r1_ end;
+    r0_u256 = grow r0;
+    r1_u256 = grow r1;
+    kl_u256 = grow kl;
 
     match is_fee_on with (* Checks if fee_config is set *)
     | False =>
@@ -481,21 +495,23 @@ procedure MintFee(is_amp_pool: Bool)
       match is_not_eq_zero with
       | False =>
       | True =>
-        t = builtin mul kl r0;
-        t_r0 = builtin div t r0;
-        is_eq = builtin eq t_r0 kl;
+        t_u256 = u128_mul_grow kl r0;
+        t_r0_u256 = builtin div t_u256 r0_u256;
+        is_eq = builtin eq t_r0_u256 kl_u256;
         collected_fee = match is_eq with (* value is in token 0 *)
         | True =>
           (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
-          let t_r1 = builtin div t r1 in
-          let sqrt = builtin isqrt t_r1 in
-          builtin sub r0 sqrt
+          let t_r1_u256 = builtin div t_u256 r1_u256 in
+          let sqrt_u256 = builtin isqrt t_r1_u256 in
+          let sub_256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_256
         | False =>
           (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
           let kl_r1 = builtin div kl r1 in
-          let kl_r1_r0 = builtin mul kl_r1 r0 in
-          let sqrt = builtin isqrt kl_r1_r0 in
-          builtin sub r0 sqrt
+          let kl_r1_r0_u256 = u128_mul_grow kl_r1 r0 in
+          let sqrt_u256 = builtin isqrt kl_r1_r0_u256 in
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
         end;
         pool_value = let r1_value = frac r1_ r0 r1 in builtin add r0_ r1_value; (* value in token0 *)
         ts <- total_supply;
