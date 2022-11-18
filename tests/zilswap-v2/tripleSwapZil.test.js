@@ -88,8 +88,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
   })
 
   test('swap exact ZIL for token (Non-amp pool)', async () => {
-    console.log("OWNER ZIL BEFORE: ", await getBalance(owner.address))
-    console.log("CONTRACT ZIL BEFORE: ", await router.getState())
     tx = await callContract(
       owner.key, router,
       'SwapExactZILForTokensOnce',
@@ -118,15 +116,11 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    console.log("OWNER ZIL AFTER: ", await getBalance(owner.address))
-    console.log("CONTRACT ZIL AFTER: ", await router.getState())
     await validatePoolReserves(pool, "SwapExactZILForTokensOnce", false)
     await validateBalances(token0, token1, "SwapExactZILForTokensOnce")
   })
 
   test('swap exact token for ZIL (Non-amp pool)', async () => {
-    console.log("OWNER ZIL BEFORE: ", await getBalance(owner.address))
-    console.log("CONTRACT ZIL BEFORE: ", await router.getState())
     tx = await callContract(
       owner.key, router,
       'SwapExactTokensForZILOnce',
@@ -160,8 +154,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    console.log("OWNER ZIL AFTER: ", await getBalance(owner.address))
-    console.log("CONTRACT ZIL AFTER: ", await router.getState())
     await validatePoolReserves(pool, "SwapExactTokensForZILOnce", false)
     await validateBalances(token0, token1, "SwapExactTokensForZILOnce")
   })

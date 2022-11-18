@@ -446,6 +446,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
       ],
       amountIn, false, true
     )
+    expect(tx.status).toEqual(2)
     await validatePoolReserves(pool, "SwapExactZILForTokensOnce", true)
     await validateBalances(token0, token1, "SwapExactZILForTokensOnce")
   })
