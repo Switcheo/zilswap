@@ -759,12 +759,17 @@ end
 (*************************************)
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
-transition TransferSuccessCallBack (sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 
 (* @dev: Handle callback when sending ZRC-2 tokens to the recipient using TransferFrom transition *)
-transition RecipientAcceptTransferFrom (initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+(* no-op *)
+end
+
+(* @dev: Handle callback when sending ZRC-2 tokens to the recipient using Transfer transition *)
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 (* no-op *)
 end
 

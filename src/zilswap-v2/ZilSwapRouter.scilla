@@ -433,7 +433,6 @@ procedure VerifyValidAmountIn(amount_in: Uint128)
   end
 end
 
-
 (* @dev: Calculates the amount_out and assigns to amt_out *)
 procedure GetAmountOut(
   amount_in: Uint128,
@@ -588,6 +587,48 @@ procedure SwapZRC2Once(
         amount1_out = zero_amount;
         msg_to_token = {_tag: "TransferFrom"; _recipient: init_token1; _amount: zero_amount;
                         from: _sender; to: pool; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
+        msgs = two_msgs msg_to_token msg_to_pool;
+        send msgs
+      end
+    end
+  end
+end
+
+(* @dev: Swaps wZIL for ZRC2 in one pool, with the wZIL coming from this contract to save steps of transferring back to _sender *)
+(* @param path: token_in token_out *)
+procedure SwapWZILZRC2Once(
+  pool: ByStr20,
+  path: Pair ByStr20 ByStr20,
+  amount_in: Uint128, 
+  amount_out: Uint128
+)
+  match path with
+  | Pair token_in token_out =>
+    init_token_pair = sort_token path;
+    match init_token_pair with
+    | Pair init_token0 init_token1 =>
+      is_same_order = builtin eq token_in init_token0;
+
+      (* _swap *)
+      match is_same_order with
+      | True =>
+      (* Swap exact amt of init_token0 for init_token1 *)
+        amount0_out = zero_amount;
+        amount1_out = amount_out;
+        msg_to_token = {_tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+                      to: pool; amount: amount_in};
+        msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
+                      amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
+        msgs = two_msgs msg_to_token msg_to_pool;
+        send msgs
+      | False =>
+      (* Swap exact amt of init_token1 for init_token0 *)
+        amount0_out = amount_out;
+        amount1_out = zero_amount;
+        msg_to_token = {_tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+                      to: pool; amount: amount_in};
         msg_to_pool = {_tag: "Swap"; _recipient: pool; _amount: zero_amount;
                       amount0_out: amount0_out; amount1_out: amount1_out; to: _sender};
         msgs = two_msgs msg_to_token msg_to_pool;
@@ -1453,6 +1494,15 @@ transition SwapExactZILForTokensOnce(
     amt_out := zero_amount
   end;
 
+  GetAmountOut _amount pool path deadline_block;
+  final_amount_out <- amt_out;
+  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
+  match is_valid_final_amount_out with 
+  | True => | False => 
+    err = CodeInsufficientOutputAmt;
+    ThrowError err
+  end;
+
   (* accept ZIL *)
   accept;
 
@@ -1462,15 +1512,6 @@ transition SwapExactZILForTokensOnce(
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
   TransferZRC2 wZil_address _sender _amount;
-
-  GetAmountOut _amount pool path deadline_block;
-  final_amount_out <- amt_out;
-  is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
-  match is_valid_final_amount_out with 
-  | True => | False => 
-    err = CodeInsufficientOutputAmt;
-    ThrowError err
-  end;
 
   SwapZRC2Once pool path _amount final_amount_out;
 
@@ -1509,16 +1550,6 @@ transition SwapExactZILForTokensTwice(
     amt_out := zero_amount
   end;
 
-  (* accept ZIL *)
-  accept;
-
-  (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path1;
-  MintZRC2 wZil_address _amount;
-
-  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender _amount;
-
   GetAmountOut _amount pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
   intermediate_amount_in = intermediate_amount_out;
@@ -1532,6 +1563,16 @@ transition SwapExactZILForTokensTwice(
     err = CodeInsufficientOutputAmt;
     ThrowError err
   end;
+
+  (* accept ZIL *)
+  accept;
+
+  (* convert ZIL to wZIL *)
+  wZil_address = get_from_address path1;
+  MintZRC2 wZil_address _amount;
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  TransferZRC2 wZil_address _sender _amount;
 
   SwapZRC2Once pool1 path1 _amount intermediate_amount_out;
   SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
@@ -1581,16 +1622,6 @@ transition SwapExactZILForTokensThrice(
     amt_out := zero_amount
   end;
 
-  (* accept ZIL *)
-  accept;
-
-  (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path1;
-  MintZRC2 wZil_address _amount;
-
-  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender _amount;
-
   GetAmountOut _amount pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
   first_intermediate_amount_in = first_intermediate_amount_out;
@@ -1609,6 +1640,16 @@ transition SwapExactZILForTokensThrice(
     err = CodeInsufficientOutputAmt;
     ThrowError err
   end;
+
+  (* accept ZIL *)
+  (* accept; *)
+
+  (* convert ZIL to wZIL *)
+  (* wZil_address = get_from_address path1;
+  MintZRC2 wZil_address _amount; *)
+
+  (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
+  (* TransferZRC2 wZil_address _sender _amount; *)
 
   SwapZRC2Once pool1 path1 _amount first_intermediate_amount_out;
   SwapZRC2Once pool2 path2 first_intermediate_amount_in second_intermediate_amount_out;
