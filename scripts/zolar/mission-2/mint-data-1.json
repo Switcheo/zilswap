@@ -1,0 +1,6684 @@
+[
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "STR",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "END",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "SPD",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "DEX",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "ACC",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "LUK",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  },
+  {
+    "argtypes": [],
+    "arguments": [
+      "INT",
+      {
+        "argtypes": [],
+        "arguments": [],
+        "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.TierC"
+      },
+      { "argtypes": [], "arguments": [], "constructor": "False" }
+    ],
+    "constructor": "0xe84b33b4812dceac19172968f67327dce4bbe4e0.Gem"
+  }
+]
