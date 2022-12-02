@@ -79,6 +79,7 @@ let frac =
     let ans_u256 = builtin div xy_u256 z_u256 in
     reduce ans_u256
 
+(* @dev: Given an amount of one token and pool reserves, return an equivalent amount of the tokenB *)
 (* @dev: amountB = amountA.mul(reserveB) / reserveA *)
 let quote =
   fun (amountA : Uint128) =>
@@ -326,6 +327,8 @@ procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   pools[tokenA][tokenB] := p_new
 end
 
+(* @dev: Verifies if a pool with a token pair of tokenA-tokenB already exists *)
+(* @dev: Duplicate pools are not allowed to be added to the contract *)
 procedure VerifyPoolAddress(tokenA : ByStr20, tokenB : ByStr20, pool: ByStr20)
   p <- pools[tokenA][tokenB];
   list = list_or_empty p;
@@ -338,6 +341,7 @@ procedure VerifyPoolAddress(tokenA : ByStr20, tokenB : ByStr20, pool: ByStr20)
   end
 end
 
+(* @dev: Validates that the tokenAmount and the pool reserves are more than 0 *)
 procedure Quote(amountA : Uint128, reserveA : Uint128, reserveB : Uint128)
   is_sufficient_amt = uint128_gt amountA zero_amount;
   match is_sufficient_amt with
@@ -403,6 +407,7 @@ procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, am
   send msgs
 end
 
+(* @dev: Transfer zil from contract balance to the user *)
 procedure Send(amount: Uint128, to_address : ByStr20)
   msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
   msgs = one_msg msg;
@@ -476,7 +481,6 @@ procedure GetAmountOut(
       is_eq = builtin eq amp bps;
       is_same_order = builtin eq token_in init_token0;
   
-      (* getAmountsOut *)
       data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
       match data with 
       | ReserveData r_in r_out v_r_in v_r_out =>
@@ -541,7 +545,6 @@ procedure GetAmountIn(
       is_eq = builtin eq amp bps;
       is_same_order = builtin eq token_in init_token0;
 
-      (* getAmountsIn *)
       data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
       match data with 
       | ReserveData r_in r_out v_r_in v_r_out =>
@@ -832,7 +835,7 @@ transition AddLiquidity(
   (* check if current_block has passed the deadline block to process this transaction *)
   VerifyBlock deadline_block;
   (* check if pool contract for tokenA and tokenB exists *)
-  VerifyPoolAddress tokenA tokenB pool;
+  VerifyPoolAddress tokenA tokenB pool;(* Order should not matter here *)
 
   r_a <- & pool.reserve0;
   r_b <- & pool.reserve1;
@@ -845,25 +848,44 @@ transition AddLiquidity(
     andb r_a_ r_b_;
   match e with 
   | True =>
-  (* pool with no liquidity *)
+    (* pool with no liquidity *)
+    (* Transfer pairing of tokenA and tokenB to pool *)
     amountA = amountA_desired;
     amountB = amountB_desired;
     TransferZRC2ToPool pool tokenA tokenB amountA amountB
   | False =>
-  (* pool with existing liquidity *)
+    (* pool with existing liquidity *)
+    (* check how much tokenB is required to fulfil amountA_desired pairing *)
     Quote amountA_desired r_a r_b;
     amountB_optimal = quote amountA_desired r_a r_b;
+
+    (* check if sufficient tokenB is provided to fulfil pairing *)
     is_sufficient_amountB = uint128_le amountB_optimal amountB_desired;
     match is_sufficient_amountB with
     | True =>
+      (* sufficient tokenB is provided *)
+      (* check if amount of tokenB to be deposited in pool is greater than or equal to the amountB_min user wants to deposit *)
       VerifyAmount amountB_optimal amountB_min;
+      (* check if amount of tokenA to be deposited in pool is greater than or equal to the amountA_min user wants to deposit *)
+      VerifyAmount amountA_desired amountA_min;
+
+      (* Transfer pairing of tokenA and tokenB to pool *)
       amountA = amountA_desired;
       amountB = amountB_optimal;
       TransferZRC2ToPool pool tokenA tokenB amountA amountB
     | False =>
+      (* insufficient tokenB is provided *)
+      (* check how much tokenA is required to fulfil amountB_desired pairing *)
+      Quote amountB_desired r_a r_b;
       amountA_optimal = quote amountB_desired r_b r_a;
+      (* check if amount of tokenA provided is greater than or equal to the tokens required to fulfil the tokenB pairing *)
       VerifyAmount amountA_desired amountA_optimal;
+      (* check if amount of tokenA to be deposited in pool is greater than or equal to the tokenA_min user wants to deposit *)
       VerifyAmount amountA_optimal amountA_min;
+      (* check if amount of tokenB to be deposited in pool is greater than or equal to the tokenB_min user wants to deposit *)
+      VerifyAmount amountB_desired amountB_min;
+
+      (* Transfer pairing of tokenA and tokenB to pool *)
       amountA = amountA_optimal;
       amountB = amountB_desired;
       TransferZRC2ToPool pool tokenA tokenB amountA amountB
@@ -880,11 +902,6 @@ transition AddLiquidity(
         let v_r_b_u256 = grow v_r_b in
         let a = builtin mul v_r_b_u256 q112_u256 in
         builtin div a v_r_a_u256;
-      (* require(
-        currentRate >= vReserveRatioBounds[0] && currentRate <= vReserveRatioBounds[1],
-        "DMMRouter: OUT_OF_BOUNDS_VRESERVE"
-      ); *)
-      (* Always returns CodeOutOfBoundVReserve *)
       match v_reserve_ratio_bounds with
       | Pair l_bound u_bound =>
         is_not_out_of_bound_vreserve = 
@@ -963,7 +980,7 @@ transition AddLiquidityZIL(
     match is_sufficient_wZIL with
     | True =>
       (* sufficient wZIL is provided *)
-      (* check if amount of wZIL to be deposited in pool is greater than or equal to themin_wZIL user wants to deposit *)
+      (* check if amount of wZIL to be deposited in pool is greater than or equal to the min_wZIL user wants to deposit *)
       VerifyAmount amount_wZIL_optimal amount_wZIL_min;
       (* check if amount of token to be deposited in pool is greater than or equal to the min_token user wants to deposit *)
       VerifyAmount amount_token_desired amount_token_min;
@@ -986,11 +1003,12 @@ transition AddLiquidityZIL(
     | False =>
       (* insufficient wZIL provided *)
       (* check how many tokens are required to fulfil wZIL pairing, based on insufficient wZIL provided *)
+      Quote _amount r_a r_b;
       amount_token_optimal = quote _amount r_b r_a;
       (* check if amount of tokens provided is greater than or equal to the tokens required to fulfil the wZIL pairing *)
       VerifyAmount amount_token_desired amount_token_optimal;
       (* check if amount of wZIL to be deposited in pool is greater than or equal to the min_wZIL user wants to deposit *)
-      VerifyAmount amount_wZIL_optimal amount_wZIL_min;
+      VerifyAmount _amount amount_wZIL_min;
       (* check if amount of token to be deposited in pool is greater than or equal to the min_token user wants to deposit *)
       VerifyAmount amount_token_optimal amount_token_min;
       amount_token = amount_token_optimal;
@@ -1049,7 +1067,7 @@ transition RemoveLiquidity(
   VerifyBlock deadline_block;
   VerifyPoolAddress tokenA tokenB pool;
 
-  (* fetch token and wZIL balance held by pool *)
+  (* fetch tokenA and tokenB balance held by pool *)
   m_b0 <- & tokenA.balances[pool];
   tokenA_balance = get_amount_or_zero m_b0;
   m_b1 <- & tokenB.balances[pool];
@@ -1058,11 +1076,11 @@ transition RemoveLiquidity(
   (* fetch the total supply in the pool *)
   supply <- & pool.total_supply;
 
-  (* calculate amount of tokens and wZIL removed based on amount of liquidity provided *)
+  (* calculate amount of tokenA and tokenB removed based on amount of liquidity provided *)
   tokenA_amount = frac liquidity tokenA_balance supply;
   tokenB_amount = frac liquidity tokenB_balance supply;
 
-  (* check if amount of tokens and wZIL removed matches min *)
+  (* check if amount of tokenA and tokenB removed matches min *)
   VerifyAmount tokenA_amount amountA_min;
   VerifyAmount tokenB_amount amountB_min;
 
@@ -1070,12 +1088,8 @@ transition RemoveLiquidity(
   msg_to_pool_1 = {_tag: "TransferFrom"; _recipient: pool; _amount: zero_amount; 
                 from: _sender; to: pool; amount: liquidity};
 
-  (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
-  msg_to_pool_2 = {
-    _tag: "Burn";
-    _recipient: pool;
-    _amount: zero_amount
-  };
+  (* Calls Burn transition on Pool, that transfers tokenA and tokenB back to _sender *)
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end
@@ -1120,11 +1134,7 @@ transition RemoveLiquidityZIL(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
-  msg_to_pool_2 = {
-    _tag: "Burn";
-    _recipient: pool;
-    _amount: zero_amount
-  };
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
 
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs;
@@ -1154,6 +1164,7 @@ transition SwapExactTokensForTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
+  (* Checks if amt_out == 0 *)
   amount_out <- amt_out;
   is_valid_amount_out = builtin eq amount_out zero_amount;
   match is_valid_amount_out with

@@ -779,7 +779,7 @@ end
 
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
-transition Mint(to : ByStr20)
+transition Mint(to: ByStr20)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
@@ -858,7 +858,7 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks.
    User must transfer LP token to this contract before call burn *)
-transition Burn()
+transition Burn(to: ByStr20)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
@@ -907,12 +907,12 @@ transition Burn()
 
   msg_to_token0 = {
     _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-    to: _origin; amount: amount0
+    to: _sender; amount: amount0
   };
 
   msg_to_token1 = {
     _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-    to: _origin; amount: amount1
+    to: _sender; amount: amount1
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
