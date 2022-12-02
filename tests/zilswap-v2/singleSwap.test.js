@@ -772,13 +772,13 @@ validateBalances = async (token0, token1, transition, direction) => {
     case 'SwapExactTokensForTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
-          newBalance = (new BigNumber(prevToken0State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString()
+          newBalance = (new BigNumber(prevToken0State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString(10)
           expect(newToken0State.balances[pool.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken1State.balances[owner.address.toLowerCase()]).gt(prevToken1State.balances[owner.address.toLowerCase()])).toBeTruthy()
           break;
 
         case 'Token1ToToken0':
-          newBalance = (new BigNumber(prevToken1State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString()
+          newBalance = (new BigNumber(prevToken1State.balances[pool.address.toLowerCase()])).plus(new BigNumber(amountIn)).toString(10)
           expect(newToken1State.balances[pool.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken0State.balances[owner.address.toLowerCase()]).gt(prevToken0State.balances[owner.address.toLowerCase()])).toBeTruthy()
           break;
@@ -789,13 +789,13 @@ validateBalances = async (token0, token1, transition, direction) => {
     case 'SwapTokensForExactTokensOnce': {
       switch (direction) {
         case 'Token0ToToken1':
-          newBalance = (new BigNumber(prevToken1State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
+          newBalance = (new BigNumber(prevToken1State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString(10)
           expect(newToken1State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken0State.balances[pool.address.toLowerCase()]).gt(prevToken0State.balances[pool.address.toLowerCase()])).toBeTruthy()
           break;
 
         case 'Token1ToToken0':
-          newBalance = (new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString()
+          newBalance = (new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])).plus(new BigNumber(amountOut)).toString(10)
           expect(newToken0State.balances[owner.address.toLowerCase()]).toEqual(newBalance)
           expect(new BigNumber(newToken1State.balances[pool.address.toLowerCase()]).gt(prevToken1State.balances[pool.address.toLowerCase()])).toBeTruthy()
           break;

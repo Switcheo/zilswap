@@ -907,12 +907,12 @@ transition Burn(to: ByStr20)
 
   msg_to_token0 = {
     _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-    to: _sender; amount: amount0
+    to: to; amount: amount0
   };
 
   msg_to_token1 = {
     _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-    to: _sender; amount: amount1
+    to: to; amount: amount1
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;
