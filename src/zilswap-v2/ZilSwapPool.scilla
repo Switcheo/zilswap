@@ -503,8 +503,8 @@ procedure MintFee(is_amp_pool: Bool)
           (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
           let t_r1_u256 = builtin div t_u256 r1_u256 in
           let sqrt_u256 = builtin isqrt t_r1_u256 in
-          let sub_256 = builtin sub r0_u256 sqrt_u256 in
-          reduce sub_256
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
         | False =>
           (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
           let kl_r1 = builtin div kl r1 in
@@ -522,7 +522,42 @@ procedure MintFee(is_amp_pool: Bool)
         has_fee = uint128_gt liquidity zero_amount;
         match has_fee with 
         | False =>
+          t_r1_u256 = builtin div t_u256 r1_u256;
+          a_sqrt_u256 = builtin isqrt t_r1_u256;
+          a_sub_u256 = builtin sub r0_u256 a_sqrt_u256;
+          a_sub_u128 = reduce a_sub_u256;
+
+          kl_r1 = builtin div kl r1;
+          kl_r1_r0_u256 = u128_mul_grow kl_r1 r0;
+          b_sqrt_u256 = builtin isqrt kl_r1_r0_u256;
+          b_sub_u256 = builtin sub r0_u256 b_sqrt_u256;
+          b_sub_u128 = reduce b_sub_u256;
+
+          e = {
+            _eventname : "NOMINTFEEYALL";
+            liquidity: liquidity;
+            collected_fee: collected_fee;
+            pool_value: pool_value;
+            ts: ts;
+            is_eq: is_eq;
+            r0_u256: r0_u256;
+            r1_u256: r1_u256;
+            kl: kl;
+            t_u256: t_u256;
+            t_r1_u256: t_r1_u256;
+            a_sqrt_u256: a_sqrt_u256;
+            a_sub_u256: a_sub_u256;
+            a_sub_u128: a_sub_u128;
+            kl_r1: kl_r1;
+            kl_r1_r0_u256: kl_r1_r0_u256;
+            b_sqrt_u256: b_sqrt_u256;
+            b_sub_u256: b_sub_u256;
+            b_sub_u128: b_sub_u128
+          };
+          event e
         | True =>
+          e = {_eventname : "MINTFEEYALL"; fee: liquidity};
+          event e;
           AuthorizedMint fee_to liquidity
         end
       end
@@ -779,7 +814,7 @@ end
 
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
-transition Mint(to: ByStr20)
+transition Mint(to : ByStr20)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
@@ -858,7 +893,7 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks.
    User must transfer LP token to this contract before call burn *)
-transition Burn(to: ByStr20)
+transition Burn()
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
@@ -907,12 +942,12 @@ transition Burn(to: ByStr20)
 
   msg_to_token0 = {
     _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
-    to: to; amount: amount0
+    to: _origin; amount: amount0
   };
 
   msg_to_token1 = {
     _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
-    to: to; amount: amount1
+    to: _origin; amount: amount1
   };
 
   msgs = two_msgs msg_to_token0 msg_to_token1;

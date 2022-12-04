@@ -931,12 +931,13 @@ transition AddLiquidityZIL(
     field reserve0 : Uint128,
     field reserve1 : Uint128,
     field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128
   end,
   amount_token_desired: Uint128,
   amount_token_min: Uint128,
   amount_wZIL_min: Uint128,
-  v_reserve_ratio_bounds: Pair Uint128 Uint128,
+  v_reserve_ratio_bounds: Pair Uint256 Uint256,
   to: ByStr20,
   deadline_block: BNum
 )
@@ -1024,18 +1025,30 @@ transition AddLiquidityZIL(
       (* Transfer pairing of wZIL and token to pool *)
       TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
     end;
-    current_rate = frac v_r_b q112_u128 v_r_a;
-    match v_reserve_ratio_bounds with
-    | Pair l_bound u_bound =>
-      is_out_of_bound_vreserve = 
-        let l_b = uint128_ge current_rate l_bound in
-        let u_b = uint128_le current_rate u_bound in
-        andb l_b u_b;
-      match is_out_of_bound_vreserve with 
-      | True =>
-      | False =>
-        err = CodeOutOfBoundVReserve;
-        ThrowError err
+
+    amp <- & pool.amp_bps;
+    is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+    match is_amp_pool with 
+    | False => 
+    | True =>
+    (* only for amp pool *)
+      current_rate = 
+        let v_r_a_u256 = grow v_r_a in
+        let v_r_b_u256 = grow v_r_b in
+        let a = builtin mul v_r_b_u256 q112_u256 in
+        builtin div a v_r_a_u256;
+      match v_reserve_ratio_bounds with
+      | Pair l_bound u_bound =>
+        is_not_out_of_bound_vreserve = 
+          let l_b = uint256_ge current_rate l_bound in
+          let u_b = uint256_le current_rate u_bound in
+          andb l_b u_b;
+        match is_not_out_of_bound_vreserve with 
+        | True =>
+        | False =>
+          err = CodeOutOfBoundVReserve;
+          ThrowError err
+        end
       end
     end
   end;
@@ -1089,7 +1102,7 @@ transition RemoveLiquidity(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers tokenA and tokenB back to _sender *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end
@@ -1134,7 +1147,7 @@ transition RemoveLiquidityZIL(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
 
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs;

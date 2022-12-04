@@ -1184,11 +1184,64 @@ setup = async (isAmpPool) => {
       },
       {
         vname: 'v_reserve_ratio_bounds',
-        type: 'Pair (Uint128) (Uint128)',
+        type: 'Pair (Uint256) (Uint256)',
         value: {
           "constructor": "Pair",
-          "argtypes": ["Uint128", "Uint128"],
-          "arguments": ["0", "1000000000000"]
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": ["0", "100000000000000000000000000000000000"]
+        }
+      },
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: `${owner.address.toLowerCase()}`,
+      }
+    ],
+    init_liquidity, false, true
+  )
+  expect(tx.status).toEqual(2)
+
+  tx = await callContract(
+    owner.key, router,
+    'AddLiquidityZIL',
+    [
+      {
+        vname: 'token',
+        type: 'ByStr20',
+        value: bridgeTokenAddress,
+      },
+      {
+        vname: 'wZIL',
+        type: 'ByStr20',
+        value: wZil,
+      },
+      {
+        vname: 'pool',
+        type: 'ByStr20',
+        value: `${pool2.address.toLowerCase()}`,
+      },
+      {
+        vname: 'amount_token_desired',
+        type: 'Uint128',
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
+      },
+      {
+        vname: 'amount_token_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'amount_wZIL_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'v_reserve_ratio_bounds',
+        type: 'Pair (Uint256) (Uint256)',
+        value: {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": ["0", "100000000000000000000000000000000000"]
         }
       },
       {
