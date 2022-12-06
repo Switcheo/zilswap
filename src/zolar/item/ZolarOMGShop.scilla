@@ -1,0 +1,828 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+library ZolarOMGShop
+
+let true = True
+let false = False
+let uint32_zero = Uint32 0
+let uint32_one = Uint32 1
+let zero = Uint128 0
+let one = Uint128 1
+let two = Uint128 2
+let none = None {ByStr20}
+let empty = ""
+let hundred_percent_bps = Uint128 10000
+let hundred = Uint128 100
+let empty_pair = Pair {Uint128 Uint128} zero zero
+let empty_list_uint256 = Nil {Uint256}
+let zero_address = 0x0000000000000000000000000000000000000000
+let item_type_key = "Type"
+let item_name_key = "Name"
+let empty_string = ""
+let empty_zrc2_map = Emp ByStr20 Uint128 (* none zero *)
+let empty_zrc6_map = Emp ByStr20 (List Uint256) (* none empty_list_uint256 *)
+let empty_ongoing_mint_map = Emp Uint128 Uint32  (* zero uint32_zero *)
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotEmporium
+  | CodeItemNotFound
+  | CodeItemTooExpensive
+  | CodeCannotAchieveSellPrice
+  | CodeInvalidPaymentItem
+  | CodeInvalidPaymentItemCount
+  | CodeInvalidPaymentItemToken
+  | CodeInvalidPaymentItemTraits
+  | CodeNotTokenOwner
+  | CodeInvalidItemContract
+  | CodeItemNotValidConsumable
+  | CodeInvalidOngoingConsume
+
+type CraftingCost =
+  | CraftingCost of ByStr20 Uint128 (List (Pair String String)) (* item token address, quantity, item traits *)
+
+type Item =
+  | Item of String ByStr20 (List (Pair String String)) (List CraftingCost) (* item name, item token address, item traits, cost to craft *)
+
+type PaymentItem =
+  | PaymentItem of ByStr20 Uint256 (* item token address, item id *)
+
+type ConsumeItem =
+  | ConsumeItem of ByStr20 Uint256 ByStr20 Uint256 (* consumable address, consumable id, consumer address, consumer id *)
+
+type OngoingConsumeParams =
+  | OngoingConsumeParams of String Uint256 ByStr20 Uint256 (* consumable name, consumable id, consumer address, consumer id *)
+
+let empty_ongoing_consume_params_list = Nil {OngoingConsumeParams}
+let empty_ongoing_consume_map = Emp ByStr20 (List OngoingConsumeParams)
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                          => Int32 -1
+      | CodeNotPendingOwner                   => Int32 -2
+      | CodePendingOwnerNotEmpty              => Int32 -3
+      | CodeNotEmporium                       => Int32 -4
+      | CodeItemNotFound                      => Int32 -5
+      | CodeItemTooExpensive                  => Int32 -6
+      | CodeCannotAchieveSellPrice            => Int32 -7
+      | CodeInvalidPaymentItem                => Int32 -8
+      | CodeInvalidPaymentItemCount           => Int32 -9
+      | CodeInvalidPaymentItemToken           => Int32 -10
+      | CodeInvalidPaymentItemTraits          => Int32 -11
+      | CodeNotTokenOwner                     => Int32 -12
+      | CodeInvalidItemContract               => Int32 -13
+      | CodeItemNotValidConsumable            => Int32 -14
+      | CodeInvalidOngoingConsume             => Int32 -15
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let no_item = None {Item}
+let len_payment_items = @list_length PaymentItem
+let len_crafting_costs = @list_length CraftingCost
+let len_traits = @list_length (Pair String String)
+let zipper = @list_zip CraftingCost PaymentItem
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let nil_msg = Nil {Message} in
+  let list = Cons {Message} msg1 nil_msg in
+  Cons {Message} msg2 list
+
+let three_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  let nil_msg = Nil {Message} in
+  let l1 = Cons {Message} msg1 nil_msg in
+  let l2 = Cons {Message} msg2 l1 in
+  Cons {Message} msg3 l2
+
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+
+let is_trait_found =
+  fun (list : List (Pair String String)) => (* token traits *)
+  fun (candidate: Pair String String) => (* required trait *)
+    let check_exists = @list_exists (Pair String String) in
+    let exist_fn = fun (item: Pair String String) => 
+        match item with
+        | Pair item_key item_value =>
+          match candidate with
+          | Pair candidate_key candidate_value =>
+            let keq = builtin eq item_key candidate_key in
+            let veq = builtin eq item_value candidate_value in
+            let l0 = Nil {Bool} in
+            let l1 = Cons {Bool} keq l0 in
+            let l2 = Cons {Bool} veq l1 in
+            all_true l2
+          end
+        end
+      in
+    check_exists exist_fn list
+
+let is_traits_exist =
+  fun (set : List (Pair String String)) => (* token traits *)
+  fun (candidate : List (Pair String String)) => (* required traits *)
+    let fold = @list_foldl (Pair String String) (List Bool) in
+    let fn = 
+      fun (result_list: List Bool) => 
+      fun (item: Pair String String) =>
+        let is_element = is_trait_found set item in
+        Cons {Bool} is_element result_list
+    in
+    let empty_list = Nil {Bool} in
+    let result = fold fn empty_list candidate in
+    all_true result
+
+(* gets the trait of key "Type" from a list of traits *)
+let get_trait_value = 
+  fun (traits_list : List (Pair String String)) =>
+  fun (traitKey: String) =>
+    let get_value = @list_find (Pair String String) in
+    let fn =
+      fun (trait: Pair String String) =>
+        match trait with
+        | Pair key value =>
+          builtin eq key traitKey
+        end
+    in
+    let maybe_trait_value = get_value fn traits_list in
+    match maybe_trait_value with
+    | None => empty_string
+    | Some trait_value =>
+      match trait_value with
+      | Pair key value =>
+        value
+      end
+    end
+  
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
+let subtract_or_zero =
+  fun (amount : Uint128) =>
+  fun (subtrahend : Uint128) =>
+    let is_negative = builtin lt amount subtrahend in
+    match is_negative with
+    | True => amount
+    | False => builtin sub amount subtrahend
+    end
+
+let multiply_bps =
+  fun (amount : Uint128) =>
+  fun (portion_bps : Uint128) =>
+    let is_zero = builtin eq portion_bps zero in
+    match is_zero with
+    | True => zero
+    | False =>
+      let p = builtin mul amount portion_bps in
+      builtin div p hundred_percent_bps
+    end
+
+let form_batch_mint_params = 
+  fun (recipient: ByStr20) =>
+  fun (traits: List (Pair String String)) =>
+  fun (length: Uint32) =>
+    let count = builtin to_nat length in
+    (* get BatchMint params of List (recipient, token_uri) *)
+    let init_recipient_uri_pair = Pair {ByStr20 String} recipient empty in
+    let init_recipient_uri_list = Nil {(Pair ByStr20 String)} in
+    let batch_mint_fold = @nat_fold (List (Pair ByStr20 String)) in
+    let batch_mint_fn = fun (cur: List (Pair ByStr20 String)) => fun (num: Nat) =>
+      Cons {(Pair ByStr20 String)} init_recipient_uri_pair cur
+    in
+    let batch_mint_params = batch_mint_fold batch_mint_fn init_recipient_uri_list count in
+
+    (* map through batch_mint_params and add traits *)
+    let batch_traits_fold = @list_map (Pair ByStr20 String) (Pair (Pair ByStr20 String) (List (Pair String String))) in
+    let batch_traits_fn : (Pair ByStr20 String) -> (Pair (Pair ByStr20 String) (List (Pair String String))) =
+      fun (recipient_uri_pair: Pair ByStr20 String) =>
+        Pair {(Pair ByStr20 String) (List (Pair String String))} recipient_uri_pair traits
+    in batch_traits_fold batch_traits_fn batch_mint_params
+  
+let form_batch_burn_params =
+  fun (token_consumer_list: List OngoingConsumeParams) =>
+    let fold = @list_map (OngoingConsumeParams) (Uint256) in
+    let fn : OngoingConsumeParams -> Uint256 =
+      fun (token_consumer: OngoingConsumeParams) =>
+        match token_consumer with
+        | OngoingConsumeParams _ token_id _ _ =>
+          token_id
+        end
+    in fold fn token_consumer_list
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarOMGShop(
+  initial_owner: ByStr20
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field items : Map Uint128 Item = Emp Uint128 Item
+field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_purchase, net_inflation) *)
+field next_item_id : Uint128 = zero
+field consumable_whitelist : Map String Bool = Emp String Bool (* map of consumableName : isConsumable *)
+field ongoing_zrc2_expend : Map ByStr20 Uint128 = Emp ByStr20 Uint128 (* map of zrc2 token_address : accumulated_quantity_to_burn *)
+field ongoing_zrc6_expend : Map ByStr20 (List Uint256) = Emp ByStr20 (List Uint256) (* map of zrc6 token_address : list_token_ids_to_burn *)
+field ongoing_mint : Map Uint128 Uint32 = Emp Uint128 Uint32 (* map of item_id to mint : quantity_to_mint *)
+field ongoing_consume : Map ByStr20 (List OngoingConsumeParams) = Emp ByStr20 (List OngoingConsumeParams) (* map of token_address : list of items to be consumed *)
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure VerifyItemTraits(required_traits: List (Pair String String), token_address: ByStr20, token_id: Uint256)
+  maybe_token_contract <- & token_address as ByStr20 with contract
+    field traits : Map Uint256 (List (Pair String String))
+  end;
+  match maybe_token_contract with
+  | None =>
+    err = CodeInvalidPaymentItem;
+    ThrowError err
+  | Some token_contract =>
+    maybe_traits <- & token_contract.traits[token_id];
+    match maybe_traits with
+    | None => 
+      err = CodeInvalidPaymentItem;
+      ThrowError err
+    | Some traits =>
+      ok = is_traits_exist traits required_traits;
+      match ok with
+      | False =>
+        err = CodeInvalidPaymentItemTraits;
+        ThrowError err
+      | True => (* ok *)
+      end
+    end
+  end
+end
+
+procedure VerifyTokenAddress(lhs: ByStr20, rhs: ByStr20)
+  is_same_address = builtin eq lhs rhs;
+  match is_same_address with
+  | True => 
+  | False =>
+    err = CodeInvalidPaymentItemToken;
+    ThrowError err
+  end
+end
+
+procedure ExpendZRC6(token_address: ByStr20, token_id: Uint256)
+  msg_to_token = {
+    _tag: "Burn";
+    _recipient: token_address;
+    _amount: zero;
+    token_id: token_id
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs
+end
+
+(* batch burns accumulated zrc6 tokens per buyer's transaction *)
+procedure BatchExpendZRC6(token_address_id_list_pair: Pair ByStr20 (List Uint256))
+  match token_address_id_list_pair with
+  | Pair token_address id_list =>
+    msg_to_token = {
+      _tag: "BatchBurn";
+      _recipient: token_address;
+      _amount: zero;
+      token_id_list: id_list
+    };
+
+    msgs = one_msg msg_to_token;
+    send msgs
+  end
+end
+
+(* calls batch burn for each item contract in the list of crafting costs, and burns their respective token ids *)
+procedure HandleExpendZRC6()
+  buyer_zrc6_expend <- ongoing_zrc6_expend;
+  buyer_zrc6_expend_list = builtin to_list buyer_zrc6_expend;
+  forall buyer_zrc6_expend_list BatchExpendZRC6
+end
+
+procedure ExpendZRC2(token_address_quantity_pair: Pair ByStr20 Uint128)
+  match token_address_quantity_pair with
+  | Pair token_address quantity =>
+    msg = {
+      _tag: "Burn";
+      _recipient: token_address;
+      _amount: zero;
+      burn_account: _sender;
+      amount: quantity
+    };
+
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+(* calls burn for each zrc-2 token contract in the list of crafting costs *)
+procedure HandleExpendZRC2()
+  buyer_zrc2_expend <- ongoing_zrc2_expend;
+  buyer_zrc2_expend_list = builtin to_list buyer_zrc2_expend;
+  forall buyer_zrc2_expend_list ExpendZRC2
+end
+
+(* accumulate an ongoing mint item, to be batch minted later, per buyer per transaction *)
+procedure AddOngoingMintItem(item_id: Uint128)
+  maybe_buyer_ongoing_mint <- ongoing_mint[item_id];
+  buyer_ongoing_mint_quantity = match maybe_buyer_ongoing_mint with | None => uint32_zero | Some v => v end;
+  new_buyer_ongoing_mint_quantity = builtin add buyer_ongoing_mint_quantity uint32_one;
+  ongoing_mint[item_id] := new_buyer_ongoing_mint_quantity
+end
+
+(* batch mints items per buyer per transaction *)
+procedure BatchMintItem(item_id_quantity_pair: Pair Uint128 Uint32)
+  match item_id_quantity_pair with
+  | Pair item_id quantity =>
+    maybe_item <- items[item_id];
+    match maybe_item with
+    | None =>
+      err = CodeItemNotFound;
+      ThrowError err
+    | Some item =>
+      match item with
+      | Item name token_address traits crafting_costs =>
+        batch_mint_params = form_batch_mint_params _sender traits quantity;
+
+        msg_to_items = {
+          _tag: "BatchMintAndSetTraits";
+          _recipient: token_address;
+          _amount: zero;
+          to_token_uri_proposed_traits_list: batch_mint_params
+        };
+        msgs = one_msg msg_to_items;
+        send msgs
+      end
+    end
+  end
+end
+
+(* splits into respective item ids, and call batch mint for each item id *)
+procedure HandleOngoingMint()
+  buyer_ongoing_mint <- ongoing_mint;
+  buyer_ongoing_mint_list = builtin to_list buyer_ongoing_mint;
+  forall buyer_ongoing_mint_list BatchMintItem
+end
+
+(* reset aggregated fields for next buyer transaction *)
+procedure ResetOngoingCraftFields()
+  ongoing_zrc2_expend := empty_zrc2_map;
+  ongoing_zrc6_expend := empty_zrc6_map;
+  ongoing_mint := empty_ongoing_mint_map
+end
+
+
+procedure MintItem(token_address: ByStr20, traits: List (Pair String String))
+  msg_to_items = {
+    _tag: "MintAndSetTraits";
+    _recipient: token_address;
+    _amount: zero;
+    to: _sender;
+    token_uri: empty;
+    proposed_traits: traits
+  };
+  msgs = one_msg msg_to_items;
+  send msgs
+end
+
+(* for each payment_item, check if it belongs to _sender *)
+procedure VerifyOwnership(payment_item: PaymentItem)
+  match payment_item with
+  | PaymentItem token_contract_address token_id =>
+    maybe_token_contract <- & token_contract_address as ByStr20 with contract
+      field token_owners : Map Uint256 ByStr20
+    end;
+    match maybe_token_contract with
+    | None =>
+      (* throw error invalid contract *)
+      err = CodeInvalidItemContract;
+      ThrowError err
+    | Some token_contract =>
+      (* check if token_owners[token_id] === _sender *)
+      maybe_token_owner <- & token_contract.token_owners[token_id];
+      token_owner = match maybe_token_owner with | Some v => v | None => zero_address end;
+      is_token_owner = builtin eq token_owner _sender;
+      match is_token_owner with
+      | True => (* no op, token_owner matches _sender *)
+      | False =>
+        (* throw error as _sender is not token_owner *)
+        err = CodeNotTokenOwner;
+        ThrowError err
+      end
+    end
+  end
+end
+
+procedure VerifyAndReceiveCraftingCost(pair: Pair CraftingCost PaymentItem)
+  match pair with
+  | Pair crafting_cost payment_item =>
+    match crafting_cost with
+    | CraftingCost token_address quantity item_traits  =>
+      match payment_item with
+      | PaymentItem pay_token_address token_id  =>
+        VerifyTokenAddress pay_token_address token_address;
+        item_traits_length = len_traits item_traits;
+        has_item_traits = builtin lt uint32_zero item_traits_length;
+        match has_item_traits with
+        | True =>
+          (* zrc6 token cost*)
+          VerifyOwnership payment_item;
+          VerifyItemTraits item_traits token_address token_id;
+
+          (* add to ongoing_zrc6_expend token_id_list for batch burn later*)
+          maybe_buyer_zrc6_expend_list <- ongoing_zrc6_expend[token_address];
+          buyer_zrc6_expend_list = match maybe_buyer_zrc6_expend_list with | None => empty_list_uint256 | Some v => v end;
+          new_buyer_zrc_expend_list = Cons {Uint256} token_id buyer_zrc6_expend_list;
+          ongoing_zrc6_expend[token_address] := new_buyer_zrc_expend_list
+        | False =>
+          (* zrc2 token cost *)
+          (* add to ongoing_zrc2_expend quantity for batch burn later*)
+          maybe_buyer_zrc2_expend_quantity <- ongoing_zrc2_expend[token_address];
+          buyer_zrc2_expend_quantity = match maybe_buyer_zrc2_expend_quantity with | None => zero | Some v => v end;
+          new_buyer_zrc2_expend_quantity = builtin add buyer_zrc2_expend_quantity quantity;
+          ongoing_zrc2_expend[token_address] := new_buyer_zrc2_expend_quantity
+        end
+      end
+    end
+  end
+end
+
+procedure VerifyAndReceivePayment(crafting_costs: List CraftingCost, payment_items: List PaymentItem)
+  count_crafting_costs = len_crafting_costs crafting_costs;
+  count_payment_items = len_payment_items payment_items;
+  is_same_count = builtin eq count_crafting_costs count_payment_items;
+  match is_same_count with
+  | True =>
+  | False =>
+    err = CodeInvalidPaymentItemCount;
+    ThrowError err
+  end;
+
+  pairs = zipper crafting_costs payment_items;
+  forall pairs VerifyAndReceiveCraftingCost
+end
+
+(* batch burns all accumulated consumables per consumer per transaction and emit event for backend to update *)
+procedure BatchExpendConsume(token_address_token_consumer_list_pair: Pair ByStr20 (List OngoingConsumeParams))
+  match token_address_token_consumer_list_pair with
+  | Pair token_contract_address token_consumer_list =>
+    ids_to_consume_list = form_batch_burn_params token_consumer_list;
+    msg_to_token = {
+      _tag: "BatchBurn";
+      _recipient: token_contract_address;
+      _amount: zero;
+      token_id_list: ids_to_consume_list
+    };
+
+    msgs = one_msg msg_to_token;
+    send msgs;
+
+    e = {
+      _eventname: "BatchItemConsumed";
+      token_contract_address: token_contract_address;
+      token_consumer_list: token_consumer_list
+    };
+    event e
+  end
+end
+
+(* split consumables into their different item contracts and batch burn the respective consumables *)
+procedure HandleOngoingConsume()
+  ongoing_consume_map <- ongoing_consume;
+  ongoing_consume_list = builtin to_list ongoing_consume_map;
+  forall ongoing_consume_list BatchExpendConsume
+end
+
+(* reset aggregated ongoing consume fields for next consumer transaction *)
+procedure ResetOngoingConsumeField()
+  ongoing_consume := empty_ongoing_consume_map
+end
+
+procedure VerifyAndConsumeItem(token_consumer: ConsumeItem)
+  match token_consumer with
+  | ConsumeItem token_contract_address token_id consumer_contract_address consumer_id =>
+    (* check if item is on consumable whitelist *)
+    maybe_item_contract <- & token_contract_address as ByStr20 with contract
+      field traits : Map Uint256 (List (Pair String String))
+    end;
+    match maybe_item_contract with
+    | None =>
+      (* invalid item_contract with no traits field, throw err *)
+      err = CodeInvalidItemContract;
+      ThrowError err
+    | Some item_contract =>
+      (* get item traits *)
+      maybe_traits <- & item_contract.traits[token_id];
+      match maybe_traits with
+      | None =>
+        (* throw error as item not a valid consumable *)
+        err = CodeItemNotValidConsumable;
+        ThrowError err
+      | Some traits =>
+        item_type = get_trait_value traits item_type_key;
+        item_name = get_trait_value traits item_name_key;
+        maybe_consumable_mapping <- consumable_whitelist[item_type];
+        is_valid_consumable = match maybe_consumable_mapping with | None => false | Some v => v end;
+        match is_valid_consumable with
+        | True =>
+          (* add to ongoing_consume token_id_list for batch burn later*)
+          ongoing_consume_params = OngoingConsumeParams item_name token_id consumer_contract_address consumer_id;
+          maybe_ongoing_consume_list <- ongoing_consume[token_contract_address];
+          ongoing_consume_list = match maybe_ongoing_consume_list with | None => empty_ongoing_consume_params_list | Some v => v end;
+          new_ongoing_consume_list = Cons {OngoingConsumeParams} ongoing_consume_params ongoing_consume_list;
+          ongoing_consume[token_contract_address] := new_ongoing_consume_list
+        | False =>
+          (* throw error as item not a valid consumable *)
+          err = CodeItemNotValidConsumable;
+          ThrowError err
+        end
+      end
+    end
+  end
+end
+
+(* verifies ownership and validity of items, and consumes *)
+procedure HandleConsumeItem(token_consumer: ConsumeItem)
+  match token_consumer with
+  | ConsumeItem token_contract_address token_id consumer_contract_address consumer_id =>
+    token = PaymentItem token_contract_address token_id;
+    consumer = PaymentItem consumer_contract_address consumer_id;
+    (* check if item to be consumed and consumer belongs to _sender *)
+    VerifyOwnership token;
+    VerifyOwnership consumer;
+    (* check if item is a valid consumable (on the consumable_whitelist) and consume if so *)
+    VerifyAndConsumeItem token_consumer
+  end
+end
+
+procedure HandleCraftItem(item_id_payment_items_pair: Pair Uint128 (List PaymentItem))
+  match item_id_payment_items_pair with
+  | Pair item_id payment_items =>
+    maybe_item <- items[item_id];
+    match maybe_item with
+    | None =>
+      err = CodeItemNotFound;
+      ThrowError err
+    | Some item =>
+      match item with
+      | Item name token_address traits crafting_costs =>
+        VerifyAndReceivePayment crafting_costs payment_items;
+        AddOngoingMintItem item_id
+      end
+    end
+  end
+end
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+transition CraftItem(item_id: Uint128, payment_items: List PaymentItem)
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    match item with
+    | Item name token_address traits crafting_costs =>
+      VerifyAndReceivePayment crafting_costs payment_items;
+      HandleExpendZRC2;
+      HandleExpendZRC6;
+      MintItem token_address traits;
+      ResetOngoingCraftFields
+    end
+  end
+end
+
+(* @dev: Batch purchases items from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+transition BatchCraftItem(item_id_payment_items_pair_list: List (Pair Uint128 (List PaymentItem)))
+  forall item_id_payment_items_pair_list HandleCraftItem;
+
+  HandleExpendZRC2;
+  HandleExpendZRC6;
+  HandleOngoingMint;
+  ResetOngoingCraftFields
+end
+
+(* @dev: Consumes an item from a given contract, must be on consumable white-list *)
+(* @param token_id: the id of the item to consume *)
+(* @param token_contract_address: the address of the token's contract *)
+(* @param consumer_id: the id of the consumer *)
+(* @param consumer_contract_address: the address of the consumer's contract *)
+transition ConsumeItem(token_id: Uint256, token_contract_address: ByStr20, consumer_id: Uint256, consumer_contract_address: ByStr20)
+  token_consumer = ConsumeItem token_contract_address token_id consumer_contract_address consumer_id;
+  HandleConsumeItem token_consumer;
+  HandleOngoingConsume;
+  ResetOngoingConsumeField
+end
+
+(* @dev: Batch consumes items from a given contract, must be on consumable white-list *)
+(* @param token_consuer_list: list of all items to consume details and their respective consumer details *)
+transition BatchConsumeItem(token_consumer_list: List ConsumeItem)
+  forall token_consumer_list HandleConsumeItem;
+  HandleOngoingConsume;
+  ResetOngoingConsumeField
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Adds an item to the store and lists it on z grand emporium. *)
+transition AddItem(
+  item_name: String, 
+  token_address: ByStr20,
+  traits: List (Pair String String),
+  cost: List CraftingCost
+)
+  IsOwner _sender;
+
+  item_id <- next_item_id;
+  item = Item item_name token_address traits cost;
+  items[item_id] := item;
+
+  n = builtin add item_id one;
+  next_item_id := n;
+
+  e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
+  event e
+end
+
+(* @dev: Removes an item from the store and delists it from z grand emporium. *)
+transition RemoveItem(item_id: Uint128)
+  IsOwner _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e
+  end
+end
+
+(* @dev: Adds a consumable to the consumable_whitelist *)
+(* @param name: Name of consumable to be added *)
+transition AddConsumable(name: String)
+  consumable_whitelist[name] := true;
+  e = {
+    _eventname: "ConsumableAdded";
+    item_name: name
+  };
+  event e
+end
+
+(* @dev: Removes a consumable from the consumable_whitelist *)
+(* @param name: Name of consumable to be removed *)
+transition RemoveConsumable(name: String)
+  consumable_whitelist[name] := false;
+  e = {
+    _eventname: "ConsumableRemoved";
+    item_name: name
+  };
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+(* burn huny *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* burn items *)
+transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+
+(* burn items *)
+transition ZRC6_BatchBurnCallback()
+  (* no-op *)
+end
+
+(* item crafted *)
+transition ZRC6_MintCallback(to: ByStr20, token_id: Uint256, token_uri: String)
+  (* no-op *)
+end
+
+(* item crafted *)
+transition ZRC6_BatchMintCallback()
+  (* no-op *)
+end
+
+(* mint resource *)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* receive resource/huny *)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* receive gems/items *)
+transition ZRC6_TransferFromCallback(from: ByStr20, to: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+

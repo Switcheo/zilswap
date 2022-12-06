@@ -1,8 +1,9 @@
 const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const {callContract} = require("../../../scripts/call");
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
+const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, getAllocationFee, generateErrorMsg, getInflatedFeeAmt } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, getBalanceFromStates, getAllocationFee, generateErrorMsg } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, officerOnePrivateKey, officerOneAddress, officerTwoPrivateKey, officerTwoAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
@@ -15,76 +16,41 @@ const epoch_six = epoch_five + 1
 const epoch_seven = epoch_six + 1
 
 const OFFICER_COUNT = 2
+const INITIAL_WEEKLY_TAX_BEFORE_UPDATE = ONE_HUNY
+const INITIAL_WEEKLY_TAX_AFTER_UPDATE = ONE_HUNY.plus(ONE_HUNY)
+const CONTROL_MODE = "CaptainOnly"
 
-async function initiateUpdateWeeklyTaxTx (initiator, {initialAmt, inflation, firstEpoch, captainAlloc, officerAlloc}) {
-  const txInitiateUpdateWeeklyTaxTx = await callContract(initiator, bankContract, "InitiateTx", [{
-    vname: "tx_params",
-    type: `${bankAddress}.TxParams`,
-    value: {
-      constructor: `${bankAddress}.UpdateConfigTxParams`,
-      argtypes: [],
-      arguments: [{
-        constructor: `${bankAddress}.GuildBankSettings`,
-        argtypes: [],
-        arguments: [{
-          constructor: `${bankAddress}.Fee`,
-          argtypes: [],
-          arguments: [
-            ONE_HUNY.toString(10), // initial amount
-            ONE_HUNY.toString(10), // inflation
-            epoch_one.toString(), // first epoch
-            {
-              constructor: `${bankAddress}.FeeAllocation`,
-              argtypes: [],
-              arguments: ["50", "10"],
-            }, // fee allocation
-          ],
-        }, {
-          constructor: `${bankAddress}.Fee`,
-          argtypes: [],
-          arguments: [
-            initialAmt, // initial amount
-            inflation, // inflation
-            firstEpoch, // first epoch
-            {
-              constructor: `${bankAddress}.FeeAllocation`,
-              argtypes: [],
-              arguments: [captainAlloc, officerAlloc],
-            }, // fee allocation
-          ],
-        }, {
-          constructor: `${bankAddress}.CaptainOnly`,
-          argtypes: [],
-          arguments: [],
-        },
-        ],
-      }],
-    },
-  }, {
-    vname: "message",
-    type: "String",
-    value: "Update weekly tax",
-  }], 0, false, false)
-  
+let joiningFee
+
+async function initiateUpdateWeeklyTaxTx(initiatorPrivateKey, weeklyTax) {
+  const args = generateUpdateBankSettingArgs(bankAddress, joiningFee, weeklyTax, CONTROL_MODE)
+
+  const txInitiateUpdateWeeklyTaxTx = await callContract(initiatorPrivateKey, bankContract, "InitiateTx", args, 0, false, false)
+
   return txInitiateUpdateWeeklyTaxTx
 }
 
+function generateTaxParams(memberAddresses, epoch) {
+  const arrCollectTax = memberAddresses.map(address => {
+    return {
+      constructor: `${bankAddress}.TaxParam`,
+      argtypes: [],
+      arguments: [address, epoch.toString()]
+    }
+  })
+
+  return arrCollectTax
+}
+
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
-  
-  officerOnePrivateKey = getPrivateKey("PRIVATE_KEY_OFFICER_ONE")
-  officerOneAddress = getAddressFromPrivateKey(officerOnePrivateKey).toLowerCase();
-  
-  officerTwoPrivateKey = getPrivateKey("PRIVATE_KEY_OFFICER_TWO")
-  officerTwoAddress = getAddressFromPrivateKey(officerTwoPrivateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
+    ; ({ key: officerOnePrivateKey, address: officerOneAddress } = await createRandomAccount(privateKey, '1000'))
+    ; ({ key: officerTwoPrivateKey, address: officerTwoAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -93,21 +59,28 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber: epoch_one, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber: epoch_one,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ 
-    initialMembers: [address, officerOneAddress, officerTwoAddress, memberAddress], 
-    initialOfficers: [officerOneAddress, officerTwoAddress], 
-    initialEpochNumber: epoch_one, 
-    authorityAddress 
+  bankContract = await deployGuildBank({
+    initialMembers: [address, officerOneAddress, officerTwoAddress, memberAddress],
+    initialOfficers: [officerOneAddress, officerTwoAddress],
+    initialEpochNumber: epoch_one,
+    authorityAddress
   })
   bankAddress = bankContract.address.toLowerCase()
+
+  joiningFee = generateFee(
+    bankAddress,
+    INITIAL_WEEKLY_TAX_BEFORE_UPDATE.toString(10),
+    "50",
+    "10"
+  )
 
   const txAddMinter = await callContract(privateKey, hunyContract, "AddMinter", [{
     vname: 'minter',
@@ -131,7 +104,7 @@ beforeAll(async () => {
       type: 'Uint128',
       value: new BigNumber(1).shiftedBy(12 + 6),
     }], 0, false, false)
-    
+
     const txAllowanceMember = await callContract(key, hunyContract, "IncreaseAllowance", [{
       vname: 'spender',
       type: 'ByStr20',
@@ -160,26 +133,41 @@ beforeAll(async () => {
   }], 0, false, false);
 })
 
-test('members are not required to pay tax for the first epoch (epoch_one)', async () => {
+test('members have not approved tax collection when tax is collected', async () => {
+  const arrCollectTax = generateTaxParams([address, memberAddress, officerOneAddress, officerTwoAddress], epoch_one)
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
     vname: "params",
     type: `List ${bankAddress}.TaxParam`,
-    value: [{
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [address, epoch_one.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [officerOneAddress, epoch_one.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [memberAddress, epoch_one.toString()]
-    }],
+    value: arrCollectTax,
   }], 0, false, false)
+
+  console.log('txCollectTax: members have not approved tax collection when tax is collected ', txCollectTax.id)
+  expect(txCollectTax.status).toEqual(3)
+  expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(32)) // throws CodeTaxNotApproved
+  expect(txCollectTax.receipt.success).toEqual(false)
+})
+
+test('members approved tax collection', async () => {
+  const bankContractStateBeforeTx = await bankContract.getState()
+
+  await callContract(privateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(officerOnePrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(officerTwoPrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(memberPrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+
+  const bankContractStateAfterTx = await bankContract.getState()
+  expect(Object.keys(bankContractStateBeforeTx.tax_approved).length).toEqual(0)
+  expect(Object.keys(bankContractStateAfterTx.tax_approved).sort()).toEqual([address, memberAddress, officerOneAddress, officerTwoAddress].sort())
+})
+
+test('members are not required to pay tax for the first epoch (epoch_one)', async () => {
+  const arrCollectTax = generateTaxParams([address, memberAddress, officerOneAddress, officerTwoAddress], epoch_one)
+  const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
+    vname: "params",
+    type: `List ${bankAddress}.TaxParam`,
+    value: arrCollectTax,
+  }], 0, false, false)
+
   console.log('txCollectTax: members are not required to pay tax for the first epoch (epoch_one) ', txCollectTax.id)
   expect(txCollectTax.status).toEqual(3)
   expect(txCollectTax.receipt.exceptions[0].message).toEqual(generateErrorMsg(23)) // throws CodeInvalidTaxParam
@@ -205,31 +193,8 @@ test('epoch advances to epoch_two. guildbank updates epoch when collectTax invok
 
 test('captain collects tax from members for epoch_two', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
-  const bankContractStateBeforeTx = await bankContract.getState()
 
-  console.log('hunyContractStateBeforeTx', hunyContractStateBeforeTx) 
-  const arrCollectTax = [{
-    constructor: `${bankAddress}.TaxParam`,
-    argtypes: [],
-    arguments: [address, epoch_two.toString()]
-  }, 
-  {
-    constructor: `${bankAddress}.TaxParam`,
-    argtypes: [],
-    arguments: [officerOneAddress, epoch_two.toString()]
-  }, 
-  {
-    constructor: `${bankAddress}.TaxParam`,
-    argtypes: [],
-    arguments: [officerTwoAddress, epoch_two.toString()]
-  }, 
-  {
-    constructor: `${bankAddress}.TaxParam`,
-    argtypes: [],
-    arguments: [memberAddress, epoch_two.toString()]
-  }
-  ]
-
+  const arrCollectTax = generateTaxParams([address, memberAddress, officerOneAddress, officerTwoAddress], epoch_two)
   const taxCount = arrCollectTax.length
 
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
@@ -241,12 +206,11 @@ test('captain collects tax from members for epoch_two', async () => {
   console.log("txCollectTax id: captain collects tax from all members for epoch_two ", txCollectTax.id)
 
   const hunyContractStateAfterTx = await hunyContract.getState()
-  const bankContractStateAfterTx = await bankContract.getState()
 
   // check tax_collected updated
-  const tax_epochTwo = getInflatedFeeAmt(ONE_HUNY, ONE_HUNY, epoch_one, epoch_two)
+  const tax_epochTwo = INITIAL_WEEKLY_TAX_BEFORE_UPDATE.toNumber()
 
-  const totalTaxInflated = tax_epochTwo * taxCount
+  const totalTax = tax_epochTwo * taxCount
 
   const captainAllocationFee = getAllocationFee(50, tax_epochTwo)
   const officerAllocationFee = getAllocationFee(10, tax_epochTwo)
@@ -262,48 +226,54 @@ test('captain collects tax from members for epoch_two', async () => {
   const officerTwoPaidActual = officerTwoBalanceBeforeTx - officerTwoBalanceAfterTx
   const memberPaidActual = memberBalanceBeforeTx - memberBalanceAfterTx
   const bankReceivedActual = bankBalanceAfterTx - bankBalanceBeforeTx
-  
+
   const captainPaidExpected = tax_epochTwo - taxCount * captainAllocationFee
   const officerPaidExpected = tax_epochTwo - taxCount * officerAllocationFee
   const memberPaidExpected = tax_epochTwo
-  const bankReceivedExpected = totalTaxInflated - taxCount * (captainAllocationFee + OFFICER_COUNT * officerAllocationFee)
-  
+  const bankReceivedExpected = totalTax - taxCount * (captainAllocationFee + OFFICER_COUNT * officerAllocationFee)
+
   // check huny deduction for officer; huny increment for bank (capped 95%), captain (0.5%) and officer (0.1% each; if any)
   expect(captainPaidActual).toEqual(captainPaidExpected)
   expect(officerPaidExpected).toEqual(officerOnePaidActual)
   expect(officerPaidExpected).toEqual(officerTwoPaidActual)
   expect(memberPaidExpected).toEqual(memberPaidActual)
   expect(bankReceivedActual).toEqual(bankReceivedExpected)
-
-  // console.log(util.inspect(bankContractStateBeforeTx, {showHidden: false, depth: null, colors: true}))
-  // console.log(util.inspect(bankContractStateAfterTx, {showHidden: false, depth: null, colors: true}))
 })
 
-test('epoch advances to epoch_three. captain updates weekly tax and member is charged with prev tax (before update) for epoch_three', async () => {
+test('epoch advances to epoch_three. captain updates weekly tax and resets tax_approved state', async () => {
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
     value: epoch_three.toString(),
   }], 0, false, false)
 
-  const newInitialAmt = ONE_HUNY.plus(ONE_HUNY)
-  const newWeeklyTaxConfig = {
-    initialAmt: newInitialAmt.toString(),
-    inflation: ONE_HUNY.toString(),
-    firstEpoch: epoch_one.toString(),
-    captainAlloc: "50",
-    officerAlloc: "10" 
-  }
-  const txInitiateUpdateWeeklyTaxTx = await initiateUpdateWeeklyTaxTx(privateKey, newWeeklyTaxConfig)
+  const bankContractStateBeforeTx = await bankContract.getState()
+
+  const newWeeklyTax = generateFee(
+    bankAddress,
+    INITIAL_WEEKLY_TAX_AFTER_UPDATE.toString(10),
+    "50",
+    "10"
+  )
+  const txInitiateUpdateWeeklyTaxTx = await initiateUpdateWeeklyTaxTx(privateKey, newWeeklyTax)
   console.log('txInitiateUpdateWeeklyTaxTx id: ', txInitiateUpdateWeeklyTaxTx.id)
+
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  expect(Object.keys(bankContractStateBeforeTx.tax_approved).sort()).toEqual([address, memberAddress, officerOneAddress, officerTwoAddress].sort())
+  expect(Object.keys(bankContractStateAfterTx.tax_approved).length).toEqual(0)
+})
+
+test('captain is charged with prev tax (before update) for epoch_three', async () => {
   const hunyContractStateBeforeTx = await hunyContract.getState()
+  const bankContractStateBeforeTx = await bankContract.getState()
 
-  const arrCollectTax = [{
-    constructor: `${bankAddress}.TaxParam`,
-    argtypes: [],
-    arguments: [address, epoch_three.toString()]
-  }]
+  await callContract(privateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(officerOnePrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(officerTwoPrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
+  await callContract(memberPrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false)
 
+  const arrCollectTax = generateTaxParams([address], epoch_three)
   const taxCount = arrCollectTax.length
 
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
@@ -313,9 +283,11 @@ test('epoch advances to epoch_three. captain updates weekly tax and member is ch
   }], 0, false, false)
 
   console.log("txCollectTax id: captain collects tax from captain for epoch_three ", txCollectTax.id)
-  
+
   const hunyContractStateAfterTx = await hunyContract.getState()
-  const tax_beforeUpdate = getInflatedFeeAmt(ONE_HUNY, ONE_HUNY, epoch_one, epoch_three)
+  const bankContractStateAfterTx = await bankContract.getState()
+
+  const tax_beforeUpdate = INITIAL_WEEKLY_TAX_BEFORE_UPDATE.toNumber()
   const totalTax = tax_beforeUpdate * taxCount
 
   const captainAllocationFee = getAllocationFee(50, tax_beforeUpdate)
@@ -327,24 +299,25 @@ test('epoch advances to epoch_three. captain updates weekly tax and member is ch
 
   const captainPaidActual = captainBalanceBeforeTx - captainBalanceAfterTx
   const bankReceivedActual = bankBalanceAfterTx - bankBalanceBeforeTx
-  
+
   const captainPaidExpected = tax_beforeUpdate - taxCount * captainAllocationFee
   const bankReceivedExpected = totalTax - taxCount * (captainAllocationFee + OFFICER_COUNT * officerAllocationFee)
-  
+
   // check huny deduction for officer; huny increment for bank (capped 95%), captain (0.5%) and officer (0.1% each; if any)
   expect(captainPaidActual).toEqual(captainPaidExpected)
   expect(bankReceivedActual).toEqual(bankReceivedExpected)
+
+  expect(Object.keys(bankContractStateBeforeTx.tax_approved).length).toEqual(0)
+  expect(Object.keys(bankContractStateAfterTx.tax_approved).sort()).toEqual([address, memberAddress, officerOneAddress, officerTwoAddress].sort())
 })
 
 test('epoch advances to epoch_four; captain is charged with updated tax for epoch_four', async () => {
-  const newInitialAmt = ONE_HUNY.plus(ONE_HUNY)
-
   const txSetEpochNumber = await callContract(privateKey, authorityContract, "SetEpoch", [{
     vname: "epoch_number",
     type: "Uint32",
     value: epoch_four.toString(),
   }], 0, false, false)
-  
+
   const hunyContractStateBeforeTx = await hunyContract.getState()
 
   const arrCollectTax = [{
@@ -362,9 +335,9 @@ test('epoch advances to epoch_four; captain is charged with updated tax for epoc
   }], 0, false, false)
 
   console.log("txCollectTax id: captain collects tax from captain for epoch_four ", txCollectTax.id)
-  
+
   const hunyContractStateAfterTx = await hunyContract.getState()
-  const tax_afterUpdate = getInflatedFeeAmt(newInitialAmt, ONE_HUNY, epoch_one, epoch_four)
+  const tax_afterUpdate = INITIAL_WEEKLY_TAX_AFTER_UPDATE.toNumber()
   const totalTax = tax_afterUpdate * taxCount
 
   const captainAllocationFee = getAllocationFee(50, tax_afterUpdate)
@@ -376,10 +349,10 @@ test('epoch advances to epoch_four; captain is charged with updated tax for epoc
 
   const captainPaidActual = captainBalanceBeforeTx - captainBalanceAfterTx
   const bankReceivedActual = bankBalanceAfterTx - bankBalanceBeforeTx
-  
+
   const captainPaidExpected = tax_afterUpdate - taxCount * captainAllocationFee
   const bankReceivedExpected = totalTax - taxCount * (captainAllocationFee + OFFICER_COUNT * officerAllocationFee)
-  
+
   // check huny deduction for officer; huny increment for bank (capped 95%), captain (0.5%) and officer (0.1% each; if any)
   expect(captainPaidActual).toEqual(captainPaidExpected)
   expect(bankReceivedActual).toEqual(bankReceivedExpected)
@@ -441,47 +414,7 @@ describe('test max depth limit for CollectTax transition', () => {
     const hunyContractStateBeforeTx = await hunyContract.getState()
     const bankContractStateBeforeTx = await bankContract.getState()
 
-    const arrCollectTax = [{
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [address, epoch_five.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [officerOneAddress, epoch_five.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [officerTwoAddress, epoch_five.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [memberAddress, epoch_five.toString()]
-    },
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [address, epoch_six.toString()]
-    // }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [officerOneAddress, epoch_six.toString()]
-    // }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [officerTwoAddress, epoch_six.toString()]
-    // }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [memberAddress, epoch_six.toString()]
-    // }
-  ]
+    const arrCollectTax = generateTaxParams([address, memberAddress, officerOneAddress, officerTwoAddress], epoch_five)
 
     const taxCount = arrCollectTax.length
 
@@ -500,47 +433,9 @@ describe('test max depth limit for CollectTax transition', () => {
     const hunyContractStateBeforeTx = await hunyContract.getState()
     const bankContractStateBeforeTx = await bankContract.getState()
 
-    const arrCollectTax = [{
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [address, epoch_six.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [officerOneAddress, epoch_six.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [officerTwoAddress, epoch_six.toString()]
-    }, 
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [memberAddress, epoch_six.toString()]
-    },
-    {
-      constructor: `${bankAddress}.TaxParam`,
-      argtypes: [],
-      arguments: [address, epoch_seven.toString()]
-    }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [officerOneAddress, epoch_seven.toString()]
-    // }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [officerTwoAddress, epoch_seven.toString()]
-    // }, 
-    // {
-    //   constructor: `${bankAddress}.TaxParam`,
-    //   argtypes: [],
-    //   arguments: [memberAddress, epoch_seven.toString()]
-    // }
-  ]
+    const arrCollectTax =
+      generateTaxParams([address, memberAddress, officerOneAddress, officerTwoAddress], epoch_six)
+        .concat(generateTaxParams([address], epoch_seven))
 
     const taxCount = arrCollectTax.length
 

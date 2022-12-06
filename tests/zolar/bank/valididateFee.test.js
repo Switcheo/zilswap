@@ -1,11 +1,10 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
+const { getDefaultAccount } = require('../../../scripts/account');
 const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, generateErrorMsg, } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateFee, generateUpdateBankSettingArgs, generateErrorMsg, } = require("./helper")
 
 let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
-const FIRST_EPOCH = initialEpochNumber
 const CONTROL_MODE = "CaptainOnly"
 
 async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
@@ -17,8 +16,7 @@ async function initiateUpdateFee(initiatorPrivateKey, joiningFee, weeklyTax) {
 }
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
@@ -33,11 +31,16 @@ beforeAll(async () => {
   hiveAddress = hiveContract.address.toLowerCase();
 
   authorityContract = await deployBankAuthority({
-    initialEpochNumber: initialEpochNumber,
+    initialEpochNumber,
     hiveAddress,
     hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
+  await callContract(privateKey, hunyContract, "AddMinter", [{
+    vname: 'minter',
+    type: 'ByStr20',
+    value: authorityAddress,
+  }], 0, false, false)
 
   bankContract = await deployGuildBank({
     initialMembers: [address],
@@ -46,6 +49,22 @@ beforeAll(async () => {
   })
   bankAddress = bankContract.address.toLowerCase()
   console.log('bank contract state', await bankContract.getState())
+
+  await callContract(privateKey, hunyContract, "AddMinter", [{
+    vname: 'minter',
+    type: 'ByStr20',
+    value: address,
+  }], 0, false, false)
+
+  await callContract(privateKey, hunyContract, "Mint", [{
+    vname: 'recipient',
+    type: 'ByStr20',
+    value: bankAddress,
+  }, {
+    vname: 'amount',
+    type: 'Uint128',
+    value: ONE_HUNY.shiftedBy(2).toString(10),
+  }], 0, false, false)
 })
 
 afterEach(async () => {
@@ -58,22 +77,18 @@ test('validate invalid allocation', async () => {
   const invalidAllocJoiningFee = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    (FIRST_EPOCH).toString(),
     ...invalidAlloc
   )
 
   const validAllocWeeklyTax = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    (FIRST_EPOCH).toString(),
     "50",
     "10"
   )
 
   const txInitiateUpdateFeeTx = await initiateUpdateFee(privateKey, invalidAllocJoiningFee, validAllocWeeklyTax)
-  console.log('txInitiateUpdateFeeTx id ', txInitiateUpdateFeeTx.id)
+  console.log('txInitiateUpdateFeeTx id ', bankContract.address, txInitiateUpdateFeeTx.id)
 
   expect(txInitiateUpdateFeeTx.status).toEqual(3)
   expect(txInitiateUpdateFeeTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(31)) // throws CodeInvalidBankTx
@@ -81,12 +96,9 @@ test('validate invalid allocation', async () => {
 })
 
 test('validate first epoch', async () => {
-  const invalidFirstEpoch = FIRST_EPOCH + 1 // invalid because > last_updated_epoch (= initialEpoch = 1)
-  const invalidEpochJoiningFee = generateFee(
+  const validEpochJoiningFee = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    invalidFirstEpoch.toString(),
     "50",
     "10"
   )
@@ -94,18 +106,16 @@ test('validate first epoch', async () => {
   const validEpochWeeklyTax = generateFee(
     bankAddress,
     ONE_HUNY.toString(10),
-    ONE_HUNY.toString(10),
-    (FIRST_EPOCH).toString(),
     "50",
     "10"
   )
 
-  const txInitiateUpdateFeeTx = await initiateUpdateFee(privateKey, invalidEpochJoiningFee, validEpochWeeklyTax)
-  console.log('txInitiateUpdateFeeTx id ', txInitiateUpdateFeeTx.id)
+  const txInitiateUpdateFeeTx = await initiateUpdateFee(privateKey, validEpochJoiningFee, validEpochWeeklyTax)
+  console.log('txInitiateUpdateFeeTx id ', bankContract.address, txInitiateUpdateFeeTx.id)
 
-  expect(txInitiateUpdateFeeTx.status).toEqual(3)
-  expect(txInitiateUpdateFeeTx.receipt.exceptions[0].message).toEqual(generateErrorMsg(31)) // throws CodeInvalidBankTx
-  expect(txInitiateUpdateFeeTx.receipt.success).toEqual(false)
+  expect(txInitiateUpdateFeeTx.status).toEqual(2)
+  // TODO: update expectations
+  // expect(txInitiateUpdateFeeTx.receipt.success).toEqual(false)
 })
 
 

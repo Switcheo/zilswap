@@ -1,21 +1,18 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const {callContract} = require("../../../scripts/call");
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
+const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, getAllocationFee, generateErrorMsg } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, getAllocationFee, generateErrorMsg } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -24,18 +21,18 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ 
-    initialMembers: [address], 
-    initialEpochNumber: initialEpochNumber, 
-    authorityAddress 
+  bankContract = await deployGuildBank({
+    initialMembers: [address],
+    initialEpochNumber: initialEpochNumber,
+    authorityAddress
   })
   bankAddress = bankContract.address.toLowerCase()
 
@@ -69,7 +66,7 @@ beforeAll(async () => {
 
 describe('member joins guild for the first time', () => {
   test('member applies for membership', async () => {
-    const bankContractStateBeforeTx = await bankContract.getState()    
+    const bankContractStateBeforeTx = await bankContract.getState()
     const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
     const bankContractStateAfterTx = await bankContract.getState()
 
@@ -80,27 +77,27 @@ describe('member joins guild for the first time', () => {
   test('member automatically pays joining fee after approval', async () => {
     const bankContractStateBeforeTx = await bankContract.getState()
     const hunyContractStateBeforeTx = await hunyContract.getState()
-  
+
     const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
       vname: "member",
       type: "ByStr20",
       value: memberAddress,
     }], 0, false, false)
-  
+
     const bankContractStateAfterTx = await bankContract.getState()
     const hunyContractStateAfterTx = await hunyContract.getState()
-    
+
     // check change in membership 
     expect(bankContractStateAfterTx.joining_requests).not.toHaveProperty(memberAddress)
     expect(bankContractStateBeforeTx.members).not.toHaveProperty(memberAddress)
     expect(bankContractStateAfterTx.members).toHaveProperty(memberAddress)
-    
+
     // check change in fee status
     expect(Object.keys(bankContractStateBeforeTx.joining_fee_paid).length).toEqual(0)
     expect(Object.keys(bankContractStateAfterTx.joining_fee_paid).length).toEqual(1)
-    expect(bankContractStateAfterTx.joining_fee_paid).toMatchObject({[memberAddress]: ONE_HUNY.toString(10)}) // no inflation
-    
-    const joiningFee = parseInt(ONE_HUNY) 
+    expect(bankContractStateAfterTx.joining_fee_paid).toMatchObject({ [memberAddress]: ONE_HUNY.toString(10) }) // no inflation
+
+    const joiningFee = parseInt(ONE_HUNY)
     const captainAllocationFee = getAllocationFee(50, joiningFee)
     const officerAllocationFee = getAllocationFee(10, joiningFee)
 
@@ -108,7 +105,7 @@ describe('member joins guild for the first time', () => {
     const [captainBalanceBeforeTx, captainBalanceAfterTx] = getBalanceFromStates(address, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [memberBalanceBeforeTx, memberBalanceAfterTx] = getBalanceFromStates(memberAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
     const [bankBalanceBeforeTx, bankBalanceAfterTx] = getBalanceFromStates(bankAddress, hunyContractStateBeforeTx, hunyContractStateAfterTx)
-    
+
     const captainReceived = captainBalanceAfterTx - captainBalanceBeforeTx
     const memberPaid = memberBalanceBeforeTx - memberBalanceAfterTx
     const bankReceived = bankBalanceAfterTx - bankBalanceBeforeTx
@@ -128,7 +125,7 @@ describe('existing member leaves and joins guild again', () => {
     const bankContractStateBeforeTx = await bankContract.getState()
     const txLeaveGuild = await callContract(memberPrivateKey, bankContract, "LeaveGuild", [], 0, false, false)
     const bankContractStateAfterTx = await bankContract.getState()
-    
+
     expect(bankContractStateBeforeTx.members).toHaveProperty(memberAddress)
     expect(bankContractStateAfterTx.members).not.toHaveProperty(memberAddress)
   })
@@ -137,14 +134,14 @@ describe('existing member leaves and joins guild again', () => {
     const bankContractStateBeforeTx = await bankContract.getState()
     const hunyContractStateBeforeTx = await hunyContract.getState()
     expect(bankContractStateBeforeTx.joining_fee_paid).toHaveProperty(memberAddress)
-    
+
     const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
     const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
       vname: "member",
       type: "ByStr20",
       value: memberAddress,
     }], 0, false, false)
-    
+
     const bankContractStateAfterTx = await bankContract.getState()
     const hunyContractStateAfterTx = await hunyContract.getState()
 
@@ -166,7 +163,7 @@ test('existing member attempts to apply for membership', async () => {
   expect(txApplyMembership.status).toEqual(3)
   expect(txApplyMembership.receipt.exceptions[0].message).toEqual(generateErrorMsg(12)) // throws CodeIsAlreadyMember
   expect(txApplyMembership.receipt.success).toEqual(false)
-}) 
+})
 
 test('promote member to officer', async () => {
   const bankContractStateBeforeTx = await bankContract.getState()
@@ -210,14 +207,14 @@ test('remove member from guild', async () => {
 test(`reject member's join request`, async () => {
   const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
   const bankContractStateBeforeTx = await bankContract.getState()
-  
+
   const txRejectMember = await callContract(privateKey, bankContract, "RejectJoinRequest", [{
     vname: "member",
     type: "ByStr20",
     value: memberAddress,
   }], 0, false, false)
   const bankContractStateAfterTx = await bankContract.getState()
-  
+
   expect(bankContractStateBeforeTx.joining_requests).toHaveProperty(memberAddress)
   expect(bankContractStateAfterTx.joining_requests).not.toHaveProperty(memberAddress)
 })

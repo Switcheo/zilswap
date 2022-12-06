@@ -1,0 +1,457 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+import ListUtils
+library ZolarProfessions
+
+let true = True
+let false = False
+let zero = Uint128 0
+let uint32_zero = Uint32 0
+let uint256_zero = Uint256 0
+let uint256_one = Uint256 1
+let one = Uint128 1
+let two = Uint128 2
+let none = None {ByStr20}
+let empty = ""
+let nostr = None {String}
+let empty_traits = Nil {(Pair String String)}
+let hundred_percent_bps = Uint128 10000
+let hundred = Uint128 100
+let empty_pair = Pair {Uint128 Uint128} zero zero
+let zero_address = 0x0000000000000000000000000000000000000000
+
+let trait_key_profession = "profession"
+
+let trait_list_filter = @list_filter (Pair String String)
+let trait_list_find = @list_find (Pair String String)
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotOperatorError
+  | CodeOperatorFoundError
+  | CodeOperatorNotFoundError
+  | CodeInvalidMetazoaContract
+  | CodeNotTokenOwner
+  | CodeInvalidTrait
+  | CodeInsufficientFreePoints
+  | CodeProfessionAlreadySet
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                          => Int32 -1
+      | CodeNotPendingOwner                   => Int32 -2
+      | CodePendingOwnerNotEmpty              => Int32 -3
+      | CodeNotOperatorError                  => Int32 -4
+      | CodeOperatorFoundError                => Int32 -5
+      | CodeOperatorNotFoundError             => Int32 -6
+      | CodeInvalidMetazoaContract            => Int32 -7
+      | CodeNotTokenOwner                     => Int32 -8
+      | CodeInvalidTrait                      => Int32 -9
+      | CodeInsufficientFreePoints            => Int32 -9
+      | CodeProfessionAlreadySet              => Int32 -10
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let nil_msg = Nil {Message} in
+  let list = Cons {Message} msg1 nil_msg in
+  Cons {Message} msg2 list
+
+let str_exist = 
+  fun (str: String) =>
+  fun (list: List String) =>
+    let exist = @list_exists String in
+    let fn = fun (item: String) => builtin eq item str in
+    exist fn list
+
+let append_or_replace =
+  fun (traits: List (Pair String String)) =>
+  fun (new_trait: Pair String String) =>
+    let new_trait_key = match new_trait with | Pair key _ => key end in
+    let filter_fn = fun (trait: Pair String String) =>
+      let trait_key = match trait with | Pair key _ => key end in
+      let is_profession = builtin eq trait_key new_trait_key in
+      match is_profession with | True => false | False => true end
+    in
+    let new_traits = trait_list_filter filter_fn traits in
+    Cons {(Pair String String)} new_trait new_traits
+
+let get_address_or_zero = 
+  fun (maybe_address: Option ByStr20) =>
+    match maybe_address with
+    | Some addr => addr
+    | None => zero_address
+    end
+
+let get_trait_value =
+  fun (traits: List (Pair String String)) =>
+  fun (trait_key: String) =>
+    let fn = fun (trait: Pair String String) => 
+      match trait with
+      | Pair key _ => builtin eq key trait_key
+      end
+    in
+    let maybe_trait = trait_list_find fn traits in
+    match maybe_trait with
+    | Some trait => match trait with | Pair _ value => Some {String} value end
+    | None => nostr
+    end
+
+let get_trait_points =
+  fun (traits: List (Pair String String)) =>
+  fun (attribute: String) =>
+    let maybe_attribute_value = get_trait_value traits attribute in
+    match maybe_attribute_value with
+    | Some attribute_value =>
+      let maybe_uint32_value = builtin to_uint32 attribute_value in
+      match maybe_uint32_value with
+      | Some v => v
+      | None => uint32_zero
+      end
+    | None => uint32_zero
+    end
+
+let get_total_points =
+  fun (attribute_points: List (Pair String Uint32)) =>
+    let fold = @list_foldl (Pair String Uint32) Uint32 in
+    let fn = 
+      fun (result: Uint32) =>
+      fun (item: Pair String Uint32) =>
+        let pt = match item with | Pair _ pt => pt end in
+        builtin add pt result
+    in
+    fold fn uint32_zero attribute_points
+    
+let add_attribute_points =
+  fun (traits: List (Pair String String)) =>
+  fun (attribute: String) =>
+  fun (points: Uint32) =>
+    let curr_points = get_trait_points traits attribute in
+    let new_points = builtin add points curr_points in
+    let trait_value = builtin to_string new_points in
+    let new_trait = Pair {String String} attribute trait_value in
+    append_or_replace traits new_trait
+    
+(* returns True if all items in the list is True *)
+let all_true =
+  fun (list : List Bool) =>
+    let identity = fun (a: Bool) => a in
+    let list_forall_bool = @list_forall Bool in
+    list_forall_bool identity list
+    
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarProfessions(
+  initial_owner : ByStr20,
+  initial_attributes : List String,
+  initial_professions : List String,
+  initial_metazoa_address : ByStr20 with contract
+    field traits: Map Uint256 (List (Pair String String)),
+    field token_owners: Map Uint256 ByStr20
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+(* Set for operators *)
+(* `initial_contract_owner` is a operator by default *)
+field operators: Map ByStr20 Bool =
+    let emp_map = Emp ByStr20 Bool in
+    builtin put emp_map initial_owner true
+
+field attributes : List String = initial_attributes
+field professions: List String = initial_professions
+
+field metazoa_address : ByStr20 with contract
+  field traits: Map Uint256 (List (Pair String String)),
+  field token_owners: Map Uint256 ByStr20
+end = initial_metazoa_address
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsOperator(address: ByStr20)
+  has_operator <- exists operators[address];
+  match has_operator with
+  | True =>
+  | False =>
+    err = CodeNotOperatorError;
+    ThrowError err
+  end
+end
+
+procedure IsOwnerOrOperator(token_id: Uint256, address: ByStr20)
+  is_operator <- exists operators[address];
+  match is_operator with
+  | True =>
+  | False =>
+    metazoa_contract <- metazoa_address;
+    maybe_token_owner <- & metazoa_contract.token_owners[token_id];
+    token_owner = match maybe_token_owner with
+      | Some addr => addr
+      | None => zero_address
+      end;
+
+    is_token_owner = builtin eq address token_owner;
+    match is_token_owner with
+    | True =>
+    | False =>
+      err = CodeNotTokenOwner;
+      ThrowError err
+    end
+  end
+end
+
+procedure VerifyProfession(profession: String)
+  accepted_professions <- professions;
+  profession_exist = str_exist profession accepted_professions;
+  match profession_exist with
+  | True =>
+  | False =>
+    err = CodeInvalidTrait;
+    ThrowError err
+  end
+end
+
+procedure VerifyNoProfession(traits: List (Pair String String))
+  profession = get_trait_value traits trait_key_profession;
+  match profession with
+  | Some _ => 
+    err = CodeProfessionAlreadySet;
+    ThrowError err
+  | None =>
+  end
+end
+
+procedure UpdateProfession(param: Pair Uint256 String)
+  match param with
+  | Pair token_id profession =>
+    IsOwnerOrOperator token_id _sender;
+    VerifyProfession profession;
+
+    metazoa_contract <- metazoa_address;
+    maybe_traits <- & metazoa_contract.traits[token_id];
+    traits = match maybe_traits with
+      | None => empty_traits
+      | Some traits => traits
+      end;
+
+    VerifyNoProfession traits;
+
+    e = {
+      _eventname: "UpdateProfession";
+      token_id: token_id;
+      profession: profession;
+      initiator: _sender
+    };
+    event e
+  end
+end
+
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+transition BulkUpdateProfession(params: List (Pair Uint256 String))
+  forall params UpdateProfession
+end
+
+transition BulkAddAttributePoints(params: List (Pair Uint256 (List (Pair String Uint32))))
+  forall params AddAttributePoints
+end
+
+(* Adds `operator`. *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `operator` must not be already a operator. Otherwise, it must throw `OperatorFoundError` *)
+transition AddOperator(operator: ByStr20)
+  IsOwner _sender;
+  has_operator <- exists operators[operator];
+  match has_operator with
+  | True =>
+    err = CodeOperatorFoundError;
+    ThrowError err
+  | False =>
+    operators[operator] := true
+  end;
+
+  e = {
+    _eventname: "AddOperator";
+    operator: operator;
+    initiator: _sender
+  };
+  event e
+end
+
+(* Removes `operator`. *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `operator` must be already a operator. Otherwise, it must throw `OperatorNotFoundError` *)
+transition RemoveOperator(operator: ByStr20)
+  IsOwner _sender;
+  has_operator <- exists operators[operator];
+  match has_operator with
+  | False =>
+    err = CodeOperatorNotFoundError;
+    ThrowError err
+  | True =>
+    delete operators[operator]
+  end;
+
+  e = {
+    _eventname: "RemoveOperator";
+    operator: operator;
+    initiator: _sender
+  };
+  event e
+end
+
+transition UpdateProfessionsWhitelist(new_professions: List String)
+  IsOwner _sender;
+  professions := new_professions;
+
+  e = {
+    _eventname: "UpdateProfessionsWhitelistSuccess";
+    new_professions: new_professions;
+    initiator: _sender
+  };
+  event e
+end
+
+transition UpdateAttributesWhitelist(new_attributes: List String)
+  IsOwner _sender;
+  attributes := new_attributes;
+
+  e = {
+    _eventname: "UpdateAttributesWhitelistSuccess";
+    new_attributes: new_attributes;
+    initiator: _sender
+  };
+  event e
+end
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  msg_to_resource = {
+    _tag: "Burn";
+    _recipient: _sender;
+    _amount: zero;
+    burn_account: _this_address;
+    amount: amount
+  };
+ 
+  msgs = one_msg msg_to_resource;
+  send msgs 
+end
+
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+  msg_to_token = {
+    _tag: "BurnToken";
+    _recipient: _sender;
+    _amount: zero;
+    token_id: token_id
+  };
+
+  msgs = one_msg msg_to_token;
+  send msgs 
+end
+
+(* burn geodes *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* burn gems *)
+transition ZRC6_BurnCallback(token_owner: ByStr20, token_id: Uint256)
+  (* no-op *)
+end
+

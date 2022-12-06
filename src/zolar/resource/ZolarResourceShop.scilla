@@ -1,0 +1,675 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+
+library ZolarResourceShop
+
+let true = True
+let false = False
+let zero = Uint128 0
+let one = Uint128 1
+let two = Uint128 2
+let none = None {ByStr20}
+let empty = ""
+let hundred_percent_bps = Uint128 10000
+let hundred = Uint128 100
+let empty_pair = Pair {Uint128 Uint128} zero zero
+let zero_address = 0x0000000000000000000000000000000000000000
+let ten_uint32 = Uint32 10
+
+(* Error events *)
+type Error =
+  | CodeNotOwner
+  | CodeNotPendingOwner
+  | CodePendingOwnerNotEmpty
+  | CodeNotEmporium
+  | CodeItemNotFound
+  | CodeItemTooExpensive
+  | CodeCannotAchieveSellPrice
+  | CodeInvalidQuantity
+  | CodeItemInvalidContract
+
+type Price =
+  | Price of Uint128 Uint128 Uint128 Uint128 (* base price, max price, inflation bps, deflation bps *)
+
+type Item =
+  | Item of String ByStr20 Price Price (* item name, resource token address, buy price, sell price *)
+
+let empty_price = Price zero zero zero zero
+let no_item = None {Item}
+
+let make_error =
+  fun (result : Error) =>
+    let result_code =
+      match result with
+      | CodeNotOwner                          => Int32 -1
+      | CodeNotPendingOwner                   => Int32 -2
+      | CodePendingOwnerNotEmpty              => Int32 -3
+      | CodeNotEmporium                       => Int32 -4
+      | CodeItemNotFound                      => Int32 -5
+      | CodeItemTooExpensive                  => Int32 -6
+      | CodeCannotAchieveSellPrice            => Int32 -7
+      | CodeInvalidQuantity                   => Int32 -8
+      | CodeItemInvalidContract               => Int32 -9
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+let one_msg =
+  fun (msg : Message) =>
+  let nil_msg = Nil {Message} in
+  Cons {Message} msg nil_msg
+
+let two_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  let nil_msg = Nil {Message} in
+  let list = Cons {Message} msg1 nil_msg in
+  Cons {Message} msg2 list
+
+let three_msgs =
+  fun (msg1 : Message) =>
+  fun (msg2 : Message) =>
+  fun (msg3 : Message) =>
+  let nil_msg = Nil {Message} in
+  let l1 = Cons {Message} msg1 nil_msg in
+  let l2 = Cons {Message} msg2 l1 in
+  Cons {Message} msg3 l2
+
+let get_amount_or_zero =
+  fun (maybe : Option Uint128) =>
+    match maybe with
+    | Some amt => amt
+    | None => zero
+    end
+
+let subtract_or_zero =
+  fun (amount : Uint128) =>
+  fun (subtrahend : Uint128) =>
+    let is_negative = builtin lt amount subtrahend in
+    match is_negative with
+    | True => zero
+    | False => builtin sub amount subtrahend
+    end
+
+let multiply_bps =
+  fun (amount : Uint128) =>
+  fun (portion_bps : Uint128) =>
+    let is_zero = builtin eq portion_bps zero in
+    match is_zero with
+    | True => zero
+    | False =>
+      let p = builtin mul amount portion_bps in
+      builtin div p hundred_percent_bps
+    end
+
+let get_max_inflation_bps = 
+  fun (base_price: Uint128) =>
+  fun (max_price: Uint128) =>
+    let max_inflation_amt = builtin sub max_price base_price in
+    let m = builtin mul max_inflation_amt hundred_percent_bps in
+    builtin div m base_price
+  
+let get_new_inflation =
+  fun (current_inflation_bps : Uint128) =>
+  fun (price : Price) =>
+  fun (buy_quantity: Uint128) =>
+  fun (sell_quantity: Uint128) =>
+  match price with
+  | Price base_price max_price buy_inflation_bps sell_deflation_bps =>
+    let buy = builtin mul buy_inflation_bps buy_quantity in
+    let sell = builtin mul sell_deflation_bps sell_quantity in
+    let n1 = builtin add current_inflation_bps buy in
+    let n2 = subtract_or_zero n1 sell in
+    let max_inflation_bps = get_max_inflation_bps base_price max_price in 
+    let is_over_max = builtin lt max_inflation_bps n2 in 
+    match is_over_max with
+    | True => max_inflation_bps
+    | False => n2
+    end
+  end
+
+let compute_buy_cost =
+  fun (base_price: Uint128) =>
+  fun (current_inflation_bps: Uint128) =>
+  fun (inflation_bps: Uint128) =>
+  fun (quantity: Uint128) =>
+    let is_zero = builtin eq zero quantity in
+    match is_zero with
+    | True => zero
+    | False =>
+      (* avg inflation bps = current inflation bps + (qty - 1) * inflation bps / 2 *)
+      let qty_minus_one = builtin sub quantity one in
+      let total_inflation_bps = builtin mul qty_minus_one inflation_bps in
+      let avg_incr_inflation_bps = builtin div total_inflation_bps two in
+      let avg_inflation_bps = builtin add current_inflation_bps avg_incr_inflation_bps in
+
+      (* cost = (1 + avg inflation bps) * base price * quantity *)
+      let avg_inflation = multiply_bps base_price avg_inflation_bps in
+      let avg_price = builtin add base_price avg_inflation in
+      builtin mul avg_price quantity
+    end
+
+let compute_sell_cost =
+  fun (base_price: Uint128) =>
+  fun (current_inflation_bps: Uint128) =>
+  fun (deflation_bps: Uint128) =>
+  fun (quantity: Uint128) =>
+    let is_zero = builtin eq zero quantity in
+    match is_zero with
+    | True => zero
+    | False =>
+      (* avg inflation bps = current inflation bps - (qty - 1) * deflation bps / 2 *)
+      let qty_minus_one = builtin sub quantity one in
+      let total_deflation_bps = builtin mul qty_minus_one deflation_bps in
+      let avg_incr_deflation_bps = builtin div total_deflation_bps two in
+      let avg_inflation_bps = builtin sub current_inflation_bps avg_incr_deflation_bps in
+
+      (* cost = (1 + avg inflation bps) * base price * quantity *)
+      let avg_inflation = multiply_bps base_price avg_inflation_bps in
+      let avg_price = builtin add base_price avg_inflation in
+      builtin mul avg_price quantity
+    end
+
+
+let get_buy_cost =
+  fun (quantity : Uint128) =>
+  fun (buy_price : Price) =>
+  fun (transacts : Pair Uint128 Uint128) =>
+  match transacts with
+  | Pair buy_side_net_inflation_bps _ =>
+    match buy_price with
+    | Price base_price max_price inflation_bps _ =>
+      let is_zero_inflation = builtin eq inflation_bps zero in
+      match is_zero_inflation with
+      | True => builtin mul base_price quantity
+      | False =>
+        (* check if current price is already inflated beyond max price *)
+        let max_inflation_bps = get_max_inflation_bps base_price max_price in 
+        let is_over_max_1 = builtin eq max_inflation_bps buy_side_net_inflation_bps in 
+        match is_over_max_1 with 
+        | True => builtin mul max_price quantity
+        | False => 
+          (* check if current quantity bought will push price beyond max *)
+          let inflation_to_add = builtin mul quantity inflation_bps in
+          let new_inflation = builtin add inflation_to_add buy_side_net_inflation_bps in
+          let is_over_max_2 = builtin lt max_inflation_bps new_inflation in
+          match is_over_max_2 with
+          | True => 
+            (* check how much quantity will it take to hit the cap *)
+            let leftover_inflation_before_max = builtin sub max_inflation_bps buy_side_net_inflation_bps in
+            let leftover_qty_before_max = builtin div leftover_inflation_before_max inflation_bps in
+            let qty_over_max = builtin sub quantity leftover_qty_before_max in
+            let cost_a = compute_buy_cost base_price buy_side_net_inflation_bps inflation_bps leftover_qty_before_max in 
+            let cost_b = builtin mul max_price qty_over_max in
+            builtin add cost_a cost_b
+          | False => 
+            compute_buy_cost base_price buy_side_net_inflation_bps inflation_bps quantity
+          end
+        end
+      end
+    end
+  end
+
+let get_sell_price =
+  fun (quantity : Uint128) =>
+  fun (sell_price : Price) =>
+  fun (transacts : Pair Uint128 Uint128) =>
+  match transacts with
+  | Pair _ sell_side_net_inflation_bps  =>
+    match sell_price with
+    | Price base_price max_price _ deflation_bps =>
+      let is_zero_deflation = builtin eq deflation_bps zero in
+      match is_zero_deflation with
+      | True => 
+        (* no deflation, get current price *)
+        let current_inflation = multiply_bps base_price sell_side_net_inflation_bps in
+        let current_price = builtin add base_price current_inflation in
+        builtin mul current_price quantity
+      | False =>
+        (* check if current price is already deflated beyond base price *)
+        let is_under_min_1 = builtin eq zero sell_side_net_inflation_bps in
+        match is_under_min_1 with 
+        | True => builtin mul base_price quantity
+        | False =>
+          (* check if current quantity sold will push price beyond base *)
+          let deflation_to_add = builtin mul quantity deflation_bps in
+          let is_under_min_2 = builtin lt sell_side_net_inflation_bps deflation_to_add in
+          match is_under_min_2 with
+          | True => 
+            (* check how much quantity will it take to hit the cap *)
+            let leftover_qty_before_min = builtin div sell_side_net_inflation_bps deflation_bps in
+            let qty_over_min = builtin sub quantity leftover_qty_before_min in
+            let cost_a = compute_sell_cost base_price sell_side_net_inflation_bps deflation_bps leftover_qty_before_min in 
+            let cost_b = builtin mul base_price qty_over_min in
+            builtin add cost_a cost_b
+          | False => 
+            compute_sell_cost base_price sell_side_net_inflation_bps deflation_bps quantity
+          end
+        end
+      end
+    end
+  end
+
+  let multiply_dp =
+    fun (quantity : Uint128) =>
+    fun (decimals : Uint32) =>
+      let power = builtin pow ten_uint32 decimals in
+      let maybe_power_uint128 = builtin to_uint128 power in
+      let power_uint128 = match maybe_power_uint128 with | None => one | Some v => v end in
+      builtin mul quantity power_uint128
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract ZolarResourceShop(
+  initial_owner: ByStr20,
+  emporium: ByStr20,
+  huny_token: ByStr20  with contract (* this contract must be a minter to burn *)
+    field total_supply : Uint128
+  end
+)
+
+field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
+field pending_owner : Option ByStr20 = none
+
+field items : Map Uint128 Item = Emp Uint128 Item
+field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_buy_side_inflation, net_sell_side_inflation) *)
+field adding_item : Option Item = no_item
+field selling_item : Option Item = no_item
+
+(**************************************)
+(*             Procedures             *)
+(**************************************)
+
+procedure ThrowError(err : Error)
+  e = make_error err;
+  throw e
+end
+
+procedure IsOwner(address: ByStr20)
+  maybe_current_owner <- contract_owner;
+  match maybe_current_owner with
+  | Some current_owner =>
+    is_owner = builtin eq current_owner address;
+    match is_owner with
+    | True =>
+    | False =>
+      err = CodeNotOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotOwner;
+    ThrowError err
+  end
+end
+
+procedure IsPendingOwner(address: ByStr20)
+  maybe_pending_owner <- pending_owner;
+  match maybe_pending_owner with
+  | Some current_pending_owner =>
+    is_pending_owner = builtin eq current_pending_owner address;
+    match is_pending_owner with
+    | True =>
+    | False =>
+      err = CodeNotPendingOwner;
+      ThrowError err
+    end
+  | None =>
+    err = CodeNotPendingOwner;
+    ThrowError err
+  end
+end
+
+procedure IsEmporium(address: ByStr20)
+  is_emporium = builtin eq emporium address;
+  match is_emporium with
+  | True =>
+  | False =>
+    err = CodeNotEmporium;
+    ThrowError err
+  end
+end
+
+procedure IsValidQuantity(quantity: Uint128)
+  is_valid = builtin lt zero quantity;
+  match is_valid with
+  | True =>
+  | False =>
+    err = CodeInvalidQuantity;
+    ThrowError err
+  end
+end
+
+procedure UpdateTransactCount(item_id: Uint128, buy_quantity: Uint128, sell_quantity: Uint128)
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None => 
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    match item with
+    | Item _ _ buy_price sell_price =>
+      maybe_transacts <- transact_count[item_id];
+      transacts = match maybe_transacts with
+      | Some t => t
+      | None => empty_pair
+      end;
+  
+      match transacts with
+      | Pair buy_side_net_inflation sell_side_net_inflation =>
+        new_buy_side_net_inflation = get_new_inflation buy_side_net_inflation buy_price buy_quantity sell_quantity;
+        new_sell_side_net_inflation = get_new_inflation sell_side_net_inflation sell_price buy_quantity sell_quantity;
+  
+        new_transacts = Pair {Uint128 Uint128} new_buy_side_net_inflation new_sell_side_net_inflation;
+        transact_count[item_id] := new_transacts
+      end
+    end
+  end
+end
+
+
+(***************************************)
+(*             Transitions             *)
+(***************************************)
+
+(* @dev: Purchases an item from this stall. Must be sent from z grand emporium. *)
+(* @param item_id: the id of the item to purchase *)
+(* @param max_price: maximum price to pay *)
+(* @param purchase_data: extra purchase data for events *)
+(* @param purchaser: buyer of purchased item *)
+transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: String, purchaser: ByStr20)
+  IsEmporium _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    maybe_quantity = builtin to_uint128 purchase_data;
+
+    quantity = match maybe_quantity with
+    | Some q => q
+    | None => zero
+    end;
+    
+    IsValidQuantity quantity;
+
+    match item with
+    | Item name token_address buy_price _  =>
+      maybe_transacts <- transact_count[item_id];
+      transacts = match maybe_transacts with
+      | Some t => t
+      | None => empty_pair
+      end;
+
+      amount = get_buy_cost quantity buy_price transacts;
+      price_over_max = builtin lt max_price amount;
+      match price_over_max with
+      | True => 
+        err = CodeItemTooExpensive;
+        ThrowError err
+      | False =>
+        (* remote fetch token_address_contract to get token decimals *)
+        maybe_token_contract <- & token_address as ByStr20 with contract
+          field final_decimals : Uint32
+        end;
+
+        match maybe_token_contract with
+        | None =>
+          (* token_contract does not exist, throw error *)
+          err = CodeItemInvalidContract;
+          ThrowError err
+        | Some token_contract =>
+          decimals <- & token_contract.final_decimals;
+          quantity_dp = multiply_dp quantity decimals;
+
+          msg_to_emporium = {
+            _tag: "TransferToken";
+            _recipient: emporium;
+            _amount: zero;
+            token: huny_token;
+            from: purchaser;
+            amount: amount
+          };
+  
+          msg_to_resource = {
+            _tag: "Mint";
+            _recipient: token_address;
+            _amount: zero;
+            recipient: purchaser;
+            amount: quantity_dp
+          };
+  
+          msgs = two_msgs msg_to_emporium msg_to_resource;
+          send msgs;
+  
+          (* create HUNY selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+          huny_selling_item = let item = Item empty huny_token empty_price empty_price in Some {Item} item;
+          selling_item := huny_selling_item;
+  
+          UpdateTransactCount item_id quantity zero;
+  
+          e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
+              purchaser: purchaser; price: amount; quantity: quantity_dp };
+          event e
+
+        end
+      end
+    end
+  end
+end
+
+transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
+  IsValidQuantity quantity;
+    
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    match item with
+    | Item name token_address _ sell_price  =>
+      maybe_transacts <- transact_count[item_id];
+      transacts = match maybe_transacts with
+      | Some t => t
+      | None => empty_pair
+      end;
+      amount = get_sell_price quantity sell_price transacts;
+
+      price_below_min = builtin lt amount min_price;
+      match price_below_min with
+      | True => 
+        err = CodeCannotAchieveSellPrice;
+        ThrowError err
+      | False =>
+        (* remote fetch token_address_contract to get token decimals *)
+        maybe_token_contract <- & token_address as ByStr20 with contract
+          field final_decimals : Uint32
+        end;
+      
+        match maybe_token_contract with
+        | None =>
+          err = CodeItemInvalidContract;
+          ThrowError err
+        | Some token_contract =>
+          decimals <- & token_contract.final_decimals;
+          quantity_dp = multiply_dp quantity decimals;
+
+          msg_to_huny = {
+            _tag: "Mint";
+            _recipient: huny_token;
+            _amount: zero;
+            recipient: _sender;
+            amount: amount
+          };
+  
+          msg_to_resource = {
+            _tag: "TransferFrom";
+            _recipient: token_address;
+            _amount: zero;
+            from: _sender;
+            to: _this_address;
+            amount: quantity_dp
+          };
+  
+          msgs = two_msgs msg_to_huny msg_to_resource;
+          send msgs;
+  
+          (* create resource selling item, to burn upon receiving RecipientAcceptTransferFrom callback *)
+          resource_selling_item = let item = Item empty token_address empty_price empty_price in Some {Item} item;
+          selling_item := resource_selling_item;
+  
+          UpdateTransactCount item_id zero quantity;
+  
+          e = {_eventname : "ItemSold"; item_id : item_id; item_name: name;
+              seller: _sender; price: amount; quantity: quantity_dp };
+          event e
+        end
+      end
+    end
+  end
+end
+
+
+(***************************************************)
+(*              Ownership Transitions              *)
+(***************************************************)
+
+(* @dev: Transfers contract ownership to a new address. The new address must call the AcceptOwnership transition to finalize the transfer. *)
+(* @param new_owner: Address of the new contract_owner.                                                                                    *)
+transition TransferOwnership(new_owner: ByStr20)
+  IsOwner _sender;
+  o = Some {ByStr20} new_owner;
+  pending_owner := o;
+  e = {_eventname : "OwnershipTransferInitiated"; contract_owner : _sender; pending_owner : new_owner};
+  event e
+end
+
+(* @dev: Finalizes transfer of contract ownership. Must be called by the new contract_owner. *)
+transition AcceptOwnership()
+  IsPendingOwner _sender;
+  previous_contract_owner <- contract_owner;
+  o = Some {ByStr20} _sender;
+  contract_owner := o;
+  pending_owner := none;
+  e = {_eventname : "OwnershipTransferAccepted"; previous_contract_owner : previous_contract_owner; contract_owner : _sender};
+  event e
+end
+
+(* @dev: Adds an item to the store and lists it on z grand emporium. *)
+transition AddItem(
+  item_name: String, 
+  resource: ByStr20,
+  sell_price: Price,
+  buy_price: Price
+)
+  IsOwner _sender;
+
+  item = let i = Item item_name resource buy_price sell_price in Some {Item} i;
+  adding_item := item;
+
+  msg_to_emporium = {
+    _tag: "ListItem";
+    _recipient: emporium;
+    _amount: zero;
+    item_name: item_name
+  };
+  msgs = one_msg msg_to_emporium;
+  send msgs
+end
+
+(* @dev: Removes an item from the store and delists it from z grand emporium. *)
+transition RemoveItem(item_id: Uint128)
+  IsOwner _sender;
+  maybe_item <- items[item_id];
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    delete items[item_id];
+
+    e = {_eventname : "ItemRemoved"; item_id: item_id; item: item};
+    event e;
+
+    msg_to_emporium = {
+      _tag: "DelistItem";
+      _recipient: emporium;
+      _amount: zero;
+      item_id: item_id
+    };
+    msgs = one_msg msg_to_emporium;
+    send msgs
+  end
+end
+
+(***************************************)
+(*             Callbacks               *)
+(***************************************)
+
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  maybe_item <- selling_item;
+  match maybe_item with
+  | None => (* no-op: not selling item, ignore *)
+  | Some item =>
+    token_address = match item with
+      | Item _ token_address _ _ => token_address
+    end;
+    is_recieving_resource = builtin eq token_address _sender;
+    match is_recieving_resource with
+    | False => (* no-op: ignore not sold token *)
+    | True =>
+      msg_to_resource = {
+        _tag: "Burn";
+        _recipient: token_address;
+        _amount: zero;
+        burn_account: _this_address;
+        amount: amount
+      };
+     
+      msgs = one_msg msg_to_resource;
+      send msgs 
+    end
+  end
+end
+
+transition ListItemSuccess(item_id: Uint128, item_name: String)
+  IsEmporium _sender;
+  maybe_item <- adding_item;
+  match maybe_item with
+  | None =>
+    err = CodeItemNotFound;
+    ThrowError err
+  | Some item =>
+    items[item_id] := item;
+    adding_item := no_item;
+    e = {_eventname : "ItemAdded"; item_id: item_id; item: item};
+    event e
+  end
+end
+
+(* burn huny *)
+transition BurnSuccessCallBack(burner: ByStr20, burn_account: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* sell resource *)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* sell resource *)
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+
+(* mint resource *)
+transition MintSuccessCallBack(minter: ByStr20, recipient: ByStr20, amount: Uint128)
+  (* no-op *)
+end
+

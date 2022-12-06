@@ -1,20 +1,19 @@
 
 const { Transaction, TxStatus } = require('@zilliqa-js/account')
-const { bytes, BN, Long, toBech32Address, fromBech32Address } = require('@zilliqa-js/zilliqa')
-const { zilliqa, VERSION } = require('../../zilliqa');
+const { bytes, BN, Long, toBech32Address, fromBech32Address, Zilliqa } = require('@zilliqa-js/zilliqa')
+const { VERSION } = require('../../zilliqa');
 const { deployContract } = require("../../deploy");
 const fs = require('fs');
+const { default: BigNumber } = require('bignumber.js');
 
+const zilliqa = new Zilliqa("https://api.zilliqa.com")
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-;
-(async () => {
-  const privateKey = process.env.PRIVATE_KEY
-  if (!privateKey) throw new Error('PRIVATE_KEY env var missing!')
+const bankAuthorityAddress = "0x5892ebe997ed765aafe4e0151a86088c981ae6d5";
 
-  const oldBankContract = zilliqa.contracts.at("0x13c96bb095ba5d4d663ddd8572577f09c12a86d5");
-  const bankAuthorityAddress = "0x156b4a899b251cd58ff4e518941255f25fb07b7d";
-  const newBankAuthority = "0x156b4a899b251cd58ff4e518941255f25fb07b7d";
+const privateKey = process.env.PRIVATE_KEY
+if (!privateKey) throw new Error('PRIVATE_KEY env var missing!')
 
+const migrate = async (oldBankContract) => {
   const { last_updated_epoch } = await oldBankContract.getSubState("last_updated_epoch");
   const { control_mode } = await oldBankContract.getSubState("control_mode");
   const { joining_fee } = await oldBankContract.getSubState("joining_fee");
@@ -54,14 +53,18 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
     {
       vname: 'bank_authority',
       type: 'ByStr20',
-      value: newBankAuthority,
+      value: bankAuthorityAddress,
+    },
+    {
+      vname: 'initial_epoch',
+      type: 'Uint32',
+      value: last_updated_epoch,
     },
     {
       vname: 'initial_joining_fee',
       type: 'List Uint128',
       value: [
         joining_fee.arguments[0],
-        joining_fee.arguments[1],
         joining_fee.arguments[3].arguments[0],
         joining_fee.arguments[3].arguments[1],
       ],
@@ -71,15 +74,9 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
       type: 'List Uint128',
       value: [
         weekly_tax.arguments[0],
-        weekly_tax.arguments[1],
         weekly_tax.arguments[3].arguments[0],
         weekly_tax.arguments[3].arguments[1],
       ],
-    },
-    {
-      vname: 'initial_epoch',
-      type: 'Uint32',
-      value: last_updated_epoch,
     },
     {
       vname: 'initial_control_mode_power',
@@ -99,14 +96,14 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   ]
 
   console.info(`Deploying new GuildBank...`)
-  const [newBankContract] = await deployContract(privateKey, file, init)
+  // const [newBankContract] = await deployContract(privateKey, code, init)
+  const newBankContract = zilliqa.contracts.at("0xc12220b111ed7ac502a83bf305ce50644c6f143b")
 
   const { tokens_held: tokensHeld } = await oldBankContract.getSubState("tokens_held");
 
   const tokens = Object.keys(tokensHeld);
   if (!tokens.length) {
     console.log("no tokens held at", oldBankContract.address);
-    return;
   }
 
   const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
@@ -136,25 +133,25 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
       zilliqa.provider,
       TxStatus.Initialised,
       true,
-    ), new Transaction({
-      ...params,
-      toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
-      data: JSON.stringify({
-        _tag: "MigrateBankToken",
-        params: [{
-          vname: 'bank',
-          type: 'ByStr20',
-          value: oldBankContract.address,
-        }, {
-          vname: 'token',
-          type: 'ByStr20',
-          value: ZERO_ADDRESS,
-        }],
-      }),
-    },
-      zilliqa.provider,
-      TxStatus.Initialised,
-      true,
+    // ), new Transaction({
+    //   ...params,
+    //   toAddr: fromBech32Address(toBech32Address(bankAuthorityAddress)),
+    //   data: JSON.stringify({
+    //     _tag: "MigrateBankToken",
+    //     params: [{
+    //       vname: 'bank',
+    //       type: 'ByStr20',
+    //       value: oldBankContract.address,
+    //     }, {
+    //       vname: 'token',
+    //       type: 'ByStr20',
+    //       value: ZERO_ADDRESS,
+    //     }],
+    //   }),
+    // },
+    //   zilliqa.provider,
+    //   TxStatus.Initialised,
+    //   true,
     )];
   for (const token of tokens) {
     const tx = new Transaction({
@@ -189,4 +186,32 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
   const { tokens_held: oldTokensHeld } = await oldBankContract.getSubState("tokens_held");
   const { tokens_held: newTokensHeld } = await newBankContract.getSubState("tokens_held");
   console.log(`Old contract: ${Object.keys(oldTokensHeld).length} | New contract: ${Object.keys(newTokensHeld).length}`)
+}
+
+;
+(async () => {
+  const response = await fetch("https://api.zolar.io/guild/list?limit=10000");
+  const { result: { models } } = await response.json();
+
+  const hiveAddress = process.env.HIVE_CONTRACT_HASH;
+  for (const guild of models) {
+    if (guild.id == 2 || guild.id == 1) continue;
+
+    const { guildBank: bank } = guild;
+    if (!bank?.address) {
+      console.log(`guild ${guild.id} no bank contract, skipping…`);
+      continue;
+    }
+    const bankAddress = bank.address.toLowerCase();
+
+    const { result } = await zilliqa.blockchain.getSmartContractSubState(hiveAddress, "balances", [bankAddress]);
+    const balance = result?.[bankAddress] ?? "0";
+    console.log(`guild ${guild.id} hive balance: ${bankAddress} ${balance}`);
+
+    const oldBankContract = zilliqa.contracts.at(bankAddress);
+
+    await migrate(oldBankContract);
+
+    break;
+  }
 })().catch(console.error).finally(() => process.exit(1));

@@ -2,7 +2,17 @@
 const { Zilliqa } = require('@zilliqa-js/zilliqa')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const { bytes } = require('@zilliqa-js/util')
-require('dotenv').config()
+require('dotenv').config();
+
+const getPrivateKey = (key = "PRIVATE_KEY") => {
+  const privateKey = process.env[key];
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided - ' + key)
+  }
+  return privateKey;
+}
+
 
 const useKey = (privateKey) => {
   const address = getAddressFromPrivateKey(privateKey)
@@ -11,6 +21,18 @@ const useKey = (privateKey) => {
     zilliqa.wallet.addByPrivateKey(privateKey)
   }
   zilliqa.wallet.setDefault(address)
+}
+
+const param = (vname, type, value) => {
+  return { vname, type, value };
+}
+
+const noneParam = (address) => {
+  return {
+    constructor: `${address}.None`,
+    argtypes: [],
+    arguments: [],
+  }
 }
 
 const getNetwork = () => {
@@ -51,9 +73,14 @@ const network = getNetwork()
 const rpc = getRPC(network)
 const VERSION = bytes.pack(getChainID(network), 1)
 const zilliqa = new Zilliqa(rpc)
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 exports.chainId = getChainID(network)
+exports.param = param
+exports.noneParam = noneParam
 exports.useKey = useKey
+exports.getPrivateKey = getPrivateKey
 exports.network = network
 exports.zilliqa = zilliqa
+exports.ZERO_ADDRESS = ZERO_ADDRESS;
 exports.VERSION = VERSION

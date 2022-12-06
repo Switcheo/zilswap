@@ -253,7 +253,6 @@ async function deployGuildBank({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
@@ -263,7 +262,6 @@ async function deployGuildBank({
       type: 'List Uint128',
       value: [
         ONE_HUNY.toString(10), // initial amount
-        ONE_HUNY.toString(10), // inflation amount
         "50", // captain allocation bps
         "10", // officer allocation bps
       ],
@@ -505,8 +503,6 @@ async function deployGuildBank({
           argtypes: [],
           arguments: [
             ONE_HUNY.toString(10), // initial amount
-            ONE_HUNY.toString(10), // inflation
-            newEpochNumber.toString(), // first epoch
             {
               constructor: `${bankAddress}.FeeAllocation`,
               argtypes: [],
@@ -518,8 +514,6 @@ async function deployGuildBank({
           argtypes: [],
           arguments: [
             ONE_HUNY.toString(10), // initial amount
-            ONE_HUNY.toString(10), // inflation
-            newEpochNumber.toString(), // first epoch
             {
               constructor: `${bankAddress}.FeeAllocation`,
               argtypes: [],
@@ -560,6 +554,9 @@ async function deployGuildBank({
   console.log("initiate cancel tx", txCancelTx.id)
 
   console.log("epoch", (await zilliqa.blockchain.getSmartContractSubState(bankAddress, "last_updated_epoch")).result.last_updated_epoch);
+  const txApproveTaxCollection = await callContract(memberPrivateKey, bankContract, "ApproveTaxCollection", [], 0, false, false);
+  console.log("approve tax tx", txApproveTaxCollection.id)
+
   const txCollectTax = await callContract(privateKey, bankContract, "CollectTax", [{
     vname: "params",
     type: `List ${bankAddress}.TaxParam`,

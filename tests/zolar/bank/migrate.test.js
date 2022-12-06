@@ -1,9 +1,9 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
 const { callContract } = require("../../../scripts/call");
 const { zilliqa } = require("../../../scripts/zilliqa");
 const { ZERO_ADDRESS, ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, matchObject, getSubState } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, matchObject, getSubState } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, newBankAddress, hunyContract, authorityContract, bankContract, newBankContract
 
@@ -66,11 +66,8 @@ async function migrateToken(senderAddress, tokenAddress) {
 }
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()

@@ -1,21 +1,18 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
+const { getDefaultAccount, createRandomAccount } = require('../../../scripts/account');
 const { callContract } = require("../../../scripts/call");
 const { initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateErrorMsg } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, generateErrorMsg } = require("./helper")
 
 let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
+    ; ({ key: memberPrivateKey, address: memberAddress } = await createRandomAccount(privateKey, '1000'))
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -24,18 +21,18 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ 
-    initialMembers: [address], 
-    initialEpochNumber: initialEpochNumber, 
-    authorityAddress 
+  bankContract = await deployGuildBank({
+    initialMembers: [address],
+    initialEpochNumber: initialEpochNumber,
+    authorityAddress
   })
   bankAddress = bankContract.address.toLowerCase()
 
@@ -79,7 +76,7 @@ test('captain initiates ownership transfer to non-member', async () => {
   expect(txTransferOwnership.receipt.success).toEqual(false)
 })
 
-describe('captain transfer ownership to member', async () => {
+describe('captain transfer ownership to member', () => {
   test('captain initiates ownership transfer', async () => {
     const txApplyMembership = await callContract(memberPrivateKey, bankContract, "ApplyForMembership", [], 0, false, false)
     const txApproveMember = await callContract(privateKey, bankContract, "ApproveAndReceiveJoiningFee", [{
@@ -110,10 +107,11 @@ describe('captain transfer ownership to member', async () => {
 })
 
 test('captain transfer ownership to officer', async () => {
-  bankContract = await deployGuildBank({ 
+  bankContract = await deployGuildBank({
     initialMembers: [address, memberAddress],
-    initialOfficers: [memberAddress], 
-    initialEpochNumber, authorityAddress })
+    initialOfficers: [memberAddress],
+    initialEpochNumber, authorityAddress
+  })
   bankAddress = bankContract.address.toLowerCase()
 
   const bankContractStateBeforeTx = await bankContract.getState()
@@ -127,7 +125,7 @@ test('captain transfer ownership to officer', async () => {
   const txAcceptOwnership = await callContract(memberPrivateKey, bankContract, "AcceptOwnership", [], 0, false, false)
 
   const bankContractStateAfterTx = await bankContract.getState()
-  
+
   expect(bankContractStateBeforeTx.officers).toHaveProperty(memberAddress)
   expect(bankContractStateAfterTx.officers).not.toHaveProperty(memberAddress)
   expect(bankContractStateBeforeTx.contract_owner.arguments[0]).toEqual(address)

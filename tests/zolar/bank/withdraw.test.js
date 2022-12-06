@@ -1,21 +1,17 @@
-const { getAddressFromPrivateKey } = require("@zilliqa-js/zilliqa")
 const { default: BigNumber } = require("bignumber.js");
-const {callContract} = require("../../../scripts/call");
+const { getDefaultAccount } = require('../../../scripts/account');
+const { callContract } = require("../../../scripts/call");
 const { ONE_HUNY, initialEpochNumber } = require("./config");
-const { getPrivateKey, deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
+const { deployHuny, deployZilswap, deployRefinery, deployHive, deployBankAuthority, deployGuildBank, getBalanceFromStates, generateErrorMsg } = require("./helper")
 
-let privateKey, memberPrivateKey, address, memberAddress, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
+let privateKey, address, zilswapAddress, refineryAddress, hiveAddress, hunyAddress, authorityAddress, bankAddress, zilswapContract, refineryContract, hiveContract, hunyContract, authorityContract, bankContract
 
 beforeAll(async () => {
-  privateKey = getPrivateKey();
-  address = getAddressFromPrivateKey(privateKey).toLowerCase();
-  
-  memberPrivateKey = getPrivateKey("PRIVATE_KEY_MEMBER")
-  memberAddress = getAddressFromPrivateKey(memberPrivateKey).toLowerCase();
+  ; ({ key: privateKey, address } = getDefaultAccount())
 
   hunyContract = await deployHuny()
   hunyAddress = hunyContract.address.toLowerCase()
-  
+
   zilswapContract = await deployZilswap();
   zilswapAddress = zilswapContract.address;
 
@@ -24,18 +20,18 @@ beforeAll(async () => {
 
   hiveContract = await deployHive({ hunyAddress, zilswapAddress, refineryAddress });
   hiveAddress = hiveContract.address.toLowerCase();
-  
-  authorityContract = await deployBankAuthority({ 
-    initialEpochNumber, 
-    hiveAddress, 
-    hunyAddress 
+
+  authorityContract = await deployBankAuthority({
+    initialEpochNumber,
+    hiveAddress,
+    hunyAddress
   })
   authorityAddress = authorityContract.address.toLowerCase()
 
-  bankContract = await deployGuildBank({ 
-    initialMembers: [address], 
-    initialEpochNumber: initialEpochNumber, 
-    authorityAddress 
+  bankContract = await deployGuildBank({
+    initialMembers: [address],
+    initialEpochNumber: initialEpochNumber,
+    authorityAddress
   })
   bankAddress = bankContract.address.toLowerCase()
 

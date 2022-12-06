@@ -1,0 +1,104 @@
+[
+    {
+        "traits": {
+            "Name": "OH3-Other-worldly Fist of Restless Souls",
+            "Type": "Off-Hand",
+            "Subtype": "Magic",
+            "Damage": "30"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "18000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "260000",
+                "traits": []
+            },
+            {
+                "material": "BERRY",
+                "quantity": "20000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "OH4-Mystic Barrier of Protection",
+            "Type": "Off-Hand",
+            "Subtype": "Magic",
+            "Damage": "20"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "20000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "310000",
+                "traits": []
+            },
+            {
+                "material": "ITEM",
+                "quantity": "0",
+                "traits": [{
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Type", "Gem"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Condition", "Normal"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Affinity", "END"]
+                  }, {
+                    "constructor": "Pair",
+                    "argtypes": ["String", "String"],
+                    "arguments": ["Tier", "C"]
+                  }]
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "A1-Radioactive Mobius Gem Holster",
+            "Type": "Armor"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "15000000000000000",
+                "traits": []
+            },
+            {
+                "material": "SCRAP",
+                "quantity": "240000",
+                "traits": []
+            }
+        ]
+    },
+    {
+        "traits": {
+            "Name": "Elderberry Juice",
+            "Type": "Consumable"
+        },
+        "cost": [
+            {
+                "material": "HUNY",
+                "quantity": "100000000000000",
+                "traits": []
+            },
+            {
+                "material": "BERRY",
+                "quantity": "1000",
+                "traits": []
+            }
+        ]
+    }
+]

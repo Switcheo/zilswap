@@ -4,6 +4,20 @@ const { TransactionError } = require('@zilliqa-js/core')
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto')
 const BigNumber = require('bignumber.js')
 
+async function createTransaction(toAddr, data, minGasPrice) {
+  return zilliqa.transactions.new(
+    {
+      version: VERSION,
+      toAddr,
+      data,
+      amount: units.toQa(0, units.Units.Zil),
+      gasPrice: new BN(minGasPrice.result),
+      gasLimit: Long.fromNumber(80000),
+    },
+    false
+  )
+}
+
 async function transfer(privateKey, toAddr, amount) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -138,6 +152,7 @@ async function nextBlock(n = 1) {
   }
 }
 
+exports.createTransaction = createTransaction
 exports.transfer = transfer
 exports.getBalance = getBalance
 exports.getContract = getContract
