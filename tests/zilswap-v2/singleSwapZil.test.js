@@ -704,7 +704,6 @@ setup = async (isAmpPool) => {
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
-  console.log(tx.receipt.event_logs)
 
   tx = await callContract(
     owner.key, router,
@@ -758,7 +757,6 @@ setup = async (isAmpPool) => {
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
-  console.log(tx.receipt.event_logs[7])
 }
 
 // validate pool reserves (both amp and non-amp pools)
