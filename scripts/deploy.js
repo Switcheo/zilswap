@@ -565,7 +565,7 @@ async function useZilswap(privateKey, params = {}, useExisting = process.env.CON
 }
 
 
-async function deployZilswapV2Router(privateKey, { governor = null, codehash, wZil = null } = {}) {
+async function deployZilswapV2Router(privateKey, { governor = null, codehash = null, wZil = null } = {}) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
