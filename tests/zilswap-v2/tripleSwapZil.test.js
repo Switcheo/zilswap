@@ -1030,7 +1030,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
   })
 })
 
-describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Amp pool)', () => {
+describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
 
   beforeAll(async () => {
     await setup(true)
@@ -1613,10 +1613,10 @@ setup = async (isAmpPool) => {
       },
       {
         vname: 'v_reserve_ratio_bounds',
-        type: 'Pair (Uint256) (Uint256)',
+        type: 'Pair (Uint128) (Uint128)',
         value: {
           "constructor": "Pair",
-          "argtypes": ["Uint256", "Uint256"],
+          "argtypes": ["Uint128", "Uint128"],
           "arguments": ["0", "1000000000000"]
         }
       },
