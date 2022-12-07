@@ -308,20 +308,20 @@ end
 
 (* @dev: Validate the pool contract with correct codehash *)
 procedure IsValidPoolContract(pool_address : ByStr20)
- maybe_pool <- & pool_address as ByStr20 with _codehash end;
- match maybe_pool with
- | None =>
- | Some p =>
-   required_codehash <- pool_codehash;
-   codehash <- & p._codehash;
-   is_valid_pool = builtin eq codehash required_codehash;
-   match is_valid_pool with
-   | True =>
-   | False =>
-     err = CodeInvalidPool;
-     ThrowError err
-   end
- end
+  maybe_pool <- & pool_address as ByStr20 with _codehash end;
+  match maybe_pool with
+  | None =>
+  | Some p =>
+    required_codehash <- pool_codehash;
+    codehash <- & p._codehash;
+    is_valid_pool = builtin eq codehash required_codehash;
+    match is_valid_pool with
+    | True =>
+    | False =>
+      err = CodeInvalidPool;
+      ThrowError err
+    end
+  end
 end
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
@@ -757,7 +757,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-(*  IsValidPoolContract pool;*)
+ IsValidPoolContract pool;
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
