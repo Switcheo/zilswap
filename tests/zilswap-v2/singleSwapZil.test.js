@@ -1,5 +1,5 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, useWrappedZIL } = require('../../scripts/deploy.js');
+const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract, getBalance } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
@@ -48,11 +48,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
           vname: 'token',
           type: 'ByStr20',
           value: token,
-        },
-        {
-          vname: 'wZIL',
-          type: 'ByStr20',
-          value: wZil,
         },
         {
           vname: 'pool',
@@ -197,11 +192,6 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
           value: token,
         },
         {
-          vname: 'wZIL',
-          type: 'ByStr20',
-          value: wZil,
-        },
-        {
           vname: 'pool',
           type: 'ByStr20',
           value: `${pool.address.toLowerCase()}`,
@@ -342,11 +332,6 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
           vname: 'token',
           type: 'ByStr20',
           value: token,
-        },
-        {
-          vname: 'wZIL',
-          type: 'ByStr20',
-          value: wZil,
         },
         {
           vname: 'pool',
@@ -490,11 +475,6 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
           value: token,
         },
         {
-          vname: 'wZIL',
-          type: 'ByStr20',
-          value: wZil,
-        },
-        {
           vname: 'pool',
           type: 'ByStr20',
           value: `${pool.address.toLowerCase()}`,
@@ -608,11 +588,37 @@ getAmpBps = (isAmpPool) => {
 setup = async (isAmpPool) => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
-  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
-  token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0', decimals: 12, supply: '100000000000000000000000000000000000000' }, router.address.toLowerCase(), null))[0]
-  token1 = (await useWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }, router.address.toLowerCase(), null))[0]
-  token = token0.address.toLowerCase()
-  wZil = token1.address.toLowerCase()
+
+  // Need to deploy wZIL first to deploy Router
+  token0 = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  wZil = token0.address.toLowerCase()
+
+  // Deploy Router
+  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil }))[0]
+
+  // Deploy non-wZIL token
+  token1 = (await useFungibleToken(owner.key, { symbol: 'TKN0', decimals: 12, supply: '100000000000000000000000000000000000000' }, router.address.toLowerCase(), null))[0]
+  token = token1.address.toLowerCase()
+
+  // Increase Allowance on wZIL
+  tx = await callContract(
+    owner.key, token0,
+    'IncreaseAllowance',
+    [
+      {
+        vname: 'spender',
+        type: 'ByStr20',
+        value: router.address.toLowerCase(),
+      },
+      {
+        vname: 'amount',
+        type: 'Uint128',
+        value: '100000000000000000000000000000000000000',
+      },
+    ],
+    0, false, false
+  )
+  expect(tx.status).toEqual(2)
 
   tx = await callContract(
     owner.key, router,
@@ -659,9 +665,53 @@ setup = async (isAmpPool) => {
         value: token,
       },
       {
-        vname: 'wZIL',
+        vname: 'pool',
         type: 'ByStr20',
-        value: wZil,
+        value: `${pool.address.toLowerCase()}`,
+      },
+      {
+        vname: 'amount_token_desired',
+        type: 'Uint128',
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
+      },
+      {
+        vname: 'amount_token_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'amount_wZIL_min',
+        type: 'Uint128',
+        value: '0',
+      },
+      {
+        vname: 'v_reserve_ratio_bounds',
+        type: 'Pair (Uint256) (Uint256)',
+        value: {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": ["0", "100000000000000000000000000000000000"]
+        }
+      },
+      {
+        vname: 'to',
+        type: 'ByStr20',
+        value: `${owner.address.toLowerCase()}`,
+      }
+    ],
+    init_liquidity, false, true
+  )
+  expect(tx.status).toEqual(2)
+  // console.log(tx.receipt.event_logs)
+
+  tx = await callContract(
+    owner.key, router,
+    'AddLiquidityZIL',
+    [
+      {
+        vname: 'token',
+        type: 'ByStr20',
+        value: token,
       },
       {
         vname: 'pool',
@@ -685,11 +735,11 @@ setup = async (isAmpPool) => {
       },
       {
         vname: 'v_reserve_ratio_bounds',
-        type: 'Pair (Uint128) (Uint128)',
+        type: 'Pair (Uint256) (Uint256)',
         value: {
           "constructor": "Pair",
-          "argtypes": ["Uint128", "Uint128"],
-          "arguments": ["0", "1000000000000"]
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": ["0", "100000000000000000000000000000000000"]
         }
       },
       {
@@ -701,6 +751,7 @@ setup = async (isAmpPool) => {
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
+  // console.log(tx.receipt.event_logs[7])
 }
 
 // validate pool reserves (both amp and non-amp pools)
@@ -713,7 +764,7 @@ validatePoolReserves = async (pool, transition, isAmpPool) => {
   let poolNewReserve0 = new BigNumber(newPoolState.reserve0)
   let poolPrevReserve1 = new BigNumber(prevPoolState.reserve1)
   let poolNewReserve1 = new BigNumber(newPoolState.reserve1)
-  
+
   switch (transition) {
     case 'SwapExactTokensForZILOnce': {
       if (newPoolState.token0.toLowerCase() === token) {

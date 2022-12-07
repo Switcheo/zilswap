@@ -1,10 +1,10 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require('../../scripts/deploy.js');
+const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
-let token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, amp
+let wZil, token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, amp
 const bps = 10000
 const minimumLiquidity = 1000
 const token0Amt = 100000
@@ -15,7 +15,8 @@ const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 beforeAll(async () => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
-  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
+  wZil = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
   token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }, router.address.toLowerCase(), null))[0]
   token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }, router.address.toLowerCase(), null))[0]
 
@@ -42,7 +43,6 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
   beforeAll(async () => {
     if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
     pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(true) }))[0]
-
     poolState = await pool.getState()
 
     tx = await callContract(
@@ -332,7 +332,6 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
   beforeAll(async () => {
     if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
     pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(false) }))[0]
-
     poolState = await pool.getState()
 
     tx = await callContract(

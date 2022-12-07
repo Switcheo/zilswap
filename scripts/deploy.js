@@ -7,9 +7,6 @@ const { BN, Long } = require('@zilliqa-js/util')
 const { callContract, nextBlock } = require('./call.js')
 const { compile } = require('./compile')
 const { VERSION, zilliqa, useKey, chainId } = require('./zilliqa')
-const { callContract, nextBlock, getState } = require('./call.js')
-const { compress } = require('./compile')
-const { VERSION, zilliqa, useKey, chainId, network } = require('./zilliqa')
 const { param, getDeployTx, getZilliqaInstance, sendTxs, verifyDeployment } = require('./utils.js')
 
 const readFile = util.promisify(fs.readFile)
@@ -216,7 +213,7 @@ async function useBearV2(privateKey, params = {}, useExisting = process.env.META
   return deployBearV2(privateKey, params)
 }
 
-async function deployWrappedZIL(privateKey, { name = 'WZIL Token', symbol = 'WZIL', decimals = 12, initSupply = '1000000000000000000000'}) {
+async function deployWrappedZIL(privateKey, { name = 'WZIL Token', symbol = 'WZIL', decimals = 12, initSupply = '1000000000000000000000' }) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -568,7 +565,7 @@ async function useZilswap(privateKey, params = {}, useExisting = process.env.CON
 }
 
 
-async function deployZilswapV2Router(privateKey, { governor = null, codehash } = {}) {
+async function deployZilswapV2Router(privateKey, { governor = null, codehash, wZil = null } = {}) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -576,6 +573,10 @@ async function deployZilswapV2Router(privateKey, { governor = null, codehash } =
 
   if (!codehash || codehash === '') {
     throw new Error('No codehash was provided!')
+  }
+
+  if (!wZil || wZil === '') {
+    throw new Error('No wZil address was provided!')
   }
 
   // Default vars
@@ -600,6 +601,11 @@ async function deployZilswapV2Router(privateKey, { governor = null, codehash } =
       type: 'ByStr32',
       value: codehash,
     },
+    {
+      vname: 'init_wZIL_address',
+      type: 'ByStr20',
+      value: wZil,
+    }
   ];
   console.log(init)
 

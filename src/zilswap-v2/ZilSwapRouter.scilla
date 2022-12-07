@@ -235,6 +235,7 @@ type Error =
 | CodeNotPendingGovernor
 | CodeDuplicateUnamplifiedPool
 | CodeInvalidPool
+| CodeInvalidWZIL
 | CodeInsufficientAmount
 | CodeInsufficientLiquidity
 | CodeBlockExpired
@@ -252,13 +253,14 @@ let make_error =
       | CodeNotPendingGovernor        => Int32 -3
       | CodeDuplicateUnamplifiedPool  => Int32 -4
       | CodeInvalidPool               => Int32 -5
-      | CodeInsufficientAmount        => Int32 -6
-      | CodeInsufficientLiquidity     => Int32 -7
-      | CodeBlockExpired              => Int32 -8
-      | CodeOutOfBoundVReserve        => Int32 -9
-      | CodeInsufficientInputAmt      => Int32 -10
-      | CodeInsufficientOutputAmt     => Int32 -11
-      | CodeExcessiveInputAmt         => Int32 -12
+      | CodeInvalidWZIL               => Int32 -6
+      | CodeInsufficientAmount        => Int32 -7
+      | CodeInsufficientLiquidity     => Int32 -8
+      | CodeBlockExpired              => Int32 -9
+      | CodeOutOfBoundVReserve        => Int32 -10
+      | CodeInsufficientInputAmt      => Int32 -11
+      | CodeInsufficientOutputAmt     => Int32 -12
+      | CodeExcessiveInputAmt         => Int32 -13
       end
     in
     { _exception : "Error"; code : result_code }
@@ -266,13 +268,15 @@ let make_error =
 contract ZilSwapRouter
 (
   init_governor : ByStr20,
-  init_codehash : ByStr32
+  init_codehash : ByStr32,
+  init_wZIL_address : ByStr20 with contract field balances: Map ByStr20 Uint128 end
 )
 
 field governor : ByStr20 = init_governor
 field pending_governor : Option ByStr20 = none
 field pool_codehash : ByStr32 = init_codehash
 field fee_configuration : Pair ByStr20 Uint128 = Pair {ByStr20 Uint128} zero_address zero_amount (* fee_to fee_bps *)
+field wZIL_address: ByStr20 with contract field balances: Map ByStr20 Uint128 end = init_wZIL_address (* Should not be changed *)
 
 field all_pools : List ByStr20 = Nil {ByStr20}
 field pools : Map ByStr20 (Map ByStr20 (List ByStr20)) = Emp ByStr20 (Map ByStr20 (List ByStr20))
@@ -304,20 +308,20 @@ end
 
 (* @dev: Validate the pool contract with correct codehash *)
 procedure IsValidPoolContract(pool_address : ByStr20)
-  maybe_pool <- & pool_address as ByStr20 with _codehash end;
-  match maybe_pool with
-  | None =>
-  | Some p =>
-    required_codehash <- pool_codehash;
-    codehash <- & p._codehash;
-    is_valid_pool = builtin eq codehash required_codehash;
-    match is_valid_pool with
-    | True =>
-    | False =>
-      err = CodeInvalidPool;
-      ThrowError err
-    end
-  end
+ maybe_pool <- & pool_address as ByStr20 with _codehash end;
+ match maybe_pool with
+ | None =>
+ | Some p =>
+   required_codehash <- pool_codehash;
+   codehash <- & p._codehash;
+   is_valid_pool = builtin eq codehash required_codehash;
+   match is_valid_pool with
+   | True =>
+   | False =>
+     err = CodeInvalidPool;
+     ThrowError err
+   end
+ end
 end
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
@@ -337,6 +341,18 @@ procedure VerifyPoolAddress(tokenA : ByStr20, tokenB : ByStr20, pool: ByStr20)
   | True =>
   | False =>
     err = CodeInvalidPool;
+    ThrowError err
+  end
+end
+
+(* @dev: Verify if address is equal to wZIL_address *)
+procedure VerifyWZILAddress(address: ByStr20)
+  wZIL <- wZIL_address;
+  is_wZIL = builtin eq wZIL address;
+  match is_wZIL with
+  | True =>
+  | False =>
+    err = CodeInvalidWZIL;
     ThrowError err
   end
 end
@@ -385,35 +401,6 @@ procedure VerifyBlock(deadline_block : BNum)
   end
 end
 
-(* @dev: Transfer ZRC-2 tokens to pool *)
-procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, amount0: Uint128, amount1: Uint128)
-  msg_to_token0 = {
-    _tag: "TransferFrom";
-    _recipient: token0;
-    _amount: zero_amount;
-    from: _sender;
-    to: pool;
-    amount: amount0
-  };
-  msg_to_token1 = {
-    _tag: "TransferFrom";
-    _recipient: token1;
-    _amount: zero_amount;
-    from: _sender;
-    to: pool;
-    amount: amount1
-  };
-  msgs = two_msgs msg_to_token0 msg_to_token1;
-  send msgs
-end
-
-(* @dev: Transfer zil from contract balance to the user *)
-procedure Send(amount: Uint128, to_address : ByStr20)
-  msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
-  msgs = one_msg msg;
-  send msgs
-end
-
 (* @dev: Checks if r_in > amount_in && r_out > amount_out *)
 procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Uint128, amount_out: Uint128)
   is_sufficient_liquidity = 
@@ -437,6 +424,90 @@ procedure VerifyValidAmountIn(amount_in: Uint128)
     ThrowError err
   end
 end
+
+(*** Transfers ***)
+
+(* @dev: Transfer zil from contract balance to the user *)
+procedure Send(amount: Uint128, to_address : ByStr20)
+  msg = { _tag : "AddFunds"; _recipient: to_address; _amount: amount };
+  msgs = one_msg msg;
+  send msgs
+end
+
+procedure TransferZRC2(token_address: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_zrc2 = {
+    _tag: "Transfer";
+    _recipient: token_address;
+    _amount: zero_amount;
+    to: to;
+    amount: amount
+  };
+  msg = one_msg msg_to_zrc2;
+  send msg
+end
+
+procedure TransferFromZRC2(token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_zrc2 = {
+    _tag: "TransferFrom";
+    _recipient: token_address;
+    _amount: zero_amount;
+    from: from;
+    to: to;
+    amount: amount
+  };
+  msg = one_msg msg_to_zrc2;
+  send msg
+end
+
+(* @dev: Transfer ZRC-2 tokens to pool *)
+procedure TransferZRC2ToPool(pool: ByStr20, token0: ByStr20, token1: ByStr20, amount0: Uint128, amount1: Uint128)
+  msg_to_token0 = {
+    _tag: "TransferFrom";
+    _recipient: token0;
+    _amount: zero_amount;
+    from: _sender;
+    to: pool;
+    amount: amount0
+  };
+  msg_to_token1 = {
+    _tag: "TransferFrom";
+    _recipient: token1;
+    _amount: zero_amount;
+    from: _sender;
+    to: pool;
+    amount: amount1
+  };
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs
+end
+
+(* Calls Mint transition on wZIL contract to wrap ZIL into wZIL *)
+procedure WrapZIL(amount: Uint128)
+  wZIL <- wZIL_address;
+  msg_to_zrc2 = {
+    _tag: "Mint";
+    _recipient: wZIL;
+    _amount: amount
+  };
+  msg = one_msg msg_to_zrc2;
+  send msg
+end
+
+(* Calls Burn transition on wZIL contract to unwrap wZIL into ZIL *)
+procedure UnwrapZIL(amount: Uint128)
+  wZIL <- wZIL_address;
+  msg_to_token = {
+    _tag: "Burn";
+    _recipient: wZIL;
+    _amount: zero_amount;
+    amount: amount
+  };
+
+  msg = one_msg msg_to_token;
+  send msg
+end
+
+(*** Swaps ***)
 
 (* @dev: Calculates the amount_out and assigns to amt_out *)
 procedure GetAmountOut(
@@ -670,53 +741,6 @@ procedure IsPendingGovernor(address: ByStr20)
   end
 end
 
-procedure TransferZRC2(token_address: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_zrc2 = {
-    _tag: "Transfer";
-    _recipient: token_address;
-    _amount: zero_amount;
-    to: to;
-    amount: amount
-  };
-  msg = one_msg msg_to_zrc2;
-  send msg
-end
-
-procedure TransferFromZRC2(token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_zrc2 = {
-    _tag: "TransferFrom";
-    _recipient: token_address;
-    _amount: zero_amount;
-    from: from;
-    to: to;
-    amount: amount
-  };
-  msg = one_msg msg_to_zrc2;
-  send msg
-end
-
-procedure MintZRC2(token_address: ByStr20, amount: Uint128)
-  msg_to_zrc2 = {
-    _tag: "Mint";
-    _recipient: token_address;
-    _amount: amount
-  };
-  msg = one_msg msg_to_zrc2;
-  send msg
-end
-
-procedure BurnZRC2(token_address: ByStr20, amount: Uint128)
-  msg_to_token = {
-    _tag: "Burn";
-    _recipient: token_address;
-    _amount: zero_amount;
-    amount: amount
-  };
-
-  msg = one_msg msg_to_token;
-  send msg
-end
-
 (***************************************)
 (*         Factory Transitions         *)
 (***************************************)
@@ -733,7 +757,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-  IsValidPoolContract pool;
+(*  IsValidPoolContract pool;*)
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
@@ -779,11 +803,26 @@ end
 
 (*** Governance ***)
 
+(* @dev: Only governor should be able to set fee config *)
 (* @param config: fee_to fee_bps *)
 transition SetFeeConfiguration(config: Pair ByStr20 Uint128)
-    fee_configuration := config;
-    e = {_eventname: "FeeConfigurationSet"; fee_configuration: config};
-    event e
+  IsGovernor _sender;
+  fee_configuration := config;
+  e = {_eventname: "FeeConfigurationSet"; fee_configuration: config};
+  event e
+end
+
+(* @dev: Only governor can set wZIL address *)
+(* @dev: Should not be used unless there is a change in wZIL contract address *)
+transition SetWZILAddress(
+  new_wZIL_address: ByStr20 with contract 
+    field balances: Map ByStr20 Uint128 
+  end
+)
+  IsGovernor _sender;
+  wZIL_address := new_wZIL_address;
+  e = {_eventname: "wZILAddressSet"; new_wZIL_address: new_wZIL_address};
+  event e
 end
 
 (* @dev: Transfers contract governorship to a new address. The new address must call the AcceptGovernorship transition to finalize the transfer. *)
@@ -926,20 +965,23 @@ end
 
 transition AddLiquidityZIL(
   token : ByStr20,
-  wZIL : ByStr20,
   pool: ByStr20 with contract
     field reserve0 : Uint128,
     field reserve1 : Uint128,
     field v_reserve0 : Uint128,
-    field v_reserve1 : Uint128
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128
   end,
   amount_token_desired: Uint128,
   amount_token_min: Uint128,
   amount_wZIL_min: Uint128,
-  v_reserve_ratio_bounds: Pair Uint128 Uint128,
+  v_reserve_ratio_bounds: Pair Uint256 Uint256,
   to: ByStr20,
   deadline_block: BNum
 )
+  (* fetch wZIL addresses from mutable fields *)
+  wZIL <- wZIL_address;
+
   (* check if current_block has passed the deadline block to process this transaction *)
   VerifyBlock deadline_block;
   (* check if pool contract for tokenA and tokenB exists *)
@@ -962,7 +1004,7 @@ transition AddLiquidityZIL(
 
     (* Send ZIL to wZIL contract and mint wZIL *)
     accept;
-    MintZRC2 wZIL amount_wZIL;
+    WrapZIL amount_wZIL;
 
     (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
     TransferZRC2 wZIL _sender amount_wZIL;
@@ -989,7 +1031,7 @@ transition AddLiquidityZIL(
 
       (* Send ZIL to wZIL contract and mint wZIL *)
       accept;
-      MintZRC2 wZIL amount_wZIL;
+      WrapZIL amount_wZIL;
 
       (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
       TransferZRC2 wZIL _sender amount_wZIL;
@@ -1016,7 +1058,7 @@ transition AddLiquidityZIL(
 
       (* Send ZIL to wZIL contract and mint wZIL *)
       accept;
-      MintZRC2 wZIL amount_wZIL;
+      WrapZIL amount_wZIL;
     
       (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
       TransferZRC2 wZIL _sender amount_wZIL;
@@ -1024,18 +1066,30 @@ transition AddLiquidityZIL(
       (* Transfer pairing of wZIL and token to pool *)
       TransferZRC2ToPool pool token wZIL amount_token amount_wZIL
     end;
-    current_rate = frac v_r_b q112_u128 v_r_a;
-    match v_reserve_ratio_bounds with
-    | Pair l_bound u_bound =>
-      is_out_of_bound_vreserve = 
-        let l_b = uint128_ge current_rate l_bound in
-        let u_b = uint128_le current_rate u_bound in
-        andb l_b u_b;
-      match is_out_of_bound_vreserve with 
-      | True =>
-      | False =>
-        err = CodeOutOfBoundVReserve;
-        ThrowError err
+
+    amp <- & pool.amp_bps;
+    is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+    match is_amp_pool with 
+    | False => 
+    | True =>
+    (* only for amp pool *)
+      current_rate = 
+        let v_r_a_u256 = grow v_r_a in
+        let v_r_b_u256 = grow v_r_b in
+        let a = builtin mul v_r_b_u256 q112_u256 in
+        builtin div a v_r_a_u256;
+      match v_reserve_ratio_bounds with
+      | Pair l_bound u_bound =>
+        is_not_out_of_bound_vreserve = 
+          let l_b = uint256_ge current_rate l_bound in
+          let u_b = uint256_le current_rate u_bound in
+          andb l_b u_b;
+        match is_not_out_of_bound_vreserve with 
+        | True =>
+        | False =>
+          err = CodeOutOfBoundVReserve;
+          ThrowError err
+        end
       end
     end
   end;
@@ -1089,16 +1143,13 @@ transition RemoveLiquidity(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers tokenA and tokenB back to _sender *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end
 
 transition RemoveLiquidityZIL(
   token: ByStr20 with contract
-    field balances: Map ByStr20 Uint128
-  end,
-  wZIL: ByStr20 with contract
     field balances: Map ByStr20 Uint128
   end,
   pool: ByStr20 with contract
@@ -1109,6 +1160,9 @@ transition RemoveLiquidityZIL(
   amount_wZIL_min: Uint128,
   deadline_block: BNum
 )
+  (* fetch wZIL addresses from mutable fields *)
+  wZIL <- wZIL_address;
+
   VerifyBlock deadline_block;
   VerifyPoolAddress token wZIL pool;
 
@@ -1134,7 +1188,7 @@ transition RemoveLiquidityZIL(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount; to: _sender};
+  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
 
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs;
@@ -1143,7 +1197,7 @@ transition RemoveLiquidityZIL(
   TransferFromZRC2 wZIL _sender _this_address wZil_amount;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to _sender *)
-  BurnZRC2 wZIL wZil_amount
+  UnwrapZIL wZil_amount
 end
 
 (*** SWAP ***)
@@ -1518,11 +1572,12 @@ transition SwapExactZILForTokensOnce(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path;
-  MintZRC2 wZil_address _amount;
+  WrapZIL _amount;
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender _amount;
+  wZIL = get_from_address path;
+  VerifyWZILAddress wZIL;
+  TransferZRC2 wZIL _sender _amount;
 
   SwapZRC2Once pool path _amount final_amount_out;
 
@@ -1579,11 +1634,12 @@ transition SwapExactZILForTokensTwice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path1;
-  MintZRC2 wZil_address _amount;
+  WrapZIL _amount;
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender _amount;
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+  TransferZRC2 wZIL _sender _amount;
 
   SwapZRC2Once pool1 path1 _amount intermediate_amount_out;
   SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
@@ -1657,10 +1713,12 @@ transition SwapExactZILForTokensThrice(
 
   (* convert ZIL to wZIL *)
   (* wZil_address = get_from_address path1;
-  MintZRC2 wZil_address _amount; *)
+  WrapZIL _amount; *)
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  (* TransferZRC2 wZil_address _sender _amount; *)
+  (* wZIL = get_from_address path1; *)
+  (* VerifyWZILAddress wZIL; *)
+  (* TransferZRC2 wZIL _sender _amount; *)
 
   SwapZRC2Once pool1 path1 _amount first_intermediate_amount_out;
   SwapZRC2Once pool2 path2 first_intermediate_amount_in second_intermediate_amount_out;
@@ -1707,11 +1765,12 @@ transition SwapTokensForExactZILOnce(
   SwapZRC2Once pool path init_amt_in amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path;
-  TransferFromZRC2 wZil_address _sender _this_address amount_out;
+  wZIL = get_to_address path;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
-  BurnZRC2 wZil_address amount_out;
+  UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
 end
@@ -1770,11 +1829,12 @@ transition SwapTokensForExactZILTwice(
   SwapZRC2Once pool2 path2 intermediate_amt_in amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path2;
-  TransferFromZRC2 wZil_address _sender _this_address amount_out;
+  wZIL = get_to_address path2;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
-  BurnZRC2 wZil_address amount_out;
+  UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
 end
@@ -1849,11 +1909,12 @@ transition SwapTokensForExactZILThrice(
   SwapZRC2Once pool3 path3 second_intermediate_amt_in amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path3;
-  TransferFromZRC2 wZil_address _sender _this_address amount_out;
+  wZIL = get_to_address path3;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user*)
-  BurnZRC2 wZil_address amount_out;
+  UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
 end
@@ -1894,11 +1955,12 @@ transition SwapExactTokensForZILOnce(
   SwapZRC2Once pool path amount_in final_amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path;
-  TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
+  wZIL = get_to_address path;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address final_amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  BurnZRC2 wZil_address final_amount_out;
+  UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
 end
@@ -1955,11 +2017,12 @@ transition SwapExactTokensForZILTwice(
   SwapZRC2Once pool2 path2 intermediate_amount_in final_amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path2;
-  TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
+  wZIL = get_to_address path2;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address final_amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  BurnZRC2 wZil_address final_amount_out;
+  UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
 end
@@ -2032,11 +2095,12 @@ transition SwapExactTokensForZILThrice(
   SwapZRC2Once pool3 path3 second_intermediate_amount_in final_amount_out;
 
   (* transfer wZIL to this contract *)
-  wZil_address = get_to_address path3;
-  TransferFromZRC2 wZil_address _sender _this_address final_amount_out;
+  wZIL = get_to_address path3;
+  VerifyWZILAddress wZIL;
+  TransferFromZRC2 wZIL _sender _this_address final_amount_out;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  BurnZRC2 wZil_address final_amount_out;
+  UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
 end
@@ -2078,11 +2142,12 @@ transition SwapZILForExactTokensOnce(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path;
-  MintZRC2 wZil_address init_amt_in;
+  WrapZIL init_amt_in;
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender init_amt_in;  
+  wZIL = get_from_address path;
+  VerifyWZILAddress wZIL;
+  TransferZRC2 wZIL _sender init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
   refund = builtin sub _amount init_amt_in;
@@ -2145,11 +2210,12 @@ transition SwapZILForExactTokensTwice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path1;
-  MintZRC2 wZil_address init_amt_in;
+  WrapZIL init_amt_in;
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender init_amt_in;  
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+  TransferZRC2 wZIL _sender init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
   refund = builtin sub _amount init_amt_in;
@@ -2228,11 +2294,12 @@ transition SwapZILForExactTokensThrice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZil_address = get_from_address path1;
-  MintZRC2 wZil_address init_amt_in;
+  WrapZIL init_amt_in;
 
   (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-  TransferZRC2 wZil_address _sender init_amt_in;  
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+  TransferZRC2 wZIL _sender init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
   refund = builtin sub _amount init_amt_in;
@@ -2281,6 +2348,9 @@ end
 
 (* @dev: Handling accepting of ZIL from wZIL contract *)
 transition AddFunds()
+  (* validate that _sender is wZIL *)
+  VerifyWZILAddress _sender;
+
   (* accept ZIL from wZIL contract *)
   accept;
   amount <- _balance;

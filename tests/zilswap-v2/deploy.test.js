@@ -1,15 +1,16 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployContract } = require('../../scripts/deploy.js');
+const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployContract, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto');
 const { getContractCodeHash } = require('./helper.js');
 
-let token0, token1, owner, tx, router, routerState, pool, poolState
+let token0, token1, wZil, owner, tx, router, routerState, pool, poolState
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 beforeAll(async () => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
-  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
+  wZil = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
   token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }, router.address.toLowerCase(), null))[0]
   token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }, router.address.toLowerCase(), null))[0]
 
@@ -42,11 +43,12 @@ beforeAll(async () => {
       "constructor": "None"
     },
     "pools": {},
-    "unamplified_pools": {}
+    "unamplified_pools": {},
+    "wZIL_address": `${wZil.address.toLowerCase()}`,
   })
 })
 
-test('deploy ZilswapV2 (AmpPool)', async () => {
+test('deploy ZilswapV2 (Amp pool)', async () => {
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
   pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(true) }))[0]
   poolState = await pool.getState()
@@ -73,7 +75,7 @@ test('deploy ZilswapV2 (AmpPool)', async () => {
   })
 })
 
-test('deploy ZilswapV2 (notAmpPool)', async () => {
+test('deploy ZilswapV2 (Non-amp pool)', async () => {
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
   pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(false) }))[0]
   poolState = await pool.getState()

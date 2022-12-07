@@ -1,10 +1,9 @@
-
 const { createRandomAccount, getDefaultAccount } = require('../../scripts/account.js')
 const { callContract } = require('../../scripts/call.js')
-const { deployZilswapV2Router } = require('../../scripts/deploy.js')
+const { deployZilswapV2Router, deployWrappedZIL } = require('../../scripts/deploy.js')
 const { getContractCodeHash } = require('./helper.js')
 
-let router, origKey, origOwner, newKey, newOwner, codehash
+let router, wZil, origKey, origOwner, newKey, newOwner, codehash
 beforeEach(async () => {
   codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
@@ -16,7 +15,8 @@ beforeEach(async () => {
   newKey = account.key
   newOwner = account.address
 
-  router = (await deployZilswapV2Router(origKey, { governor: null, codehash }))[0]
+  wZil = (await deployWrappedZIL(origKey, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  router = (await deployZilswapV2Router(origKey, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
 })
 
 test('zilswap transferrable governor', async () => {

@@ -1,11 +1,11 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken } = require('../../scripts/deploy.js');
+const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
 let owner, feeAccount, tx
-let router, token0, token1, token2, pool1, pool2, prevPool1State, prevPool2State, newPool1State, newPool2State, prevToken0State, prevToken1State, prevToken2State, newToken0State, newToken1State, newToken2State;
+let router, wZil, token0, token1, token2, pool1, pool2, prevPool1State, prevPool2State, newPool1State, newPool2State, prevToken0State, prevToken1State, prevToken2State, newToken0State, newToken1State, newToken2State;
 const init_liquidity = 1000000000;
 let amountIn = amountInMax = 100000;
 let amountOutMin = amountOut = 10000;
@@ -1035,7 +1035,8 @@ getAmpBps = (isAmpPool) => {
 setup = async (isAmpPool) => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
-  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash }))[0]
+  wZil = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
   token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0', decimals: 6 }, router.address.toLowerCase(), null))[0]
   token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1', decimals: 18 }, router.address.toLowerCase(), null))[0]
   token2 = (await useFungibleToken(owner.key, { symbol: 'TKN2', decimals: 18 }, router.address.toLowerCase(), null))[0]
