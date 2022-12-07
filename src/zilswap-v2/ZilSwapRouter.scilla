@@ -304,7 +304,7 @@ end
 
 (* @dev: Validate the pool contract with correct codehash *)
 procedure IsValidPoolContract(pool_address : ByStr20)
-  (* maybe_pool <- & pool_address as ByStr20 with _codehash end;
+  maybe_pool <- & pool_address as ByStr20 with _codehash end;
   match maybe_pool with
   | None =>
   | Some p =>
@@ -317,7 +317,7 @@ procedure IsValidPoolContract(pool_address : ByStr20)
       err = CodeInvalidPool;
       ThrowError err
     end
-  end *)
+  end
 end
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
@@ -966,12 +966,9 @@ transition AddLiquidityZIL(
     accept;
     MintZRC2 wZIL amount_wZIL;
 
-    (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-    TransferZRC2 wZIL _sender amount_wZIL;
-
     (* Transfer pairing of wZIL and token to pool *)
     TransferFromZRC2 token _sender pool amount_token;
-    TransferFromZRC2 wZIL _sender pool amount_wZIL
+    TransferZRC2 wZIL pool amount_wZIL
   | False =>
     (* pool with existing liquidity *)
     (* check how much wZIL is required to fulfil amount_token_desired pairing *)
@@ -994,16 +991,13 @@ transition AddLiquidityZIL(
       accept;
       MintZRC2 wZIL amount_wZIL;
 
-      (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-      TransferZRC2 wZIL _sender amount_wZIL;
-
       (* refund back remaining ZIL not used up in conversion to wZIL *)
       refund = builtin sub _amount amount_wZIL;
       Send refund _sender;
 
       (* Transfer pairing of wZIL and token to pool *)
       TransferFromZRC2 token _sender pool amount_token;
-      TransferFromZRC2 wZIL _sender pool amount_wZIL
+      TransferZRC2 wZIL pool amount_wZIL
     | False =>
       (* insufficient wZIL provided *)
       (* check how many tokens are required to fulfil wZIL pairing, based on insufficient wZIL provided *)
@@ -1021,13 +1015,10 @@ transition AddLiquidityZIL(
       (* Send ZIL to wZIL contract and mint wZIL *)
       accept;
       MintZRC2 wZIL amount_wZIL;
-    
-      (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-      TransferZRC2 wZIL _sender amount_wZIL;
       
       (* Transfer pairing of wZIL and token to pool *)
       TransferFromZRC2 token _sender pool amount_token;
-      TransferFromZRC2 wZIL _sender pool amount_wZIL
+      TransferZRC2 wZIL pool amount_wZIL
     end;
 
     amp <- & pool.amp_bps;
