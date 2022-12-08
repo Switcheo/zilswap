@@ -695,11 +695,6 @@ setup = async (isAmpPool) => {
           "argtypes": ["Uint256", "Uint256"],
           "arguments": ["0", "100000000000000000000000000000000000"]
         }
-      },
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: `${owner.address.toLowerCase()}`,
       }
     ],
     init_liquidity, false, true
@@ -743,11 +738,6 @@ setup = async (isAmpPool) => {
           "argtypes": ["Uint256", "Uint256"],
           "arguments": ["0", "100000000000000000000000000000000000"]
         }
-      },
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: `${owner.address.toLowerCase()}`,
       }
     ],
     init_liquidity, false, true

@@ -112,12 +112,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
             "argtypes": ["Uint256", "Uint256"],
             "arguments": ["0", "1000000000000"]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -191,12 +186,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
             "argtypes": ["Uint256", "Uint256"],
             "arguments": [`${v_reserve_min}`, `${v_reserve_max}`]
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -401,12 +391,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
             "argtypes": ["Uint256", "Uint256"],
             "arguments": ['0', '0']
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )
@@ -474,12 +459,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
             "argtypes": ["Uint256", "Uint256"],
             "arguments": ['0', '0']
           }
-        },
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        }
       ],
       0, false, true
     )

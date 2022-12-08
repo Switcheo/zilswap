@@ -1547,12 +1547,7 @@ setup = async (isAmpPool) => {
           "argtypes": ["Uint256", "Uint256"],
           "arguments": ["0", "1000000000000"]
         }
-      },
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: `${owner.address.toLowerCase()}`,
-      },
+      }
     ],
     0, false, true
   )
@@ -1605,12 +1600,7 @@ setup = async (isAmpPool) => {
           "argtypes": ["Uint256", "Uint256"],
           "arguments": ["0", "1000000000000"]
         }
-      },
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: `${owner.address.toLowerCase()}`,
-      },
+      }
     ],
     0, false, true
   )
@@ -1663,12 +1653,7 @@ setup = async (isAmpPool) => {
           "argtypes": ["Uint256", "Uint256"],
           "arguments": ["0", "1000000000000"]
         }
-      },
-      {
-        vname: 'to',
-        type: 'ByStr20',
-        value: `${owner.address.toLowerCase()}`,
-      },
+      }
     ],
     0, false, true
   )

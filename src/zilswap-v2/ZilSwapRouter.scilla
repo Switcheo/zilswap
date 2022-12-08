@@ -866,7 +866,6 @@ transition AddLiquidity(
   amountA_min: Uint128,
   amountB_min: Uint128,
   v_reserve_ratio_bounds: Pair Uint256 Uint256,
-  to: ByStr20,
   deadline_block: BNum
 )
   (* check if current_block has passed the deadline block to process this transaction *)
@@ -959,7 +958,7 @@ transition AddLiquidity(
   end;
 
   (* Calls Mint transition on Pool *)
-  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: _sender};
   msg = one_msg msg_to_pool;
   send msg
 end
@@ -977,7 +976,6 @@ transition AddLiquidityZIL(
   amount_token_min: Uint128,
   amount_wZIL_min: Uint128,
   v_reserve_ratio_bounds: Pair Uint256 Uint256,
-  to: ByStr20,
   deadline_block: BNum
 )
   (* fetch wZIL addresses from mutable fields *)
@@ -1093,7 +1091,7 @@ transition AddLiquidityZIL(
   end;
   
   (* Calls Mint transition on Pool *)
-  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: to};
+  msg_to_pool = {_tag: "Mint"; _recipient: pool; _amount: zero_amount; to: _sender};
   msg = one_msg msg_to_pool;
   send msg
 end
