@@ -522,7 +522,42 @@ procedure MintFee(is_amp_pool: Bool)
         has_fee = uint128_gt liquidity zero_amount;
         match has_fee with 
         | False =>
+          t_r1_u256 = builtin div t_u256 r1_u256;
+          a_sqrt_u256 = builtin isqrt t_r1_u256;
+          a_sub_u256 = builtin sub r0_u256 a_sqrt_u256;
+          a_sub_u128 = reduce a_sub_u256;
+
+          kl_r1 = builtin div kl r1;
+          kl_r1_r0_u256 = u128_mul_grow kl_r1 r0;
+          b_sqrt_u256 = builtin isqrt kl_r1_r0_u256;
+          b_sub_u256 = builtin sub r0_u256 b_sqrt_u256;
+          b_sub_u128 = reduce b_sub_u256;
+
+          e = {
+            _eventname : "NOMINTFEEYALL";
+            liquidity: liquidity;
+            collected_fee: collected_fee;
+            pool_value: pool_value;
+            ts: ts;
+            is_eq: is_eq;
+            r0_u256: r0_u256;
+            r1_u256: r1_u256;
+            kl: kl;
+            t_u256: t_u256;
+            t_r1_u256: t_r1_u256;
+            a_sqrt_u256: a_sqrt_u256;
+            a_sub_u256: a_sub_u256;
+            a_sub_u128: a_sub_u128;
+            kl_r1: kl_r1;
+            kl_r1_r0_u256: kl_r1_r0_u256;
+            b_sqrt_u256: b_sqrt_u256;
+            b_sub_u256: b_sub_u256;
+            b_sub_u128: b_sub_u128
+          };
+          event e
         | True =>
+          e = {_eventname : "MINTFEEYALL"; fee: liquidity};
+          event e;
           AuthorizedMint fee_to liquidity
         end
       end

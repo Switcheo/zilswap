@@ -5,7 +5,10 @@ const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 
 let token0, token1, token, wZil, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State, prevOwnerZilBalance, newOwnerZilBalance
+const ONE_MILLION = 1_000_000
 const init_liquidity = 10000
+const ONE_THOUSAND = 1000
+const ONE_HUNDRED = 100
 let amountIn = 100;
 let amountInMax = 1000;
 let amountOut = 100;
@@ -702,7 +705,6 @@ setup = async (isAmpPool) => {
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
-  // console.log(tx.receipt.event_logs)
 
   tx = await callContract(
     owner.key, router,
@@ -751,7 +753,6 @@ setup = async (isAmpPool) => {
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
-  // console.log(tx.receipt.event_logs[7])
 }
 
 // validate pool reserves (both amp and non-amp pools)

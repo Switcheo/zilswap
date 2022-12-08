@@ -1015,7 +1015,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
   })
 })
 
-describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
+describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Amp pool)', () => {
 
   beforeAll(async () => {
     await setup(true)
@@ -1618,7 +1618,7 @@ setup = async (isAmpPool) => {
         value: {
           "constructor": "Pair",
           "argtypes": ["Uint256", "Uint256"],
-          "arguments": ["0", "100000000000000000000000000000000000"]
+          "arguments": ["0", "1000000000000"]
         }
       },
       {
