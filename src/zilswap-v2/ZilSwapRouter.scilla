@@ -1140,7 +1140,6 @@ transition RemoveLiquidity(
 
   (* Calls Burn transition on Pool, that transfers tokenA and tokenB back to _sender *)
   msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
   send msgs
 end
@@ -1185,7 +1184,6 @@ transition RemoveLiquidityZIL(
                 from: _sender; to: pool; amount: liquidity};
 
   (* Calls Burn transition on Pool, that transfers token and wZIL back to _sender *)
-  msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
   msg_to_pool_2 = {_tag: "Burn"; _recipient: pool; _amount: zero_amount};
 
   msgs = two_msgs msg_to_pool_1 msg_to_pool_2;
