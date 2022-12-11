@@ -8,23 +8,17 @@ const { adt } = require("./helper")
 let privateKey, address, hunyAddress, emporiumAddress, resourceStallAddress, geodeAddress, hunyContract, emporiumContract, resourceStallContract, geodeContract
 
 const HUNDRED_PERCENT_BPS = 100
-const GEODE_BASE_PRICE = ONE_HUNY.times(1)
-const GEODE_MAX_PRICE = ONE_HUNY.times(2)
+const NEGATIVE_HUNDRED_PERCENT_BPS = -100
+const GEODE_BASE_PRICE = new BigNumber(0)
+const GEODE_START_PRICE = ONE_HUNY.times(5)
+const GEODE_MAX_PRICE = ONE_HUNY.times(10)
 const GEODE_INFLATION_BPS = HUNDRED_PERCENT_BPS
-const GEODE_DEFLATION_BPS = HUNDRED_PERCENT_BPS
+const GEODE_DEFLATION_BPS = NEGATIVE_HUNDRED_PERCENT_BPS
 
 const getAvgInflationBPS = (currentInflationBPS, qtyPurchased, inflationBPS) => {
   // sum of inflation incr BPS = (0 + 1 + ... + (n-1)) * inflation BPS
   const avgInflationIncrBPS = Math.floor((qtyPurchased - 1) * inflationBPS / 2)
   const avgInflationBPS = currentInflationBPS + avgInflationIncrBPS
-
-  return avgInflationBPS
-}
-
-const getAvgDeflationBPS = (currentInflationBPS, qtyPurchased, inflationBPS) => {
-  // sum of inflation incr BPS = (0 + 1 + ... + (n-1)) * inflation BPS
-  const avgInflationIncrBPS = Math.floor((qtyPurchased - 1) * inflationBPS / 2)
-  const avgInflationBPS = currentInflationBPS - avgInflationIncrBPS
 
   return avgInflationBPS
 }
@@ -101,16 +95,18 @@ test('add item (resource) to resource stall -> emporium', async () => {
     param('resource', 'ByStr20', geodeAddress),
     param('buy_price', `${resourceStallAddress}.Price`,
       adt(`${resourceStallAddress}.Price`, [], [
-        GEODE_BASE_PRICE.toString(10),      // base price = 1 HUNY
-        GEODE_MAX_PRICE.toString(10),       // max price = 100 HUNY
+        GEODE_START_PRICE.toString(10),      // base price = 5 HUNY
+        GEODE_START_PRICE.toString(10),     // start price = 5 HUNY
+        GEODE_MAX_PRICE.toString(10),       // max price = 10 HUNY
         GEODE_INFLATION_BPS.toString(10),   // inflation bps
         GEODE_DEFLATION_BPS.toString(10)    // deflation bps
       ])
     ),
     param('sell_price', `${resourceStallAddress}.Price`,
       adt(`${resourceStallAddress}.Price`, [], [
-        ONE_HUNY.times(1).toString(10),
-        ONE_HUNY.times(100).toString(10),
+        GEODE_BASE_PRICE.toString(10),      // base price = 0 HUNY
+        GEODE_START_PRICE.toString(10),     // start price = 5 HUNY
+        GEODE_MAX_PRICE.toString(10),       // max price = 10 HUNY
         GEODE_INFLATION_BPS.toString(10),   // inflation bps
         GEODE_DEFLATION_BPS.toString(10)    // deflation bps
       ])
@@ -124,79 +120,94 @@ test('add item (resource) to resource stall -> emporium', async () => {
 test('buy resource and test inflation', async () => {
   const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
     param('item_id', 'Uint128', "0"),
-    param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
-    param('purchase_data', 'String', "10"),
+    param('max_price', 'Uint128', ONE_HUNY.times(100000)),
+    param('purchase_data', 'String', "50"),
   ], 0, false, false)
-  console.log("purchase 10 geodes", txPurchaseGeode.id);
+  console.log("purchase 50 geodes", txPurchaseGeode.id);
   expect(txPurchaseGeode.receipt.success).toEqual(true)
 
-  const avgInflation = getAvgInflationBPS(0, 10, HUNDRED_PERCENT_BPS)
+  const avgInflation = getAvgInflationBPS(0, 50, GEODE_INFLATION_BPS)
   // no items bought yet, so current inflation rate = 0
-  // inflation rate of 100 bps, 10 items bought, avg inflation bps = 0 + (10 - 1) / 2 * 100 = 450 bps
-  expect(avgInflation).toEqual(450)
+  // inflation rate of 100 bps, 50 items bought, avg inflation bps = 0 + (50 - 1) / 2 * 100 = 2450 bps
+  expect(avgInflation).toEqual(2450)
   const hunyPaid = new BigNumber(txPurchaseGeode.receipt.event_logs[3].params[2].value)
-  expect(hunyPaid).toEqual(ONE_HUNY.times(10.45))
+  // huny paid = 5 huny * 50 qty * 124.5% = 311.25
+  expect(hunyPaid).toEqual(ONE_HUNY.times(311.25))
+
+  let state = await resourceStallContract.getState()
+  // with inflation rate of 1.00%, 50 items will cause current buy side inflation rate to be 50%
+  let buySideInflation = state.transact_count['0'].arguments[0]
+  expect(buySideInflation).toEqual('5000')
+
+  const txPurchaseGeodeMaxInflation = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+    param('item_id', 'Uint128', "0"),
+    param('max_price', 'Uint128', ONE_HUNY.times(100000)),
+    param('purchase_data', 'String', "100"),
+  ], 0, false, false)
+  console.log("purchase 100 geodes", txPurchaseGeodeMaxInflation.id);
+  expect(txPurchaseGeodeMaxInflation.receipt.success).toEqual(true)
+
+  const avgInflation2 = getAvgInflationBPS(5000, 50, GEODE_INFLATION_BPS)
+  // 50 items bought so far, inflation rate at 50.00%
+  // inflation rate of 100 bps, 50 more items to hit the cap, avg inflation bps = 5000 + (50 - 1) / 2 * 100 = 7450 bps
+  // next 50 items will be paid at max price of 10 huny
+  expect(avgInflation2).toEqual(7450)
+  
+  const hunyPaid2 = new BigNumber(txPurchaseGeodeMaxInflation.receipt.event_logs[3].params[2].value)
+  // huny paid = (5 huny * 50 qty * 174.5%) + (10 huny * 50 qty) = 936.25
+  expect(hunyPaid2).toEqual(ONE_HUNY.times(936.25))
+
+  // with inflation rate already capped, inflation will remain at 100%
+  state = await resourceStallContract.getState()
+  buySideInflation = state.transact_count['0'].arguments[0]
+  expect(buySideInflation).toEqual('10000')
 })
 
 test('sell resource and test deflation', async () => {
   const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Uint128', '1'),
-    param('quantity', 'Uint128', "10"),
+    param('min_price', 'Int128', '1'),
+    param('quantity', 'Int128', "50"),
   ], 0, false, false)
-  console.log("sell 10 geodes", txSellGeode.id);
+  console.log("sell 50 geodes", txSellGeode.id);
   expect(txSellGeode.receipt.success).toEqual(true)
 
-  const avgDeflation = getAvgDeflationBPS(1000, 10, HUNDRED_PERCENT_BPS)
-  // 10 items bought so inflation rate is at 100 * 10 = 1000 bps
-  // deflation rate of 100 bps, 10 items sold, avg inflation bps = 1000 - (10 - 1) / 2 * 100 (bps) = 550 bps
-  expect(avgDeflation).toEqual(550)
+  // current inflation is at 100.00%
+  // 50 items sold, deflation rate of -100 bps, avg inflation bps = 10000 + (50 - 1) / 2 * (-100) = 7550 bps
+  const avgDeflation = getAvgInflationBPS(10000, 50, GEODE_DEFLATION_BPS)
+  expect(avgDeflation).toEqual(7550)
+
   const hunyEarned = new BigNumber(txSellGeode.receipt.event_logs[3].params[2].value)
-  expect(hunyEarned).toEqual(ONE_HUNY.times(10.55))
-})
+  // huny earned = 5 huny * 50 qty * 175.5% = 438.75 
+  expect(hunyEarned).toEqual(ONE_HUNY.times(438.75))
 
-test('buy resource, half quantity inflation, half at max price', async () => {
-  // current inflation = 0, base price = 1 HUNY, max price = 2 HUNY, inflation bps = 100 (1%)
-  // if 200 resources are bought, 100 bought will be charged inflation and the last 100 will be charged the max price
-  const txPurchaseGeode = await callContract(privateKey, emporiumContract, "PurchaseItem", [
+  let state = await resourceStallContract.getState()
+  // 50 items sold at deflation rate of -100 bps, new sell side inflation rate = 10000 - 5000 = 5000
+  let sellSideInflation = state.transact_count['0'].arguments[1]
+  expect(sellSideInflation).toEqual('5000')
+
+  const txSellGeodeMaxDeflation = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('max_price', 'Uint128', new BigNumber(1).shiftedBy(12 + 7).toString(10)),
-    param('purchase_data', 'String', "200"),
+    param('min_price', 'Int128', '1'),
+    param('quantity', 'Int128', "200"),
   ], 0, false, false)
-  console.log("purchase 10 geodes", txPurchaseGeode.id);
-  expect(txPurchaseGeode.receipt.success).toEqual(true)
+  console.log("sell 200 geodes", txSellGeode.id);
+  expect(txSellGeodeMaxDeflation.receipt.success).toEqual(true)
 
-  const avgInflation = getAvgInflationBPS(0, 100, HUNDRED_PERCENT_BPS)
-  // no items bought yet, so current inflation rate = 0
-  // inflation rate of 100 bps, 10 items bought, avg inflation bps = 0 + (100 - 1) / 2 * 100 = 4950 bps
-  expect(avgInflation).toEqual(4950)
-  const hunyPaid = new BigNumber(txPurchaseGeode.receipt.event_logs[3].params[2].value)
-  // huny paid = 
-  // first 100 with inflation + last 100 at max price
-  // (100 * 1.495) + (100 * 2)
-  expect(hunyPaid).toEqual(ONE_HUNY.times(349.5))
-})
+  // current inflation is at 100.00%
+  // 50 items sold so far, 150 more items sold to hit min, deflation rate of -100 bps, avg inflation bps = 5000 + (150 - 1) / 2 * (-100) = -2450 bps
+  // last 50 items will be sold at base price of 0 huny
+  const avgDeflation2 = getAvgInflationBPS(5000, 150, GEODE_DEFLATION_BPS)
+  expect(avgDeflation2).toEqual(-2450)
 
-test('sell resource, half quantity deflation, half at min price', async () => {
-  // current inflation = 100%, base price = 1 HUNY, max price = 2 HUNY, deflation bps = 100 (1%)
-  // if 200 resources are sold, 100 sold will be charged deflation and the last 100 will be charged the min price
-  const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
-    param('item_id', 'Uint128', "0"),
-    param('min_price', 'Uint128', '1'),
-    param('quantity', 'Uint128', "100"),
-  ], 0, false, false)
-  console.log("sell 10 geodes", txSellGeode.id);
-  expect(txSellGeode.receipt.success).toEqual(true)
+  const hunyEarned2 = new BigNumber(txSellGeodeMaxDeflation.receipt.event_logs[3].params[2].value)
+  // huny earned = 5 huny * 150 qty * 75.5% = 438.75 
+  expect(hunyEarned2).toEqual(ONE_HUNY.times(566.25))
 
-  const avgDeflation = getAvgDeflationBPS(10000, 100, HUNDRED_PERCENT_BPS)
-  // 100 items bought so current inflation rate is at 100 * 100 = 10000 bps
-  // deflation rate of 100 bps, 200 items sold, avg inflation bps = 10000 - (100 - 1) / 2 * 100 (bps) = 5050 bps
-  expect(avgDeflation).toEqual(5050)
-  const hunyEarned = new BigNumber(txSellGeode.receipt.event_logs[3].params[2].value)
-  // huny earned = 
-  // first 100 with deflation + last 100 at min price
-  // (100 * 1.505) + (100 * 1)
-  expect(hunyEarned).toEqual(ONE_HUNY.times(250.5))
+  state = await resourceStallContract.getState()
+  // with sell side inflation rate at min, will be capped at -100.00%
+  sellSideInflation = state.transact_count['0'].arguments[1]
+  expect(sellSideInflation).toEqual('-10000')
 })
 
 test('make purchase with insufficient max_price', async () => {
@@ -215,8 +226,8 @@ test('make transaction with min_price too high', async () => {
   // test max_price < cost (throws CodeItemTooExpensive)
   const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Uint128', new BigNumber(100000000000).shiftedBy(12).toString(10)),
-    param('quantity', 'Uint128', "10"),
+    param('min_price', 'Int128', new BigNumber(100000000000).shiftedBy(12).toString(10)),
+    param('quantity', 'Int128', "10"),
   ], 0, false, false)
   console.log("sell geode with max_price too high", txSellGeode.id);
 

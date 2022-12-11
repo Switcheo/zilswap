@@ -14,8 +14,12 @@ let two = Uint128 2
 let none = None {ByStr20}
 let empty = ""
 let hundred_percent_bps = Uint128 10000
+let hundred_percent_bps_int128 = Int128 10000
 let hundred = Uint128 100
-let empty_pair = Pair {Uint128 Uint128} zero zero
+let zero_int128 = Int128 0
+let one_int128 = Int128 1
+let two_int128 = Int128 2
+let empty_pair = Pair {Int128 Int128} zero_int128 zero_int128
 let zero_address = 0x0000000000000000000000000000000000000000
 let ten_uint32 = Uint32 10
 
@@ -32,12 +36,12 @@ type Error =
   | CodeItemInvalidContract
 
 type Price =
-  | Price of Uint128 Uint128 Uint128 Uint128 (* base price, max price, inflation bps, deflation bps *)
+  | Price of Int128 Int128 Int128 Int128 Int128 (* base price, start price, max price, inflation bps, deflation bps *)
 
 type Item =
   | Item of String ByStr20 Price Price (* item name, resource token address, buy price, sell price *)
 
-let empty_price = Price zero zero zero zero
+let empty_price = Price zero_int128 zero_int128 zero_int128 zero_int128 zero_int128
 let no_item = None {Item}
 
 let make_error =
@@ -78,6 +82,33 @@ let three_msgs =
   let l2 = Cons {Message} msg2 l1 in
   Cons {Message} msg3 l2
 
+let int128_to_uint128 =
+  fun (num : Int128) =>
+    let is_negative = builtin lt num zero_int128 in
+    match is_negative with
+    | True =>
+      (* throw error to prevent overflow *)
+      let error_code = Uint128 1001 in
+      builtin sub zero error_code
+    | False =>
+      let maybe_uint128 = builtin to_uint128 num in
+      match maybe_uint128 with
+      | Some amt => amt
+      | None => zero
+      end
+    end
+
+let uint128_to_int128 =
+  fun (num : Uint128) =>
+    let maybe_int128 = builtin to_int128 num in
+    match maybe_int128 with
+    | Some amt => amt
+    | None =>
+      (* throw error code to identify *)
+      let error_code = Int128 1002 in
+      builtin sub zero_int128 error_code
+    end
+    
 let get_amount_or_zero =
   fun (maybe : Option Uint128) =>
     match maybe with
@@ -86,108 +117,129 @@ let get_amount_or_zero =
     end
 
 let subtract_or_zero =
-  fun (amount : Uint128) =>
-  fun (subtrahend : Uint128) =>
+  fun (amount : Int128) =>
+  fun (subtrahend : Int128) =>
     let is_negative = builtin lt amount subtrahend in
     match is_negative with
-    | True => zero
+    | True => zero_int128
     | False => builtin sub amount subtrahend
     end
 
 let multiply_bps =
-  fun (amount : Uint128) =>
-  fun (portion_bps : Uint128) =>
-    let is_zero = builtin eq portion_bps zero in
+  fun (amount : Int128) =>
+  fun (portion_bps : Int128) =>
+    let is_zero = builtin eq portion_bps zero_int128 in
     match is_zero with
-    | True => zero
+    | True => zero_int128
     | False =>
       let p = builtin mul amount portion_bps in
-      builtin div p hundred_percent_bps
+      builtin div p hundred_percent_bps_int128
     end
 
 let get_max_inflation_bps = 
-  fun (base_price: Uint128) =>
-  fun (max_price: Uint128) =>
-    let max_inflation_amt = builtin sub max_price base_price in
-    let m = builtin mul max_inflation_amt hundred_percent_bps in
-    builtin div m base_price
+  fun (start_price: Int128) =>
+  fun (max_price: Int128) =>
+    (* start price cannot be 0 *)
+    let max_inflation_amt = subtract_or_zero max_price start_price in
+    let m = builtin mul max_inflation_amt hundred_percent_bps_int128 in
+    builtin div m start_price
+
+let get_max_deflation_bps = 
+  fun (start_price: Int128) =>
+  fun (base_price: Int128) =>
+    (* start price cannot be 0 *)
+    let max_deflation_amt = builtin sub base_price start_price in
+    let m = builtin mul max_deflation_amt hundred_percent_bps_int128 in
+    builtin div m start_price
   
 let get_new_inflation =
-  fun (current_inflation_bps : Uint128) =>
+  fun (current_inflation_bps : Int128) =>
   fun (price : Price) =>
-  fun (buy_quantity: Uint128) =>
-  fun (sell_quantity: Uint128) =>
+  fun (buy_quantity: Int128) =>
+  fun (sell_quantity: Int128) =>
   match price with
-  | Price base_price max_price buy_inflation_bps sell_deflation_bps =>
+  | Price base_price start_price max_price buy_inflation_bps sell_deflation_bps =>
     let buy = builtin mul buy_inflation_bps buy_quantity in
     let sell = builtin mul sell_deflation_bps sell_quantity in
     let n1 = builtin add current_inflation_bps buy in
-    let n2 = subtract_or_zero n1 sell in
-    let max_inflation_bps = get_max_inflation_bps base_price max_price in 
-    let is_over_max = builtin lt max_inflation_bps n2 in 
-    match is_over_max with
-    | True => max_inflation_bps
-    | False => n2
+    let n2 = builtin add n1 sell in
+    let is_deflating = builtin lt n2 zero_int128 in
+    match is_deflating with
+    | True =>
+      (* check if deflated past max deflationary point *)
+      let max_deflation_bps = get_max_deflation_bps start_price base_price in
+      let is_over_max = builtin lt n2 max_deflation_bps in
+      match is_over_max with
+      | True => max_deflation_bps
+      | False => n2
+      end
+    | False =>
+      (* check if inflated past max inflationary point *)
+      let max_inflation_bps = get_max_inflation_bps start_price max_price in
+      let is_over_max = builtin lt max_inflation_bps n2 in
+      match is_over_max with
+      | True => max_inflation_bps
+      | False => n2
+      end
     end
   end
 
 let compute_buy_cost =
-  fun (base_price: Uint128) =>
-  fun (current_inflation_bps: Uint128) =>
-  fun (inflation_bps: Uint128) =>
-  fun (quantity: Uint128) =>
-    let is_zero = builtin eq zero quantity in
+  fun (start_price: Int128) =>
+  fun (current_inflation_bps: Int128) =>
+  fun (inflation_bps: Int128) =>
+  fun (quantity: Int128) =>
+    let is_zero = builtin eq zero_int128 quantity in
     match is_zero with
-    | True => zero
+    | True => zero_int128
     | False =>
       (* avg inflation bps = current inflation bps + (qty - 1) * inflation bps / 2 *)
-      let qty_minus_one = builtin sub quantity one in
+      let qty_minus_one = builtin sub quantity one_int128 in
       let total_inflation_bps = builtin mul qty_minus_one inflation_bps in
-      let avg_incr_inflation_bps = builtin div total_inflation_bps two in
+      let avg_incr_inflation_bps = builtin div total_inflation_bps two_int128 in
       let avg_inflation_bps = builtin add current_inflation_bps avg_incr_inflation_bps in
 
       (* cost = (1 + avg inflation bps) * base price * quantity *)
-      let avg_inflation = multiply_bps base_price avg_inflation_bps in
-      let avg_price = builtin add base_price avg_inflation in
+      let avg_inflation = multiply_bps start_price avg_inflation_bps in
+      let avg_price = builtin add start_price avg_inflation in
       builtin mul avg_price quantity
     end
 
 let compute_sell_cost =
-  fun (base_price: Uint128) =>
-  fun (current_inflation_bps: Uint128) =>
-  fun (deflation_bps: Uint128) =>
-  fun (quantity: Uint128) =>
-    let is_zero = builtin eq zero quantity in
+  fun (start_price: Int128) =>
+  fun (current_inflation_bps: Int128) =>
+  fun (deflation_bps: Int128) =>
+  fun (quantity: Int128) =>
+    let is_zero = builtin eq zero_int128 quantity in
     match is_zero with
-    | True => zero
+    | True => zero_int128
     | False =>
       (* avg inflation bps = current inflation bps - (qty - 1) * deflation bps / 2 *)
-      let qty_minus_one = builtin sub quantity one in
+      let qty_minus_one = builtin sub quantity one_int128 in
       let total_deflation_bps = builtin mul qty_minus_one deflation_bps in
-      let avg_incr_deflation_bps = builtin div total_deflation_bps two in
-      let avg_inflation_bps = builtin sub current_inflation_bps avg_incr_deflation_bps in
+      let avg_incr_deflation_bps = builtin div total_deflation_bps two_int128 in
+      let avg_inflation_bps = builtin add current_inflation_bps avg_incr_deflation_bps in
 
       (* cost = (1 + avg inflation bps) * base price * quantity *)
-      let avg_inflation = multiply_bps base_price avg_inflation_bps in
-      let avg_price = builtin add base_price avg_inflation in
+      let avg_inflation = multiply_bps start_price avg_inflation_bps in
+      let avg_price = builtin add start_price avg_inflation in
       builtin mul avg_price quantity
     end
 
-
 let get_buy_cost =
-  fun (quantity : Uint128) =>
+  fun (quantity : Int128) =>
   fun (buy_price : Price) =>
-  fun (transacts : Pair Uint128 Uint128) =>
+  fun (transacts : Pair Int128 Int128) =>
   match transacts with
   | Pair buy_side_net_inflation_bps _ =>
     match buy_price with
-    | Price base_price max_price inflation_bps _ =>
-      let is_zero_inflation = builtin eq inflation_bps zero in
+    | Price _ start_price max_price inflation_bps _ =>
+      let is_zero_inflation = builtin eq inflation_bps zero_int128 in
       match is_zero_inflation with
-      | True => builtin mul base_price quantity
+      | True => builtin mul start_price quantity
       | False =>
         (* check if current price is already inflated beyond max price *)
-        let max_inflation_bps = get_max_inflation_bps base_price max_price in 
+        let max_inflation_bps = get_max_inflation_bps start_price max_price in 
         let is_over_max_1 = builtin eq max_inflation_bps buy_side_net_inflation_bps in 
         match is_over_max_1 with 
         | True => builtin mul max_price quantity
@@ -199,14 +251,14 @@ let get_buy_cost =
           match is_over_max_2 with
           | True => 
             (* check how much quantity will it take to hit the cap *)
-            let leftover_inflation_before_max = builtin sub max_inflation_bps buy_side_net_inflation_bps in
-            let leftover_qty_before_max = builtin div leftover_inflation_before_max inflation_bps in
-            let qty_over_max = builtin sub quantity leftover_qty_before_max in
-            let cost_a = compute_buy_cost base_price buy_side_net_inflation_bps inflation_bps leftover_qty_before_max in 
+            let left_over_inflation_before_max = builtin sub max_inflation_bps buy_side_net_inflation_bps in
+            let left_over_qty_before_max = builtin div left_over_inflation_before_max inflation_bps in
+            let qty_over_max = builtin sub quantity left_over_qty_before_max in
+            let cost_a = compute_buy_cost start_price buy_side_net_inflation_bps inflation_bps left_over_qty_before_max in 
             let cost_b = builtin mul max_price qty_over_max in
             builtin add cost_a cost_b
           | False => 
-            compute_buy_cost base_price buy_side_net_inflation_bps inflation_bps quantity
+            compute_buy_cost start_price buy_side_net_inflation_bps inflation_bps quantity
           end
         end
       end
@@ -214,39 +266,42 @@ let get_buy_cost =
   end
 
 let get_sell_price =
-  fun (quantity : Uint128) =>
+  fun (quantity : Int128) =>
   fun (sell_price : Price) =>
-  fun (transacts : Pair Uint128 Uint128) =>
+  fun (transacts : Pair Int128 Int128) =>
   match transacts with
   | Pair _ sell_side_net_inflation_bps  =>
     match sell_price with
-    | Price base_price max_price _ deflation_bps =>
-      let is_zero_deflation = builtin eq deflation_bps zero in
+    | Price base_price start_price _ _ deflation_bps =>
+      let is_zero_deflation = builtin eq deflation_bps zero_int128 in
       match is_zero_deflation with
       | True => 
         (* no deflation, get current price *)
-        let current_inflation = multiply_bps base_price sell_side_net_inflation_bps in
+        let current_inflation = multiply_bps start_price sell_side_net_inflation_bps in
         let current_price = builtin add base_price current_inflation in
         builtin mul current_price quantity
       | False =>
         (* check if current price is already deflated beyond base price *)
-        let is_under_min_1 = builtin eq zero sell_side_net_inflation_bps in
+        let max_deflation_bps = get_max_deflation_bps start_price base_price in
+        let is_under_min_1 = builtin eq max_deflation_bps sell_side_net_inflation_bps in
         match is_under_min_1 with 
         | True => builtin mul base_price quantity
         | False =>
           (* check if current quantity sold will push price beyond base *)
           let deflation_to_add = builtin mul quantity deflation_bps in
-          let is_under_min_2 = builtin lt sell_side_net_inflation_bps deflation_to_add in
+          let new_deflation = builtin add sell_side_net_inflation_bps deflation_to_add in
+          let is_under_min_2 = builtin lt new_deflation max_deflation_bps in
           match is_under_min_2 with
           | True => 
             (* check how much quantity will it take to hit the cap *)
-            let leftover_qty_before_min = builtin div sell_side_net_inflation_bps deflation_bps in
+            let left_over_deflation_before_min = builtin sub max_deflation_bps sell_side_net_inflation_bps in
+            let leftover_qty_before_min = builtin div left_over_deflation_before_min deflation_bps in
             let qty_over_min = builtin sub quantity leftover_qty_before_min in
-            let cost_a = compute_sell_cost base_price sell_side_net_inflation_bps deflation_bps leftover_qty_before_min in 
+            let cost_a = compute_sell_cost start_price sell_side_net_inflation_bps deflation_bps leftover_qty_before_min in 
             let cost_b = builtin mul base_price qty_over_min in
             builtin add cost_a cost_b
           | False => 
-            compute_sell_cost base_price sell_side_net_inflation_bps deflation_bps quantity
+            compute_sell_cost start_price sell_side_net_inflation_bps deflation_bps quantity
           end
         end
       end
@@ -254,12 +309,12 @@ let get_sell_price =
   end
 
   let multiply_dp =
-    fun (quantity : Uint128) =>
+    fun (quantity : Int128) =>
     fun (decimals : Uint32) =>
       let power = builtin pow ten_uint32 decimals in
-      let maybe_power_uint128 = builtin to_uint128 power in
-      let power_uint128 = match maybe_power_uint128 with | None => one | Some v => v end in
-      builtin mul quantity power_uint128
+      let maybe_power_int128 = builtin to_int128 power in
+      let power_int128 = match maybe_power_int128 with | None => one_int128 | Some v => v end in
+      builtin mul quantity power_int128
 
 (***************************************************)
 (*             The contract definition             *)
@@ -277,7 +332,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field items : Map Uint128 Item = Emp Uint128 Item
-field transact_count : Map Uint128 (Pair Uint128 Uint128) = Emp Uint128 (Pair Uint128 Uint128) (* id => (net_buy_side_inflation, net_sell_side_inflation) *)
+field transact_count : Map Uint128 (Pair Int128 Int128) = Emp Uint128 (Pair Int128 Int128) (* id => (net_buy_side_inflation, net_sell_side_inflation) *)
 field adding_item : Option Item = no_item
 field selling_item : Option Item = no_item
 
@@ -334,8 +389,8 @@ procedure IsEmporium(address: ByStr20)
   end
 end
 
-procedure IsValidQuantity(quantity: Uint128)
-  is_valid = builtin lt zero quantity;
+procedure IsValidQuantity(quantity: Int128)
+  is_valid = builtin lt zero_int128 quantity;
   match is_valid with
   | True =>
   | False =>
@@ -344,7 +399,7 @@ procedure IsValidQuantity(quantity: Uint128)
   end
 end
 
-procedure UpdateTransactCount(item_id: Uint128, buy_quantity: Uint128, sell_quantity: Uint128)
+procedure UpdateTransactCount(item_id: Uint128, buy_quantity: Int128, sell_quantity: Int128)
   maybe_item <- items[item_id];
   match maybe_item with
   | None => 
@@ -364,7 +419,7 @@ procedure UpdateTransactCount(item_id: Uint128, buy_quantity: Uint128, sell_quan
         new_buy_side_net_inflation = get_new_inflation buy_side_net_inflation buy_price buy_quantity sell_quantity;
         new_sell_side_net_inflation = get_new_inflation sell_side_net_inflation sell_price buy_quantity sell_quantity;
   
-        new_transacts = Pair {Uint128 Uint128} new_buy_side_net_inflation new_sell_side_net_inflation;
+        new_transacts = Pair {Int128 Int128} new_buy_side_net_inflation new_sell_side_net_inflation;
         transact_count[item_id] := new_transacts
       end
     end
@@ -389,11 +444,11 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
     err = CodeItemNotFound;
     ThrowError err
   | Some item =>
-    maybe_quantity = builtin to_uint128 purchase_data;
+    maybe_quantity = builtin to_int128 purchase_data;
 
     quantity = match maybe_quantity with
     | Some q => q
-    | None => zero
+    | None => zero_int128
     end;
     
     IsValidQuantity quantity;
@@ -407,7 +462,8 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
       end;
 
       amount = get_buy_cost quantity buy_price transacts;
-      price_over_max = builtin lt max_price amount;
+      max_price_int128 = uint128_to_int128 max_price;
+      price_over_max = builtin lt max_price_int128 amount;
       match price_over_max with
       | True => 
         err = CodeItemTooExpensive;
@@ -427,13 +483,16 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
           decimals <- & token_contract.final_decimals;
           quantity_dp = multiply_dp quantity decimals;
 
+          amount_uint128 = int128_to_uint128 amount;
+          quantity_dp_uint128 = int128_to_uint128 quantity_dp;
+
           msg_to_emporium = {
             _tag: "TransferToken";
             _recipient: emporium;
             _amount: zero;
             token: huny_token;
             from: purchaser;
-            amount: amount
+            amount: amount_uint128
           };
   
           msg_to_resource = {
@@ -441,7 +500,7 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
             _recipient: token_address;
             _amount: zero;
             recipient: purchaser;
-            amount: quantity_dp
+            amount: quantity_dp_uint128
           };
   
           msgs = two_msgs msg_to_emporium msg_to_resource;
@@ -451,7 +510,7 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
           huny_selling_item = let item = Item empty huny_token empty_price empty_price in Some {Item} item;
           selling_item := huny_selling_item;
   
-          UpdateTransactCount item_id quantity zero;
+          UpdateTransactCount item_id quantity zero_int128;
   
           e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
               purchaser: purchaser; price: amount; quantity: quantity_dp };
@@ -463,7 +522,7 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
   end
 end
 
-transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
+transition SellItem(item_id: Uint128, min_price: Int128, quantity: Int128)
   IsValidQuantity quantity;
     
   maybe_item <- items[item_id];
@@ -500,12 +559,15 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
           decimals <- & token_contract.final_decimals;
           quantity_dp = multiply_dp quantity decimals;
 
+          amount_uint128 = int128_to_uint128 amount;
+          quantity_dp_uint128 = int128_to_uint128 quantity_dp;
+
           msg_to_huny = {
             _tag: "Mint";
             _recipient: huny_token;
             _amount: zero;
             recipient: _sender;
-            amount: amount
+            amount: amount_uint128
           };
   
           msg_to_resource = {
@@ -514,7 +576,7 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
             _amount: zero;
             from: _sender;
             to: _this_address;
-            amount: quantity_dp
+            amount: quantity_dp_uint128
           };
   
           msgs = two_msgs msg_to_huny msg_to_resource;
@@ -524,7 +586,7 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
           resource_selling_item = let item = Item empty token_address empty_price empty_price in Some {Item} item;
           selling_item := resource_selling_item;
   
-          UpdateTransactCount item_id zero quantity;
+          UpdateTransactCount item_id zero_int128 quantity;
   
           e = {_eventname : "ItemSold"; item_id : item_id; item_name: name;
               seller: _sender; price: amount; quantity: quantity_dp };
