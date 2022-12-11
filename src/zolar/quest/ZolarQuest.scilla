@@ -676,6 +676,14 @@ transition ReturnToBase(token_ids : List Uint256)
   BatchTransferFrom to_token_id_pair_list
 end
 
+transition ReturnToBaseWithoutHarvest(token_ids : List Uint256)
+  forall token_ids ValidateCommander;
+  forall token_ids RemoveCommander;
+  forall token_ids ChargeReturnFee;
+  to_token_id_pair_list = form_batch_transfer_params token_ids _sender;
+  BatchTransferFrom to_token_id_pair_list
+end
+
 (* transition for oracle to invoke after picking up 'UpdateQuestBonus' event, to set back-end calculated bonus *)
 transition SetQuestBonus(token_bonus_list: List TokenBonus)
   (* check if _sender is oracle *)

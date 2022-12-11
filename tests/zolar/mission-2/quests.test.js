@@ -232,7 +232,7 @@ test('batch enter quest', async () => {
   expect(txEnterQuest.receipt.success).toEqual(true)
 })
 
-test('batch return to base', async () => {
+test('batch return to base without harvest', async () => {
   const txMintHuny = await callContract(user1PrivateKey, hunyContract, "Mint", [
     param('recipient', 'ByStr20', user2Address),
     param('amount', 'Uint128', '1000000000000000000')
@@ -243,11 +243,25 @@ test('batch return to base', async () => {
   for (let i = 3; i < 53; i++) {
     tokenIds.push(i.toString())
   }
-  const txReturnToBase = await callContract(user2PrivateKey, questContract, "ReturnToBase", [
+
+  // 10 more epochs passed
+  for (let i = 0; i < 10; i++) {
+    await nextBlock()
+  }
+
+  // check if only return fee is charged and no resources are harvested
+  const txReturnToBase = await callContract(user2PrivateKey, questContract, "ReturnToBaseWithoutHarvest", [
     param('token_ids', 'List Uint256', tokenIds),
   ], 0, false, false)
   console.log(txReturnToBase.id)
+  let didHarvestOccur = false
+  const events = txReturnToBase.receipt.event_logs
+  for (const event of events) {
+    const eventName = event._eventname
+    if (eventName === 'HarvestQuest' || eventName === 'HarvestMetazoa') didHarvestOccur = true
+  }
   expect(txReturnToBase.receipt.success).toEqual(true)
+  expect(didHarvestOccur).toEqual(false)
 })
 
 test('test eject quest', async () => {
