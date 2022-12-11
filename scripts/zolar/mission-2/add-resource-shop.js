@@ -46,6 +46,7 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
 
   // add resources to stall
   // add geode to stall
+  // Price (* base price, start price, max price, inflation bps, deflation bps *)
   const dataAddItem1 = JSON.stringify({
     _tag: "AddItem",
     params: [
@@ -54,12 +55,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
+        arguments: ['0', ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
       })]
   })
   const bech32StallAddress = toBech32Address(resourceStallAddress)
@@ -76,12 +77,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(100).toString(10), ONE_HUNY.times(10_000).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(100).toString(10), ONE_HUNY.times(100).toString(10), ONE_HUNY.times(10_000).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "100"]
+        arguments: ['0', ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "100"]
       })]
   })
   const txAddItem2 = await createTransaction(bech32StallAddress, dataAddItem2, minGasPrice)
@@ -97,12 +98,12 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('buy_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
+        arguments: [ONE_HUNY.times(36).toString(10), ONE_HUNY.times(36).toString(10), ONE_HUNY.times(3_600).toString(10), "100", "50"]
       }),
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
+        arguments: ['0', ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "100"]
       })]
   })
   const txAddItem3 = await createTransaction(bech32StallAddress, dataAddItem3, minGasPrice)
