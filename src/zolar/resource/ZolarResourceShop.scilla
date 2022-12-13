@@ -21,6 +21,7 @@ let one_int128 = Int128 1
 let two_int128 = Int128 2
 let empty_pair = Pair {Int128 Int128} zero_int128 zero_int128
 let zero_address = 0x0000000000000000000000000000000000000000
+let two_uint32 = Uint32 2
 let ten_uint32 = Uint32 10
 
 (* Error events *)
@@ -82,6 +83,20 @@ let three_msgs =
   let l2 = Cons {Message} msg2 l1 in
   Cons {Message} msg3 l2
 
+let negate_int128 =
+  fun (num : Int128) =>
+    builtin sub zero_int128 num
+
+let absolute_int128 =
+  fun (num : Int128) =>
+    let is_negative = builtin lt num zero_int128 in
+    match is_negative with
+    | True =>
+      (* 0 - (-x) = x *)
+      negate_int128 num
+    | False => num
+    end
+
 let int128_to_uint128 =
   fun (num : Int128) =>
     let is_negative = builtin lt num zero_int128 in
@@ -94,7 +109,10 @@ let int128_to_uint128 =
       let maybe_uint128 = builtin to_uint128 num in
       match maybe_uint128 with
       | Some amt => amt
-      | None => zero
+      | None =>
+        (* should never happen *)
+        let error_code = Uint128 1003 in
+        builtin sub zero error_code
       end
     end
 
@@ -107,6 +125,17 @@ let uint128_to_int128 =
       (* throw error code to identify *)
       let error_code = Int128 1002 in
       builtin sub zero_int128 error_code
+    end
+
+let absolute_int128_to_uint128 =
+  fun (num : Int128) =>
+    let is_negative = builtin lt num zero_int128 in
+    match is_negative with
+    | True =>
+      (* 0 - (-x) = x *)
+      let temp = negate_int128 num in
+      int128_to_uint128 temp
+    | False => int128_to_uint128 num
     end
     
 let get_amount_or_zero =
@@ -136,6 +165,7 @@ let multiply_bps =
       builtin div p hundred_percent_bps_int128
     end
 
+(* get max inflation % in bps, based on the max and start price *)
 let get_max_inflation_bps = 
   fun (start_price: Int128) =>
   fun (max_price: Int128) =>
@@ -144,6 +174,7 @@ let get_max_inflation_bps =
     let m = builtin mul max_inflation_amt hundred_percent_bps_int128 in
     builtin div m start_price
 
+(* get max deflation % in bps, based on the base and start price *)
 let get_max_deflation_bps = 
   fun (start_price: Int128) =>
   fun (base_price: Int128) =>
@@ -151,8 +182,46 @@ let get_max_deflation_bps =
     let max_deflation_amt = builtin sub base_price start_price in
     let m = builtin mul max_deflation_amt hundred_percent_bps_int128 in
     builtin div m start_price
-  
-let get_new_inflation =
+ 
+(* get sell_side_inflation % in bps, based on if current net purchase count is +ve or -ve *)
+(* inflation = root k * bpsRate, where k = netPurchase *)
+(* sub inflationBps = bpsRate if k is +ve and vice versa *)    
+let get_sell_side_inflation_bps =
+  fun (net_purchase_count : Int128) =>
+  fun (inflation_bps : Int128) =>
+  fun (deflation_bps : Int128) =>
+    let absolute_net_purchase = absolute_int128_to_uint128 net_purchase_count in
+    let root_net_purchase_uint128 = builtin isqrt absolute_net_purchase in
+    let root_net_purchase_int128 = uint128_to_int128 root_net_purchase_uint128 in
+    let is_deflating = builtin lt net_purchase_count zero_int128 in
+    match is_deflating with
+    | True => builtin mul root_net_purchase_int128 deflation_bps
+    | False => builtin mul root_net_purchase_int128 inflation_bps
+    end
+
+(* inflation = root k * bpsRate, where k = netPurchaseCount *)
+(* get max positive net purchase count, using the above formula, similar to getting max inflation rate *)
+let get_max_positive_net_purchase =
+  fun (start_price: Int128) =>
+  fun (max_price: Int128) =>
+  fun (inflation_bps: Int128) =>
+    let max_inflation_bps = get_max_inflation_bps start_price max_price in
+    let root_net_purchase = builtin div max_inflation_bps inflation_bps in
+    builtin pow root_net_purchase two_uint32
+
+(* inflation = root k * bpsRate, where k = netPurchaseCount *)
+(* get the max negative net purchase count, using the above formula, similar to getting max deflation rate *)
+let get_max_negative_net_purchase =
+  fun (start_price: Int128) =>
+  fun (base_price: Int128) =>
+  fun (deflation_bps: Int128) =>
+    let max_deflation_bps = get_max_deflation_bps start_price base_price in
+    let root_net_purchase = builtin div max_deflation_bps deflation_bps in
+    let positive_net_purchase = builtin pow root_net_purchase two_uint32 in
+    negate_int128 positive_net_purchase
+
+(* helper to update new_buy_side_inflation, based on net quantity bought/sold, based on price inflation/deflation rates *)  
+let get_new_buy_side_inflation =
   fun (current_inflation_bps : Int128) =>
   fun (price : Price) =>
   fun (buy_quantity: Int128) =>
@@ -184,6 +253,39 @@ let get_new_inflation =
     end
   end
 
+(* update the new_sell_side_net_purchase_count based on the net quantity bought/sold, capped out at the respective max
+  positive and negative net purchase counts *)
+let get_new_sell_side_net_purchase_count =
+  fun (current_net_purchase_count : Int128) =>
+  fun (price : Price) =>
+  fun (buy_quantity: Int128) =>
+  fun (sell_quantity: Int128) =>
+  match price with
+  | Price base_price start_price max_price buy_inflation_bps sell_deflation_bps =>
+    let n1 = builtin add current_net_purchase_count buy_quantity in
+    let n2 = builtin sub n1 sell_quantity in
+    let is_deflating = builtin lt n2 zero_int128 in
+    match is_deflating with
+    | True =>
+      (* check if deflated past max deflationary point *)
+      let max_negative_net_purchase = get_max_negative_net_purchase start_price base_price sell_deflation_bps in
+      let is_over_max = builtin lt n2 max_negative_net_purchase in
+      match is_over_max with
+      | True => max_negative_net_purchase
+      | False => n2
+      end
+    | False =>
+      (* check if inflated past max inflationary point *)
+      let max_positive_net_purchase = get_max_positive_net_purchase start_price max_price buy_inflation_bps in
+      let is_over_max = builtin lt max_positive_net_purchase n2 in
+      match is_over_max with
+      | True => max_positive_net_purchase
+      | False => n2
+      end
+    end
+  end
+  
+
 let compute_buy_cost =
   fun (start_price: Int128) =>
   fun (current_inflation_bps: Int128) =>
@@ -199,7 +301,7 @@ let compute_buy_cost =
       let avg_incr_inflation_bps = builtin div total_inflation_bps two_int128 in
       let avg_inflation_bps = builtin add current_inflation_bps avg_incr_inflation_bps in
 
-      (* cost = (1 + avg inflation bps) * base price * quantity *)
+      (* cost = (1 + avg inflation bps) * start price * quantity *)
       let avg_inflation = multiply_bps start_price avg_inflation_bps in
       let avg_price = builtin add start_price avg_inflation in
       builtin mul avg_price quantity
@@ -207,21 +309,24 @@ let compute_buy_cost =
 
 let compute_sell_cost =
   fun (start_price: Int128) =>
-  fun (current_inflation_bps: Int128) =>
+  fun (current_net_purchase_count: Int128) =>
+  fun (inflation_bps: Int128) =>
   fun (deflation_bps: Int128) =>
   fun (quantity: Int128) =>
     let is_zero = builtin eq zero_int128 quantity in
     match is_zero with
     | True => zero_int128
     | False =>
-      (* avg inflation bps = current inflation bps - (qty - 1) * deflation bps / 2 *)
+      (* avg deflation bps = current inflation bps + deflationToAdd / 2 *)
       let qty_minus_one = builtin sub quantity one_int128 in
-      let total_deflation_bps = builtin mul qty_minus_one deflation_bps in
-      let avg_incr_deflation_bps = builtin div total_deflation_bps two_int128 in
-      let avg_inflation_bps = builtin add current_inflation_bps avg_incr_deflation_bps in
+      let current_sell_side_inflation = get_sell_side_inflation_bps current_net_purchase_count inflation_bps deflation_bps in
+      let new_net_count = builtin sub current_net_purchase_count qty_minus_one in
+      let new_sell_side_inflation = get_sell_side_inflation_bps new_net_count inflation_bps deflation_bps in
+      let avg_incr_deflation_bps = let diff = builtin sub new_sell_side_inflation current_sell_side_inflation in builtin div diff two_int128 in
+      let avg_deflation_bps = builtin add current_sell_side_inflation avg_incr_deflation_bps in
 
-      (* cost = (1 + avg inflation bps) * base price * quantity *)
-      let avg_inflation = multiply_bps start_price avg_inflation_bps in
+      (* cost = (1 + avg deflation bps) * start price * quantity *)
+      let avg_inflation = multiply_bps start_price avg_deflation_bps in
       let avg_price = builtin add start_price avg_inflation in
       builtin mul avg_price quantity
     end
@@ -270,38 +375,36 @@ let get_sell_price =
   fun (sell_price : Price) =>
   fun (transacts : Pair Int128 Int128) =>
   match transacts with
-  | Pair _ sell_side_net_inflation_bps  =>
+  | Pair _ sell_side_net_purchase_count  =>
     match sell_price with
-    | Price base_price start_price _ _ deflation_bps =>
+    | Price base_price start_price _ inflation_bps deflation_bps =>
       let is_zero_deflation = builtin eq deflation_bps zero_int128 in
       match is_zero_deflation with
       | True => 
         (* no deflation, get current price *)
-        let current_inflation = multiply_bps start_price sell_side_net_inflation_bps in
-        let current_price = builtin add base_price current_inflation in
+        let current_inflation = get_sell_side_inflation_bps sell_side_net_purchase_count inflation_bps deflation_bps in
+        let current_price = let temp = multiply_bps start_price current_inflation in builtin add start_price temp in
         builtin mul current_price quantity
       | False =>
         (* check if current price is already deflated beyond base price *)
-        let max_deflation_bps = get_max_deflation_bps start_price base_price in
-        let is_under_min_1 = builtin eq max_deflation_bps sell_side_net_inflation_bps in
+        let max_negative_net_purchase = get_max_negative_net_purchase start_price base_price deflation_bps in
+        let is_under_min_1 = builtin eq max_negative_net_purchase sell_side_net_purchase_count in
         match is_under_min_1 with 
         | True => builtin mul base_price quantity
         | False =>
           (* check if current quantity sold will push price beyond base *)
-          let deflation_to_add = builtin mul quantity deflation_bps in
-          let new_deflation = builtin add sell_side_net_inflation_bps deflation_to_add in
-          let is_under_min_2 = builtin lt new_deflation max_deflation_bps in
+          let new_net_purchase = builtin sub sell_side_net_purchase_count quantity in
+          let is_under_min_2 = builtin lt new_net_purchase max_negative_net_purchase in
           match is_under_min_2 with
           | True => 
             (* check how much quantity will it take to hit the cap *)
-            let left_over_deflation_before_min = builtin sub max_deflation_bps sell_side_net_inflation_bps in
-            let leftover_qty_before_min = builtin div left_over_deflation_before_min deflation_bps in
+            let leftover_qty_before_min = let temp = builtin sub max_negative_net_purchase sell_side_net_purchase_count in absolute_int128 temp in
             let qty_over_min = builtin sub quantity leftover_qty_before_min in
-            let cost_a = compute_sell_cost start_price sell_side_net_inflation_bps deflation_bps leftover_qty_before_min in 
+            let cost_a = compute_sell_cost start_price sell_side_net_purchase_count inflation_bps deflation_bps leftover_qty_before_min in 
             let cost_b = builtin mul base_price qty_over_min in
             builtin add cost_a cost_b
           | False => 
-            compute_sell_cost start_price sell_side_net_inflation_bps deflation_bps quantity
+            compute_sell_cost start_price sell_side_net_purchase_count inflation_bps deflation_bps quantity
           end
         end
       end
@@ -332,7 +435,7 @@ field contract_owner : Option ByStr20 = Some {ByStr20} initial_owner
 field pending_owner : Option ByStr20 = none
 
 field items : Map Uint128 Item = Emp Uint128 Item
-field transact_count : Map Uint128 (Pair Int128 Int128) = Emp Uint128 (Pair Int128 Int128) (* id => (net_buy_side_inflation, net_sell_side_inflation) *)
+field transact_count : Map Uint128 (Pair Int128 Int128) = Emp Uint128 (Pair Int128 Int128) (* id => (buy_side_net_inflation, sell_side_net_purchase_count) *)
 field adding_item : Option Item = no_item
 field selling_item : Option Item = no_item
 
@@ -415,11 +518,11 @@ procedure UpdateTransactCount(item_id: Uint128, buy_quantity: Int128, sell_quant
       end;
   
       match transacts with
-      | Pair buy_side_net_inflation sell_side_net_inflation =>
-        new_buy_side_net_inflation = get_new_inflation buy_side_net_inflation buy_price buy_quantity sell_quantity;
-        new_sell_side_net_inflation = get_new_inflation sell_side_net_inflation sell_price buy_quantity sell_quantity;
+      | Pair buy_side_net_inflation sell_side_net_purchase_count =>
+        new_buy_side_net_inflation = get_new_buy_side_inflation buy_side_net_inflation buy_price buy_quantity sell_quantity;
+        new_sell_side_net_purchase_count = get_new_sell_side_net_purchase_count sell_side_net_purchase_count sell_price buy_quantity sell_quantity;
   
-        new_transacts = Pair {Int128 Int128} new_buy_side_net_inflation new_sell_side_net_inflation;
+        new_transacts = Pair {Int128 Int128} new_buy_side_net_inflation new_sell_side_net_purchase_count;
         transact_count[item_id] := new_transacts
       end
     end
@@ -668,6 +771,12 @@ transition RemoveItem(item_id: Uint128)
     msgs = one_msg msg_to_emporium;
     send msgs
   end
+end
+
+(* @dev: Manually update transact count, to allow for more aggresive/relaxed price movement based on past history *)
+transition UpdateTransact(item_id: Uint128, buy_quantity: Int128, sell_quantity: Int128)
+  IsOwner _sender;
+  UpdateTransactCount item_id buy_quantity sell_quantity
 end
 
 (***************************************)
