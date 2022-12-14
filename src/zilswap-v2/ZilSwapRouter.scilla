@@ -1,6 +1,6 @@
 scilla_version 0
 
-import BoolUtils IntUtils ListUtils PairUtils
+import BoolUtils IntUtils ListUtils PairUtils NatUtils
 library ZilSwapRouter
 
 type ReserveData =
@@ -8,20 +8,39 @@ type ReserveData =
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_amount = Uint128 0
-let zero_amount_u32 = Uint32 0
-let zero_amount_u256 = Uint256 0
-let minimum_liquidity = Uint128 1000
 let bps = Uint128 10000
 let none = None {ByStr20}
-let two_u256 = Uint256 2
-let two_u128 = Uint128 2
-let one_hundred_and_twelve = Uint32 112
-let q112_u256 = builtin pow two_u256 one_hundred_and_twelve
-let q112_u128 = builtin pow two_u128 one_hundred_and_twelve
 let bps = Uint128 10000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
 let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
 let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
+
+(* constants used for get_fee *)
+let zero_u256 = Uint256 0
+let one_u256 = Uint256 1
+let two_u256 = Uint256 2
+let three_u256 = Uint256 3
+let four_u256 = Uint256 4
+let five_u256 = Uint256 5 
+let nine_u256 = Uint256 9
+let ten_u256 = Uint256 10
+let twenty_u256 = Uint256 20
+let twenty_seven_u256 = Uint256 27
+let thirty_u256 = Uint256 30
+let sixty_u256 = Uint256 60
+let one_hundred_u256 = Uint256 100
+let one_hundred_twenty_u256 = Uint256 120
+let two_hundred_fifty_u256 = Uint256 250
+let eight_hundred_thirty_six_u256 = Uint256 836
+let nine_hundred_eighty_five_u256 = Uint256 985
+let one_thousand_u256 = Uint256 1000
+let ten_thousand_u256 = Uint256 10000
+let twenty_thousand_u256 = Uint256 20000
+let fifty_thousand_u256 = Uint256 50000
+let two_hundred_thousand_u256 = Uint256 200000
+
+let one_hundred_and_twelve = Uint32 112
+let q112_u256 = builtin pow two_u256 one_hundred_and_twelve
 
 (* extracts the from_address from swap path of type Pair (from_address, to_address) *)
 let get_from_address : Pair ByStr20 ByStr20 -> ByStr20 = @fst ByStr20 ByStr20
@@ -58,6 +77,14 @@ let grow =
     | None => Uint256 0 (* should never happen *)
     end
 
+let shrink =
+  fun (var : Int256) =>
+    let maybe_small = builtin to_uint128 var in
+    match maybe_small with
+    | Some small => small
+    | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
+    end
+
 (* @dev: Convert Uint256 to Uint128 *)
 let reduce =
   fun (var : Uint256) =>
@@ -78,6 +105,14 @@ let frac =
     let xy_u256 = builtin mul x_u256 y_u256 in
     let ans_u256 = builtin div xy_u256 z_u256 in
     reduce ans_u256
+
+(* @dev: (x * y) / z in Uint256 *)
+let frac_u256 =
+  fun (x_u256: Uint256) => 
+  fun (y_u256: Uint256) => 
+  fun (z_u256: Uint256) => 
+    let xy_u256 = builtin mul x_u256 y_u256 in
+    builtin div xy_u256 z_u256
 
 (* @dev: Given an amount of one token and pool reserves, return an equivalent amount of the tokenB *)
 (* @dev: amountB = amountA.mul(reserveB) / reserveA *)
@@ -152,7 +187,107 @@ let get_trade_info =
     end
   end
 
+(* @dev Returns x*y in precision *)
+(* function mulInPrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+    return x.mul(y) / PRECISION;
+} *)
+let mul_in_precision =
+  fun (x : Uint256) =>
+  fun (y : Uint256) =>
+    let xy = builtin mul x y in
+    builtin div xy precision
 
+let get_z_in_precision = 
+  fun (x_in_precision: Uint256) =>
+  fun (k: Uint256)=> 
+    let zero = Uint256 0 in
+    let two = Uint256 2 in
+    let remainder = builtin rem k two in
+    let equal = builtin eq remainder zero in
+    match equal with 
+    | True => precision
+    | False =>  x_in_precision
+    end
+
+let u32_to_nat_or_zero =
+  fun (uint: Uint32) =>
+    let nat = uint32_to_nat uint in
+    match nat with
+    | None => Zero (* uint32 always fits in a nat, so shld nvr happen *)
+    | Some r => r
+    end
+
+(* @dev: Gets z_in_precision from the pair output of unsafe_pow_in_precision *)
+let get_z_from_unsafe_pow_in_precision =
+  fun (pair: Pair Uint256 (Pair Uint256 Uint256)) =>
+  match pair with
+  | Pair k xz_pair =>
+    match xz_pair with
+    | Pair x_in_precision z_in_precision => z_in_precision
+    end
+  end
+
+let unsafe_pow_in_precision = 
+  fun (x_in_precision: Uint256) =>
+  fun (k: Uint256) =>
+    let z_in_precision = get_z_in_precision x_in_precision k in
+
+    let m = Uint32 128 in
+    let m_nat = u32_to_nat_or_zero m in (* max no of loops is fixed at 128 times *)
+
+    let xz_pair = Pair {Uint256 Uint256} x_in_precision z_in_precision in
+    let init_pair = Pair {Uint256 (Pair Uint256 Uint256)} k xz_pair in
+
+    let foldk = @nat_foldk (Pair Uint256 (Pair Uint256 Uint256)) in (* k (Pair x_in_precision z_in_precision) *)
+    let iter =
+      fun (n : Pair Uint256 (Pair Uint256 Uint256)) =>
+      fun (ignore : Nat) =>
+      fun (recurse : (Pair Uint256 (Pair Uint256 Uint256) -> Pair Uint256 (Pair Uint256 Uint256))) =>
+        match n with
+        | Pair k cur_xz_pair =>
+          let is_k_zero = builtin eq k zero_u256 in
+          match is_k_zero with
+          | True => n
+          | False => 
+            match cur_xz_pair with
+            | Pair x_in_precision z_in_precision =>
+              let new_k = builtin div k two_u256 in
+              let inter_x_in_precision = builtin mul x_in_precision x_in_precision in
+              let new_x_in_precision = builtin div inter_x_in_precision precision in
+              let mod = builtin rem k two_u256 in
+              let is_odd = builtin eq mod one_u256 in
+              match is_odd with
+              | False =>
+                let new_xz_pair = Pair {Uint256 Uint256} new_x_in_precision z_in_precision in
+                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} new_k new_xz_pair in
+                recurse new_accum
+              | True =>
+                let inter_z_in_precision = builtin mul z_in_precision x_in_precision in
+                let new_z_in_precision = builtin div inter_z_in_precision precision in
+
+                let new_xz_pair = Pair {Uint256 Uint256} new_x_in_precision new_z_in_precision in
+                let new_accum = Pair {Uint256 (Pair Uint256 Uint256)} new_k new_xz_pair in
+                recurse new_accum
+              end
+            end
+          end
+        end
+      in
+    foldk iter init_pair m_nat
+
+(* @dev: ((precision - alpha) * ema + alpha * value) / precision; *)
+let get_ema =
+  fun (ema : Uint256) =>
+  fun (alpha : Uint256) =>
+  fun (value : Uint128) =>
+    let v = grow value in
+    let i_a = builtin sub precision alpha in
+    let a = builtin mul i_a ema in
+    let b = builtin mul a v in
+    let n = builtin add a b in
+    builtin div n precision
+
+(* @dev: Returns r_factor_in_precision in Uint256 from short_ema and long_ema *)
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
   fun (long_ema : Uint256) =>
@@ -165,32 +300,129 @@ let calculate_r_factor =
       builtin div s_e long_ema
     end
 
+let get_r_factor = 
+  fun (current_block: BNum) =>
+  fun (last_trade_block: BNum) =>
+  fun (current_block_volume: Uint128) =>
+  fun (short_ema: Uint256) =>
+  fun (long_ema: Uint256) =>
+    let block_skipped_int256 = builtin bsub current_block last_trade_block in
+    let blocks_skipped_u128 = shrink block_skipped_int256 in
+    let blocks_skipped_u256 = grow blocks_skipped_u128 in
+    let is_zero = builtin eq blocks_skipped_u256 zero_u256 in
+    match is_zero with
+    | True => calculate_r_factor short_ema long_ema
+    | False =>
+      let block_skipped_minus_one = builtin sub blocks_skipped_u256 one_u256 in
+      let short_e = get_ema short_ema short_alpha current_block_volume in
+      let long_e = get_ema long_ema long_alpha current_block_volume in
+      let s_e = 
+        let a = builtin sub precision short_alpha in
+        let b = mul_in_precision short_e a in
+        let pair = unsafe_pow_in_precision b block_skipped_minus_one in
+        get_z_from_unsafe_pow_in_precision pair
+      in
+      let l_e = 
+        let a = builtin sub precision long_alpha in
+        let b = mul_in_precision long_e a in
+        let pair = unsafe_pow_in_precision b block_skipped_minus_one in
+        get_z_from_unsafe_pow_in_precision pair
+      in
+      calculate_r_factor s_e l_e
+    end
+
+(* #dev: Calculates fee in Uint256 from r_factor_in_precision *)
+let get_fee = 
+  fun (r_factor_in_precision: Uint256) => 
+    let r0 = Uint256 1477405064814996100 in
+    let c2 = Uint256 20036905816356657810 in
+    let c0 = frac_u256 sixty_u256 precision ten_thousand_u256 in
+    let a = frac_u256 twenty_thousand_u256 precision twenty_seven_u256 in
+    let b = frac_u256 two_hundred_fifty_u256 precision nine_u256 in
+    let c1 = frac_u256 nine_hundred_eighty_five_u256 precision twenty_seven_u256 in
+    let u = frac_u256 one_hundred_twenty_u256 precision one_hundred_u256 in
+    let g = frac_u256 eight_hundred_thirty_six_u256 precision one_thousand_u256 in
+    let f = builtin mul five_u256 precision in
+    let l = frac_u256 precision two_u256 ten_thousand_u256 in
+    let is_ge_r0 = uint256_ge r_factor_in_precision r0 in
+    match is_ge_r0 with 
+    | True => c0
+    | False => 
+      let is_ge_precision = uint256_ge r_factor_in_precision precision in
+      match is_ge_precision with
+      | True =>
+        (* C1 + A * (r-U)^3 + b * (r -U) *)
+        let is_gt_u = uint256_gt r_factor_in_precision u in
+        match is_gt_u with
+        | True =>
+          let tmp = builtin sub r_factor_in_precision u in
+          let tmp3 = 
+            let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision tmp3_pair
+          in
+          let a_tmp3 = mul_in_precision a tmp3 in
+          let b_tmp = mul_in_precision b tmp in
+          let c1_add_a = builtin add c1 a_tmp3 in
+          let c1_add_a_add_b = builtin add c1_add_a b_tmp in
+          builtin div c1_add_a_add_b ten_thousand_u256
+        | False =>
+        let tmp = builtin sub u r_factor_in_precision in
+        let tmp3 = 
+          let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
+          get_z_from_unsafe_pow_in_precision tmp3_pair
+        in
+        let a_tmp3 = mul_in_precision a tmp3 in
+        let b_tmp = mul_in_precision b tmp in
+        let c1_sub_a = builtin sub c1 a_tmp3 in
+        let c1_sub_a_sub_b = builtin sub c1_sub_a b_tmp in
+        builtin div c1_sub_a_sub_b ten_thousand_u256
+        end
+      | False =>
+        (* [ C2 + sign(r - G) *  F * (r-G) ^2 / (L + (r-G) ^2) ] / 10000 *)
+        let is_gt_g = uint256_gt r_factor_in_precision g in
+        let tmp = match is_gt_g with
+        | True => 
+          let r_factor_in_precision_sub_g = builtin sub r_factor_in_precision g in
+          let pair = unsafe_pow_in_precision r_factor_in_precision_sub_g two_u256 in
+          get_z_from_unsafe_pow_in_precision pair
+        | False => 
+          let g_sub_r_factor_in_precision = builtin sub g r_factor_in_precision in
+          let pair = unsafe_pow_in_precision a two_u256 in 
+          get_z_from_unsafe_pow_in_precision pair
+        end in
+        let tmp_add_l = builtin add tmp l in
+        let tmp2 = frac_u256 f tmp tmp_add_l in
+        match is_gt_g with 
+        | True =>
+          let c2_add_tmp2 = builtin add c2 tmp2 in
+          builtin div c2_add_tmp2 ten_thousand_u256
+        | False =>
+          let c2_sub_tmp2 = builtin sub c2 tmp2 in
+          builtin div c2_sub_tmp2 ten_thousand_u256
+        end
+      end
+    end
+
+(* @dev: Returns final_fee in Uint256 *)
 let get_final_fee = 
   fun (fee_in_precision : Uint256) =>
   fun (amp_bps : Uint128) =>
-    let fee_in_precision_u128 = reduce fee_in_precision in
-    let four = Uint128 4 in
-    let ten = Uint128 10 in
-    let twenty = Uint128 20 in
-    let thirty = Uint128 30 in
-    let two_bps = Uint128 20000 in
-    let five_bps = Uint128 50000 in
-    let twenty_bps = Uint128 200000 in
-    let le_two_bps = uint128_le amp_bps two_bps in 
-    match le_two_bps with
-    | True => fee_in_precision_u128
+    let amp_bps_u256 = grow amp_bps in
+    let is_le_twenty_thousand = uint256_le amp_bps_u256 twenty_thousand_u256 in 
+    match is_le_twenty_thousand with
+    | True => fee_in_precision
     | False =>
-      let le_five_bps = uint128_le amp_bps five_bps in
-      match le_five_bps with 
+      let is_le_fifty_thousand_u256 = uint256_le amp_bps_u256 fifty_thousand_u256 in
+      match is_le_fifty_thousand_u256 with 
       | True => 
-        frac fee_in_precision_u128 twenty thirty 
+        frac_u256 fee_in_precision twenty_u256 thirty_u256 
       | False =>
-        let le_twenty_bps = uint128_le amp_bps twenty_bps in
-        match le_twenty_bps with
+        let is_le_two_hundred_thousand_u256 = uint256_le amp_bps_u256 two_hundred_thousand_u256 in
+        match is_le_two_hundred_thousand_u256 with
         | True => 
-          frac fee_in_precision_u128 ten thirty
+          frac_u256 fee_in_precision ten_u256 thirty_u256
         | False => 
-          frac fee_in_precision_u128 four thirty
+          frac_u256 fee_in_precision four_u256 thirty_u256
         end
       end
     end
@@ -201,9 +433,10 @@ let get_amount_out =
   fun (reserve_out: Uint128) =>
   fun (v_reserve_in: Uint128) =>
   fun (v_reserve_out: Uint128) =>
-  fun (fee_in_precision: Uint128) =>
+  fun (fee_in_precision: Uint256) =>
     let precision_u128 = reduce precision in
-    let a = builtin sub precision_u128 fee_in_precision in
+    let fee_in_precision_u128 = reduce fee_in_precision in
+    let a = builtin sub precision_u128 fee_in_precision_u128 in
     let amount_in_with_fee = frac amount_in a precision_u128 in
     let numerator = builtin mul amount_in_with_fee v_reserve_out in
     let denominator = builtin add v_reserve_in amount_in_with_fee in
@@ -215,15 +448,16 @@ let get_amount_in =
   fun (reserve_out: Uint128) =>
   fun (v_reserve_in: Uint128) =>
   fun (v_reserve_out: Uint128) =>
-  fun (fee_in_precision: Uint128) =>
+  fun (fee_in_precision: Uint256) =>
     let one = Uint128 1 in
     let precision_u128 = reduce precision in
+    let fee_in_precision_u128 = reduce fee_in_precision in
     let n = builtin mul v_reserve_in amount_out in
     let d = builtin sub v_reserve_out amount_out in
     let a_i = builtin div n d in
     let amount_in = builtin add a_i one in
     let numerator = builtin mul amount_in precision_u128 in
-    let denominator = builtin sub precision_u128 fee_in_precision in
+    let denominator = builtin sub precision_u128 fee_in_precision_u128 in
     let d_minus_one = builtin sub numerator one in
     let n_a = builtin add numerator d_minus_one in
     builtin div n_a denominator
@@ -497,7 +731,10 @@ procedure GetAmountOut(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -524,7 +761,10 @@ procedure GetAmountOut(
       amp <- & pool.amp_bps;
       s_e <- & pool.short_ema;
       l_e <- & pool.long_ema;
-      r_factor_in_precision = calculate_r_factor s_e l_e;
+      current_block_volume <- & pool.current_block_volume;
+      last_trade_block <- & pool.last_trade_block;
+      current_block <- & BLOCKNUMBER;
+      r_factor_in_precision = get_r_factor current_block last_trade_block current_block_volume s_e l_e;
       fee_in_precision = get_final_fee r_factor_in_precision amp;
   
       is_eq = builtin eq amp bps;
@@ -544,7 +784,6 @@ procedure GetAmountOut(
           err = CodeInsufficientLiquidity;
           ThrowError err
         end
-
       end
     end
   end
@@ -560,7 +799,9 @@ procedure GetAmountIn(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -588,7 +829,10 @@ procedure GetAmountIn(
       amp <- & pool.amp_bps;
       s_e <- & pool.short_ema;
       l_e <- & pool.long_ema;
-      r_factor_in_precision = calculate_r_factor s_e l_e;
+      current_block_volume <- & pool.current_block_volume;
+      last_trade_block <- & pool.last_trade_block;
+      current_block <- & BLOCKNUMBER;
+      r_factor_in_precision = get_r_factor current_block last_trade_block current_block_volume s_e l_e;
       fee_in_precision = get_final_fee r_factor_in_precision amp;
 
       is_eq = builtin eq amp bps;
@@ -1209,7 +1453,9 @@ transition SwapExactTokensForTokensOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -1251,7 +1497,9 @@ transition SwapExactTokensForTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1260,7 +1508,9 @@ transition SwapExactTokensForTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1312,7 +1562,9 @@ transition SwapExactTokensForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1321,7 +1573,9 @@ transition SwapExactTokensForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1330,7 +1584,9 @@ transition SwapExactTokensForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1387,7 +1643,9 @@ transition SwapTokensForExactTokensOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -1429,7 +1687,9 @@ transition SwapTokensForExactTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1438,7 +1698,9 @@ transition SwapTokensForExactTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1492,7 +1754,9 @@ transition SwapTokensForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1501,7 +1765,9 @@ transition SwapTokensForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1510,7 +1776,9 @@ transition SwapTokensForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1566,7 +1834,9 @@ transition SwapExactZILForTokensOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -1614,7 +1884,9 @@ transition SwapExactZILForTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1623,7 +1895,9 @@ transition SwapExactZILForTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1678,7 +1952,9 @@ transition SwapExactZILForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1687,7 +1963,9 @@ transition SwapExactZILForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1696,7 +1974,9 @@ transition SwapExactZILForTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1758,7 +2038,9 @@ transition SwapExactZILForTokensQuad(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1767,7 +2049,9 @@ transition SwapExactZILForTokensQuad(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1776,7 +2060,9 @@ transition SwapExactZILForTokensQuad(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool4: ByStr20 with contract
   field reserve0 : Uint128,
@@ -1785,7 +2071,9 @@ transition SwapExactZILForTokensQuad(
   field v_reserve0 : Uint128,
   field v_reserve1 : Uint128,
   field short_ema : Uint256,
-  field long_ema : Uint256
+  field long_ema : Uint256,
+  field current_block_volume : Uint128,
+  field last_trade_block : BNum
 end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1855,7 +2143,9 @@ transition SwapTokensForExactZILOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -1903,7 +2193,9 @@ transition SwapTokensForExactZILTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1912,7 +2204,9 @@ transition SwapTokensForExactZILTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -1967,7 +2261,9 @@ transition SwapTokensForExactZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1976,7 +2272,9 @@ transition SwapTokensForExactZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -1985,7 +2283,9 @@ transition SwapTokensForExactZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -2047,7 +2347,9 @@ transition SwapExactTokensForZILOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -2093,7 +2395,9 @@ transition SwapExactTokensForZILTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2102,7 +2406,9 @@ transition SwapExactTokensForZILTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -2155,7 +2461,9 @@ transition SwapExactTokensForZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2164,7 +2472,9 @@ transition SwapExactTokensForZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2173,7 +2483,9 @@ transition SwapExactTokensForZILThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -2232,7 +2544,9 @@ transition SwapZILForExactTokensOnce(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
@@ -2286,7 +2600,9 @@ transition SwapZILForExactTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2295,7 +2611,9 @@ transition SwapZILForExactTokensTwice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
@@ -2356,7 +2674,9 @@ transition SwapZILForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool2: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2365,7 +2685,9 @@ transition SwapZILForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   pool3: ByStr20 with contract
     field reserve0 : Uint128,
@@ -2374,7 +2696,9 @@ transition SwapZILForExactTokensThrice(
     field v_reserve0 : Uint128,
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
-    field long_ema : Uint256
+    field long_ema : Uint256,
+    field current_block_volume : Uint128,
+    field last_trade_block : BNum
   end,
   path1: Pair ByStr20 ByStr20,
   path2: Pair ByStr20 ByStr20,
