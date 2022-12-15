@@ -533,10 +533,10 @@ procedure GetAmountOut(
       data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
       match data with 
       | ReserveData r_in r_out v_r_in v_r_out =>
+        VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
+
         amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
         amt_out := amount_out;
-  
-        VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
 
         is_valid_reserve_out = uint128_gt r_out amount_out;
         match is_valid_reserve_out with 
@@ -597,10 +597,10 @@ procedure GetAmountIn(
       data = get_trade_info r_0 r_1 v_r_0 v_r_1 is_eq is_same_order;
       match data with 
       | ReserveData r_in r_out v_r_in v_r_out =>
-        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
-        amt_in := amount_in;
+        VerifySufficientLiquidity r_in r_out zero_amount amount_out;
 
-        VerifySufficientLiquidity r_in r_out zero_amount amount_out
+        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+        amt_in := amount_in
       end
     end
   end
