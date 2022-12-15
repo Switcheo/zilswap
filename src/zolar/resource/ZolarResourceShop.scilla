@@ -37,12 +37,12 @@ type Error =
   | CodeItemInvalidContract
 
 type Price =
-  | Price of Int128 Int128 Int128 Int128 Int128 (* base price, start price, max price, inflation bps, deflation bps *)
+  | Price of Uint128 Uint128 Uint128 Int128 Int128 (* base price, start price, max price, inflation bps, deflation bps *)
 
 type Item =
   | Item of String ByStr20 Price Price (* item name, resource token address, buy price, sell price *)
 
-let empty_price = Price zero_int128 zero_int128 zero_int128 zero_int128 zero_int128
+let empty_price = Price zero zero zero zero_int128 zero_int128
 let no_item = None {Item}
 
 let make_error =
@@ -228,6 +228,11 @@ let get_new_buy_side_inflation =
   fun (sell_quantity: Int128) =>
   match price with
   | Price base_price start_price max_price buy_inflation_bps sell_deflation_bps =>
+    (* convert quantity and prices to int128 to support multiplication ops *)
+    let base_price_int128 = uint128_to_int128 base_price in
+    let start_price_int128 = uint128_to_int128 start_price in
+    let max_price_int128 = uint128_to_int128 max_price in
+
     let buy = builtin mul buy_inflation_bps buy_quantity in
     let sell = builtin mul sell_deflation_bps sell_quantity in
     let n1 = builtin add current_inflation_bps buy in
@@ -236,7 +241,7 @@ let get_new_buy_side_inflation =
     match is_deflating with
     | True =>
       (* check if deflated past max deflationary point *)
-      let max_deflation_bps = get_max_deflation_bps start_price base_price in
+      let max_deflation_bps = get_max_deflation_bps start_price_int128 base_price_int128 in
       let is_over_max = builtin lt n2 max_deflation_bps in
       match is_over_max with
       | True => max_deflation_bps
@@ -244,7 +249,7 @@ let get_new_buy_side_inflation =
       end
     | False =>
       (* check if inflated past max inflationary point *)
-      let max_inflation_bps = get_max_inflation_bps start_price max_price in
+      let max_inflation_bps = get_max_inflation_bps start_price_int128 max_price_int128 in
       let is_over_max = builtin lt max_inflation_bps n2 in
       match is_over_max with
       | True => max_inflation_bps
@@ -262,13 +267,18 @@ let get_new_sell_side_net_purchase_count =
   fun (sell_quantity: Int128) =>
   match price with
   | Price base_price start_price max_price buy_inflation_bps sell_deflation_bps =>
+    (* convert quantity and prices to int128 to support multiplication ops *)
+    let base_price_int128 = uint128_to_int128 base_price in
+    let start_price_int128 = uint128_to_int128 start_price in
+    let max_price_int128 = uint128_to_int128 max_price in
+
     let n1 = builtin add current_net_purchase_count buy_quantity in
     let n2 = builtin sub n1 sell_quantity in
     let is_deflating = builtin lt n2 zero_int128 in
     match is_deflating with
     | True =>
       (* check if deflated past max deflationary point *)
-      let max_negative_net_purchase = get_max_negative_net_purchase start_price base_price sell_deflation_bps in
+      let max_negative_net_purchase = get_max_negative_net_purchase start_price_int128 base_price_int128 sell_deflation_bps in
       let is_over_max = builtin lt n2 max_negative_net_purchase in
       match is_over_max with
       | True => max_negative_net_purchase
@@ -276,7 +286,7 @@ let get_new_sell_side_net_purchase_count =
       end
     | False =>
       (* check if inflated past max inflationary point *)
-      let max_positive_net_purchase = get_max_positive_net_purchase start_price max_price buy_inflation_bps in
+      let max_positive_net_purchase = get_max_positive_net_purchase start_price_int128 max_price_int128 buy_inflation_bps in
       let is_over_max = builtin lt max_positive_net_purchase n2 in
       match is_over_max with
       | True => max_positive_net_purchase
@@ -339,16 +349,19 @@ let get_buy_cost =
   | Pair buy_side_net_inflation_bps _ =>
     match buy_price with
     | Price _ start_price max_price inflation_bps _ =>
+      (* convert quantity and prices to int128 to support multiplication ops *)
       let quantity_int128 = uint128_to_int128 quantity in
+      let max_price_int128 = uint128_to_int128 max_price in
+      let start_price_int128 = uint128_to_int128 start_price in
       let is_zero_inflation = builtin eq inflation_bps zero_int128 in
       match is_zero_inflation with
-      | True => builtin mul start_price quantity_int128
+      | True => builtin mul start_price quantity
       | False =>
         (* check if current price is already inflated beyond max price *)
-        let max_inflation_bps = get_max_inflation_bps start_price max_price in 
+        let max_inflation_bps = get_max_inflation_bps start_price_int128 max_price_int128 in 
         let is_over_max_1 = builtin eq max_inflation_bps buy_side_net_inflation_bps in 
         match is_over_max_1 with 
-        | True => builtin mul max_price quantity_int128
+        | True => builtin mul max_price quantity
         | False => 
           (* check if current quantity bought will push price beyond max *)
           let inflation_to_add = builtin mul quantity_int128 inflation_bps in
@@ -360,11 +373,15 @@ let get_buy_cost =
             let left_over_inflation_before_max = builtin sub max_inflation_bps buy_side_net_inflation_bps in
             let left_over_qty_before_max = builtin div left_over_inflation_before_max inflation_bps in
             let qty_over_max = builtin sub quantity_int128 left_over_qty_before_max in
-            let cost_a = compute_buy_cost start_price buy_side_net_inflation_bps inflation_bps left_over_qty_before_max in 
-            let cost_b = builtin mul max_price qty_over_max in
-            builtin add cost_a cost_b
+            let cost_a = compute_buy_cost start_price_int128 buy_side_net_inflation_bps inflation_bps left_over_qty_before_max in 
+            let cost_b = builtin mul max_price_int128 qty_over_max in
+            let cost_int128 = builtin add cost_a cost_b in
+            (* convert final cost back to uint128 *)
+            int128_to_uint128 cost_int128
           | False => 
-            compute_buy_cost start_price buy_side_net_inflation_bps inflation_bps quantity_int128
+            (* convert final cost back to uint128 *)
+            let cost_int128 = compute_buy_cost start_price_int128 buy_side_net_inflation_bps inflation_bps quantity_int128 in
+            int128_to_uint128 cost_int128
           end
         end
       end
@@ -379,20 +396,26 @@ let get_sell_price =
   | Pair _ sell_side_net_purchase_count  =>
     match sell_price with
     | Price base_price start_price _ inflation_bps deflation_bps =>
+      (* convert quantity and prices to int128 to support multiplication ops *)
       let quantity_int128 = uint128_to_int128 quantity in
+      let base_price_int128 = uint128_to_int128 base_price in
+      let start_price_int128 = uint128_to_int128 start_price in
       let is_zero_deflation = builtin eq deflation_bps zero_int128 in
       match is_zero_deflation with
       | True => 
         (* no deflation, get current price *)
         let current_inflation = get_sell_side_inflation_bps sell_side_net_purchase_count inflation_bps deflation_bps in
-        let current_price = let temp = multiply_bps start_price current_inflation in builtin add start_price temp in
-        builtin mul current_price quantity_int128
+        let current_price = let temp = multiply_bps start_price_int128 current_inflation in builtin add start_price_int128 temp in
+        let total_price_int128 = builtin mul current_price quantity_int128 in
+        (* convert total price back to uint128 *)
+        int128_to_uint128 total_price_int128
+        
       | False =>
         (* check if current price is already deflated beyond base price *)
-        let max_negative_net_purchase = get_max_negative_net_purchase start_price base_price deflation_bps in
+        let max_negative_net_purchase = get_max_negative_net_purchase start_price_int128 base_price_int128 deflation_bps in
         let is_under_min_1 = builtin eq max_negative_net_purchase sell_side_net_purchase_count in
         match is_under_min_1 with 
-        | True => builtin mul base_price quantity_int128
+        | True => builtin mul base_price quantity
         | False =>
           (* check if current quantity sold will push price beyond base *)
           let new_net_purchase = builtin sub sell_side_net_purchase_count quantity_int128 in
@@ -402,11 +425,15 @@ let get_sell_price =
             (* check how much quantity will it take to hit the cap *)
             let leftover_qty_before_min = let temp = builtin sub max_negative_net_purchase sell_side_net_purchase_count in absolute_int128 temp in
             let qty_over_min = builtin sub quantity_int128 leftover_qty_before_min in
-            let cost_a = compute_sell_cost start_price sell_side_net_purchase_count inflation_bps deflation_bps leftover_qty_before_min in 
-            let cost_b = builtin mul base_price qty_over_min in
-            builtin add cost_a cost_b
+            let cost_a = compute_sell_cost start_price_int128 sell_side_net_purchase_count inflation_bps deflation_bps leftover_qty_before_min in 
+            let cost_b = builtin mul base_price_int128 qty_over_min in
+            let total_price_int128 = builtin add cost_a cost_b in
+            (* convert total price back to uint128 *)
+            int128_to_uint128 total_price_int128
           | False => 
-            compute_sell_cost start_price sell_side_net_purchase_count inflation_bps deflation_bps quantity_int128
+            let total_price_int128 = compute_sell_cost start_price_int128 sell_side_net_purchase_count inflation_bps deflation_bps quantity_int128 in
+            (* convert total price back to uint128 *)
+            int128_to_uint128 total_price_int128
           end
         end
       end
@@ -569,9 +596,8 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
       | None => empty_pair
       end;
 
-      amount_int128 = get_buy_cost quantity buy_price transacts;
-      amount_uint128 = int128_to_uint128 amount_int128;
-      price_over_max = builtin lt max_price amount_uint128;
+      amount = get_buy_cost quantity buy_price transacts;
+      price_over_max = builtin lt max_price amount;
       match price_over_max with
       | True => 
         err = CodeItemTooExpensive;
@@ -597,7 +623,7 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
             _amount: zero;
             token: huny_token;
             from: purchaser;
-            amount: amount_uint128
+            amount: amount
           };
   
           msg_to_resource = {
@@ -618,7 +644,7 @@ transition PurchaseItem(item_id: Uint128, max_price: Uint128, purchase_data: Str
           UpdateTransactCount item_id quantity zero;
   
           e = {_eventname : "ItemPurchased"; item_id : item_id; item_name: name;
-              purchaser: purchaser; price: amount_uint128; quantity: quantity_dp };
+              purchaser: purchaser; price: amount; quantity: quantity_dp };
           event e
 
         end
@@ -643,10 +669,9 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
       | Some t => t
       | None => empty_pair
       end;
-      amount_int128 = get_sell_price quantity sell_price transacts;
-      amount_uint128 = int128_to_uint128 amount_int128;
+      amount = get_sell_price quantity sell_price transacts;
 
-      price_below_min = builtin lt amount_uint128 min_price;
+      price_below_min = builtin lt amount min_price;
       match price_below_min with
       | True => 
         err = CodeCannotAchieveSellPrice;
@@ -670,7 +695,7 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
             _recipient: huny_token;
             _amount: zero;
             recipient: _sender;
-            amount: amount_uint128
+            amount: amount
           };
   
           msg_to_resource = {
@@ -692,7 +717,7 @@ transition SellItem(item_id: Uint128, min_price: Uint128, quantity: Uint128)
           UpdateTransactCount item_id zero quantity;
   
           e = {_eventname : "ItemSold"; item_id : item_id; item_name: name;
-              seller: _sender; price: amount_uint128; quantity: quantity_dp };
+              seller: _sender; price: amount; quantity: quantity_dp };
           event e
         end
       end
