@@ -21,15 +21,33 @@ const { ONE_HUNY } = require("./helper");
     bQuestAddress,
     sQuestAddress,
   ]) {
-    const data = JSON.stringify({
+    const harvestFeeData = JSON.stringify({
       _tag: "SetHarvestFeePerEpoch",
       params: [
-        param('fee', 'Uint128', ONE_HUNY.times(1200).toString(10)), // 1200 HUNY
+        param('fee', 'Uint128', ONE_HUNY.times(200).toString(10)), // 200 HUNY
       ]
     })
 
-    const newTx = await createTransaction(toBech32Address(address), data, minGasPrice)
-    txList.push(newTx)
+    const waiveHarvestData = JSON.stringify({
+      _tag: "SetWaiveHarvestPercentage",
+      params: [
+        param('percentage_bps', "Uint128", '9900') // 99.00% waived after 180 epochs
+      ]
+    })
+
+    const numEpochsData = JSON.stringify({
+      _tag: "SetNumberOfEpochsWaiveHarvest",
+      params: [
+        param('num_epochs', "Uint32", '180') // 99.00% waived after 180 epochs
+      ]
+    })
+
+    const txUpdateHarvestFee = await createTransaction(toBech32Address(address), harvestFeeData, minGasPrice)
+    const txUpdateWaiveHarvestPercentage = await createTransaction(toBech32Address(address), waiveHarvestData, minGasPrice)
+    const txUpdateNumEpochs = await createTransaction(toBech32Address(address), numEpochsData, minGasPrice)
+    txList.push(txUpdateHarvestFee)
+    txList.push(txUpdateWaiveHarvestPercentage)
+    txList.push(txUpdateNumEpochs)
   }
 
   console.log('signing transactions...')
