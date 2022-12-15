@@ -806,12 +806,8 @@ procedure VerifyBalanceAndUpdateEMA(
     };
     event e
   | False =>
-    e = {
-      _eventname: "test"; 
-      before_adjustment: before_adjustment; 
-      after_adjustment: after_adjustment
-    };
-    event e
+    err = CodeInvalidBalance;
+    ThrowError err
   end
 end
 
