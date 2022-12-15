@@ -1,7 +1,10 @@
 const { getPrivateKey, param, zilliqa, useKey } = require("../../zilliqa");
 const { ONE_HUNY } = require("./helper");
 const { createTransaction } = require("../../call");
-const { toBech32Address } = require("@zilliqa-js/crypto")
+const { toBech32Address } = require("@zilliqa-js/crypto");
+const { default: BigNumber } = require("bignumber.js");
+
+const BN_ONE = new BigNumber(1);
 
 ;
 (async () => {
@@ -60,7 +63,7 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: ['0', ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
       })]
   })
   const bech32StallAddress = toBech32Address(resourceStallAddress)
@@ -82,7 +85,7 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: ['0', ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "-100"]
       })]
   })
   const txAddItem2 = await createTransaction(bech32StallAddress, dataAddItem2, minGasPrice)
@@ -103,7 +106,7 @@ const { toBech32Address } = require("@zilliqa-js/crypto")
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: ['0', ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
       })]
   })
   const txAddItem3 = await createTransaction(bech32StallAddress, dataAddItem3, minGasPrice)
