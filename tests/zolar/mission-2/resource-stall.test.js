@@ -189,8 +189,8 @@ test('buy resource and test inflation', async () => {
 test('sell resource and test deflation', async () => {
   const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '1'),
-    param('quantity', 'Int128', "50"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "50"),
   ], 0, false, false)
   console.log("sell 50 geodes", txSellGeode.id);
   expect(txSellGeode.receipt.success).toEqual(true)
@@ -220,8 +220,8 @@ test('sell resource and test deflation', async () => {
 
   const txSellGeode2 = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '1'),
-    param('quantity', 'Int128', "100"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "100"),
   ], 0, false, false)
   console.log("sell 100 geodes", txSellGeode.id);
   expect(txSellGeode2.receipt.success).toEqual(true)
@@ -251,8 +251,8 @@ test('sell resource and test deflation', async () => {
 
   const txSellGeode3 = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '1'),
-    param('quantity', 'Int128', "100"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "100"),
   ], 0, false, false)
   console.log("sell 100 geodes", txSellGeode.id);
   expect(txSellGeode3.receipt.success).toEqual(true)
@@ -288,8 +288,8 @@ test('max out deflation', async () => {
   // max k = (100.00% / -100bps)^2 = -10000
   const txSellGeode1 = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '1'),
-    param('quantity', 'Int128', "10000"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "10000"),
   ], 0, false, false)
   console.log("sell 10000 geodes", txSellGeode1.id);
   expect(txSellGeode1.receipt.success).toEqual(true)
@@ -320,8 +320,8 @@ test('max out deflation', async () => {
 
   const txSellGeode2 = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '0'),
-    param('quantity', 'Int128', "10000"),
+    param('min_price', 'Uint128', '0'),
+    param('quantity', 'Uint128', "10000"),
   ], 0, false, false)
   console.log("sell 10000 geodes", txSellGeode2.id);
   expect(txSellGeode2.receipt.success).toEqual(true)
@@ -389,8 +389,8 @@ test('max out inflation', async () => {
 test('selling into net-negative with one transaction', async ()  => {
   const txSellGeode1 = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', '1'),
-    param('quantity', 'Int128', "15000"),
+    param('min_price', 'Uint128', '1'),
+    param('quantity', 'Uint128', "15000"),
   ], 0, false, false)
   console.log("sell 15000 geodes", txSellGeode1.id);
   expect(txSellGeode1.receipt.success).toEqual(true)
@@ -422,8 +422,8 @@ test('selling into net-negative with one transaction', async ()  => {
 test('update transact count', async () => {
   const txUpdateTransactCount = await callContract(privateKey, resourceStallContract, "UpdateTransact", [
     param('item_id', 'Uint128', '0'),
-    param('buy_quantity', 'Int128', '0'),
-    param('sell_quantity', 'Int128', '7000')
+    param('buy_quantity', 'Uint128', '0'),
+    param('sell_quantity', 'Uint128', '7000')
   ], 0, false, false)
   console.log('update transact count for item id: 0 with 5000 items sold', txUpdateTransactCount.id)
 
@@ -453,8 +453,8 @@ test('make transaction with min_price too high', async () => {
   // test max_price < cost (throws CodeItemTooExpensive)
   const txSellGeode = await callContract(privateKey, resourceStallContract, "SellItem", [
     param('item_id', 'Uint128', "0"),
-    param('min_price', 'Int128', new BigNumber(100000000000).shiftedBy(12).toString(10)),
-    param('quantity', 'Int128', "10"),
+    param('min_price', 'Uint128', new BigNumber(100000000000).shiftedBy(12).toString(10)),
+    param('quantity', 'Uint128', "10"),
   ], 0, false, false)
   console.log("sell geode with max_price too high", txSellGeode.id);
 
