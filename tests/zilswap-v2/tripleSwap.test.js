@@ -274,7 +274,7 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     expect(tx.status).toEqual(2)
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token0ToToken3", false)
-    validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
+    await validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
   })
 
   test('swap exact token3 for token0 (Non-amp pool)', async () => {
@@ -340,7 +340,7 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     expect(tx.status).toEqual(2)
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token3ToToken0", false)
-    validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
+    await validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
   })
 
 })
@@ -937,7 +937,7 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
     expect(tx.status).toEqual(2)
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token0ToToken3", true)
-    validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
+    await validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
   })
 
   test('swap exact token3 for token0 (Amp pool)', async () => {
@@ -1003,7 +1003,7 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
     expect(tx.status).toEqual(2)
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token3ToToken0", true)
-    validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
+    await validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
   })
 
 })
