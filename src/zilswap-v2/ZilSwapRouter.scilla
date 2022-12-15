@@ -219,6 +219,7 @@ let u32_to_nat_or_zero =
     end
 
 (* @dev: Gets z_in_precision from the pair output of unsafe_pow_in_precision *)
+(* @param: k (Pair x_in_precision z_in_precision) *)
 let get_z_from_unsafe_pow_in_precision =
   fun (pair: Pair Uint256 (Pair Uint256 Uint256)) =>
   match pair with
@@ -332,7 +333,7 @@ let get_r_factor =
       calculate_r_factor s_e l_e
     end
 
-(* #dev: Calculates fee in Uint256 from r_factor_in_precision *)
+(* @dev: Calculates fee in Uint256 from r_factor_in_precision *)
 let get_fee = 
   fun (r_factor_in_precision: Uint256) => 
     let r0 = Uint256 1477405064814996100 in
@@ -428,6 +429,7 @@ let get_final_fee =
       end
     end
 
+(* @dev: Calculates amount_out *)
 let get_amount_out = 
   fun (amount_in: Uint128) =>
   fun (reserve_in: Uint128) =>
@@ -443,6 +445,7 @@ let get_amount_out =
     let denominator = builtin add v_reserve_in amount_in_with_fee in
     builtin div numerator denominator
 
+(* @dev: Calculates amount_in *)
 let get_amount_in = 
   fun (amount_out: Uint128) =>
   fun (reserve_in: Uint128) =>
@@ -542,22 +545,22 @@ procedure IsSelf(address : ByStr20)
 end
 
 (* @dev: Validate the pool contract with correct codehash *)
-(*procedure IsValidPoolContract(pool_address : ByStr20)*)
-(*  maybe_pool <- & pool_address as ByStr20 with _codehash end;*)
-(*  match maybe_pool with*)
-(*  | None =>*)
-(*  | Some p =>*)
-(*    required_codehash <- pool_codehash;*)
-(*    codehash <- & p._codehash;*)
-(*    is_valid_pool = builtin eq codehash required_codehash;*)
-(*    match is_valid_pool with*)
-(*    | True =>*)
-(*    | False =>*)
-(*      err = CodeInvalidPool;*)
-(*      ThrowError err*)
-(*    end*)
-(*  end*)
-(*end*)
+procedure IsValidPoolContract(pool_address : ByStr20)
+  maybe_pool <- & pool_address as ByStr20 with _codehash end;
+  match maybe_pool with
+  | None =>
+  | Some p =>
+    required_codehash <- pool_codehash;
+    codehash <- & p._codehash;
+    is_valid_pool = builtin eq codehash required_codehash;
+    match is_valid_pool with
+    | True =>
+    | False =>
+      err = CodeInvalidPool;
+      ThrowError err
+    end
+  end
+end
 
 procedure AddOnceToPools(tokenA : ByStr20, tokenB : ByStr20, pool : ByStr20)
   p <- pools[tokenA][tokenB];
@@ -1006,7 +1009,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-(* IsValidPoolContract pool;*)
+  IsValidPoolContract pool;
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
@@ -1492,7 +1495,8 @@ transition SwapExactTokensForTokensOnce(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: amount_in -> pool1 -> intermediate_amount_out === intermediate_amount_in -> pool2 -> final_amount_out *)
+(* @dev: amount_in -> pool1 -> intermediate_amount_out *)
+(* @dev: intermediate_amount_out -> pool2 -> final_amount_out *)
 (* @param path: token_in token_out *)
 transition SwapExactTokensForTokensTwice(
   amount_in: Uint128,
@@ -1555,9 +1559,9 @@ transition SwapExactTokensForTokensTwice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: amount_in -> pool1 -> first_intermediate_amount_out === first_intermediate_amount_in *)
-(* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
-(* @dev: second_intermediate_amount_in -> pool3 -> final_amount_out *)
+(* @dev: amount_in -> pool1 -> first_intermediate_amount_out *)
+(* @dev: first_intermediate_amount_out -> pool2 -> second_intermediate_amount_out *)
+(* @dev: second_intermediate_amount_out -> pool3 -> final_amount_out *)
 (* @param path: token_in token_out *)
 transition SwapExactTokensForTokensThrice(
   amount_in: Uint128,
@@ -1638,7 +1642,7 @@ transition SwapExactTokensForTokensThrice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amt_in -> pool1 -> intermediate_amount_out === intermediate_amount_in -> pool2 -> amount_out *)
+(* @dev: init_amt_in -> pool -> amount_out *)
 (* @param path: token_in token_out *)
 transition SwapTokensForExactTokensOnce(
   amount_out: Uint128,
@@ -1684,6 +1688,9 @@ transition SwapTokensForExactTokensOnce(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
+(* @dev: init_amt_in -> pool1 -> intermediate_amt_in *)
+(* @dev: intermediate_amt_in -> pool2 -> amount_out *)
+(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensTwice(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1747,8 +1754,8 @@ transition SwapTokensForExactTokensTwice(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amount_in -> pool1 -> first_intermediate_amount_out === first_intermediate_amount_in *)
-(* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_out === second_intermediate_amount_in *)
+(* @dev: init_amount_in -> pool1 -> first_intermediate_amount_in *)
+(* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_in *)
 (* @dev: second_intermediate_amount_in -> pool3 -> amount_out *)
 (* @param path: token_in token_out *)
 transition SwapTokensForExactTokensThrice(
@@ -2036,6 +2043,7 @@ transition SwapExactZILForTokensThrice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
+(* @dev: Hits the max depth error *)
 transition SwapExactZILForTokensQuad(
   amount_out_min: Uint128,
   pool1: ByStr20 with contract

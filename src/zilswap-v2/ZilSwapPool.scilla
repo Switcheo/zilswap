@@ -146,6 +146,7 @@ let frac_u256 =
     let xy_u256 = builtin mul x_u256 y_u256 in
     builtin div xy_u256 z_u256
 
+(* @dev: Multiples 2 Uint128 numbers together and returns in Uint256 *)
 let u128_mul_grow =
   fun (x: Uint128) =>
   fun (y: Uint128) =>
