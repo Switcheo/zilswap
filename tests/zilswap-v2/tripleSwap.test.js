@@ -6,9 +6,11 @@ const { default: BigNumber } = require('bignumber.js');
 
 let owner, feeAccount, tx
 let router, wZil, token0, token1, token2, token3, pool1, pool2, pool3, prevPool1State, prevPool2State, prevPool3State, newPool1State, newPool2State, newPool3State, prevToken0State, prevToken1State, prevToken2State, prevToken3State, newToken0State, newToken1State, newToken2State, newToken3State;
-const init_liquidity = 1000000000;
-let amountIn = amountInMax = 100000;
-let amountOutMin = amountOut = 10000;
+const init_liquidity = 10000
+let amountIn = 100
+let amountInMax = 1000
+let amountOut = 100
+let amountOutMin = 10
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
@@ -217,12 +219,12 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -271,14 +273,6 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
-
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token0ToToken3", false)
     validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
   })
@@ -291,12 +285,12 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -344,14 +338,6 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Non-amp pool)', () => {
       0, false, true
     )
     expect(tx.status).toEqual(2)
-
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token3ToToken0", false)
     validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
@@ -565,12 +551,12 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${(new BigNumber(amountInMax)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -619,14 +605,6 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
-
     await validatePoolReserves("SwapTokensForExactTokensThrice", "Token0ToToken3", false)
     await validateBalances("SwapTokensForExactTokensThrice", "Token0ToToken3")
   })
@@ -639,12 +617,12 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${(new BigNumber(amountInMax)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -692,14 +670,6 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Non-amp pool)', () => {
       0, false, true
     )
     expect(tx.status).toEqual(2)
-
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
 
     await validatePoolReserves("SwapTokensForExactTokensThrice", "Token3ToToken0", false)
     await validateBalances("SwapTokensForExactTokensThrice", "Token3ToToken0")
@@ -912,12 +882,12 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -966,14 +936,6 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
     )
     expect(tx.status).toEqual(2)
 
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
-
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token0ToToken3", true)
     validateBalances("SwapExactTokensForTokensThrice", "Token0ToToken3")
   })
@@ -986,12 +948,12 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
         {
           vname: 'amount_in',
           type: 'Uint128',
-          value: `${amountIn}`,
+          value: `${(new BigNumber(amountIn)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_out_min',
           type: 'Uint128',
-          value: `${amountOutMin}`,
+          value: `${(new BigNumber(amountOutMin)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -1039,14 +1001,6 @@ describe('Zilswap three-pool swap exact zrc2 for zrc2 (Amp pool)', () => {
       0, false, true
     )
     expect(tx.status).toEqual(2)
-
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
 
     await validatePoolReserves("SwapExactTokensForTokensThrice", "Token3ToToken0", true)
     validateBalances("SwapExactTokensForTokensThrice", "Token3ToToken0")
@@ -1260,12 +1214,12 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${(new BigNumber(amountInMax)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -1334,12 +1288,12 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
         {
           vname: 'amount_out',
           type: 'Uint128',
-          value: `${amountOut}`,
+          value: `${(new BigNumber(amountOut)).shiftedBy(12)}`,
         },
         {
           vname: 'amount_in_max',
           type: 'Uint128',
-          value: `${amountInMax}`,
+          value: `${(new BigNumber(amountInMax)).shiftedBy(12)}`,
         },
         {
           vname: 'pool1',
@@ -1387,14 +1341,6 @@ describe('Zilswap three-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
       0, false, true
     )
     expect(tx.status).toEqual(2)
-
-    newPool1State = await pool1.getState()
-    newPool2State = await pool2.getState()
-    newPool3State = await pool3.getState()
-    newToken0State = await token0.getState()
-    newToken1State = await token1.getState()
-    newToken2State = await token2.getState()
-    newToken3State = await token3.getState()
 
     await validatePoolReserves("SwapTokensForExactTokensThrice", "Token3ToToken0", true)
     await validateBalances("SwapTokensForExactTokensThrice", "Token3ToToken0")
@@ -1522,12 +1468,12 @@ setup = async (isAmpPool) => {
       {
         vname: 'amountA_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountB_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountA_min',
@@ -1575,12 +1521,12 @@ setup = async (isAmpPool) => {
       {
         vname: 'amountA_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountB_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountA_min',
@@ -1628,12 +1574,12 @@ setup = async (isAmpPool) => {
       {
         vname: 'amountA_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountB_desired',
         type: 'Uint128',
-        value: `${init_liquidity}`,
+        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
       },
       {
         vname: 'amountA_min',
@@ -1662,25 +1608,47 @@ setup = async (isAmpPool) => {
 
 // validate pool reserves (both amp and non-amp pools)
 validatePoolReserves = async (transition, direction, isAmpPool) => {
+  newPool1State = await pool1.getState()
+  newPool2State = await pool2.getState()
+  newPool3State = await pool3.getState()
+
+  let newAmountIn = (new BigNumber(amountIn)).shiftedBy(12)
+  let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
+
+  let pool1PrevReserve0 = new BigNumber(prevPool1State.reserve0)
+  let pool1NewReserve0 = new BigNumber(newPool1State.reserve0)
+  let pool1PrevReserve1 = new BigNumber(prevPool1State.reserve1)
+  let pool1NewReserve1 = new BigNumber(newPool1State.reserve1)
+
+  let pool2PrevReserve0 = new BigNumber(prevPool2State.reserve0)
+  let pool2NewReserve0 = new BigNumber(newPool2State.reserve0)
+  let pool2PrevReserve1 = new BigNumber(prevPool2State.reserve1)
+  let pool2NewReserve1 = new BigNumber(newPool2State.reserve1)
+
+  let pool3PrevReserve0 = new BigNumber(prevPool3State.reserve0)
+  let pool3NewReserve0 = new BigNumber(newPool3State.reserve0)
+  let pool3PrevReserve1 = new BigNumber(prevPool3State.reserve1)
+  let pool3NewReserve1 = new BigNumber(newPool3State.reserve1)
+
   switch (transition) {
     case 'SwapExactTokensForTokensThrice': {
       switch (direction) {
         case 'Token0ToToken3':
-          expect(newPool1State.reserve0).toEqual((new BigNumber(prevPool1State.reserve0).plus(amountIn)).toString())
-          expect((new BigNumber(newPool1State.reserve1)).lt(prevPool1State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve0)).gt(prevPool2State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve1)).lt(prevPool2State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool3State.reserve0)).gt(prevPool3State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool3State.reserve1)).lt(prevPool3State.reserve1)).toBeTruthy()
+          expect(pool1NewReserve0).toEqual(pool1PrevReserve0.plus(newAmountIn))
+          expect(pool1NewReserve1.lt(pool1PrevReserve1)).toBeTruthy()
+          expect(pool2NewReserve0.gt(pool2PrevReserve0)).toBeTruthy()
+          expect(pool2NewReserve1.lt(pool2PrevReserve1)).toBeTruthy()
+          expect(pool3NewReserve0.gt(pool3PrevReserve0)).toBeTruthy()
+          expect(pool3NewReserve1.lt(pool3PrevReserve1)).toBeTruthy()
           break;
 
         case 'Token3ToToken0':
-          expect(newPool3State.reserve1).toEqual((new BigNumber(prevPool3State.reserve1).plus(amountIn)).toString())
-          expect((new BigNumber(newPool3State.reserve0)).lt(prevPool3State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve1)).gt(prevPool2State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve0)).lt(prevPool2State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool1State.reserve1)).gt(prevPool1State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool1State.reserve0)).lt(prevPool1State.reserve0)).toBeTruthy()
+          expect(pool3NewReserve1).toEqual(pool3PrevReserve1.plus(newAmountIn))
+          expect(pool3NewReserve0.lt(pool3PrevReserve0)).toBeTruthy()
+          expect(pool2NewReserve1.gt(pool2PrevReserve1)).toBeTruthy()
+          expect(pool2NewReserve0.lt(pool2PrevReserve0)).toBeTruthy()
+          expect(pool1NewReserve1.gt(pool1PrevReserve1)).toBeTruthy()
+          expect(pool1NewReserve0.lt(pool1PrevReserve0)).toBeTruthy()
           break;
       }
       break;
@@ -1689,21 +1657,21 @@ validatePoolReserves = async (transition, direction, isAmpPool) => {
     case 'SwapTokensForExactTokensThrice': {
       switch (direction) {
         case 'Token0ToToken3':
-          expect((new BigNumber(newPool1State.reserve0)).gt(prevPool1State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool1State.reserve1)).lt(prevPool1State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve0)).gt(prevPool2State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve1)).lt(prevPool2State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool3State.reserve0)).gt(prevPool3State.reserve0)).toBeTruthy()
-          expect(newPool3State.reserve1).toEqual((new BigNumber(prevPool3State.reserve1).minus(amountOut)).toString())
+          expect(pool1NewReserve0.gt(pool1PrevReserve0)).toBeTruthy()
+          expect(pool1NewReserve1.lt(pool1PrevReserve1)).toBeTruthy()
+          expect(pool2NewReserve0.gt(pool2PrevReserve0)).toBeTruthy()
+          expect(pool2NewReserve1.lt(pool2PrevReserve1)).toBeTruthy()
+          expect(pool3NewReserve0.gt(pool3PrevReserve0)).toBeTruthy()
+          expect(pool3NewReserve1).toEqual(pool3PrevReserve1.minus(newAmountOut))
           break;
 
         case 'Token3ToToken0':
-          expect(new BigNumber(newPool3State.reserve1).gt(prevPool3State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool3State.reserve0)).lt(prevPool3State.reserve0)).toBeTruthy()
-          expect(new BigNumber(newPool2State.reserve1).gt(prevPool2State.reserve1)).toBeTruthy()
-          expect((new BigNumber(newPool2State.reserve0)).lt(prevPool2State.reserve0)).toBeTruthy()
-          expect((new BigNumber(newPool1State.reserve1)).gt(prevPool1State.reserve1)).toBeTruthy()
-          expect(new BigNumber(prevPool1State.reserve0).minus(newPool1State.reserve0)).toEqual(new BigNumber(amountOut))
+          expect(pool3NewReserve1.gt(pool3PrevReserve1)).toBeTruthy()
+          expect(pool3NewReserve0.lt(pool3PrevReserve0)).toBeTruthy()
+          expect(pool2NewReserve1.gt(pool2PrevReserve1)).toBeTruthy()
+          expect(pool2NewReserve0.lt(pool2PrevReserve0)).toBeTruthy()
+          expect(pool1NewReserve1.gt(pool1PrevReserve1)).toBeTruthy()
+          expect(pool1NewReserve0).toEqual(pool1PrevReserve0.minus(newAmountOut))
           break;
       }
       break;
@@ -1729,78 +1697,57 @@ validatePoolReserves = async (transition, direction, isAmpPool) => {
 }
 
 validateBalances = async (transition, direction) => {
-  let first_intermediate_amt_out, first_intermediate_amt_in, second_intermediate_amt_out, second_intermediate_amt_in, amt_in, amt_out;
-  let newPool1Token0Balance, newPool1Token1Balance, newPool2Token1Balance, newPool2Token2Balance, newPool3Token2Balance, newPool3Token3Balance
+  newToken0State = await token0.getState()
+  newToken1State = await token1.getState()
+  newToken2State = await token2.getState()
+  newToken3State = await token3.getState()
+
+  let newAmountIn = (new BigNumber(amountIn)).shiftedBy(12)
+  let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
+
+  let pool1PrevToken0Balance = new BigNumber(prevToken0State.balances[pool1.address.toLowerCase()])
+  let pool1PrevToken1Balance = new BigNumber(prevToken1State.balances[pool1.address.toLowerCase()])
+  let pool1NewToken0Balance = new BigNumber(newToken0State.balances[pool1.address.toLowerCase()])
+  let pool1NewToken1Balance = new BigNumber(newToken1State.balances[pool1.address.toLowerCase()])
+
+  let pool2PrevToken1Balance = new BigNumber(prevToken1State.balances[pool2.address.toLowerCase()])
+  let pool2PrevToken2Balance = new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()])
+  let pool2NewToken1Balance = new BigNumber(newToken1State.balances[pool2.address.toLowerCase()])
+  let pool2NewToken2Balance = new BigNumber(newToken2State.balances[pool2.address.toLowerCase()])
+
+  let pool3PrevToken2Balance = new BigNumber(prevToken2State.balances[pool3.address.toLowerCase()])
+  let pool3PrevToken3Balance = new BigNumber(prevToken3State.balances[pool3.address.toLowerCase()])
+  let pool3NewToken2Balance = new BigNumber(newToken2State.balances[pool3.address.toLowerCase()])
+  let pool3NewToken3Balance = new BigNumber(newToken3State.balances[pool3.address.toLowerCase()])
+
+  let ownerPrevToken0Balance = new BigNumber(prevToken0State.balances[owner.address.toLowerCase()])
+  let ownerNewToken0Balance = new BigNumber(newToken0State.balances[owner.address.toLowerCase()])
+  let ownerPrevToken3Balance = new BigNumber(prevToken3State.balances[owner.address.toLowerCase()])
+  let ownerNewToken3Balance = new BigNumber(newToken3State.balances[owner.address.toLowerCase()])
 
   switch (transition) {
     case 'SwapExactTokensForTokensThrice': {
       switch (direction) {
         case 'Token0ToToken3':
-          // Validate first_intermediate_amt_in = first_intermediate_amt_out
-          first_intermediate_amt_out = new BigNumber(prevPool1State.reserve1).minus(newPool1State.reserve1);
-          first_intermediate_amt_in = new BigNumber(newPool2State.reserve0).minus(prevPool2State.reserve0);
-          expect(first_intermediate_amt_out.eq(first_intermediate_amt_in)).toBeTruthy()
-
-          // Validate second_intermediate_amt_in = second_intermediate_amt_out
-          second_intermediate_amt_out = new BigNumber(prevPool2State.reserve1).minus(newPool2State.reserve1);
-          second_intermediate_amt_in = new BigNumber(newPool3State.reserve0).minus(prevPool3State.reserve0);
-          expect(second_intermediate_amt_out.eq(second_intermediate_amt_in)).toBeTruthy()
-
-          // Validate Token Balance
-          amt_in = new BigNumber(prevToken0State.balances[owner.address.toLowerCase()]).minus(newToken0State.balances[owner.address.toLowerCase()])
-          expect(amt_in).toEqual(new BigNumber(amountIn))
-
-          newPool1Token0Balance = (new BigNumber(prevToken0State.balances[pool1.address.toLowerCase()])).plus(amountIn).toString()
-          expect(newToken0State.balances[pool1.address.toLowerCase()]).toEqual(newPool1Token0Balance)
-
-          newPool1Token1Balance = (new BigNumber(prevToken1State.balances[pool1.address.toLowerCase()])).minus(first_intermediate_amt_out).toString()
-          expect(newToken1State.balances[pool1.address.toLowerCase()]).toEqual(newPool1Token1Balance)
-
-          newPool2Token1Balance = (new BigNumber(prevToken1State.balances[pool2.address.toLowerCase()])).plus(first_intermediate_amt_in).toString()
-          expect(newToken1State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token1Balance)
-
-          newPool2Token2Balance = (new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()]).minus(second_intermediate_amt_out)).toString()
-          expect(newToken2State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token2Balance)
-
-          newPool3Token2Balance = new BigNumber(prevToken2State.balances[pool3.address.toLowerCase()]).plus(second_intermediate_amt_in).toString()
-          expect(newToken2State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token2Balance)
-
-          amt_out = new BigNumber(prevToken3State.balances[pool3.address.toLowerCase()]).minus(newToken3State.balances[pool3.address.toLowerCase()])
-          expect(new BigNumber(newToken3State.balances[owner.address.toLowerCase()]).minus(prevToken3State.balances[owner.address.toLowerCase()])).toEqual(amt_out)
+          expect(ownerNewToken0Balance).toEqual(ownerPrevToken0Balance.minus(newAmountIn))
+          expect(pool1NewToken0Balance).toEqual(pool1PrevToken0Balance.plus(newAmountIn))
+          expect(pool1NewToken1Balance.lt(pool1PrevToken1Balance)).toBeTruthy()
+          expect(pool2NewToken1Balance.gt(pool2PrevToken2Balance)).toBeTruthy()
+          expect(pool2NewToken2Balance.lt(pool2PrevToken2Balance)).toBeTruthy()
+          expect(pool3NewToken2Balance.gt(pool3PrevToken2Balance)).toBeTruthy()
+          expect(pool3NewToken3Balance.lt(pool3PrevToken3Balance)).toBeTruthy()
+          expect(ownerNewToken3Balance.gt(ownerPrevToken3Balance)).toBeTruthy()
           break;
 
         case 'Token3ToToken0':
-          // Validate first_intermediate_amt_in = first_intermediate_amt_out
-          first_intermediate_amt_out = new BigNumber(prevPool3State.reserve0).minus(newPool3State.reserve0);
-          first_intermediate_amt_in = new BigNumber(newPool2State.reserve1).minus(prevPool2State.reserve1);
-          expect(first_intermediate_amt_out.eq(first_intermediate_amt_in)).toBeTruthy()
-
-          // Validate second_intermediate_amt_in = second_intermediate_amt_out
-          second_intermediate_amt_out = new BigNumber(prevPool2State.reserve0).minus(newPool2State.reserve0);
-          second_intermediate_amt_in = new BigNumber(newPool1State.reserve1).minus(prevPool1State.reserve1);
-          expect(second_intermediate_amt_out.eq(second_intermediate_amt_in)).toBeTruthy()
-
-          // Validate Token Balance
-          amt_in = new BigNumber(prevToken3State.balances[owner.address.toLowerCase()]).minus(newToken3State.balances[owner.address.toLowerCase()])
-          expect(amt_in).toEqual(new BigNumber(amountIn))
-
-          newPool3Token3Balance = (new BigNumber(prevToken3State.balances[pool3.address.toLowerCase()])).plus(amountIn).toString()
-          expect(newToken3State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token3Balance)
-
-          newPool3Token2Balance = (new BigNumber(prevToken2State.balances[pool3.address.toLowerCase()])).minus(first_intermediate_amt_out).toString()
-          expect(newToken2State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token2Balance)
-
-          newPool2Token2Balance = (new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()])).plus(first_intermediate_amt_in).toString()
-          expect(newToken2State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token2Balance)
-
-          newPool2Token1Balance = (new BigNumber(prevToken1State.balances[pool2.address.toLowerCase()])).minus(second_intermediate_amt_out).toString()
-          expect(newToken1State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token1Balance)
-
-          newPool1Token1Balance = (new BigNumber(prevToken1State.balances[pool1.address.toLowerCase()])).plus(second_intermediate_amt_in).toString()
-          expect(newToken1State.balances[pool1.address.toLowerCase()]).toEqual(newPool1Token1Balance)
-
-          amt_out = new BigNumber(prevToken0State.balances[pool1.address.toLowerCase()]).minus(newToken0State.balances[pool1.address.toLowerCase()])
-          expect(new BigNumber(newToken0State.balances[owner.address.toLowerCase()]).minus(prevToken0State.balances[owner.address.toLowerCase()])).toEqual(amt_out)
+          expect(ownerNewToken3Balance).toEqual(ownerPrevToken3Balance.minus(newAmountIn))
+          expect(pool3NewToken3Balance).toEqual(pool3PrevToken3Balance.plus(newAmountIn))
+          expect(pool3NewToken2Balance.lt(pool3PrevToken2Balance)).toBeTruthy()
+          expect(pool2NewToken2Balance.gt(pool2PrevToken2Balance)).toBeTruthy()
+          expect(pool2NewToken1Balance.lt(pool2PrevToken1Balance)).toBeTruthy()
+          expect(pool1NewToken1Balance.gt(pool1PrevToken1Balance)).toBeTruthy()
+          expect(pool1NewToken0Balance.lt(pool1PrevToken0Balance)).toBeTruthy()
+          expect(ownerNewToken0Balance.gt(ownerPrevToken0Balance)).toBeTruthy()
           break;
       }
       break;
@@ -1809,65 +1756,26 @@ validateBalances = async (transition, direction) => {
     case 'SwapTokensForExactTokensThrice': {
       switch (direction) {
         case 'Token0ToToken3':
-          // Validate first_intermediate_amt_in = first_intermediate_amt_out
-          first_intermediate_amt_out = new BigNumber(prevPool1State.reserve1).minus(newPool1State.reserve1);
-          first_intermediate_amt_in = new BigNumber(newPool2State.reserve0).minus(prevPool2State.reserve0);
-          expect(first_intermediate_amt_out.eq(first_intermediate_amt_in)).toBeTruthy()
-
-          // Validate second_intermediate_amt_in = second_intermediate_amt_out
-          second_intermediate_amt_out = new BigNumber(prevPool2State.reserve1).minus(newPool2State.reserve1);
-          second_intermediate_amt_in = new BigNumber(newPool3State.reserve0).minus(prevPool3State.reserve0);
-          expect(second_intermediate_amt_out.eq(second_intermediate_amt_in)).toBeTruthy()
-
-          // Validate Token Balance
-          amt_in = new BigNumber(prevToken0State.balances[owner.address.toLowerCase()]).minus(newToken0State.balances[owner.address.toLowerCase()])
-          expect(new BigNumber(newToken0State.balances[pool1.address.toLowerCase()]).minus(prevToken0State.balances[pool1.address.toLowerCase()])).toEqual(amt_in)
-
-          newPool1Token1Balance = (new BigNumber(prevToken1State.balances[pool1.address.toLowerCase()])).minus(first_intermediate_amt_out).toString()
-          expect(newToken1State.balances[pool1.address.toLowerCase()]).toEqual(newPool1Token1Balance)
-
-          newPool2Token1Balance = (new BigNumber(prevToken1State.balances[pool2.address.toLowerCase()])).plus(first_intermediate_amt_in).toString()
-          expect(newToken1State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token1Balance)
-
-          newPool2Token2Balance = (new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()])).minus(second_intermediate_amt_out).toString()
-          expect(newToken2State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token2Balance)
-
-          newPool3Token2Balance = (new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()])).plus(second_intermediate_amt_in).toString()
-          expect(newToken2State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token2Balance)
-
-          expect(new BigNumber(prevToken3State.balances[pool3.address.toLowerCase()]).minus(newToken3State.balances[pool3.address.toLowerCase()])).toEqual(new BigNumber(amountOut))
-          expect(new BigNumber(newToken3State.balances[owner.address.toLowerCase()]).minus(prevToken3State.balances[owner.address.toLowerCase()])).toEqual(new BigNumber(amountOut))
+          expect(ownerNewToken0Balance.lt(ownerPrevToken0Balance)).toBeTruthy()
+          expect(pool1NewToken0Balance.gt(pool1PrevToken0Balance)).toBeTruthy()
+          expect(pool1NewToken1Balance.lt(pool1PrevToken1Balance)).toBeTruthy()
+          expect(pool2NewToken1Balance.gt(pool2PrevToken1Balance)).toBeTruthy()
+          expect(pool2NewToken2Balance.lt(pool2PrevToken2Balance)).toBeTruthy()
+          expect(pool3NewToken2Balance.gt(pool3PrevToken2Balance)).toBeTruthy()
+          expect(pool3NewToken3Balance.lt(pool3PrevToken3Balance)).toBeTruthy()
+          expect(pool3NewToken3Balance).toEqual(pool3PrevToken3Balance.minus(newAmountOut))
+          expect(ownerNewToken3Balance).toEqual(ownerPrevToken3Balance.plus(newAmountOut))
           break;
 
         case 'Token3ToToken0':
-          // Validate first_intermediate_amt_in = first_intermediate_amt_out
-          first_intermediate_amt_out = new BigNumber(prevPool3State.reserve0).minus(newPool3State.reserve0);
-          first_intermediate_amt_in = new BigNumber(newPool2State.reserve1).minus(prevPool2State.reserve1);
-          expect(first_intermediate_amt_out.eq(first_intermediate_amt_in)).toBeTruthy()
-
-          // Validate second_intermediate_amt_in = second_intermediate_amt_out
-          second_intermediate_amt_out = new BigNumber(prevPool2State.reserve0).minus(newPool2State.reserve0);
-          second_intermediate_amt_in = new BigNumber(newPool1State.reserve1).minus(prevPool1State.reserve1);
-          expect(second_intermediate_amt_out.eq(second_intermediate_amt_in)).toBeTruthy()
-
-          // Validate Token Balance
-          amt_in = new BigNumber(prevToken3State.balances[owner.address.toLowerCase()]).minus(newToken3State.balances[owner.address.toLowerCase()])
-          expect(new BigNumber(newToken3State.balances[pool3.address.toLowerCase()]).minus(prevToken3State.balances[pool3.address.toLowerCase()])).toEqual(amt_in)
-
-          newPool3Token2Balance = (new BigNumber(prevToken2State.balances[pool3.address.toLowerCase()])).minus(first_intermediate_amt_out).toString()
-          expect(newToken2State.balances[pool3.address.toLowerCase()]).toEqual(newPool3Token2Balance)
-
-          newPool2Token2Balance = (new BigNumber(prevToken2State.balances[pool2.address.toLowerCase()])).plus(first_intermediate_amt_in).toString()
-          expect(newToken2State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token2Balance)
-
-          newPool2Token1Balance = (new BigNumber(prevToken1State.balances[pool2.address.toLowerCase()])).minus(second_intermediate_amt_out).toString()
-          expect(newToken1State.balances[pool2.address.toLowerCase()]).toEqual(newPool2Token1Balance)
-
-          newPool1Token1Balance = (new BigNumber(prevToken1State.balances[pool1.address.toLowerCase()])).plus(second_intermediate_amt_in).toString()
-          expect(newToken1State.balances[pool1.address.toLowerCase()]).toEqual(newPool1Token1Balance)
-
-          expect(new BigNumber(prevToken0State.balances[pool1.address.toLowerCase()]).minus(newToken0State.balances[pool1.address.toLowerCase()])).toEqual(new BigNumber(amountOut))
-          expect(new BigNumber(newToken0State.balances[owner.address.toLowerCase()]).minus(prevToken0State.balances[owner.address.toLowerCase()])).toEqual(new BigNumber(amountOut))
+          expect(ownerNewToken3Balance.lt(ownerPrevToken3Balance)).toBeTruthy()
+          expect(pool3NewToken3Balance.gt(pool3PrevToken3Balance)).toBeTruthy()
+          expect(pool3NewToken2Balance.lt(pool3PrevToken2Balance)).toBeTruthy()
+          expect(pool2NewToken2Balance.gt(pool2PrevToken2Balance)).toBeTruthy()
+          expect(pool2NewToken1Balance.lt(pool2PrevToken1Balance)).toBeTruthy()
+          expect(pool1NewToken1Balance.gt(pool1PrevToken1Balance)).toBeTruthy()
+          expect(pool1NewToken0Balance).toEqual(pool1PrevToken0Balance.minus(newAmountOut))
+          expect(ownerNewToken0Balance).toEqual(ownerPrevToken0Balance.plus(newAmountOut))
           break;
       }
       break;
