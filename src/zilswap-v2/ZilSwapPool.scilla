@@ -265,38 +265,7 @@ let calculate_r_factor =
       builtin div s_e long_ema
     end
 
-let get_r_factor = 
-  fun (current_block: BNum) =>
-  fun (last_trade_block: BNum) =>
-  fun (current_block_volume: Uint128) =>
-  fun (short_ema: Uint256) =>
-  fun (long_ema: Uint256) =>
-    let block_skipped_int256 = builtin bsub current_block last_trade_block in
-    let blocks_skipped_u128 = shrink block_skipped_int256 in
-    let blocks_skipped_u256 = grow blocks_skipped_u128 in
-    let is_zero = builtin eq blocks_skipped_u256 zero_u256 in
-    match is_zero with
-    | True => calculate_r_factor short_ema long_ema
-    | False =>
-      let block_skipped_minus_one = builtin sub blocks_skipped_u256 one_u256 in
-      let short_e = get_ema short_ema short_alpha current_block_volume in
-      let long_e = get_ema long_ema long_alpha current_block_volume in
-      let s_e = 
-        let a = builtin sub precision short_alpha in
-        let b = mul_in_precision short_e a in
-        let pair = unsafe_pow_in_precision b block_skipped_minus_one in
-        get_z_from_unsafe_pow_in_precision pair
-      in
-      let l_e = 
-        let a = builtin sub precision long_alpha in
-        let b = mul_in_precision long_e a in
-        let pair = unsafe_pow_in_precision b block_skipped_minus_one in
-        get_z_from_unsafe_pow_in_precision pair
-      in
-      calculate_r_factor s_e l_e
-    end
-
-(* #dev: Calculates fee in Uint256 from r_factor_in_precision *)
+(* @dev: Calculates fee in Uint256 from r_factor_in_precision *)
 let get_fee = 
   fun (r_factor_in_precision: Uint256) => 
     let r0 = Uint256 1477405064814996100 in
@@ -331,28 +300,28 @@ let get_fee =
           let c1_add_a_add_b = builtin add c1_add_a b_tmp in
           builtin div c1_add_a_add_b ten_thousand_u256
         | False =>
-        let tmp = builtin sub u r_factor_in_precision in
-        let tmp3 = 
-          let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
-          get_z_from_unsafe_pow_in_precision tmp3_pair
-        in
-        let a_tmp3 = mul_in_precision a tmp3 in
-        let b_tmp = mul_in_precision b tmp in
-        let c1_sub_a = builtin sub c1 a_tmp3 in
-        let c1_sub_a_sub_b = builtin sub c1_sub_a b_tmp in
-        builtin div c1_sub_a_sub_b ten_thousand_u256
+          let tmp = builtin sub u r_factor_in_precision in
+          let tmp3 = 
+            let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision tmp3_pair
+          in
+          let a_tmp3 = mul_in_precision a tmp3 in
+          let b_tmp = mul_in_precision b tmp in
+          let c1_sub_a = builtin sub c1 a_tmp3 in
+          let c1_sub_a_sub_b = builtin sub c1_sub_a b_tmp in
+          builtin div c1_sub_a_sub_b ten_thousand_u256
         end
       | False =>
         (* [ C2 + sign(r - G) *  F * (r-G) ^2 / (L + (r-G) ^2) ] / 10000 *)
         let is_gt_g = uint256_gt r_factor_in_precision g in
         let tmp = match is_gt_g with
         | True => 
-          let r_factor_in_precision_sub_g = builtin sub r_factor_in_precision g in
-          let pair = unsafe_pow_in_precision r_factor_in_precision_sub_g two_u256 in
+          let r_sub_g = builtin sub r_factor_in_precision g in
+          let pair = unsafe_pow_in_precision r_sub_g two_u256 in
           get_z_from_unsafe_pow_in_precision pair
         | False => 
-          let g_sub_r_factor_in_precision = builtin sub g r_factor_in_precision in
-          let pair = unsafe_pow_in_precision a two_u256 in 
+          let g_sub_r = builtin sub g r_factor_in_precision in
+          let pair = unsafe_pow_in_precision g_sub_r two_u256 in 
           get_z_from_unsafe_pow_in_precision pair
         end in
         let tmp_add_l = builtin add tmp l in
@@ -735,16 +704,11 @@ end
 
 (* @dev: Updates current_block_volume, last_trade_block, short_ema, long_ema *)
 procedure RecordVolume(volume: Uint128)
-  (* Ensure that r_factor_in_precision is set to 0 *)
+  (* Set r_factor_in_precision to 0 *)
   r_factor_in_precision := zero_u256;
 
   current_block <- & BLOCKNUMBER;
-  last <- last_trade_block;
-  is_first_trade = builtin eq last zero_block;
-  last_block = match is_first_trade with
-  | True => current_block
-  | False => last
-  end;
+  last_block <- last_trade_block;
 
   blocks_skipped_int256 = builtin bsub current_block last_block;
   blocks_skipped_u128 = shrink blocks_skipped_int256;
@@ -756,34 +720,34 @@ procedure RecordVolume(volume: Uint128)
     new_volume = builtin add volume v;
     current_block_volume := new_volume;
 
-    s_e <- short_ema;
-    l_e <- long_ema;
-    r_factor = calculate_r_factor s_e l_e;
+    old_short_ema <- short_ema;
+    old_long_ema <- long_ema;
+    r_factor = calculate_r_factor old_short_ema old_long_ema;
     r_factor_in_precision := r_factor
   | False =>
     old_block_volume <- current_block_volume;
-    prev_short_ema <- short_ema;
-    prev_long_ema <- long_ema;
+    old_short_ema <- short_ema;
+    old_long_ema <- long_ema;
 
     blocks_skipped_minus_one = builtin sub blocks_skipped_u256 one_u256;
 
-    new_s_e = 
-      let s_e = get_ema prev_short_ema short_alpha old_block_volume in
+    new_short_ema = 
+      let s_e = get_ema old_short_ema short_alpha old_block_volume in
       let p_minus_short_alpha = builtin sub precision short_alpha in
       let s_e_ = mul_in_precision s_e p_minus_short_alpha in
       let pair = unsafe_pow_in_precision s_e_ blocks_skipped_minus_one in
       get_z_from_unsafe_pow_in_precision pair;
-    short_ema := new_s_e;
+    short_ema := new_short_ema;
 
-    new_l_e = 
-      let l_e = get_ema prev_long_ema long_alpha old_block_volume in
+    new_long_ema = 
+      let l_e = get_ema old_long_ema long_alpha old_block_volume in
       let p_minus_long_alpha = builtin sub precision long_alpha in
       let l_e_ = mul_in_precision l_e p_minus_long_alpha in
       let pair = unsafe_pow_in_precision l_e_ blocks_skipped_minus_one in
       get_z_from_unsafe_pow_in_precision pair;
-    long_ema := new_l_e;
+    long_ema := new_long_ema;
 
-    r_factor = calculate_r_factor new_s_e new_l_e;
+    r_factor = calculate_r_factor new_short_ema new_long_ema;
     r_factor_in_precision := r_factor;
     current_block_volume := volume;
     last_trade_block := current_block
@@ -803,7 +767,10 @@ procedure VerifyBalanceAndUpdateEMA(
   amp <- amp_bps;
   s_e <- short_ema;
   l_e <- long_ema;
+
+  (* r_factor_in_precision is set in RecordVolume procedure *)
   r_factor <- r_factor_in_precision;
+
   intermediate_fee = get_fee r_factor;
   fee_in_precision = get_final_fee intermediate_fee amp;
 
