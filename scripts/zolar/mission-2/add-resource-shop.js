@@ -63,7 +63,7 @@ const BN_ONE = new BigNumber(1);
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "16", "-32"]
       })]
   })
   const bech32StallAddress = toBech32Address(resourceStallAddress)
@@ -85,7 +85,7 @@ const BN_ONE = new BigNumber(1);
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [BN_ONE, ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(50).toString(10), ONE_HUNY.times(1_500).toString(10), "16", "-32"]
       })]
   })
   const txAddItem2 = await createTransaction(bech32StallAddress, dataAddItem2, minGasPrice)
@@ -106,7 +106,7 @@ const BN_ONE = new BigNumber(1);
       param('sell_price', `${resourceStallAddress}.Price`, {
         constructor: `${resourceStallAddress}.Price`,
         argtypes: [],
-        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "50", "-100"]
+        arguments: [BN_ONE, ONE_HUNY.times(18).toString(10), ONE_HUNY.times(540).toString(10), "16", "-32"]
       })]
   })
   const txAddItem3 = await createTransaction(bech32StallAddress, dataAddItem3, minGasPrice)
