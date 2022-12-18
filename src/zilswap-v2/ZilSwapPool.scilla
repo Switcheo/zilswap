@@ -261,7 +261,7 @@ let get_ema =
     let v = grow value in
     let i_a = builtin sub precision alpha in
     let a = builtin mul i_a ema in
-    let b = builtin mul a v in
+    let b = builtin mul alpha v in
     let n = builtin add a b in
     builtin div n precision
 
@@ -1355,6 +1355,9 @@ transition Swap(
     err = CodeInvalidToAddress;
     ThrowError err
   end;
+
+  m_b0 <- & init_token0.balances[_this_address];
+  m_b1 <- & init_token1.balances[_this_address];
   
   match is_sending_t0 with
   | False =>
@@ -1378,10 +1381,8 @@ transition Swap(
     send msgs
   end;
 
-  m_b0 <- & init_token0.balances[_this_address];
   b0 = get_amount_or_zero m_b0;
   new_r0 = builtin sub b0 amount0_out;
-  m_b1 <- & init_token1.balances[_this_address];
   b1 = get_amount_or_zero m_b1;
   new_r1 = builtin sub b1 amount1_out;
 
@@ -1395,17 +1396,19 @@ transition Swap(
   end;
 
   amount0_in =
-    let has_input = uint128_gt new_r0 r0 in
+    let r0_sub_amount0_out = builtin sub r0 amount0_out in
+    let has_input = uint128_gt new_r0 r0_sub_amount0_out in
     match has_input with
     | False => zero_amount
-    | True => builtin sub new_r0 r0
+    | True => builtin sub new_r0 r0_sub_amount0_out
     end;
 
   amount1_in =
-    let has_input = uint128_gt new_r1 r1 in
+    let r1_sub_amount1_out = builtin sub r1 amount1_out in
+    let has_input = uint128_gt new_r1 r1_sub_amount1_out in
     match has_input with
     | False => zero_amount
-    | True => builtin sub new_r1 r1
+    | True => builtin sub new_r1 r1_sub_amount1_out
     end;
   
   a0_ok = uint128_gt amount0_in zero_amount;
