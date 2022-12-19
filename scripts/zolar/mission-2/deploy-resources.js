@@ -10,14 +10,14 @@ const { deployResourceStore, deployResource } = require("./helper");
   const hunyAddress = process.env.HUNY_CONTRACT_HASH;
   const emporiumAddress = process.env.EMPORIUM_CONTRACT_HASH;
 
-  const geodeContract = await deployResource("ZolarGeode", { name: "Geode - Zolar Resource", symbol: "zlrGEODE", decimals: "2" });
-  const geodeAddress = geodeContract.address.toLowerCase();
+  // const geodeContract = await deployResource("ZolarGeode", { name: "Geode - Zolar Resource", symbol: "zlrGEODE", decimals: "2" });
+  // const geodeAddress = geodeContract.address.toLowerCase();
 
-  const berryContract = await deployResource("ZolarElderberry", { name: "Elderberry - Zolar Resource", symbol: "zlrBERRY", decimals: "2" });
-  const berryAddress = berryContract.address.toLowerCase();
+  // const berryContract = await deployResource("ZolarElderberry", { name: "Elderberry - Zolar Resource", symbol: "zlrBERRY", decimals: "2" });
+  // const berryAddress = berryContract.address.toLowerCase();
 
-  const scrapContract = await deployResource("ZolarZolraniumScrap", { name: "Scraps - Zolar Resource", symbol: "zlrSCRAP", decimals: "2" });
-  const scrapAddress = scrapContract.address.toLowerCase();
+  // const scrapContract = await deployResource("ZolarZolraniumScrap", { name: "Scraps - Zolar Resource", symbol: "zlrSCRAP", decimals: "2" });
+  // const scrapAddress = scrapContract.address.toLowerCase();
 
   const resourceStallContract = await deployResourceStore({ emporium: emporiumAddress, huny_token: hunyAddress });
   const resourceStallAddress = resourceStallContract.address.toLowerCase();
