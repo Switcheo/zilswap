@@ -1619,9 +1619,9 @@ setup = async (isAmpPool) => {
 
 // validate pool reserves (both amp and non-amp pools)
 validatePoolReserves = async (transition, isAmpPool) => {
-  return
   newPool1State = await pool1.getState()
   newPool2State = await pool2.getState()
+  newPool3State = await pool3.getState()
   let newAmountIn = (new BigNumber(amountIn)).shiftedBy(12)
   let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
 
@@ -1630,10 +1630,10 @@ validatePoolReserves = async (transition, isAmpPool) => {
   let pool1PrevReserve1 = new BigNumber(prevPool1State.reserve1)
   let pool1NewReserve1 = new BigNumber(newPool1State.reserve1)
 
-  let pool2PrevReserve0 = new BigNumber(prevPool2State.reserve0)
-  let pool2NewReserve0 = new BigNumber(newPool2State.reserve0)
-  let pool2PrevReserve1 = new BigNumber(prevPool2State.reserve1)
-  let pool2NewReserve1 = new BigNumber(newPool2State.reserve1)
+  let pool3PrevReserve0 = new BigNumber(prevPool3State.reserve0)
+  let pool3NewReserve0 = new BigNumber(newPool3State.reserve0)
+  let pool3PrevReserve1 = new BigNumber(prevPool3State.reserve1)
+  let pool3NewReserve1 = new BigNumber(newPool3State.reserve1)
   
   switch (transition) {
     case 'SwapExactTokensForZILThrice': {
@@ -1645,23 +1645,23 @@ validatePoolReserves = async (transition, isAmpPool) => {
         expect(pool1NewReserve0.lt(pool1PrevReserve0)).toBeTruthy()
       }
 
-      if (newPool2State.token0.toLowerCase() == wZil) {
-        expect(pool2NewReserve1.gt(pool2PrevReserve1)).toBeTruthy()
-        expect(pool2NewReserve0.lt(pool2PrevReserve0)).toBeTruthy()
+      if (newPool3State.token0.toLowerCase() == wZil) {
+        expect(pool3NewReserve1.gt(pool3PrevReserve1)).toBeTruthy()
+        expect(pool3NewReserve0.lt(pool3PrevReserve0)).toBeTruthy()
       } else {
-        expect(pool2NewReserve0.gt(pool2PrevReserve0)).toBeTruthy()
-        expect(pool2NewReserve1.lt(pool2PrevReserve1)).toBeTruthy()
+        expect(pool3NewReserve0.gt(pool3PrevReserve0)).toBeTruthy()
+        expect(pool3NewReserve1.lt(pool3PrevReserve1)).toBeTruthy()
       }
       break;
     }
 
     case 'SwapExactZILForTokensThrice': {
-      if (newPool2State.token0.toLowerCase() === wZil) {
-        expect(pool2NewReserve0).toEqual(pool2PrevReserve0.plus(newAmountIn))
-        expect(pool2NewReserve1.lt(pool2PrevReserve1)).toBeTruthy()
+      if (newPool3State.token0.toLowerCase() === wZil) {
+        expect(pool3NewReserve0).toEqual(pool3PrevReserve0.plus(newAmountIn))
+        expect(pool3NewReserve1.lt(pool3PrevReserve1)).toBeTruthy()
       } else {
-        expect(pool2NewReserve1).toEqual(pool2PrevReserve1.plus(newAmountIn))
-        expect(pool2NewReserve0.lt(pool2PrevReserve0)).toBeTruthy()
+        expect(pool3NewReserve1).toEqual(pool3PrevReserve1.plus(newAmountIn))
+        expect(pool3NewReserve0.lt(pool3PrevReserve0)).toBeTruthy()
       }
 
       if (newPool1State.token0.toLowerCase() == otherTokenAddress) {
@@ -1683,24 +1683,24 @@ validatePoolReserves = async (transition, isAmpPool) => {
         expect(pool1NewReserve0.lt(pool1PrevReserve0)).toBeTruthy()
       }
 
-      if (newPool2State.token0.toLowerCase() === wZil) {
-        expect(pool2NewReserve1.gt(pool2PrevReserve1)).toBeTruthy()
-        expect(pool2PrevReserve0).toEqual(pool2NewReserve0.plus(newAmountOut))
+      if (newPool3State.token0.toLowerCase() === wZil) {
+        expect(pool3NewReserve1.gt(pool3PrevReserve1)).toBeTruthy()
+        expect(pool3PrevReserve0).toEqual(pool3NewReserve0.plus(newAmountOut))
         break;
       } else {
-        expect(pool2NewReserve0.gt(pool2PrevReserve0)).toBeTruthy()
-        expect(pool2PrevReserve1).toEqual(pool2NewReserve1.plus(newAmountOut))
+        expect(pool3NewReserve0.gt(pool3PrevReserve0)).toBeTruthy()
+        expect(pool3PrevReserve1).toEqual(pool3NewReserve1.plus(newAmountOut))
         break;
       }
     }
 
     case 'SwapZILForExactTokensThrice': {
-      if (newPool2State.token0.toLowerCase() === wZil) {
-        expect(pool2NewReserve0.gt(pool2PrevReserve0)).toBeTruthy()
-        expect(pool2NewReserve1.lt(pool2PrevReserve1)).toBeTruthy()
+      if (newPool3State.token0.toLowerCase() === wZil) {
+        expect(pool3NewReserve0.gt(pool3PrevReserve0)).toBeTruthy()
+        expect(pool3NewReserve1.lt(pool3PrevReserve1)).toBeTruthy()
       } else {
-        expect(pool2NewReserve1.gt(pool2PrevReserve1)).toBeTruthy()
-        expect(pool2NewReserve0.lt(pool2PrevReserve0)).toBeTruthy()
+        expect(pool3NewReserve1.gt(pool3PrevReserve1)).toBeTruthy()
+        expect(pool3NewReserve0.lt(pool3PrevReserve0)).toBeTruthy()
       }
 
       if (newPool1State.token0.toLowerCase() == otherTokenAddress) {
@@ -1718,24 +1718,30 @@ validatePoolReserves = async (transition, isAmpPool) => {
     expect(newPool1State.v_reserve1).toEqual((new BigNumber(prevPool1State.v_reserve1).plus(newPool1State.reserve1).minus(prevPool1State.reserve1)).toString())
     expect(newPool2State.v_reserve0).toEqual((new BigNumber(prevPool2State.v_reserve0).plus(newPool2State.reserve0).minus(prevPool2State.reserve0)).toString())
     expect(newPool2State.v_reserve1).toEqual((new BigNumber(prevPool2State.v_reserve1).plus(newPool2State.reserve1).minus(prevPool2State.reserve1)).toString())
+    expect(newPool3State.v_reserve0).toEqual((new BigNumber(prevPool3State.v_reserve0).plus(newPool3State.reserve0).minus(prevPool3State.reserve0)).toString())
+    expect(newPool3State.v_reserve1).toEqual((new BigNumber(prevPool3State.v_reserve1).plus(newPool3State.reserve1).minus(prevPool3State.reserve1)).toString())
   }
   else {
     expect(newPool1State.v_reserve0).toEqual('0')
     expect(newPool1State.v_reserve1).toEqual('0')
     expect(newPool2State.v_reserve0).toEqual('0')
     expect(newPool2State.v_reserve1).toEqual('0')
+    expect(newPool3State.v_reserve0).toEqual('0')
+    expect(newPool3State.v_reserve1).toEqual('0')
   }
 }
 
 // validate if token balances are correct
 validateBalances = async (transition) => {
-  return
   const otherTokenContract = getContract(otherTokenAddress)
-  const bridgeTokenContract = getContract(bridgeTokenAddress)
+  const bridge1TokenContract = getContract(bridge1TokenAddress)
+  const bridge2TokenContract = getContract(bridge2TokenAddress)
   const wZilContract = getContract(wZil)
 
   const newOtherTokenState = await otherTokenContract.getState()
-  const newBridgeTokenState = await bridgeTokenContract.getState()
+  const newBridge1TokenState = await bridge1TokenContract.getState()
+  const newBridge2TokenState = await bridge2TokenContract.getState()
+
   const newWZilState = await wZilContract.getState()
   const newOwnerZilBalance = await getBalance(owner.address)
 
@@ -1743,14 +1749,19 @@ validateBalances = async (transition) => {
   let newAmountOut = (new BigNumber(amountOut)).shiftedBy(12)
 
   let pool1PrevOtherTokenBalance = new BigNumber(prevOtherTokenState.balances[pool1.address.toLowerCase()])
-  let pool1PrevBridgeTokenBalance = new BigNumber(prevBridgeTokenState.balances[pool1.address.toLowerCase()])
+  let pool1PrevBridge1TokenBalance = new BigNumber(prevBridge1TokenState.balances[pool1.address.toLowerCase()])
   let pool1NewOtherTokenBalance = new BigNumber(newOtherTokenState.balances[pool1.address.toLowerCase()])
-  let pool1NewBridgeTokenBalance = new BigNumber(newBridgeTokenState.balances[pool1.address.toLowerCase()])
+  let pool1NewBridge1TokenBalance = new BigNumber(newBridge1TokenState.balances[pool1.address.toLowerCase()])
 
-  let pool2PrevBridgeTokenBalance = new BigNumber(prevBridgeTokenState.balances[pool2.address.toLowerCase()])
-  let pool2PrevWZilBalance = new BigNumber(prevWZilState.balances[pool2.address.toLowerCase()])
-  let pool2NewBridgeTokenBalance = new BigNumber(newBridgeTokenState.balances[pool2.address.toLowerCase()])
-  let pool2NewWZilBalance = new BigNumber(newWZilState.balances[pool2.address.toLowerCase()])
+  let pool2PrevBridge1TokenBalance = new BigNumber(prevBridge1TokenState.balances[pool2.address.toLowerCase()])
+  let pool2PrevBridge2TokenBalance = new BigNumber(prevBridge2TokenState.balances[pool2.address.toLowerCase()])
+  let pool2NewBridge1TokenBalance = new BigNumber(newBridge1TokenState.balances[pool2.address.toLowerCase()])
+  let pool2NewBridge2TokenBalance = new BigNumber(newBridge2TokenState.balances[pool2.address.toLowerCase()])
+
+  let pool3PrevBridge2TokenBalance = new BigNumber(prevBridge2TokenState.balances[pool3.address.toLowerCase()])
+  let pool3PrevWZilBalance = new BigNumber(prevWZilState.balances[pool3.address.toLowerCase()])
+  let pool3NewBridge2TokenBalance = new BigNumber(newBridge2TokenState.balances[pool3.address.toLowerCase()])
+  let pool3NewWZilBalance = new BigNumber(newWZilState.balances[pool3.address.toLowerCase()])
 
   let ownerPrevOtherTokenBalance = new BigNumber(prevOtherTokenState.balances[owner.address.toLowerCase()])
   let ownerNewOtherTokenBalance = new BigNumber(newOtherTokenState.balances[owner.address.toLowerCase()])
@@ -1759,18 +1770,22 @@ validateBalances = async (transition) => {
     case 'SwapExactTokensForZILThrice': {
       expect(ownerNewOtherTokenBalance).toEqual(ownerPrevOtherTokenBalance.minus(newAmountIn))
       expect(pool1NewOtherTokenBalance).toEqual(pool1PrevOtherTokenBalance.plus(newAmountIn))
-      expect(pool1NewBridgeTokenBalance.lt(pool1PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool2NewBridgeTokenBalance.gt(pool2PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool2NewWZilBalance.lt(pool2PrevWZilBalance)).toBeTruthy()
+      expect(pool1NewBridge1TokenBalance.lt(pool1PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge1TokenBalance.gt(pool2PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge2TokenBalance.lt(pool2PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool3NewBridge2TokenBalance.gt(pool3PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool3NewWZilBalance.lt(pool3PrevWZilBalance)).toBeTruthy()
       expect(newOwnerZilBalance.gt(prevOwnerZilBalance)).toBeTruthy()
       break;
     }
 
     case 'SwapExactZILForTokensThrice': {
       expect(newOwnerZilBalance.lt(prevOwnerZilBalance)).toBeTruthy()
-      expect(pool2NewWZilBalance).toEqual(pool2PrevWZilBalance.plus(newAmountIn))
-      expect(pool2NewBridgeTokenBalance.lt(pool2PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool1NewBridgeTokenBalance.gt(pool1PrevBridgeTokenBalance)).toBeTruthy()
+      expect(pool3NewWZilBalance).toEqual(pool3PrevWZilBalance.plus(newAmountIn))
+      expect(pool3NewBridge2TokenBalance.lt(pool3PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge2TokenBalance.gt(pool2PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge1TokenBalance.lt(pool2PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool1NewBridge1TokenBalance.gt(pool1PrevBridge1TokenBalance)).toBeTruthy()
       expect(pool1NewOtherTokenBalance.lt(pool1PrevOtherTokenBalance)).toBeTruthy()
       expect(ownerNewOtherTokenBalance.gt(ownerPrevOtherTokenBalance)).toBeTruthy()
       break;
@@ -1779,18 +1794,22 @@ validateBalances = async (transition) => {
     case 'SwapTokensForExactZILThrice': {
       expect(ownerNewOtherTokenBalance.lt(ownerPrevOtherTokenBalance)).toBeTruthy()
       expect(pool1NewOtherTokenBalance.gt(pool1PrevOtherTokenBalance)).toBeTruthy()
-      expect(pool1NewBridgeTokenBalance.lt(pool1PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool2NewBridgeTokenBalance.gt(pool2PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool2NewWZilBalance).toEqual(pool2PrevWZilBalance.minus(newAmountOut))
+      expect(pool1NewBridge1TokenBalance.lt(pool1PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge1TokenBalance.gt(pool2PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge2TokenBalance.lt(pool2PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool3NewBridge2TokenBalance.gt(pool3PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool3NewWZilBalance).toEqual(pool3PrevWZilBalance.minus(newAmountOut))
       expect(newOwnerZilBalance.gt(prevOwnerZilBalance)).toBeTruthy()
       break;
     }
 
     case 'SwapZILForExactTokensThrice': {
       expect(newOwnerZilBalance.lt(prevOwnerZilBalance)).toBeTruthy()
-      expect(pool2NewWZilBalance.gt(pool2PrevWZilBalance)).toBeTruthy()
-      expect(pool2NewBridgeTokenBalance.lt(pool2PrevBridgeTokenBalance)).toBeTruthy()
-      expect(pool1NewBridgeTokenBalance.gt(pool1PrevBridgeTokenBalance)).toBeTruthy()
+      expect(pool3NewWZilBalance.gt(pool3PrevWZilBalance)).toBeTruthy()
+      expect(pool3NewBridge2TokenBalance.lt(pool3PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge2TokenBalance.gt(pool2PrevBridge2TokenBalance)).toBeTruthy()
+      expect(pool2NewBridge1TokenBalance.lt(pool2PrevBridge1TokenBalance)).toBeTruthy()
+      expect(pool1NewBridge1TokenBalance.gt(pool1PrevBridge1TokenBalance)).toBeTruthy()
       expect(pool1NewOtherTokenBalance).toEqual(pool1PrevOtherTokenBalance.minus(newAmountOut))
       expect(ownerNewOtherTokenBalance).toEqual(ownerPrevOtherTokenBalance.plus(newAmountOut))
       break;
