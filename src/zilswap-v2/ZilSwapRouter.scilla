@@ -219,11 +219,9 @@ let mul_in_precision =
 let get_z_in_precision = 
   fun (x_in_precision: Uint256) =>
   fun (k: Uint256)=> 
-    let zero = Uint256 0 in
-    let two = Uint256 2 in
-    let remainder = builtin rem k two in
-    let equal = builtin eq remainder zero in
-    match equal with 
+    let remainder = builtin rem k two_u256 in
+    let is_zero = builtin eq remainder zero_u256 in
+    match is_zero with 
     | True => precision
     | False =>  x_in_precision
     end
@@ -325,13 +323,11 @@ let get_ema =
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
   fun (long_ema : Uint256) =>
-    let zero_amount = Uint256 0 in 
-    let is_eq = builtin eq long_ema zero_amount in 
-    match is_eq with
-    | True => zero_amount
+    let is_zero = builtin eq long_ema zero_u256 in 
+    match is_zero with
+    | True => zero_u256
     | False =>
-      let s_e = builtin mul short_ema precision in 
-      builtin div s_e long_ema
+      frac_u256 short_ema precision long_ema
     end
 
 (* @dev: Returns rFactor in Precision for this trade *)

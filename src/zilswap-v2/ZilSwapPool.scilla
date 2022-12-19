@@ -146,7 +146,7 @@ let frac_u256 =
     let xy_u256 = builtin mul x_u256 y_u256 in
     builtin div xy_u256 z_u256
 
-(* @dev: Converts 2 Uint128 numbers to Uint256 and returns the product *)
+(* @dev: Converts 2 Uint128 numbers to Uint256 and returns the product in Uint256 *)
 let u128_mul_grow =
   fun (x: Uint128) =>
   fun (y: Uint128) =>
@@ -164,14 +164,16 @@ let mul_in_precision =
     let xy = builtin mul x y in
     builtin div xy precision
 
+(* @dev: Used in unsafe_pow_in_precision *)
+(* @solidity MathExt.sol: 
+  zInPrecision = k % 2 != 0 ? xInPrecision : PRECISION; 
+*)
 let get_z_in_precision = 
   fun (x_in_precision: Uint256) =>
   fun (k: Uint256)=> 
-    let zero = Uint256 0 in
-    let two = Uint256 2 in
-    let remainder = builtin rem k two in
-    let equal = builtin eq remainder zero in
-    match equal with 
+    let remainder = builtin rem k two_u256 in
+    let is_zero = builtin eq remainder zero_u256 in
+    match is_zero with 
     | True => precision
     | False =>  x_in_precision
     end
@@ -273,12 +275,11 @@ let get_ema =
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
   fun (long_ema : Uint256) =>
-    let is_eq = builtin eq long_ema zero_u256 in 
-    match is_eq with
+    let is_zero = builtin eq long_ema zero_u256 in 
+    match is_zero with
     | True => zero_u256
     | False =>
-      let s_e = builtin mul short_ema precision in 
-      builtin div s_e long_ema
+      frac_u256 short_ema precision long_ema
     end
 
 (* @dev: Calculates fee in Uint256 from r_factor_in_precision *)
@@ -1068,6 +1069,7 @@ transition Mint(to : ByStr20)
   m_r1 <- & init_token1.balances[_this_address];
   new_r1 = get_amount_or_zero m_r1;
 
+  (* Amount of zrc2 tokens transferred to pool by liquidity provider *)
   amount0 = builtin sub new_r0 r0;
   amount1 = builtin sub new_r1 r1;
 
@@ -1089,6 +1091,7 @@ transition Mint(to : ByStr20)
     let liquidity = let x = builtin mul amount0 amount1 in let y = builtin isqrt x in builtin sub y minimum_liquidity in
     Pair {Uint128 ReserveData} liquidity data
   | False =>
+    (* existing pool *)
     let liquidity =
       let a = frac amount0 supply r0 in
       let b = frac amount1 supply r1 in
@@ -1197,6 +1200,7 @@ transition Burn()
   m_l <- balances[_this_address];
   liquidity = get_amount_or_zero m_l;
 
+  (* Amount of tokens to transfer to liquidity provider *)
   amount0 = frac liquidity balance0 supply;
   amount1 = frac liquidity balance1 supply;
 
@@ -1252,7 +1256,6 @@ end
 
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
-
 (* @solidity DMMPool.sol:
   require(amount0Out > 0 || amount1Out > 0, "DMM: INSUFFICIENT_OUTPUT_AMOUNT");
   (bool isAmpPool, ReserveData memory data) = getReservesData(); // gas savings
