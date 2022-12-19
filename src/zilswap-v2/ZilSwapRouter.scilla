@@ -79,6 +79,7 @@ let grow =
     | None => Uint256 0 (* should never happen *)
     end
 
+(* @dev: Convert Int256 to Uint128 *)
 let shrink =
   fun (var : Int256) =>
     let maybe_small = builtin to_uint128 var in
@@ -201,7 +202,7 @@ let get_trade_info =
     end
   end
 
-(* @dev Returns x*y in precision *)
+(* @dev: Returns x*y in precision *)
 (* @solidity MathExt.sol: 
   return x.mul(y) / PRECISION;
 *)
@@ -312,7 +313,7 @@ let get_ema =
     let v = grow value in
     let i_a = builtin sub precision alpha in
     let a = builtin mul i_a ema in
-    let b = builtin mul a v in
+    let b = builtin mul alpha v in
     let n = builtin add a b in
     builtin div n precision
 
@@ -410,7 +411,7 @@ let get_fee =
     let u = frac_u256 one_hundred_twenty_u256 precision one_hundred_u256 in
     let g = frac_u256 eight_hundred_thirty_six_u256 precision one_thousand_u256 in
     let f = builtin mul five_u256 precision in
-    let l = frac_u256 precision two_u256 ten_thousand_u256 in
+    let l = frac_u256 two_u256 precision ten_thousand_u256 in
     let is_ge_r0 = uint256_ge r_factor_in_precision r0 in
     match is_ge_r0 with 
     | True => c0
@@ -424,8 +425,8 @@ let get_fee =
         | True =>
           let tmp = builtin sub r_factor_in_precision u in
           let tmp3 = 
-            let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
-            get_z_from_unsafe_pow_in_precision tmp3_pair
+            let pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision pair
           in
           let a_tmp3 = mul_in_precision a tmp3 in
           let b_tmp = mul_in_precision b tmp in
@@ -433,28 +434,28 @@ let get_fee =
           let c1_add_a_add_b = builtin add c1_add_a b_tmp in
           builtin div c1_add_a_add_b ten_thousand_u256
         | False =>
-        let tmp = builtin sub u r_factor_in_precision in
-        let tmp3 = 
-          let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
-          get_z_from_unsafe_pow_in_precision tmp3_pair
-        in
-        let a_tmp3 = mul_in_precision a tmp3 in
-        let b_tmp = mul_in_precision b tmp in
-        let c1_sub_a = builtin sub c1 a_tmp3 in
-        let c1_sub_a_sub_b = builtin sub c1_sub_a b_tmp in
-        builtin div c1_sub_a_sub_b ten_thousand_u256
+          let tmp = builtin sub u r_factor_in_precision in
+          let tmp3 = 
+            let pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision pair
+          in
+          let a_tmp3 = mul_in_precision a tmp3 in
+          let b_tmp = mul_in_precision b tmp in
+          let c1_sub_a = builtin sub c1 a_tmp3 in
+          let c1_sub_a_sub_b = builtin sub c1_sub_a b_tmp in
+          builtin div c1_sub_a_sub_b ten_thousand_u256
         end
       | False =>
         (* [ C2 + sign(r - G) *  F * (r-G) ^2 / (L + (r-G) ^2) ] / 10000 *)
         let is_gt_g = uint256_gt r_factor_in_precision g in
         let tmp = match is_gt_g with
         | True => 
-          let r_factor_in_precision_sub_g = builtin sub r_factor_in_precision g in
-          let pair = unsafe_pow_in_precision r_factor_in_precision_sub_g two_u256 in
+          let r_sub_g = builtin sub r_factor_in_precision g in
+          let pair = unsafe_pow_in_precision r_sub_g two_u256 in
           get_z_from_unsafe_pow_in_precision pair
         | False => 
-          let g_sub_r_factor_in_precision = builtin sub g r_factor_in_precision in
-          let pair = unsafe_pow_in_precision a two_u256 in 
+          let g_sub_r = builtin sub g r_factor_in_precision in
+          let pair = unsafe_pow_in_precision g_sub_r two_u256 in 
           get_z_from_unsafe_pow_in_precision pair
         end in
         let tmp_add_l = builtin add tmp l in

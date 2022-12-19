@@ -329,8 +329,8 @@ let get_fee =
         | True =>
           let tmp = builtin sub r_factor_in_precision u in
           let tmp3 = 
-            let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
-            get_z_from_unsafe_pow_in_precision tmp3_pair
+            let pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision pair
           in
           let a_tmp3 = mul_in_precision a tmp3 in
           let b_tmp = mul_in_precision b tmp in
@@ -340,8 +340,8 @@ let get_fee =
         | False =>
           let tmp = builtin sub u r_factor_in_precision in
           let tmp3 = 
-            let tmp3_pair = unsafe_pow_in_precision tmp three_u256 in
-            get_z_from_unsafe_pow_in_precision tmp3_pair
+            let pair = unsafe_pow_in_precision tmp three_u256 in
+            get_z_from_unsafe_pow_in_precision pair
           in
           let a_tmp3 = mul_in_precision a tmp3 in
           let b_tmp = mul_in_precision b tmp in
@@ -774,7 +774,7 @@ procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
   end
 end
 
-(* @dev: Updates current_block_volume, last_trade_block, short_ema, long_ema *)
+(* @dev: Updates current_block_volume, last_trade_block, short_ema, long_ema, r_factor_in_precision *)
 (* @solidity VolumeTrendRecorder.sol:
   skipBlock = blockNumber - lastTradeBlock;
   if (skipBlock == 0) {
@@ -912,23 +912,6 @@ procedure VerifyBalanceAndUpdateEMA(
     };
     event e
   | False =>
-    (* e = {
-      _eventname: "Failed"; 
-      r_factor: r_factor;
-      intermediate_fee: intermediate_fee;
-      fee_in_precision: fee_in_precision;
-      amount0_in: amount0_in; 
-      amount1_in: amount1_in;
-      before_reserve0: before_reserve0;
-      before_reserve1: before_reserve1;
-      after_reserve0: after_reserve0;
-      after_reserve1: after_reserve1;
-      balance_0_adjusted: balance_0_adjusted;
-      balance_1_adjusted: balance_1_adjusted;
-      before_adjustment: before_adjustment;
-      after_adjustment: after_adjustment
-    };
-    event e *)
     err = CodeInvalidBalance;
     ThrowError err
   end
@@ -1356,9 +1339,6 @@ transition Swap(
     ThrowError err
   end;
 
-  m_b0 <- & init_token0.balances[_this_address];
-  m_b1 <- & init_token1.balances[_this_address];
-  
   match is_sending_t0 with
   | False =>
   | True =>
@@ -1381,9 +1361,14 @@ transition Swap(
     send msgs
   end;
 
+  (* Pool's new token balances after user transfers token_in to the pool *)
+  m_b0 <- & init_token0.balances[_this_address];
   b0 = get_amount_or_zero m_b0;
-  new_r0 = builtin sub b0 amount0_out;
+  m_b1 <- & init_token1.balances[_this_address];
   b1 = get_amount_or_zero m_b1;
+  
+  (* Pool's new reserves after Swap transition is completed *)
+  new_r0 = builtin sub b0 amount0_out;
   new_r1 = builtin sub b1 amount1_out;
 
   new_data = match is_amp_pool with
