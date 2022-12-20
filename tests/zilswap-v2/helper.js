@@ -4,8 +4,8 @@ const { compress } = require("../../scripts/compile");
 
 const getContractCodeHash = (file) => {
   const code = fs.readFileSync(file).toString()
-  const compressedFile = compress(code)
-  const buffer = Buffer.from(compressedFile)
+  const compressedCode = compress(code)
+  const buffer = Buffer.from(compressedCode)
   return "0x" + Crypto.createHash("sha256").update(buffer).digest("hex");
 };
 
