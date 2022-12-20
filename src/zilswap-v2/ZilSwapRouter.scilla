@@ -509,8 +509,6 @@ let get_final_fee =
 } *)
 let get_amount_out = 
   fun (amount_in: Uint128) =>
-  fun (reserve_in: Uint128) =>
-  fun (reserve_out: Uint128) =>
   fun (v_reserve_in: Uint128) =>
   fun (v_reserve_out: Uint128) =>
   fun (fee_in_precision: Uint256) =>
@@ -536,8 +534,6 @@ let get_amount_out =
 *)
 let get_amount_in = 
   fun (amount_out: Uint128) =>
-  fun (reserve_in: Uint128) =>
-  fun (reserve_out: Uint128) =>
   fun (v_reserve_in: Uint128) =>
   fun (v_reserve_out: Uint128) =>
   fun (fee_in_precision: Uint256) =>
@@ -956,7 +952,7 @@ procedure GetAmountOut(
       | ReserveData r_in r_out v_r_in v_r_out =>
         VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
 
-        amount_out = get_amount_out amount_in r_in r_out v_r_in v_r_out fee_in_precision;
+        amount_out = get_amount_out amount_in v_r_in v_r_out fee_in_precision;
         amt_out := amount_out;
 
         is_valid_reserve_out = uint128_gt r_out amount_out;
@@ -1041,7 +1037,7 @@ procedure GetAmountIn(
       | ReserveData r_in r_out v_r_in v_r_out =>
         VerifySufficientLiquidity r_in r_out zero_amount amount_out;
 
-        amount_in = get_amount_in amount_out r_in r_out v_r_in v_r_out fee_in_precision;
+        amount_in = get_amount_in amount_out v_r_in v_r_out fee_in_precision;
         amt_in := amount_in
       end
     end
