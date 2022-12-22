@@ -155,9 +155,6 @@ let u128_mul_grow =
     builtin mul x_u256 y_u256
 
 (* @dev Returns x*y in precision *)
-(* @solidity MathExt.sol: 
-  return x.mul(y) / PRECISION;
-*)
 let mul_in_precision =
   fun (x : Uint256) =>
   fun (y : Uint256) =>
@@ -165,9 +162,6 @@ let mul_in_precision =
     builtin div xy precision
 
 (* @dev: Used in unsafe_pow_in_precision *)
-(* @solidity MathExt.sol: 
-  zInPrecision = k % 2 != 0 ? xInPrecision : PRECISION; 
-*)
 let get_z_in_precision = 
   fun (x_in_precision: Uint256) =>
   fun (k: Uint256)=> 
@@ -197,14 +191,6 @@ let get_z_from_unsafe_pow_in_precision =
     end
   end
 
-(* @solidity MathExt.sol:
-  zInPrecision = k % 2 != 0 ? xInPrecision : PRECISION;
-  for (k /= 2; k != 0; k /= 2) {
-      xInPrecision = (xInPrecision * xInPrecision) / PRECISION;
-      if (k % 2 != 0) { zInPrecision = (zInPrecision * xInPrecision) / PRECISION; }
-  } 
-  return zInPrecision;
-*)
 let unsafe_pow_in_precision = 
   fun (x_in_precision: Uint256) =>
   fun (k: Uint256) =>
@@ -253,9 +239,6 @@ let unsafe_pow_in_precision =
       in
     foldk iter init_pair m_nat
 
-(* @solidity VolumeTrendRecorder.sol: 
-  return ((precision - alpha) * ema + alpha * value) / precision; 
-*)
 let get_ema =
   fun (ema : Uint256) =>
   fun (alpha : Uint256) =>
@@ -268,10 +251,6 @@ let get_ema =
     builtin div n precision
 
 (* @dev: Returns r_factor_in_precision in Uint256 from short_ema and long_ema *)
-(* @solidity VolumeTrendRecorder.sol: 
-  if (_longEMA == 0) { return 0; }
-  return (_shortEMA * MathExt.PRECISION) / _longEMA; 
-*)
 let calculate_r_factor = 
   fun (short_ema : Uint256) =>
   fun (long_ema : Uint256) =>
@@ -283,28 +262,6 @@ let calculate_r_factor =
     end
 
 (* @dev: Calculates fee in Uint256 from r_factor_in_precision *)
-(* @solidity FeeFormula.sol:
-  if (rFactorInPrecision >= R0) { return C0; } 
-  else if (rFactorInPrecision >= PRECISION) {
-    // C1 + A * (r-U)^3 + b * (r -U)
-    if (rFactorInPrecision > U) {
-      tmp = rFactorInPrecision - U;
-      tmp3 = tmp.unsafePowInPrecision(3);
-      return (C1.add(A.mulInPrecision(tmp3)).add(B.mulInPrecision(tmp))) / 10000;
-    } else {
-      tmp = U - rFactorInPrecision;
-      tmp3 = tmp.unsafePowInPrecision(3);
-      return C1.sub(A.mulInPrecision(tmp3)).sub(B.mulInPrecision(tmp)) / 10000;
-    }
-  } else {
-    // [ C2 + sign(r - G) *  F * (r-G) ^2 / (L + (r-G) ^2) ] / 10000
-    tmp = (rFactorInPrecision > G ? (rFactorInPrecision - G) : (G - rFactorInPrecision));
-    tmp = tmp.unsafePowInPrecision(2);
-    tmp2 = F.mul(tmp).div(tmp.add(L));
-    if (rFactorInPrecision > G) { return C2.add(tmp2) / 10000; }
-    else { return C2.sub(tmp2) / 10000; }
-  }
-*)
 let get_fee = 
   fun (r_factor_in_precision: Uint256) => 
     let r0 = Uint256 1477405064814996100 in
@@ -377,12 +334,6 @@ let get_fee =
     end
 
 (* @dev: Returns final_fee in Uint256 *)
-(* @solidity DMMPool.sol:
-  if (_ampBps <= 20000) { return feeInPrecision; } 
-  else if (_ampBps <= 50000) { return (feeInPrecision * 20) / 30; }
-  else if (_ampBps <= 200000) { return (feeInPrecision * 10) / 30; }
-  else { return (feeInPrecision * 4) / 30; }
-} *)
 let get_final_fee = 
   fun (fee_in_precision : Uint256) =>
   fun (amp_bps : Uint128) =>
@@ -616,34 +567,6 @@ procedure IsFactory(address: ByStr20)
 end
 
 (* @dev: If fee is on, mint LP tokens equivalent to configured fee of the growth in sqrt(k)*)
-(* @solidity DMMPool.sol:
-  (address feeTo, uint16 governmentFeeBps) = factory.getFeeConfiguration();
-  feeOn = feeTo != address(0);
-  _kLast = kLast; // gas savings
-  _vReserve0 = isAmpPool ? data.vReserve0 : data.reserve0; // gas savings
-  _vReserve1 = isAmpPool ? data.vReserve1 : data.reserve1; // gas savings
-  if (feeOn) {
-    if (_kLast != 0) {
-      _tmp = _kLast * _vReserve0;
-      if (_tmp / _vReserve0 == _kLast) {
-          collectedFee0 = _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1)));
-      } else {
-          collectedFee0 = _vReserve0.sub(
-              MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))
-          );
-      }
-      poolValueInToken0 = data.reserve0.add(
-          data.reserve1.mul(_vReserve0).div(_vReserve1)
-      );
-      numerator = totalSupply().mul(collectedFee0).mul(governmentFeeBps);
-      denominator = (poolValueInToken0.sub(collectedFee0)).mul(5000);
-      liquidity = numerator / denominator;
-      if (liquidity > 0) _mint(feeTo, liquidity);
-    }
-  } else if (_kLast != 0) { 
-    kLast = 0; 
-  }
-*)
 procedure MintFee(is_amp_pool: Bool)
   fee_config <- & init_factory.fee_configuration;
   match fee_config with
@@ -741,27 +664,6 @@ procedure UpdateLastK(is_amp_pool: Bool, data: ReserveData)
 end
 
 (* @dev: Updates current_block_volume, last_trade_block, short_ema, long_ema, r_factor_in_precision *)
-(* @solidity VolumeTrendRecorder.sol:
-  skipBlock = blockNumber - lastTradeBlock;
-  if (skipBlock == 0) {
-    currentBlockVolume = safeUint128(uint256(currentBlockVolume).add(value), 
-      "volume exceeds valid range");
-    return calculateRFactor(uint256(shortEMA), uint256(longEMA));
-  }
-  _currentBlockVolume = currentBlockVolume;
-  _shortEMA = newEMA(shortEMA, SHORT_ALPHA, currentBlockVolume);
-  _longEMA = newEMA(longEMA, LONG_ALPHA, currentBlockVolume);
-  _shortEMA = _shortEMA.mulInPrecision(
-    (PRECISION - SHORT_ALPHA).unsafePowInPrecision(skipBlock - 1));
-  _longEMA = _longEMA.mulInPrecision(
-    (PRECISION - LONG_ALPHA).unsafePowInPrecision(skipBlock - 1));
-  shortEMA = safeUint128(_shortEMA);
-  longEMA = safeUint128(_longEMA);
-  currentBlockVolume = safeUint128(value);
-  lastTradeBlock = safeUint128(blockNumber);
-  emit UpdateEMA(_shortEMA, _longEMA, _currentBlockVolume, skipBlock);
-  return calculateRFactor(_shortEMA, _longEMA);
-*)
 procedure RecordVolume(volume: Uint128)
   (* Set r_factor_in_precision to 0 *)
   r_factor_in_precision := zero_u256;
@@ -819,14 +721,6 @@ procedure RecordVolume(volume: Uint128)
   end
 end
 
-(* @solidity DMMPool.sol:
-  volume = beforeReserve0.mul(amount1In).div(beforeReserve1).add(amount0In);
-  rFactorInPrecision = recordNewUpdatedVolume(block.number, volume);
-  feeInPrecision = getFinalFee(FeeFomula.getFee(rFactorInPrecision), ampBps);
-  balance0Adjusted = (afterReserve0.mul(PRECISION).sub(amount0In.mul(feeInPrecision))) / PRECISION;
-  balance1Adjusted = afterReserve1.mul(PRECISION).sub(amount1In.mul(feeInPrecision)) / PRECISION;
-  require(balance0Adjusted.mul(balance1Adjusted) >= beforeReserve0.mul(beforeReserve1), "DMM: K" );
-*)
 procedure VerifyBalanceAndUpdateEMA(
   amount0_in: Uint128,
   amount1_in: Uint128,
@@ -989,37 +883,6 @@ end
 
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
-(* @solidity DMMPool.sol:
-  (bool isAmpPool, ReserveData memory data) = getReservesData();
-  ReserveData memory _data;
-  _data.reserve0 = token0.balanceOf(address(this));
-  _data.reserve1 = token1.balanceOf(address(this));
-  amount0 = _data.reserve0.sub(data.reserve0);
-  amount1 = _data.reserve1.sub(data.reserve1);
-  bool feeOn = _mintFee(isAmpPool, data);
-  _totalSupply = totalSupply();
-  if (_totalSupply == 0) {
-    if (isAmpPool) {
-      _ampBps = ampBps;
-      _data.vReserve0 = _data.reserve0.mul(_ampBps) / BPS;
-      _data.vReserve1 = _data.reserve1.mul(_ampBps) / BPS;
-    }
-    liquidity = MathExt.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
-    _mint(address(-1), MINIMUM_LIQUIDITY);
-  } else {
-    liquidity = Math.min(amount0.mul(_totalSupply) / data.reserve0,amount1.mul(_totalSupply) / data.reserve1);
-    if (isAmpPool) {
-      b = liquidity.add(_totalSupply);
-      _data.vReserve0 = Math.max(data.vReserve0.mul(b) / _totalSupply, _data.reserve0);
-      _data.vReserve1 = Math.max(data.vReserve1.mul(b) / _totalSupply, _data.reserve1);
-    }
-  }
-  require(liquidity > 0, "DMM: INSUFFICIENT_LIQUIDITY_MINTED");
-  _mint(to, liquidity);
-  _update(isAmpPool, _data);
-  if (feeOn) kLast = getK(isAmpPool, _data);
-  emit Mint(msg.sender, amount0, amount1);
-*)
 transition Mint(to : ByStr20)
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
@@ -1101,39 +964,6 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks.
    User must transfer LP token to this contract before call burn *)
-(* @solidity DMMPool.sol:
-  (bool isAmpPool, ReserveData memory data) = getReservesData();
-  IERC20 _token0 = token0;
-  IERC20 _token1 = token1;
-
-  balance0 = _token0.balanceOf(address(this));
-  balance1 = _token1.balanceOf(address(this));
-  require(balance0 >= data.reserve0 && balance1 >= data.reserve1, "DMM: UNSYNC_RESERVES");
-  liquidity = balanceOf(address(this));
-
-  bool feeOn = _mintFee(isAmpPool, data);
-  _totalSupply = totalSupply();
-  amount0 = liquidity.mul(balance0) / _totalSupply;
-  amount1 = liquidity.mul(balance1) / _totalSupply;
-  require(amount0 > 0 && amount1 > 0, "DMM: INSUFFICIENT_LIQUIDITY_BURNED");
-  _burn(address(this), liquidity);
-  _token0.safeTransfer(to, amount0);
-  _token1.safeTransfer(to, amount1);
-  ReserveData memory _data;
-  _data.reserve0 = _token0.balanceOf(address(this));
-  _data.reserve1 = _token1.balanceOf(address(this));
-  if (isAmpPool) {
-    b = Math.min(
-      _data.reserve0.mul(_totalSupply) / data.reserve0,
-      _data.reserve1.mul(_totalSupply) / data.reserve1
-    );
-    _data.vReserve0 = Math.max(data.vReserve0.mul(b) / _totalSupply, _data.reserve0);
-    _data.vReserve1 = Math.max(data.vReserve1.mul(b) / _totalSupply, _data.reserve1);
-  }
-  _update(isAmpPool, _data);
-  if (feeOn) kLast = getK(isAmpPool, _data); // data are up-to-date
-  emit Burn(msg.sender, amount0, amount1, to);
-*)
 transition Burn()
   amp <- amp_bps;
   is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
@@ -1221,44 +1051,6 @@ end
 
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
-(* @solidity DMMPool.sol:
-  require(amount0Out > 0 || amount1Out > 0, "DMM: INSUFFICIENT_OUTPUT_AMOUNT");
-  (bool isAmpPool, ReserveData memory data) = getReservesData(); // gas savings
-  require(amount0Out < data.reserve0 && amount1Out < data.reserve1, "DMM: INSUFFICIENT_LIQUIDITY");
-  ReserveData memory newData;
-  {
-    IERC20 _token0 = token0;
-    IERC20 _token1 = token1;
-    require(to != address(_token0) && to != address(_token1), "DMM: INVALID_TO");
-    if (amount0Out > 0) _token0.safeTransfer(to, amount0Out); // optimistically transfer tokens
-    if (amount1Out > 0) _token1.safeTransfer(to, amount1Out); // optimistically transfer tokens
-    if (callbackData.length > 0)
-      IDMMCallee(to).dmmSwapCall(msg.sender, amount0Out, amount1Out, callbackData);
-    newData.reserve0 = _token0.balanceOf(address(this));
-    newData.reserve1 = _token1.balanceOf(address(this));
-    if (isAmpPool) {
-      newData.vReserve0 = data.vReserve0.add(newData.reserve0).sub(data.reserve0);
-      newData.vReserve1 = data.vReserve1.add(newData.reserve1).sub(data.reserve1);
-    }
-  }
-  uint256 amount0In = newData.reserve0 > data.reserve0 - amount0Out
-      ? newData.reserve0 - (data.reserve0 - amount0Out)
-      : 0;
-  uint256 amount1In = newData.reserve1 > data.reserve1 - amount1Out
-      ? newData.reserve1 - (data.reserve1 - amount1Out)
-      : 0;
-  require(amount0In > 0 || amount1In > 0, "DMM: INSUFFICIENT_INPUT_AMOUNT");
-  uint256 feeInPrecision = verifyBalanceAndUpdateEma(
-      amount0In,
-      amount1In,
-      isAmpPool ? data.vReserve0 : data.reserve0,
-      isAmpPool ? data.vReserve1 : data.reserve1,
-      isAmpPool ? newData.vReserve0 : newData.reserve0,
-      isAmpPool ? newData.vReserve1 : newData.reserve1
-  )
-  _update(isAmpPool, newData);
-  emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to, feeInPrecision);
-*)
 transition Swap(
   amount0_out: Uint128,
   amount1_out: Uint128,
@@ -1403,10 +1195,6 @@ transition Swap(
 end
 
 (* @dev: Transfer tokens such that balances match reserves *)
-(* @solidity DMMPool.sol:
-  token0.safeTransfer(to, token0.balanceOf(address(this)).sub(reserve0));
-  token1.safeTransfer(to, token1.balanceOf(address(this)).sub(reserve1));
-*)
 transition Skim(to: ByStr20)
   r_0 <- reserve0;
   r_1 <- reserve1;
@@ -1436,25 +1224,6 @@ transition Skim(to: ByStr20)
 end
 
 (* @dev: Force reserves to match balances *)
-(* @solidity DMMPool.sol:
-  (bool isAmpPool, ReserveData memory data) = getReservesData();
-  bool feeOn = _mintFee(isAmpPool, data);
-  ReserveData memory newData;
-  newData.reserve0 = IERC20(token0).balanceOf(address(this));
-  newData.reserve1 = IERC20(token1).balanceOf(address(this));
-  // update virtual reserves if this is amp pool
-  if (isAmpPool) {
-    uint256 _totalSupply = totalSupply();
-    uint256 b = Math.min(
-        newData.reserve0.mul(_totalSupply) / data.reserve0,
-        newData.reserve1.mul(_totalSupply) / data.reserve1
-    );
-    newData.vReserve0 = Math.max(data.vReserve0.mul(b) / _totalSupply, newData.reserve0);
-    newData.vReserve1 = Math.max(data.vReserve1.mul(b) / _totalSupply, newData.reserve1);
-  }
-  _update(isAmpPool, newData);
-  if (feeOn) kLast = getK(isAmpPool, newData); 
-*)
 transition Sync()
   r0 <- reserve0;
   r1 <- reserve1;
