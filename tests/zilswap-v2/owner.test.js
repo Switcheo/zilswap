@@ -3,9 +3,9 @@ const { callContract } = require('../../scripts/call.js')
 const { deployZilswapV2Router, deployWrappedZIL } = require('../../scripts/deploy.js')
 const { getContractCodeHash } = require('./helper.js')
 
-let router, wZil, origKey, origOwner, newKey, newOwner, codehash
+let router, wZil, origKey, origOwner, newKey, newOwner
 beforeEach(async () => {
-  codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
+  const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
   const defaultAccount = getDefaultAccount()
   origKey = defaultAccount.key

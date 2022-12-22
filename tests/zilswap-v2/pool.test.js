@@ -69,6 +69,8 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
   })
 
   test('zilswap ampPool addLiquidity to pool with no liquidity', async () => {
+    const { vReserveMin, vReserveMax } = getVReserveBound()
+
     tx = await callContract(
       owner.key, router,
       'AddLiquidity',
@@ -114,7 +116,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
           value: {
             "constructor": "Pair",
             "argtypes": ["Uint256", "Uint256"],
-            "arguments": ["0", "0"]
+            "arguments": [`${vReserveMin}`, `${vReserveMax}`]
           }
         }
       ],
@@ -125,21 +127,20 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     newPoolState = await pool.getState()
     const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
     expect(newPoolState).toEqual(expect.objectContaining({
-      "reserve0": `${newReserve0.toString()}`,
-      "reserve1": `${newReserve1.toString()}`,
-      "v_reserve0": `${newVReserve0.toString()}`,
-      "v_reserve1": `${newVReserve1.toString()}`,
-      "k_last": `${newKLast.toString(10)}`,
-      "balances": {
-        "0x0000000000000000000000000000000000000000": `${minimumLiquidity}`,
+      reserve0: `${newReserve0.toString()}`,
+      reserve1: `${newReserve1.toString()}`,
+      v_reserve0: `${newVReserve0.toString()}`,
+      v_reserve1: `${newVReserve1.toString()}`,
+      k_last: `${newKLast.toString(10)}`,
+      balances: {
+        ["0x0000000000000000000000000000000000000000"]: `${minimumLiquidity}`,
         [`${owner.address}`]: `${liquidity.toString()}`,
       },
-      "total_supply": `${newTotalSupply.toString()}`
+      total_supply: `${newTotalSupply.toString()}`
     }))
   })
 
   test('zilswap ampPool addLiquidity to pool with existing liquidity', async () => {
-    // Only need to calculate when adding liquidity into amp pool with existing liquidity
     const { vReserveMin, vReserveMax } = getVReserveBound()
 
     tx = await callContract(
@@ -352,6 +353,8 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
   })
 
   test('zilswap non-ampPool addLiquidity to pool with no liquidity', async () => {
+    const { vReserveMin, vReserveMax } = getVReserveBound()
+
     tx = await callContract(
       owner.key, router,
       'AddLiquidity',
@@ -397,7 +400,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
           value: {
             "constructor": "Pair",
             "argtypes": ["Uint256", "Uint256"],
-            "arguments": ['0', '0']
+            "arguments": [`${vReserveMin}`, `${vReserveMax}`]
           }
         }
       ],
@@ -408,16 +411,16 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     newPoolState = await pool.getState()
     const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
     expect(newPoolState).toEqual(expect.objectContaining({
-      "reserve0": `${newReserve0.toString()}`,
-      "reserve1": `${newReserve1.toString()}`,
-      "v_reserve0": `${newVReserve0.toString()}`,
-      "v_reserve1": `${newVReserve1.toString()}`,
-      "k_last": `${newKLast.toString(10)}`,
-      "balances": {
-        "0x0000000000000000000000000000000000000000": `${minimumLiquidity}`,
+      reserve0: `${newReserve0.toString()}`,
+      reserve1: `${newReserve1.toString()}`,
+      v_reserve0: `${newVReserve0.toString()}`,
+      v_reserve1: `${newVReserve1.toString()}`,
+      k_last: `${newKLast.toString(10)}`,
+      balances: {
+        ["0x0000000000000000000000000000000000000000"]: `${minimumLiquidity}`,
         [`${owner.address}`]: `${liquidity.toString()}`,
       },
-      "total_supply": `${newTotalSupply.toString()}`
+      total_supply: `${newTotalSupply.toString()}`
     }))
   })
 
@@ -611,9 +614,13 @@ getAmpBps = (isAmpPool) => {
   return ampBps;
 }
 
+// Returns 0 if non-amp pool
 getVReserveBound = () => {
   vReserveA = parseInt(prevPoolState.v_reserve0)
   vReserveB = parseInt(prevPoolState.v_reserve1)
+  if (vReserveA === 0 || vReserveB === 0) {
+    return { vReserveMin: new BigNumber(0).toString(), vReserveMax: new BigNumber(0).toString() }
+  }
   q112 = new BigNumber(2).pow(112)
   vReserveMin = new BigNumber((vReserveB / vReserveA) * q112 / 1.05).toString(10)
   vReserveMax = new BigNumber((vReserveB / vReserveA) * q112 * 1.05).toString(10)
@@ -726,7 +733,7 @@ getAddLiquidityState = () => {
     newKLast = updateLastK(isAmpPool, newReserve0, newReserve1, newVReserve0, newVReserve1)
   }
 
-  console.log({ newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply })
+  // console.log({ newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply })
   return { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply }
 }
 
