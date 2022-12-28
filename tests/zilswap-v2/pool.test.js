@@ -1,11 +1,12 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
-const { getContractCodeHash, ZERO_ADDRESS } = require('./helper.js');
+const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 const { param } = require("../../scripts/zilliqa");
+const { ZERO_ADDRESS } = require("../../scripts/utils");
 
-let wZil, token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, routerState, amp
+let wZil, token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, routerState, prevToken0State, prevToken1State
 const BPS = 10000
 const feeBps = 1000 // 10%
 const minimumLiquidity = 1000
@@ -51,7 +52,9 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
 
   beforeEach(async () => {
     prevPoolState = await pool.getState()
-    routerState = await pool.getState()
+    routerState = await router.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
   })
 
   test('zilswap ampPool addLiquidity to pool with no liquidity', async () => {
@@ -77,7 +80,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState(prevPoolState, routerState)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -115,7 +118,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState(prevPoolState, routerState)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -190,7 +193,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getRemoveLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = await getRemoveLiquidityState(prevPoolState, routerState, prevToken0State, prevToken1State)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -220,7 +223,9 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
 
   beforeEach(async () => {
     prevPoolState = await pool.getState()
-    routerState = await pool.getState()
+    routerState = await router.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
   })
 
   test('zilswap non-ampPool addLiquidity to pool with no liquidity', async () => {
@@ -246,7 +251,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState(prevPoolState, routerState)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -284,7 +289,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getAddLiquidityState(prevPoolState, routerState)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -359,7 +364,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
     expect(tx.status).toEqual(2)
 
     newPoolState = await pool.getState()
-    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = getRemoveLiquidityState()
+    const { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply } = await getRemoveLiquidityState(prevPoolState, routerState, prevToken0State, prevToken1State)
     expect(newPoolState).toEqual(expect.objectContaining({
       reserve0: `${newReserve0.toString()}`,
       reserve1: `${newReserve1.toString()}`,
@@ -428,7 +433,7 @@ getMintFee = (feeOn, isAmpPool, reserve0, reserve1, vReserve0, vReserve1, kLast,
   }
 }
 
-getAddLiquidityState = () => {
+getAddLiquidityState = (prevPoolState, routerState) => {
   let liquidity, newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast;
 
   const oldReserve0 = new BigNumber(prevPoolState.reserve0)
@@ -442,30 +447,45 @@ getAddLiquidityState = () => {
   const feeOn = !(routerState.fee_configuration === ZERO_ADDRESS)
   const isAmpPool = !(ampBps.isEqualTo(BPS))
 
+  let amount0, amount1;
   // AddLiquidity
   if (oldReserve0.isZero() && oldReserve1.isZero()) {
-    newReserve0 = oldReserve0.plus(token0AmtDesired)
-    newReserve1 = oldReserve1.plus(token1AmtDesired)
+    amount0 = token0AmtDesired
+    amount1 = token1AmtDesired
+    newReserve0 = oldReserve0.plus(amount0)
+    newReserve1 = oldReserve1.plus(amount1)
   }
   else {
     const token1AmtOptimal = quote(token0AmtDesired, oldReserve0, oldReserve1)
-    if (token1AmtOptimal.lt(token1AmtDesired)) {
-      newReserve0 = oldReserve0.plus(token0AmtDesired)
-      newReserve1 = oldReserve1.plus(token1AmtOptimal)
+    if (token1AmtOptimal.lte(token1AmtDesired)) {
+      amount0 = token0AmtDesired
+      amount1 = token1AmtOptimal
+      newReserve0 = oldReserve0.plus(amount0)
+      newReserve1 = oldReserve1.plus(amount1)
+
+      console.log("token0AmtDesired", token0AmtDesired.toString(10))
+      console.log("token1AmtOptimal", token1AmtOptimal.toString(10))
     } else {
       const token0AmtOptimal = quote(token1AmtDesired, oldReserve1, oldReserve0)
-      newReserve0 = oldReserve0.plus(token0AmtOptimal)
-      newReserve1 = oldReserve1.plus(token1AmtDesired)
+      amount0 = token0AmtOptimal
+      amount1 = token1AmtDesired
+      newReserve0 = oldReserve0.plus(amount0)
+      newReserve1 = oldReserve1.plus(amount1)
+
+      console.log("token0AmtOptimal", token0AmtOptimal.toString(10))
+      console.log("token1AmtDesired", token1AmtDesired.toString(10))
     }
   }
 
   // Mint
   const fee = getMintFee(feeOn, isAmpPool, oldReserve0, oldReserve1, oldVReserve0, oldVReserve1, oldKLast, oldTotalSupply)
+  console.log("fee", fee.toString(10))
 
   let intermediateTotalSupply = oldTotalSupply.plus(fee)
+  console.log("supply", intermediateTotalSupply.toString(10))
 
   if (intermediateTotalSupply.isZero()) {
-
+    // New pool
     if (isAmpPool) {
       newVReserve0 = frac(newReserve0, ampBps, BPS)
       newVReserve1 = frac(newReserve1, ampBps, BPS)
@@ -474,22 +494,31 @@ getAddLiquidityState = () => {
       newVReserve0 = new BigNumber(0)
       newVReserve1 = new BigNumber(0)
     }
-    liquidity = (token0AmtDesired.multipliedBy(token1AmtDesired)).sqrt().minus(minimumLiquidity)
+    liquidity = ((amount0.multipliedBy(amount1)).sqrt().dp(0)).minus(minimumLiquidity)
     intermediateTotalSupply = intermediateTotalSupply.plus(minimumLiquidity)
   }
   else {
-    const a = frac(token0AmtDesired, intermediateTotalSupply, oldReserve0)
-    const b = frac(token1AmtDesired, intermediateTotalSupply, oldReserve1)
+    // Existing pool
+    const a = frac(amount0, intermediateTotalSupply, oldReserve0)
+    const b = frac(amount1, intermediateTotalSupply, oldReserve1)
     liquidity = BigNumber.min(a, b)
+    console.log("a", a.toString(10))
+    console.log("b", b.toString(10))
+    console.log("liquidity", liquidity.toString(10))
 
     if (isAmpPool) {
-      const c = liquidity.plus(intermediateTotalSupply)
+      const ls = liquidity.plus(intermediateTotalSupply)
+      console.log("ls", ls.toString(10))
 
-      // console.log("frac(oldVReserve0, c, intermediateTotalSupply)", frac(oldVReserve0, c, intermediateTotalSupply).toString(10))
-      // console.log("new BigNumber(x).multipliedBy(y).dividedToIntegerBy(z).toString()", new BigNumber(oldVReserve0).multipliedBy(c).dividedBy(intermediateTotalSupply).toString(10))
+      newVReserve0 = BigNumber.max(frac(oldVReserve0, ls, intermediateTotalSupply), newReserve0)
+      console.log("n0", frac(oldVReserve0, ls, intermediateTotalSupply).toString(10))
+      console.log("new_r0", newReserve0.toString(10))
+      console.log("v_r0", newVReserve0.toString(10))
 
-      newVReserve0 = BigNumber.max(frac(oldVReserve0, c, intermediateTotalSupply), newReserve0)
-      newVReserve1 = BigNumber.max(frac(oldVReserve1, c, intermediateTotalSupply), newReserve1)
+      newVReserve1 = BigNumber.max(frac(oldVReserve1, ls, intermediateTotalSupply), newReserve1)
+      console.log("n1", frac(oldVReserve1, ls, intermediateTotalSupply).toString(10))
+      console.log("new_r1", newReserve1.toString(10))
+      console.log("v_r1", newVReserve1.toString(10))
     }
     else {
       newVReserve0 = new BigNumber(0)
@@ -506,7 +535,7 @@ getAddLiquidityState = () => {
   return { newReserve0, newReserve1, newVReserve0, newVReserve1, newKLast, fee, liquidity, newTotalSupply }
 }
 
-getRemoveLiquidityState = () => {
+getRemoveLiquidityState = async (prevPoolState, routerState, prevToken0State, prevToken1State) => {
   let liquidity, newVReserve0, newVReserve1, newKLast;
 
   const oldReserve0 = new BigNumber(prevPoolState.reserve0)
@@ -517,17 +546,10 @@ getRemoveLiquidityState = () => {
   const oldTotalSupply = new BigNumber(prevPoolState.total_supply)
   const oldKLast = new BigNumber(prevPoolState.k_last)
 
-  // console.log("oldReserve0", oldReserve0)
-  // console.log("oldReserve1", oldReserve1)
-  // console.log("oldVReserve0", oldVReserve0)
-  // console.log("oldVReserve1", oldVReserve1)
-  // console.log("ampBps", ampBps)
-  // console.log("oldTotalSupply", oldTotalSupply)
-  // console.log("oldKLast", oldKLast)
-
   const feeOn = !(routerState.fee_configuration === ZERO_ADDRESS)
   const isAmpPool = !(ampBps.isEqualTo(BPS))
 
+  // User's liquidity
   liquidity = prevPoolState.balances[owner.address.toLowerCase()]
   // console.log("liquidity", liquidity)
 
@@ -536,13 +558,18 @@ getRemoveLiquidityState = () => {
 
   let intermediateTotalSupply = oldTotalSupply.plus(fee)
 
-  const amount0 = frac(liquidity, oldReserve0, intermediateTotalSupply)
-  const amount1 = frac(liquidity, oldReserve1, intermediateTotalSupply)
+  let balance0 = prevToken0State.balances[pool.address.toLowerCase()]
+  let balance1 = prevToken1State.balances[pool.address.toLowerCase()]
+
+  const amount0 = frac(liquidity, balance0, intermediateTotalSupply)
+  const amount1 = frac(liquidity, balance1, intermediateTotalSupply)
+  console.log("amount0", amount0.toString(10))
+  console.log("amount1", amount1.toString(10))
 
   const newTotalSupply = intermediateTotalSupply.minus(liquidity)
 
   const newReserve0 = oldReserve0.minus(amount0)
-  const newReserve1 = oldReserve0.minus(amount1)
+  const newReserve1 = oldReserve1.minus(amount1)
 
   if (isAmpPool) {
     const b = BigNumber.min(frac(newReserve0, intermediateTotalSupply, oldReserve0), frac(newReserve1, intermediateTotalSupply, oldReserve1))
