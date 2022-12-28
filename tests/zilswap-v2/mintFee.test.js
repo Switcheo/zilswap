@@ -671,7 +671,7 @@ describe('zilswap ampPool AddLiquidityZIL, RemoveLiquidtyZIL', async () => {
     }))
   })
 
-  test('zilswap ampPool addLiquidity to pool with existing liquidity', async () => {
+  test('zilswap ampPool addLiquidityZIL to pool with existing liquidity', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
 
@@ -767,7 +767,7 @@ describe('zilswap ampPool AddLiquidityZIL, RemoveLiquidtyZIL', async () => {
     expect(tx.status).toEqual(2)
   })
 
-  test('zilswap ampPool addLiquidity after swap', async () => {
+  test('zilswap ampPool addLiquidityZIL after swap', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
     tx = await callContract(
@@ -825,7 +825,7 @@ describe('zilswap ampPool AddLiquidityZIL, RemoveLiquidtyZIL', async () => {
     expect(tx.status).toEqual(2)
   })
 
-  test('zilswap ampPool removeLiquidity after swap', async () => {
+  test('zilswap ampPool removeLiquidityZIL after swap', async () => {
     tx = await callContract(
       owner.key, pool,
       'IncreaseAllowance',
@@ -936,7 +936,7 @@ describe('zilswap non-amp pool AddLiquidityZIL, RemoveLiquidtyZIL', async () => 
     }))
   })
 
-  test('zilswap ampPool addLiquidity to pool with existing liquidity', async () => {
+  test('zilswap ampPool addLiquidityZIL to pool with existing liquidity', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
 
@@ -1032,7 +1032,7 @@ describe('zilswap non-amp pool AddLiquidityZIL, RemoveLiquidtyZIL', async () => 
     expect(tx.status).toEqual(2)
   })
 
-  test('zilswap ampPool addLiquidity after swap', async () => {
+  test('zilswap ampPool addLiquidityZIL after swap', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
     tx = await callContract(
@@ -1090,7 +1090,7 @@ describe('zilswap non-amp pool AddLiquidityZIL, RemoveLiquidtyZIL', async () => 
     expect(tx.status).toEqual(2)
   })
 
-  test('zilswap ampPool removeLiquidity after swap', async () => {
+  test('zilswap ampPool removeLiquidityZIL after swap', async () => {
     tx = await callContract(
       owner.key, pool,
       'IncreaseAllowance',
