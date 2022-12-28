@@ -12,6 +12,7 @@ let zero_block = BNum 0
 let bps = Uint128 10000
 let none = None {ByStr20}
 let bps = Uint128 10000
+let half_bps = Uint128 5000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
 let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
 let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
@@ -116,6 +117,14 @@ let frac_u256 =
   fun (z_u256: Uint256) => 
     let xy_u256 = builtin mul x_u256 y_u256 in
     builtin div xy_u256 z_u256
+
+(* @dev: Converts 2 Uint128 numbers to Uint256 and returns the product in Uint256 *)
+let u128_mul_grow =
+fun (x: Uint128) =>
+fun (y: Uint128) =>
+  let x_u256 = grow x in
+  let y_u256 = grow y in
+  builtin mul x_u256 y_u256
 
 (* @dev: Given an amount of one token and pool reserves, return an equivalent amount of the tokenB *)
 let quote =
@@ -514,6 +523,7 @@ field unamplified_pools : Map ByStr20 (Map ByStr20 ByStr20) = Emp ByStr20 (Map B
 
 field amt_out : Uint128 = zero_amount
 field amt_in : Uint128 = zero_amount
+field minted_fee: Uint128 = zero_amount
 
 (**************************************)
 (*             Procedures             *)
@@ -969,6 +979,80 @@ procedure SwapZRC2Once(
   end
 end
 
+(*** Add/ Remove Liquidity ***)
+
+(* @dev: Calculates the amount of LP tokens minted as fees. Used in RemoveLiquidity and RemoveLiquidityZIL *)
+procedure MintFee(
+  pool: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field k_last : Uint128,
+    field total_supply: Uint128
+  end
+)
+  minted_fee := zero_amount;
+  fee_config <- fee_configuration;
+  match fee_config with
+  | Pair fee_to fee_bps =>
+    is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
+    kl <- & pool.k_last;
+    v_r0_ <- & pool.v_reserve0;
+    v_r1_ <- & pool.v_reserve1;
+    r0_ <- & pool.reserve0;
+    r1_ <- & pool.reserve1;
+    amp <- & pool.amp_bps;
+    is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+    r0 = match is_amp_pool with | False => r0_ | True => v_r0_ end;
+    r1 = match is_amp_pool with | False => r1_ | True => v_r1_ end;
+    r0_u256 = grow r0;
+    r1_u256 = grow r1;
+    kl_u256 = grow kl;
+
+    match is_fee_on with (* Checks if fee_config is set *)
+    | False =>
+      is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
+      match is_not_eq_zero with
+      | False =>
+      | True =>
+      end
+    | True =>
+      is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
+      match is_not_eq_zero with
+      | False =>
+      | True =>
+        t_u256 = u128_mul_grow kl r0;
+        t_r0_u256 = builtin div t_u256 r0_u256;
+        is_eq = builtin eq t_r0_u256 kl_u256;
+        collected_fee = match is_eq with (* value is in token 0 *)
+        | True =>
+          (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
+          let t_r1_u256 = builtin div t_u256 r1_u256 in
+          let sqrt_u256 = builtin isqrt t_r1_u256 in
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
+        | False =>
+          (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
+          let kl_r1 = builtin div kl r1 in
+          let kl_r1_r0_u256 = u128_mul_grow kl_r1 r0 in
+          let sqrt_u256 = builtin isqrt kl_r1_r0_u256 in
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
+        end;
+        pool_value = let r1_value = frac r1_ r0 r1 in builtin add r0_ r1_value; (* value in token0 *)
+        ts <- & pool.total_supply;
+        liquidity =
+          let numerator = let a = builtin mul ts collected_fee in builtin mul a fee_bps in
+          let denominator = let a = builtin sub pool_value collected_fee in builtin mul a half_bps in
+          builtin div numerator denominator;
+        minted_fee := liquidity
+      end
+    end
+  end
+end
+
 (*** Governance ***)
 procedure IsGovernor(address: ByStr20)
   g <- governor;
@@ -1365,6 +1449,12 @@ transition RemoveLiquidity(
     field balances: Map ByStr20 Uint128
   end,
   pool: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field k_last : Uint128,
     field total_supply: Uint128
   end,
   liquidity: Uint128,
@@ -1381,12 +1471,20 @@ transition RemoveLiquidity(
   m_b1 <- & tokenB.balances[pool];
   tokenB_balance = get_amount_or_zero m_b1;
 
-  (* fetch the total supply in the pool *)
-  supply <- & pool.total_supply;
+  (* fetch the current token supply in the pool *)
+  init_supply <- & pool.total_supply;
+
+  (* calculate the amount of LP tokens to be minted as fees *)
+  MintFee pool;
+  fee <- minted_fee;
+  intermediate_supply = builtin add init_supply fee;
+
+  (* set minted_fee to zero *)
+  minted_fee := zero_amount;
 
   (* calculate amount of tokenA and tokenB removed based on amount of liquidity provided *)
-  tokenA_amount = frac liquidity tokenA_balance supply;
-  tokenB_amount = frac liquidity tokenB_balance supply;
+  tokenA_amount = frac liquidity tokenA_balance intermediate_supply;
+  tokenB_amount = frac liquidity tokenB_balance intermediate_supply;
 
   (* check if amount of tokenA and tokenB removed matches min *)
   VerifyAmount tokenA_amount amountA_min;
@@ -1407,6 +1505,12 @@ transition RemoveLiquidityZIL(
     field balances: Map ByStr20 Uint128
   end,
   pool: ByStr20 with contract
+    field reserve0 : Uint128,
+    field reserve1 : Uint128,
+    field v_reserve0 : Uint128,
+    field v_reserve1 : Uint128,
+    field amp_bps : Uint128,
+    field k_last : Uint128,
     field total_supply: Uint128
   end,
   liquidity: Uint128,
@@ -1426,12 +1530,20 @@ transition RemoveLiquidityZIL(
   m_b1 <- & wZIL.balances[pool];
   wZil_balance = get_amount_or_zero m_b1;
 
-  (* fetch the total supply in the pool *)
-  supply <- & pool.total_supply;
+  (* fetch the current token supply in the pool *)
+  init_supply <- & pool.total_supply;
+
+  (* calculate the amount of LP tokens to be minted as fees *)
+  MintFee pool;
+  fee <- minted_fee;
+  intermediate_supply = builtin add init_supply fee;
+
+  (* set minted_fee to zero *)
+  minted_fee := zero_amount;
 
   (* calculate amount of tokens and wZIL removed based on amount of liquidity provided *)
-  token_amount = frac liquidity token_balance supply;
-  wZil_amount = frac liquidity wZil_balance supply;
+  token_amount = frac liquidity token_balance intermediate_supply;
+  wZil_amount = frac liquidity wZil_balance intermediate_supply;
 
   (* check if amount of tokens and wZIL removed matches min *)
   VerifyAmount token_amount amount_token_min;
@@ -1474,13 +1586,8 @@ transition SwapExactTokensForTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool path deadline_block;
   final_amount_out <- amt_out;
@@ -1531,13 +1638,8 @@ transition SwapExactTokensForTokensTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
@@ -1608,13 +1710,8 @@ transition SwapExactTokensForTokensThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
@@ -1665,13 +1762,8 @@ transition SwapTokensForExactTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
@@ -1724,13 +1816,8 @@ transition SwapTokensForExactTokensTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
@@ -1803,13 +1890,8 @@ transition SwapTokensForExactTokensThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;
@@ -1859,13 +1941,8 @@ transition SwapExactZILForTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut _amount pool path deadline_block;
   final_amount_out <- amt_out;
@@ -1921,13 +1998,8 @@ transition SwapExactZILForTokensTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut _amount pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
@@ -2001,13 +2073,8 @@ transition SwapExactZILForTokensThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut _amount pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
@@ -2064,13 +2131,8 @@ transition SwapTokensForExactZILOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
@@ -2126,13 +2188,8 @@ transition SwapTokensForExactZILTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
@@ -2206,13 +2263,8 @@ transition SwapTokensForExactZILThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;
@@ -2268,13 +2320,8 @@ transition SwapExactTokensForZILOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool path deadline_block;
   final_amount_out <- amt_out;
@@ -2328,13 +2375,8 @@ transition SwapExactTokensForZILTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
@@ -2406,13 +2448,8 @@ transition SwapExactTokensForZILThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_out == 0 *)
-  amount_out <- amt_out;
-  is_valid_amount_out = builtin eq amount_out zero_amount;
-  match is_valid_amount_out with
-  | True => | False =>
-    amt_out := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountOut amount_in pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
@@ -2465,13 +2502,8 @@ transition SwapZILForExactTokensOnce(
   path: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
@@ -2533,13 +2565,8 @@ transition SwapZILForExactTokensTwice(
   path2: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
@@ -2619,13 +2646,8 @@ transition SwapZILForExactTokensThrice(
   path3: Pair ByStr20 ByStr20,
   deadline_block: BNum
 )
-  (* Checks if amt_in == 0 *)
-  amount_in <- amt_in;
-  is_valid_amt_in = builtin eq amount_in zero_amount;
-  match is_valid_amt_in with 
-  | True => | False =>
-    amt_in := zero_amount
-  end;
+  (* Set amt_out to 0 *)
+  amt_out := zero_amount;
 
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;

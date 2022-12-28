@@ -15,13 +15,14 @@ const amount1 = 1000000
 const token0AmtDesired = (new BigNumber(amount0)).shiftedBy(12)
 const token1AmtDesired = (new BigNumber(amount1)).shiftedBy(12)
 let amountIn = 100000
-let amountInMax = 1000
-let amountOut = 100
 let amountOutMin = 10
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 BigNumber.config({ ROUNDING_MODE: BigNumber.ROUND_DOWN })
 
+// Note: For the MintFee transition on the pool to actually mint LP tokens, the Swap transition on 
+// the pool must be called at least once between the previous Mint/ Burn and the current Mint/ Burn call
+// Hence, tests are deliberately written with swaps between the AddLiquidity/AddLiquidityZIL and RemoveLiquidity/RemoveLiquidityZIL
 beforeAll(async () => {
   owner = getDefaultAccount()
   feeAccount = await createRandomAccount(owner.key)
@@ -220,32 +221,6 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     }))
   })
 
-  test('swap 4', async () => {
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactTokensForTokensOnce',
-      [
-        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-        param('pool', 'ByStr20', pool.address.toLowerCase()),
-        param('path', 'Pair (ByStr20) (ByStr20)', {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "ByStr20"],
-          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-        })
-      ],
-      0, false, true
-    )
-    expect(tx.status).toEqual(2)
-
-    newPoolState = await pool.getState()
-    expect(newPoolState).toEqual(expect.objectContaining({
-      "reserve1": `${new BigNumber(prevPoolState.reserve1).plus((new BigNumber(amountIn)).shiftedBy(12)).toString()}`,
-    }))
-
-    console.log("newPoolState", newPoolState)
-  })
-
   test('zilswap ampPool addLiquidity after swap', async () => {
     tx = await callContract(
       owner.key, router,
@@ -283,6 +258,32 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
       },
       "total_supply": `${newTotalSupply.toString()}`
     }))
+  })
+
+  test('swap 4', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(expect.objectContaining({
+      "reserve1": `${new BigNumber(prevPoolState.reserve1).plus((new BigNumber(amountIn)).shiftedBy(12)).toString()}`,
+    }))
+
+    console.log("newPoolState", newPoolState)
   })
 
   test('zilswap ampPool removeLiquidity after swap', async () => {
@@ -495,30 +496,6 @@ describe('zilswap non-amp pool AddLiquidity, RemoveLiquidty', async () => {
     }))
   })
 
-  test('swap 4', async () => {
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactTokensForTokensOnce',
-      [
-        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-        param('pool', 'ByStr20', pool.address.toLowerCase()),
-        param('path', 'Pair (ByStr20) (ByStr20)', {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "ByStr20"],
-          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-        })
-      ],
-      0, false, true
-    )
-    expect(tx.status).toEqual(2)
-
-    newPoolState = await pool.getState()
-    expect(newPoolState).toEqual(expect.objectContaining({
-      "reserve1": `${new BigNumber(prevPoolState.reserve1).plus((new BigNumber(amountIn)).shiftedBy(12)).toString()}`,
-    }))
-  })
-
   test('zilswap non-amp pool addLiquidity after swap', async () => {
     tx = await callContract(
       owner.key, router,
@@ -555,6 +532,30 @@ describe('zilswap non-amp pool AddLiquidity, RemoveLiquidty', async () => {
         [`${owner.address}`]: `${liquidity.plus(prevPoolState.balances[owner.address]).toString()}`,
       },
       "total_supply": `${newTotalSupply.toString()}`
+    }))
+  })
+
+  test('swap 4', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    newPoolState = await pool.getState()
+    expect(newPoolState).toEqual(expect.objectContaining({
+      "reserve1": `${new BigNumber(prevPoolState.reserve1).plus((new BigNumber(amountIn)).shiftedBy(12)).toString()}`,
     }))
   })
 
@@ -766,25 +767,6 @@ describe('zilswap ampPool AddLiquidityZIL, RemoveLiquidtyZIL', async () => {
     expect(tx.status).toEqual(2)
   })
 
-  test('swap 4', async () => {
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactTokensForTokensOnce',
-      [
-        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-        param('pool', 'ByStr20', pool.address.toLowerCase()),
-        param('path', 'Pair (ByStr20) (ByStr20)', {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "ByStr20"],
-          "arguments": [`${token.address.toLowerCase()}`, `${wZil.address.toLowerCase()}`]
-        })
-      ],
-      0, false, true
-    )
-    expect(tx.status).toEqual(2)
-  })
-
   test('zilswap ampPool addLiquidity after swap', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
@@ -822,6 +804,25 @@ describe('zilswap ampPool AddLiquidityZIL, RemoveLiquidtyZIL', async () => {
       },
       "total_supply": `${newTotalSupply.toString()}`
     }))
+  })
+
+  test('swap 4', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token.address.toLowerCase()}`, `${wZil.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
   })
 
   test('zilswap ampPool removeLiquidity after swap', async () => {
@@ -1031,25 +1032,6 @@ describe('zilswap non-amp pool AddLiquidityZIL, RemoveLiquidtyZIL', async () => 
     expect(tx.status).toEqual(2)
   })
 
-  test('swap 4', async () => {
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactTokensForTokensOnce',
-      [
-        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-        param('pool', 'ByStr20', pool.address.toLowerCase()),
-        param('path', 'Pair (ByStr20) (ByStr20)', {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "ByStr20"],
-          "arguments": [`${token.address.toLowerCase()}`, `${wZil.address.toLowerCase()}`]
-        })
-      ],
-      0, false, true
-    )
-    expect(tx.status).toEqual(2)
-  })
-
   test('zilswap ampPool addLiquidity after swap', async () => {
     const zilAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? amount0 : amount1
     const tokenAmtDesired = (parseInt(token.address, 16) > parseInt(wZil.address, 16)) ? token1AmtDesired : token0AmtDesired
@@ -1087,6 +1069,25 @@ describe('zilswap non-amp pool AddLiquidityZIL, RemoveLiquidtyZIL', async () => 
       },
       "total_supply": `${newTotalSupply.toString()}`
     }))
+  })
+
+  test('swap 4', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token.address.toLowerCase()}`, `${wZil.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
   })
 
   test('zilswap ampPool removeLiquidity after swap', async () => {
@@ -1217,27 +1218,19 @@ getAddLiquidityState = (prevPoolState, routerState) => {
       amount1 = token1AmtOptimal
       newReserve0 = oldReserve0.plus(amount0)
       newReserve1 = oldReserve1.plus(amount1)
-
-      console.log("token0AmtDesired", token0AmtDesired.toString(10))
-      console.log("token1AmtOptimal", token1AmtOptimal.toString(10))
     } else {
       const token0AmtOptimal = quote(token1AmtDesired, oldReserve1, oldReserve0)
       amount0 = token0AmtOptimal
       amount1 = token1AmtDesired
       newReserve0 = oldReserve0.plus(amount0)
       newReserve1 = oldReserve1.plus(amount1)
-
-      console.log("token0AmtOptimal", token0AmtOptimal.toString(10))
-      console.log("token1AmtDesired", token1AmtDesired.toString(10))
     }
   }
 
   // Mint
   const fee = getMintFee(feeOn, isAmpPool, oldReserve0, oldReserve1, oldVReserve0, oldVReserve1, oldKLast, oldTotalSupply)
-  console.log("fee", fee.toString(10))
 
   let intermediateTotalSupply = oldTotalSupply.plus(fee)
-  console.log("supply", intermediateTotalSupply.toString(10))
 
   if (intermediateTotalSupply.isZero()) {
     // New pool
@@ -1257,23 +1250,11 @@ getAddLiquidityState = (prevPoolState, routerState) => {
     const a = frac(amount0, intermediateTotalSupply, oldReserve0)
     const b = frac(amount1, intermediateTotalSupply, oldReserve1)
     liquidity = BigNumber.min(a, b)
-    console.log("a", a.toString(10))
-    console.log("b", b.toString(10))
-    console.log("liquidity", liquidity.toString(10))
 
     if (isAmpPool) {
       const ls = liquidity.plus(intermediateTotalSupply)
-      console.log("ls", ls.toString(10))
-
       newVReserve0 = BigNumber.max(frac(oldVReserve0, ls, intermediateTotalSupply), newReserve0)
-      console.log("n0", frac(oldVReserve0, ls, intermediateTotalSupply).toString(10))
-      console.log("new_r0", newReserve0.toString(10))
-      console.log("v_r0", newVReserve0.toString(10))
-
       newVReserve1 = BigNumber.max(frac(oldVReserve1, ls, intermediateTotalSupply), newReserve1)
-      console.log("n1", frac(oldVReserve1, ls, intermediateTotalSupply).toString(10))
-      console.log("new_r1", newReserve1.toString(10))
-      console.log("v_r1", newVReserve1.toString(10))
     }
     else {
       newVReserve0 = new BigNumber(0)
@@ -1301,9 +1282,6 @@ getAddLiquidityZILState = (prevPoolState, routerState, tokenAddress, wZilAddress
   const oldTotalSupply = new BigNumber(prevPoolState.total_supply)
   const oldKLast = new BigNumber(prevPoolState.k_last)
 
-  console.log("oldReserve0", oldReserve0.toString(10))
-  console.log("oldReserve1", oldReserve1.toString(10))
-
   const feeOn = !(routerState.fee_configuration === ZERO_ADDRESS)
   const isAmpPool = !(ampBps.isEqualTo(BPS))
 
@@ -1313,24 +1291,16 @@ getAddLiquidityZILState = (prevPoolState, routerState, tokenAddress, wZilAddress
     tokenAmt = tokenAmtDesired
     zilAmt = zilAmtDesired
 
-    console.log("tokenAmt", tokenAmt.toString(10))
-    console.log("zilAmt", zilAmt.toString(10))
   }
   else {
     const zilAtOptimal = quote(tokenAmtDesired, oldReserve0, oldReserve1)
     if (zilAtOptimal.lte(zilAmtDesired)) {
       tokenAmt = tokenAmtDesired
       zilAmt = zilAtOptimal
-
-      console.log("tokenAmt", tokenAmt.toString(10))
-      console.log("zilAmt", zilAmt.toString(10))
     } else {
       const tokenAmtOptimal = quote(zilAmtDesired, oldReserve1, oldReserve0)
       tokenAmt = tokenAmtOptimal
       zilAmt = zilAmtDesired
-
-      console.log("tokenAmt", tokenAmt.toString(10))
-      console.log("zilAmt", zilAmt.toString(10))
     }
   }
 
@@ -1342,10 +1312,8 @@ getAddLiquidityZILState = (prevPoolState, routerState, tokenAddress, wZilAddress
 
   // Mint
   const fee = getMintFee(feeOn, isAmpPool, oldReserve0, oldReserve1, oldVReserve0, oldVReserve1, oldKLast, oldTotalSupply)
-  console.log("fee", fee.toString(10))
 
   let intermediateTotalSupply = oldTotalSupply.plus(fee)
-  console.log("supply", intermediateTotalSupply.toString(10))
 
   if (intermediateTotalSupply.isZero()) {
     // New pool
@@ -1365,23 +1333,11 @@ getAddLiquidityZILState = (prevPoolState, routerState, tokenAddress, wZilAddress
     const a = frac(amount0, intermediateTotalSupply, oldReserve0)
     const b = frac(amount1, intermediateTotalSupply, oldReserve1)
     liquidity = BigNumber.min(a, b)
-    console.log("a", a.toString(10))
-    console.log("b", b.toString(10))
-    console.log("liquidity", liquidity.toString(10))
 
     if (isAmpPool) {
       const ls = liquidity.plus(intermediateTotalSupply)
-      console.log("ls", ls.toString(10))
-
       newVReserve0 = BigNumber.max(frac(oldVReserve0, ls, intermediateTotalSupply), newReserve0)
-      console.log("n0", frac(oldVReserve0, ls, intermediateTotalSupply).toString(10))
-      console.log("new_r0", newReserve0.toString(10))
-      console.log("v_r0", newVReserve0.toString(10))
-
       newVReserve1 = BigNumber.max(frac(oldVReserve1, ls, intermediateTotalSupply), newReserve1)
-      console.log("n1", frac(oldVReserve1, ls, intermediateTotalSupply).toString(10))
-      console.log("new_r1", newReserve1.toString(10))
-      console.log("v_r0", newVReserve1.toString(10))
     }
     else {
       newVReserve0 = new BigNumber(0)
@@ -1414,7 +1370,6 @@ getRemoveLiquidityState = async (prevPoolState, routerState, prevToken0State, pr
 
   // User's liquidity
   liquidity = prevPoolState.balances[owner.address.toLowerCase()]
-  // console.log("liquidity", liquidity)
 
   // Mint
   const fee = getMintFee(feeOn, isAmpPool, oldReserve0, oldReserve1, oldVReserve0, oldVReserve1, oldKLast, oldTotalSupply)
@@ -1426,8 +1381,6 @@ getRemoveLiquidityState = async (prevPoolState, routerState, prevToken0State, pr
 
   const amount0 = frac(liquidity, balance0, intermediateTotalSupply)
   const amount1 = frac(liquidity, balance1, intermediateTotalSupply)
-  console.log("amount0", amount0.toString(10))
-  console.log("amount1", amount1.toString(10))
 
   const newTotalSupply = intermediateTotalSupply.minus(liquidity)
 
@@ -1467,7 +1420,6 @@ getRemoveLiquidityZILState = async (prevPoolState, routerState, prevToken0State,
 
   // User's liquidity
   liquidity = prevPoolState.balances[owner.address.toLowerCase()]
-  // console.log("liquidity", liquidity)
 
   // Mint
   const fee = getMintFee(feeOn, isAmpPool, oldReserve0, oldReserve1, oldVReserve0, oldVReserve1, oldKLast, oldTotalSupply)
@@ -1479,8 +1431,6 @@ getRemoveLiquidityZILState = async (prevPoolState, routerState, prevToken0State,
 
   const amount0 = frac(liquidity, balance0, intermediateTotalSupply)
   const amount1 = frac(liquidity, balance1, intermediateTotalSupply)
-  console.log("amount0", amount0.toString(10))
-  console.log("amount1", amount1.toString(10))
 
   const newTotalSupply = intermediateTotalSupply.minus(liquidity)
 

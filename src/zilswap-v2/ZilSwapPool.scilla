@@ -740,6 +740,9 @@ procedure VerifyBalanceAndUpdateEMA(
   intermediate_fee = get_fee r_factor;
   fee_in_precision = get_final_fee intermediate_fee amp;
 
+  (* set r_factor_in_precision to zero *)
+  r_factor_in_precision := zero_u256;
+
   balance_0_adjusted = 
     let after_reserve0_u256 = grow after_reserve0 in 
     let amount0_in_u256 = grow amount0_in in 
