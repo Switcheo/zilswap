@@ -2,6 +2,7 @@ const { createRandomAccount, getDefaultAccount } = require('../../scripts/accoun
 const { callContract } = require('../../scripts/call.js')
 const { deployZilswapV2Router, deployWrappedZIL } = require('../../scripts/deploy.js')
 const { getContractCodeHash } = require('./helper.js')
+const { param } = require("../../scripts/zilliqa");
 
 let router, wZil, origKey, origOwner, newKey, newOwner
 beforeEach(async () => {
@@ -35,11 +36,7 @@ test('zilswap transferrable governor', async () => {
     origKey, router,
     'SetGovernor',
     [
-      {
-        vname: 'new_governor',
-        type: 'ByStr20',
-        value: newOwner,
-      },
+      param('new_governor', 'ByStr20', newOwner)
     ],
     0, false, false
   )
@@ -87,11 +84,7 @@ test('zilswap non-governor cannot change governor', async () => {
     newKey, router,
     'SetGovernor',
     [
-      {
-        vname: 'new_governor',
-        type: 'ByStr20',
-        value: newOwner,
-      },
+      param('new_governor', 'ByStr20', newOwner)
     ],
     0, false, false
   )

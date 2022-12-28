@@ -3,6 +3,7 @@ const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrap
 const { callContract } = require('../../scripts/call.js')
 const { getContractCodeHash, ZERO_ADDRESS } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
+const { param } = require("../../scripts/zilliqa");
 
 let wZil, token0, token1, owner, feeAccount, tx, pool, prevPoolState, newPoolState, router, routerState, amp
 const BPS = 10000
@@ -27,15 +28,11 @@ beforeAll(async () => {
     owner.key, router,
     'SetFeeConfiguration',
     [
-      {
-        vname: 'config',
-        type: 'Pair ByStr20 Uint128',
-        value: {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "Uint128"],
-          "arguments": [`${feeAccount.address}`, "1000"] // 10%
-        }
-      },
+      param('config', 'Pair ByStr20 Uint128', {
+        "constructor": "Pair",
+        "argtypes": ["ByStr20", "Uint128"],
+        "arguments": [`${feeAccount.address}`, "1000"] // 10%
+      })
     ],
     0, false, false
   )
@@ -48,18 +45,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
     pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(true) }))[0]
     poolState = await pool.getState()
 
-    tx = await callContract(
-      owner.key, router,
-      'AddPool',
-      [
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-      ],
-      0, false, false
-    )
+    tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool.address.toLowerCase())], 0, false, false)
     expect(tx.status).toEqual(2)
   })
 
@@ -69,56 +55,22 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
   })
 
   test('zilswap ampPool addLiquidity to pool with no liquidity', async () => {
-    const { vReserveMin, vReserveMax } = getVReserveBound()
-
     tx = await callContract(
       owner.key, router,
       'AddLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'amountA_desired',
-          type: 'Uint128',
-          value: `${token0AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountB_desired',
-          type: 'Uint128',
-          value: `${token1AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'v_reserve_ratio_bounds',
-          type: 'Pair (Uint256) (Uint256)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["Uint256", "Uint256"],
-            "arguments": [`${vReserveMin}`, `${vReserveMax}`]
-          }
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('amountA_desired', 'Uint128', `${token0AmtDesired.toString()}`),
+        param('amountB_desired', 'Uint128', `${token1AmtDesired.toString()}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+        param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+        })
       ],
       0, false, true
     )
@@ -141,56 +93,22 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
   })
 
   test('zilswap ampPool addLiquidity to pool with existing liquidity', async () => {
-    const { vReserveMin, vReserveMax } = getVReserveBound()
-
     tx = await callContract(
       owner.key, router,
       'AddLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'amountA_desired',
-          type: 'Uint128',
-          value: `${token0AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountB_desired',
-          type: 'Uint128',
-          value: `${token1AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'v_reserve_ratio_bounds',
-          type: 'Pair (Uint256) (Uint256)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["Uint256", "Uint256"],
-            "arguments": [`${vReserveMin}`, `${vReserveMax}`]
-          }
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('amountA_desired', 'Uint128', `${token0AmtDesired.toString()}`),
+        param('amountB_desired', 'Uint128', `${token1AmtDesired.toString()}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+        param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+        })
       ],
       0, false, true
     )
@@ -217,11 +135,7 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, pool,
       'Skim',
       [
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        param('to', 'ByStr20', `${owner.address.toLowerCase()}`)
       ],
       0, false, false
     )
@@ -252,16 +166,8 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${prevPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -272,36 +178,12 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, router,
       'RemoveLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${prevPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -329,21 +211,10 @@ describe('zilswap ampPool AddLiquidity, RemoveLiquidty', async () => {
 describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
   beforeAll(async () => {
     if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
-    pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(false) }))[0]
+    pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(true) }))[0]
     poolState = await pool.getState()
 
-    tx = await callContract(
-      owner.key, router,
-      'AddPool',
-      [
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-      ],
-      0, false, false
-    )
+    tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool.address.toLowerCase())], 0, false, false)
     expect(tx.status).toEqual(2)
   })
 
@@ -353,56 +224,22 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
   })
 
   test('zilswap non-ampPool addLiquidity to pool with no liquidity', async () => {
-    const { vReserveMin, vReserveMax } = getVReserveBound()
-
     tx = await callContract(
       owner.key, router,
       'AddLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'amountA_desired',
-          type: 'Uint128',
-          value: `${token0AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountB_desired',
-          type: 'Uint128',
-          value: `${token1AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'v_reserve_ratio_bounds',
-          type: 'Pair (Uint256) (Uint256)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["Uint256", "Uint256"],
-            "arguments": [`${vReserveMin}`, `${vReserveMax}`]
-          }
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('amountA_desired', 'Uint128', `${token0AmtDesired.toString()}`),
+        param('amountB_desired', 'Uint128', `${token1AmtDesired.toString()}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+        param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+        })
       ],
       0, false, true
     )
@@ -429,50 +266,18 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, router,
       'AddLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'amountA_desired',
-          type: 'Uint128',
-          value: `${token0AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountB_desired',
-          type: 'Uint128',
-          value: `${token1AmtDesired.toString()}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'v_reserve_ratio_bounds',
-          type: 'Pair (Uint256) (Uint256)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["Uint256", "Uint256"],
-            "arguments": ['0', '0']
-          }
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('amountA_desired', 'Uint128', `${token0AmtDesired.toString()}`),
+        param('amountB_desired', 'Uint128', `${token1AmtDesired.toString()}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+        param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+          "constructor": "Pair",
+          "argtypes": ["Uint256", "Uint256"],
+          "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+        })
       ],
       0, false, true
     )
@@ -499,11 +304,7 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, pool,
       'Skim',
       [
-        {
-          vname: 'to',
-          type: 'ByStr20',
-          value: `${owner.address.toLowerCase()}`,
-        },
+        param('to', 'ByStr20', `${owner.address.toLowerCase()}`)
       ],
       0, false, false
     )
@@ -534,16 +335,8 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${prevPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -554,36 +347,12 @@ describe('zilswap non-ampPool AddLiquidity, RemoveLiquidty', async () => {
       owner.key, router,
       'RemoveLiquidity',
       [
-        {
-          vname: 'tokenA',
-          type: 'ByStr20',
-          value: `${token0.address.toLowerCase()}`,
-        },
-        {
-          vname: 'tokenB',
-          type: 'ByStr20',
-          value: `${token1.address.toLowerCase()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${prevPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amountA_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amountB_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${prevPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -614,16 +383,16 @@ getAmpBps = (isAmpPool) => {
   return ampBps;
 }
 
-// Returns 0 if non-amp pool
-getVReserveBound = () => {
-  vReserveA = parseInt(prevPoolState.v_reserve0)
-  vReserveB = parseInt(prevPoolState.v_reserve1)
+getVReserveBound = async (pool) => {
+  const poolState = await pool.getState()
+  const vReserveB = parseInt(poolState.v_reserve1)
+  const vReserveA = parseInt(poolState.v_reserve0)
   if (vReserveA === 0 || vReserveB === 0) {
     return { vReserveMin: new BigNumber(0).toString(), vReserveMax: new BigNumber(0).toString() }
   }
-  q112 = new BigNumber(2).pow(112)
-  vReserveMin = new BigNumber((vReserveB / vReserveA) * q112 / 1.05).toString(10)
-  vReserveMax = new BigNumber((vReserveB / vReserveA) * q112 * 1.05).toString(10)
+  const q112 = new BigNumber(2).pow(112)
+  const vReserveMin = new BigNumber((vReserveB / vReserveA) * q112 / 1.05).toString(10)
+  const vReserveMax = new BigNumber((vReserveB / vReserveA) * q112 * 1.05).toString(10)
   return { vReserveMin, vReserveMax }
 }
 

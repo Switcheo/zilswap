@@ -3,6 +3,7 @@ const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrap
 const { callContract, getBalance } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
+const { param } = require("../../scripts/zilliqa");
 
 let token0, token1, token, wZil, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State, prevOwnerZilBalance, newOwnerZilBalance
 const ONE_MILLION = 1_000_000
@@ -27,16 +28,8 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -47,31 +40,11 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
       owner.key, router,
       'RemoveLiquidityZIL',
       [
-        {
-          vname: 'token',
-          type: 'ByStr20',
-          value: token,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amount_token_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amount_wZIL_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -85,68 +58,19 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
     prevOwnerZilBalance = await getBalance(owner.address)
   })
 
-  test('swap exact ZIL for token (Non-amp pool)', async () => {
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactZILForTokensOnce',
-      [
-        {
-          vname: 'amount_out_min',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [wZil, token]
-          }
-        }
-      ],
-      amountIn, false, true
-    )
-    expect(tx.status).toEqual(2)
-
-    await validatePoolReserves(pool, "SwapExactZILForTokensOnce", false)
-    await validateBalances(token0, token1, "SwapExactZILForTokensOnce")
-  })
-
   test('swap exact token for ZIL (Non-amp pool)', async () => {
     tx = await callContract(
       owner.key, router,
       'SwapExactTokensForZILOnce',
       [
-        {
-          vname: 'amount_in',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'amount_out_min',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [token, wZil]
-          }
-        }
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, wZil]
+        })
       ],
       0, false, true
     )
@@ -154,6 +78,27 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
 
     await validatePoolReserves(pool, "SwapExactTokensForZILOnce", false)
     await validateBalances(token0, token1, "SwapExactTokensForZILOnce")
+  })
+
+  test('swap exact ZIL for token (Non-amp pool)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensOnce',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, token]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    await validatePoolReserves(pool, "SwapExactZILForTokensOnce", false)
+    await validateBalances(token0, token1, "SwapExactZILForTokensOnce")
   })
 })
 
@@ -169,16 +114,8 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -189,31 +126,11 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
       owner.key, router,
       'RemoveLiquidityZIL',
       [
-        {
-          vname: 'token',
-          type: 'ByStr20',
-          value: token,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amount_token_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amount_wZIL_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -232,30 +149,14 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
       owner.key, router,
       'SwapTokensForExactZILOnce',
       [
-        {
-          vname: 'amount_out',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'amount_in_max',
-          type: 'Uint128',
-          value: `${new BigNumber(amountInMax).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [token, wZil]
-          }
-        }
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, wZil]
+        })
       ],
       0, false, true
     )
@@ -270,25 +171,13 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Non-amp pool)', () => {
       owner.key, router,
       'SwapZILForExactTokensOnce',
       [
-        {
-          vname: 'amount_out',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [wZil, token]
-          }
-        }
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, token]
+        })
       ],
       amountInMax, false, true
     )
@@ -311,16 +200,8 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -331,31 +212,11 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
       owner.key, router,
       'RemoveLiquidityZIL',
       [
-        {
-          vname: 'token',
-          type: 'ByStr20',
-          value: token,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amount_token_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amount_wZIL_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -374,30 +235,14 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
       owner.key, router,
       'SwapExactTokensForZILOnce',
       [
-        {
-          vname: 'amount_in',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'amount_out_min',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [token, wZil]
-          }
-        }
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, wZil]
+        })
       ],
       0, false, true
     )
@@ -412,25 +257,13 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
       owner.key, router,
       'SwapExactZILForTokensOnce',
       [
-        {
-          vname: 'amount_out_min',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [wZil, token]
-          }
-        }
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, token]
+        })
       ],
       amountIn, false, true
     )
@@ -440,7 +273,7 @@ describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Amp pool)', () => {
   })
 })
 
-describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
+describe('Zilswap swap zrc2/zil for exact zilzrc2 (Amp pool)', () => {
 
   beforeAll(async () => {
     await setup(true)
@@ -452,16 +285,8 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
       owner.key, pool,
       'IncreaseAllowance',
       [
-        {
-          vname: 'spender',
-          type: 'ByStr20',
-          value: router.address.toLowerCase(),
-        },
-        {
-          vname: 'amount',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
       ],
       0, false, false
     )
@@ -472,31 +297,11 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
       owner.key, router,
       'RemoveLiquidityZIL',
       [
-        {
-          vname: 'token',
-          type: 'ByStr20',
-          value: token,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: `${pool.address.toLowerCase()}`,
-        },
-        {
-          vname: 'liquidity',
-          type: 'Uint128',
-          value: `${newPoolState.balances[owner.address.toLowerCase()]}`,
-        },
-        {
-          vname: 'amount_token_min',
-          type: 'Uint128',
-          value: '0',
-        },
-        {
-          vname: 'amount_wZIL_min',
-          type: 'Uint128',
-          value: '0',
-        }
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
       ],
       0, false, true
     )
@@ -515,30 +320,14 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
       owner.key, router,
       'SwapTokensForExactZILOnce',
       [
-        {
-          vname: 'amount_out',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'amount_in_max',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountInMax)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [token, wZil]
-          }
-        }
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, wZil]
+        })
       ],
       0, false, true
     )
@@ -553,25 +342,13 @@ describe('Zilswap swap zrc2 for exact zrc2 (Amp pool)', () => {
       owner.key, router,
       'SwapZILForExactTokensOnce',
       [
-        {
-          vname: 'amount_out',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool',
-          type: 'ByStr20',
-          value: pool.address.toLowerCase(),
-        },
-        {
-          vname: 'path',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [wZil, token]
-          }
-        }
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, token]
+        })
       ],
       amountInMax, false, true
     )
@@ -608,16 +385,8 @@ setup = async (isAmpPool) => {
     owner.key, token0,
     'IncreaseAllowance',
     [
-      {
-        vname: 'spender',
-        type: 'ByStr20',
-        value: router.address.toLowerCase(),
-      },
-      {
-        vname: 'amount',
-        type: 'Uint128',
-        value: '100000000000000000000000000000000000000',
-      },
+      param('spender', 'ByStr20', router.address.toLowerCase()),
+      param('amount', 'Uint128', '100000000000000000000000000000000000000')
     ],
     0, false, false
   )
@@ -627,15 +396,11 @@ setup = async (isAmpPool) => {
     owner.key, router,
     'SetFeeConfiguration',
     [
-      {
-        vname: 'config',
-        type: 'Pair ByStr20 Uint128',
-        value: {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "Uint128"],
-          "arguments": [`${feeAccount.address}`, "1000"] // 10%
-        }
-      },
+      param('config', 'Pair ByStr20 Uint128', {
+        "constructor": "Pair",
+        "argtypes": ["ByStr20", "Uint128"],
+        "arguments": [`${feeAccount.address}`, "1000"] // 10%
+      })
     ],
     0, false, false
   )
@@ -644,58 +409,25 @@ setup = async (isAmpPool) => {
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
   pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(isAmpPool) }))[0]
 
-  tx = await callContract(
-    owner.key, router,
-    'AddPool',
-    [
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: pool.address.toLowerCase(),
-      },
-    ],
-    0, false, false
-  )
+  // Add Pool
+  tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool.address.toLowerCase())], 0, false, false)
   expect(tx.status).toEqual(2)
 
+  // AddLiquidity
   tx = await callContract(
     owner.key, router,
     'AddLiquidityZIL',
     [
-      {
-        vname: 'token',
-        type: 'ByStr20',
-        value: token,
-      },
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool.address.toLowerCase()}`,
-      },
-      {
-        vname: 'amount_token_desired',
-        type: 'Uint128',
-        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
-      },
-      {
-        vname: 'amount_token_min',
-        type: 'Uint128',
-        value: '0',
-      },
-      {
-        vname: 'amount_wZIL_min',
-        type: 'Uint128',
-        value: '0',
-      },
-      {
-        vname: 'v_reserve_ratio_bounds',
-        type: 'Pair (Uint256) (Uint256)',
-        value: {
-          "constructor": "Pair",
-          "argtypes": ["Uint256", "Uint256"],
-          "arguments": ["0", "100000000000000000000000000000000000"]
-        }
-      }
+      param('token', 'ByStr20', token),
+      param('pool', 'ByStr20', pool.address.toLowerCase()),
+      param('amount_token_desired', 'Uint128', `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`),
+      param('amount_token_min', 'Uint128', '0'),
+      param('amount_wZIL_min', 'Uint128', '0'),
+      param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+        "constructor": "Pair",
+        "argtypes": ["Uint256", "Uint256"],
+        "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+      })
     ],
     init_liquidity, false, true
   )
@@ -705,44 +437,33 @@ setup = async (isAmpPool) => {
     owner.key, router,
     'AddLiquidityZIL',
     [
-      {
-        vname: 'token',
-        type: 'ByStr20',
-        value: token,
-      },
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool.address.toLowerCase()}`,
-      },
-      {
-        vname: 'amount_token_desired',
-        type: 'Uint128',
-        value: `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`,
-      },
-      {
-        vname: 'amount_token_min',
-        type: 'Uint128',
-        value: '0',
-      },
-      {
-        vname: 'amount_wZIL_min',
-        type: 'Uint128',
-        value: '0',
-      },
-      {
-        vname: 'v_reserve_ratio_bounds',
-        type: 'Pair (Uint256) (Uint256)',
-        value: {
-          "constructor": "Pair",
-          "argtypes": ["Uint256", "Uint256"],
-          "arguments": ["0", "100000000000000000000000000000000000"]
-        }
-      }
+      param('token', 'ByStr20', token),
+      param('pool', 'ByStr20', pool.address.toLowerCase()),
+      param('amount_token_desired', 'Uint128', `${(new BigNumber(init_liquidity)).shiftedBy(12).toString()}`),
+      param('amount_token_min', 'Uint128', '0'),
+      param('amount_wZIL_min', 'Uint128', '0'),
+      param('v_reserve_ratio_bounds', 'Pair (Uint256) (Uint256)', {
+        "constructor": "Pair",
+        "argtypes": ["Uint256", "Uint256"],
+        "arguments": [`${(await getVReserveBound(pool)).vReserveMin}`, `${(await getVReserveBound(pool)).vReserveMax}`]
+      })
     ],
     init_liquidity, false, true
   )
   expect(tx.status).toEqual(2)
+}
+
+getVReserveBound = async (pool) => {
+  const poolState = await pool.getState()
+  const vReserveB = parseInt(poolState.v_reserve1)
+  const vReserveA = parseInt(poolState.v_reserve0)
+  if (vReserveA === 0 || vReserveB === 0) {
+    return { vReserveMin: new BigNumber(0).toString(), vReserveMax: new BigNumber(0).toString() }
+  }
+  const q112 = new BigNumber(2).pow(112)
+  const vReserveMin = new BigNumber((vReserveB / vReserveA) * q112 / 1.05).toString(10)
+  const vReserveMax = new BigNumber((vReserveB / vReserveA) * q112 * 1.05).toString(10)
+  return { vReserveMin, vReserveMax }
 }
 
 // validate pool reserves (both amp and non-amp pools)
@@ -849,7 +570,7 @@ validateBalances = async (token0, token1, transition) => {
         break;
       }
     }
-    
+
     case 'SwapExactZILForTokensOnce': {
       if (token0.address.toLowerCase() === token) {
         newBalance = poolPrevToken1Balance.plus(newAmountIn)

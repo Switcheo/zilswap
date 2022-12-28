@@ -1,9 +1,9 @@
 const { BigNumber } = require('bignumber.js')
-const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
+const { createRandomAccount } = require('../../scripts/account.js');
 const { callContract, getBalance, getContract } = require('../../scripts/call.js')
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
-const { getContractCodeHash, ZERO_ADDRESS } = require('./helper.js');
-const { getPrivateKey, zilliqa, param, useKey } = require("../../scripts/zilliqa");
+const { getContractCodeHash } = require('./helper.js');
+const { param } = require("../../scripts/zilliqa");
 
 const NUM_ACTIONS = 22
 const NUM_ACCOUNTS = 3
@@ -79,7 +79,7 @@ beforeAll(async () => {
       param('config', 'Pair ByStr20 Uint128', {
         "constructor": "Pair",
         "argtypes": ["ByStr20", "Uint128"],
-        "arguments": [`${feeAccount.address}`, "1000"] // 10%
+        "arguments": [`${feeAccount.address}`, `${getRandomInt([0, 10000])}`]
       })
     ],
     0, false, false
