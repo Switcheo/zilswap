@@ -1257,7 +1257,7 @@ transition AddLiquidityZIL(
     andb r_a_ r_b_;
   match e with 
   | True =>
-    (* pool with no liquidity,  *)
+    (* pool with no liquidity *)
     amount_token = amount_token_desired;
     amount_wZIL = _amount;
 
@@ -1314,9 +1314,6 @@ transition AddLiquidityZIL(
       (* Send ZIL to wZIL contract and mint wZIL *)
       accept;
       WrapZIL amount_wZIL;
-    
-      (* transfers wZIL balance from this contract to user, that was obtained by using user's ZIL to mint wZIL *)
-      TransferZRC2 wZIL _sender amount_wZIL;
       
       (* Transfer pairing of wZIL and token to pool *)
       TransferFromZRC2 token _sender pool amount_token;
