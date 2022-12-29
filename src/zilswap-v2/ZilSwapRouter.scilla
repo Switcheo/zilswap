@@ -23,7 +23,7 @@ let one_u256 = Uint256 1
 let two_u256 = Uint256 2
 let three_u256 = Uint256 3
 let four_u256 = Uint256 4
-let five_u256 = Uint256 5 
+let five_u256 = Uint256 5
 let nine_u256 = Uint256 9
 let ten_u256 = Uint256 10
 let twenty_u256 = Uint256 20
@@ -120,11 +120,11 @@ let frac_u256 =
 
 (* @dev: Converts 2 Uint128 numbers to Uint256 and returns the product in Uint256 *)
 let u128_mul_grow =
-fun (x: Uint128) =>
-fun (y: Uint128) =>
-  let x_u256 = grow x in
-  let y_u256 = grow y in
-  builtin mul x_u256 y_u256
+  fun (x: Uint128) =>
+  fun (y: Uint128) =>
+    let x_u256 = grow x in
+    let y_u256 = grow y in
+    builtin mul x_u256 y_u256
 
 (* @dev: Given an amount of one token and pool reserves, return an equivalent amount of the tokenB *)
 let quote =
@@ -935,7 +935,15 @@ procedure GetAmountIn(
         VerifySufficientLiquidity r_in r_out zero_amount amount_out;
 
         amount_in = get_amount_in amount_out v_r_in v_r_out fee_in_precision;
-        amt_in := amount_in
+        amt_in := amount_in;
+
+        is_valid_amount_in = uint128_gt amount_in zero_amount;
+        match is_valid_amount_in with
+        | True =>
+        | False =>
+          err = CodeInsufficientInputAmt;
+          ThrowError err
+        end
       end
     end
   end

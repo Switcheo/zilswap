@@ -637,12 +637,13 @@ const swapExactTokensForZil = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapExactTokensForZILOnce',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -653,14 +654,17 @@ const swapExactTokensForZil = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactTokensForZILTwice',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -676,15 +680,19 @@ const swapExactTokensForZil = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactTokensForZILThrice',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -730,12 +738,13 @@ const swapTokensForExactZIL = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapTokensForExactZILOnce',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -746,13 +755,17 @@ const swapTokensForExactZIL = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
+    // console.log("tokenPath", tokenPath)
     args = [
       'SwapTokensForExactZILTwice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -768,15 +781,19 @@ const swapTokensForExactZIL = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapTokensForExactZILThrice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -822,12 +839,13 @@ const swapExactTokensForTokens = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapExactTokensForTokensOnce',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -838,14 +856,17 @@ const swapExactTokensForTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactTokensForTokensTwice',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -861,15 +882,19 @@ const swapExactTokensForTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactTokensForTokensThrice',
       [
         param('amount_in', 'Uint128', `${amountIn}`),
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -915,12 +940,13 @@ const swapTokensForExactTokens = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapTokensForExactTokensOnce',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -931,13 +957,18 @@ const swapTokensForExactTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
+    // console.log("tokenPath", tokenPath)
     args = [
       'SwapTokensForExactTokensTwice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -953,15 +984,19 @@ const swapTokensForExactTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapTokensForExactTokensThrice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
         param('amount_in_max', 'Uint128', `${amountInMax}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1007,11 +1042,12 @@ const swapExactZILForTokens = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapExactZILForTokensOnce',
       [
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1022,13 +1058,16 @@ const swapExactZILForTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactZILForTokensTwice',
       [
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1044,14 +1083,18 @@ const swapExactZILForTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapExactZILForTokensThrice',
       [
         param('amount_out_min', 'Uint128', `${amountOutMin}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1097,11 +1140,12 @@ const swapZILForExactTokens = async (accountNum) => {
 
   let args, tokenPath
   if (poolNumber === 1) {
+    const pool = getPoolAddress(tokenIn, tokenOut)
     args = [
       'SwapZILForExactTokensOnce',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
-        param('pool', 'ByStr20', `${getPoolAddress(tokenIn, tokenOut)}`),
+        param('pool', 'ByStr20', `${pool}`),
         param('path', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1112,13 +1156,16 @@ const swapZILForExactTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 2) {
     tokenPath = await getDoubleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    if (pool1 === pool2) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapZILForExactTokensTwice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],
@@ -1134,14 +1181,18 @@ const swapZILForExactTokens = async (accountNum) => {
     ]
   } else if (poolNumber === 3) {
     tokenPath = await getTripleTokenPaths(tokenPools, tokenIn, tokenOut)
+    const pool1 = getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)
+    const pool2 = getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)
+    const pool3 = getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)
+    if (pool1 === pool2 || pool2 === pool3 || pool1 === pool3) { return false }
     // console.log("tokenPath", tokenPath)
     args = [
       'SwapZILForExactTokensThrice',
       [
         param('amount_out', 'Uint128', `${amountOut}`),
-        param('pool1', 'ByStr20', `${getPoolAddress(tokenPath[0].tokenIn, tokenPath[0].tokenOut)}`),
-        param('pool2', 'ByStr20', `${getPoolAddress(tokenPath[1].tokenIn, tokenPath[1].tokenOut)}`),
-        param('pool3', 'ByStr20', `${getPoolAddress(tokenPath[2].tokenIn, tokenPath[2].tokenOut)}`),
+        param('pool1', 'ByStr20', `${pool1}`),
+        param('pool2', 'ByStr20', `${pool2}`),
+        param('pool3', 'ByStr20', `${pool3}`),
         param('path1', 'Pair (ByStr20) (ByStr20)', {
           "constructor": "Pair",
           "argtypes": ["ByStr20", "ByStr20"],

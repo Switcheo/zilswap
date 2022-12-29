@@ -23,7 +23,7 @@ let one_u256 = Uint256 1
 let two_u256 = Uint256 2
 let three_u256 = Uint256 3
 let four_u256 = Uint256 4
-let five_u256 = Uint256 5 
+let five_u256 = Uint256 5
 let nine_u256 = Uint256 9
 let ten_u256 = Uint256 10
 let twenty_u256 = Uint256 20
@@ -154,7 +154,7 @@ let u128_mul_grow =
     let y_u256 = grow y in
     builtin mul x_u256 y_u256
 
-(* @dev Returns x*y in precision *)
+(* @dev: Returns x*y in precision *)
 let mul_in_precision =
   fun (x : Uint256) =>
   fun (y : Uint256) =>
@@ -907,6 +907,36 @@ transition Mint(to : ByStr20)
   MintFee is_amp_pool;
 
   supply <- total_supply;
+
+  (* Debug *)
+  is_zero1 = builtin eq supply zero_amount;
+  match is_zero1 with
+  | True => 
+  | False => 
+    a = frac amount0 supply r0;
+    b = frac amount1 supply r1;
+    liquidity = min a b;
+    ls = builtin add liquidity supply;
+    n0 = frac vr0 ls supply;
+    v_r0 = max n0 new_r0;
+    n1 = frac vr1 ls supply;
+    v_r1 = max n1 new_r1;
+
+    e = {_eventname: "debug";
+      supply: supply;
+      a: a; b: b; 
+      liquidity: liquidity; 
+      ls: ls; 
+      n0: n0; 
+      new_r0: new_r0; 
+      v_r0: v_r0; 
+      n1: n1; 
+      new_r1: new_r1;
+      v_r1: v_r1
+    };
+    event e
+  end;
+
   is_zero = builtin eq supply zero_amount;
   result = match is_zero with
   | True =>
