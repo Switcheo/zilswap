@@ -533,6 +533,376 @@ describe('Zilswap double-pool swap zrc2 for exact zrc2 (Amp pool)', () => {
   })
 })
 
+describe('Zilswap double-pool erroneous swap (Non-amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(false)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool1.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token2.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool2.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPool1State = await pool1.getState()
+    prevPool2State = await pool2.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+    prevToken2State = await token2.getState()
+  })
+
+  test('SwapTokensForExactTokensTwice (Non-amp pool)(same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokensTwice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12)}`),
+        param('amount_in_max', 'Uint128', `${(new BigNumber(amountInMax)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapExactTokensForTokensTwice (Non-amp pool)(same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensTwice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapTokensForExactTokensTwice (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokensTwice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12)}`),
+        param('amount_in_max', 'Uint128', `${(new BigNumber(amountInMax)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token2.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapExactTokensForTokensTwice (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensTwice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token2.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+})
+
+describe('Zilswap double-pool erroneous swap (Amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(true)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', `${token0.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool1.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', `${token1.address.toLowerCase()}`),
+        param('tokenB', 'ByStr20', `${token2.address.toLowerCase()}`),
+        param('pool', 'ByStr20', `${pool2.address.toLowerCase()}`),
+        param('liquidity', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPool1State = await pool1.getState()
+    prevPool2State = await pool2.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+    prevToken2State = await token2.getState()
+  })
+
+  test('SwapTokensForExactTokensTwice (Non-amp pool)(same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokensTwice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12)}`),
+        param('amount_in_max', 'Uint128', `${(new BigNumber(amountInMax)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapExactTokensForTokensTwice (Non-amp pool)(same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensTwice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapTokensForExactTokensTwice (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactTokensTwice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12)}`),
+        param('amount_in_max', 'Uint128', `${(new BigNumber(amountInMax)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token2.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+
+  test('SwapExactTokensForTokensTwice (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForTokensTwice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [`${token2.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+  })
+})
+
 // Helper functions
 // is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 getAmpBps = (isAmpPool) => {

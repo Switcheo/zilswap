@@ -359,6 +359,240 @@ describe('Zilswap swap zrc2/zil for exact zilzrc2 (Amp pool)', () => {
   })
 })
 
+describe('Zilswap erroneous single swap zil (Non-amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(false)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidityZIL
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidityZIL',
+      [
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPoolState = await pool.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
+  })
+
+  test('SwapExactTokensForZILOnce (Non-amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapExactZILForTokensOnce (Non-amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensOnce',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapTokensForExactZILOnce(Non-amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILOnce',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapZILForExactTokensOnce (Non-amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensOnce',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+})
+
+describe('Zilswap erroneous single swap zil (Amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(true)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool)
+    tx = await callContract(
+      owner.key, pool,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidityZIL
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidityZIL',
+      [
+        param('token', 'ByStr20', token),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPoolState.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPoolState = await pool.getState()
+    prevToken0State = await token0.getState()
+    prevToken1State = await token1.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
+  })
+
+  test('SwapExactTokensForZILOnce (Amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILOnce',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapExactZILForTokensOnce (Amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensOnce',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapTokensForExactZILOnce(Amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILOnce',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+
+  test('SwapZILForExactTokensOnce (Amp pool)(invalid path): Supposed to hit CodeInvalidWZIL(-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensOnce',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool', 'ByStr20', pool.address.toLowerCase()),
+        param('path', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [token, token]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+  })
+})
+
 // Helper functions
 getAmpBps = (isAmpPool) => {
   ampBps = isAmpPool ? "15000" : "10000";

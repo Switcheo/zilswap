@@ -102,6 +102,7 @@ let max =
     | False => a
     end
 
+(* @dev: Convert Uint128 to Uint256 *)
 let grow =
   fun (var : Uint128) =>
     let maybe_big = builtin to_uint256 var in
@@ -110,6 +111,7 @@ let grow =
     | None => Uint256 0 (* should never happen *)
     end
 
+(* @dev: Convert Int256 to Uint128 *)
 let shrink =
   fun (var : Int256) =>
     let maybe_small = builtin to_uint128 var in
@@ -118,6 +120,7 @@ let shrink =
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
 
+(* @dev: Convert Uint256 to Uint128 *)
 let reduce =
   fun (var : Uint256) =>
     let maybe_small = builtin to_uint128 var in
@@ -907,35 +910,6 @@ transition Mint(to : ByStr20)
   MintFee is_amp_pool;
 
   supply <- total_supply;
-
-  (* Debug *)
-  is_zero1 = builtin eq supply zero_amount;
-  match is_zero1 with
-  | True => 
-  | False => 
-    a = frac amount0 supply r0;
-    b = frac amount1 supply r1;
-    liquidity = min a b;
-    ls = builtin add liquidity supply;
-    n0 = frac vr0 ls supply;
-    v_r0 = max n0 new_r0;
-    n1 = frac vr1 ls supply;
-    v_r1 = max n1 new_r1;
-
-    e = {_eventname: "debug";
-      supply: supply;
-      a: a; b: b; 
-      liquidity: liquidity; 
-      ls: ls; 
-      n0: n0; 
-      new_r0: new_r0; 
-      v_r0: v_r0; 
-      n1: n1; 
-      new_r1: new_r1;
-      v_r1: v_r1
-    };
-    event e
-  end;
 
   is_zero = builtin eq supply zero_amount;
   result = match is_zero with

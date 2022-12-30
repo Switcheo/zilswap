@@ -708,53 +708,25 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Amp pool)', () => {
       owner.key, router,
       'SwapZILForExactTokensThrice',
       [
-        {
-          vname: 'amount_out',
-          type: 'Uint128',
-          value: `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`,
-        },
-        {
-          vname: 'pool1',
-          type: 'ByStr20',
-          value: pool3.address.toLowerCase(),
-        },
-        {
-          vname: 'pool2',
-          type: 'ByStr20',
-          value: pool2.address.toLowerCase(),
-        },
-        {
-          vname: 'pool3',
-          type: 'ByStr20',
-          value: pool1.address.toLowerCase(),
-        },
-        {
-          vname: 'path1',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [wZil, bridge2TokenAddress]
-          }
-        },
-        {
-          vname: 'path2',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [bridge2TokenAddress, bridge1TokenAddress]
-          }
-        },
-        {
-          vname: 'path3',
-          type: 'Pair (ByStr20) (ByStr20)',
-          value: {
-            "constructor": "Pair",
-            "argtypes": ["ByStr20", "ByStr20"],
-            "arguments": [bridge1TokenAddress, otherTokenAddress]
-          }
-        }
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
       ],
       amountInMax, false, true
     )
@@ -766,6 +738,1048 @@ describe('Zilswap swap zrc2/zil for exact zil/zrc2 (Amp pool)', () => {
 
     await validatePoolReserves("SwapZILForExactTokensThrice", true)
     await validateBalances("SwapZILForExactTokensThrice")
+  })
+})
+
+describe('Zilswap erroneous triple swap zil (Non-amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(false)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool1,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', otherTokenAddress),
+        param('tokenB', 'ByStr20', bridge1TokenAddress),
+        param('pool', 'ByStr20', pool1.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool2,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', bridge1TokenAddress),
+        param('tokenB', 'ByStr20', bridge2TokenAddress),
+        param('pool', 'ByStr20', pool2.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool3,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool3State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidityZIL
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidityZIL',
+      [
+        param('token', 'ByStr20', bridge2TokenAddress),
+        param('pool', 'ByStr20', pool3.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool3State.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPool1State = await pool1.getState()
+    prevPool2State = await pool2.getState()
+    prevPool3State = await pool3.getState()
+    const otherToken = getContract(otherTokenAddress)
+    const bridge1Token = getContract(bridge1TokenAddress)
+    const bridge2Token = getContract(bridge2TokenAddress)
+    const wZilToken = getContract(wZil)
+    prevOtherTokenState = await otherToken.getState()
+    prevBridge1TokenState = await bridge1Token.getState()
+    prevBridge2TokenState = await bridge2Token.getState()
+    prevWZilState = await wZilToken.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
+  })
+
+  test('swap exact token for ZIL (Non-amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Non-amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Non-amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Non-amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact token for ZIL (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Non-amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact token for ZIL (Non-amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Non-amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Non-amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Non-amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+})
+
+describe('Zilswap erroneous triple swap zil (Amp pool)', () => {
+
+  beforeAll(async () => {
+    await setup(false)
+  })
+
+  afterAll(async () => {
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool1,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', otherTokenAddress),
+        param('tokenB', 'ByStr20', bridge1TokenAddress),
+        param('pool', 'ByStr20', pool1.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool1State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool2,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidity
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidity',
+      [
+        param('tokenA', 'ByStr20', bridge1TokenAddress),
+        param('tokenB', 'ByStr20', bridge2TokenAddress),
+        param('pool', 'ByStr20', pool2.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool2State.balances[owner.address.toLowerCase()]}`),
+        param('amountA_min', 'Uint128', '0'),
+        param('amountB_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+
+    // Increase Allowance for LP Token (to transfer LP token to Pool) for non ZIL pool
+    tx = await callContract(
+      owner.key, pool3,
+      'IncreaseAllowance',
+      [
+        param('spender', 'ByStr20', router.address.toLowerCase()),
+        param('amount', 'Uint128', `${newPool3State.balances[owner.address.toLowerCase()]}`)
+      ],
+      0, false, false
+    )
+    expect(tx.status).toEqual(2)
+
+    // RemoveLiquidityZIL
+    tx = await callContract(
+      owner.key, router,
+      'RemoveLiquidityZIL',
+      [
+        param('token', 'ByStr20', bridge2TokenAddress),
+        param('pool', 'ByStr20', pool3.address.toLowerCase()),
+        param('liquidity', 'Uint128', `${newPool3State.balances[owner.address.toLowerCase()]}`),
+        param('amount_token_min', 'Uint128', '0'),
+        param('amount_wZIL_min', 'Uint128', '0'),
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(2)
+  })
+
+  beforeEach(async () => {
+    prevPool1State = await pool1.getState()
+    prevPool2State = await pool2.getState()
+    prevPool3State = await pool3.getState()
+    const otherToken = getContract(otherTokenAddress)
+    const bridge1Token = getContract(bridge1TokenAddress)
+    const bridge2Token = getContract(bridge2TokenAddress)
+    const wZilToken = getContract(wZil)
+    prevOtherTokenState = await otherToken.getState()
+    prevBridge1TokenState = await bridge1Token.getState()
+    prevBridge2TokenState = await bridge2Token.getState()
+    prevWZilState = await wZilToken.getState()
+    prevOwnerZilBalance = await getBalance(owner.address)
+  })
+
+  test('swap exact token for ZIL (Amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Amp pool)(Same pool): Supposed to hit CodeSamePools error (-6)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact token for ZIL (Amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, wZil]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Amp pool)(invalid path): Supposed to hit CodeInvalidPaths error (-7)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [wZil, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact token for ZIL (Amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactTokensForZILThrice',
+      [
+        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12).toString()}`),
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap exact ZIL for token (Amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapExactZILForTokensThrice',
+      [
+        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountIn, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap token for exact ZIL (Amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapTokensForExactZILThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('amount_in_max', 'Uint128', `${new BigNumber(amountInMax).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool1.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool3.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [otherTokenAddress, bridge1TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, bridge2TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        })
+      ],
+      0, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
+  })
+
+  test('swap ZIL for exact token (Amp pool)(invalid wZIL): Supposed to hit CodeInvalidWZIL error (-8)', async () => {
+    tx = await callContract(
+      owner.key, router,
+      'SwapZILForExactTokensThrice',
+      [
+        param('amount_out', 'Uint128', `${(new BigNumber(amountOut)).shiftedBy(12).toString()}`),
+        param('pool1', 'ByStr20', pool3.address.toLowerCase()),
+        param('pool2', 'ByStr20', pool2.address.toLowerCase()),
+        param('pool3', 'ByStr20', pool1.address.toLowerCase()),
+        param('path1', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge2TokenAddress]
+        }),
+        param('path2', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge2TokenAddress, bridge1TokenAddress]
+        }),
+        param('path3', 'Pair (ByStr20) (ByStr20)', {
+          "constructor": "Pair",
+          "argtypes": ["ByStr20", "ByStr20"],
+          "arguments": [bridge1TokenAddress, otherTokenAddress]
+        })
+      ],
+      amountInMax, false, true
+    )
+    expect(tx.status).toEqual(3)
+
+    newPool1State = await pool1.getState()
+    newPool2State = await pool2.getState()
+    newPool3State = await pool3.getState()
   })
 })
 

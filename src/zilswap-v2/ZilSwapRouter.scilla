@@ -71,7 +71,6 @@ let get_amount_or_zero =
     | None => zero_amount
     end
 
-(* @dev: Convert Uint128 to Uint256 *)
 let grow =
   fun (var : Uint128) =>
     let maybe_big = builtin to_uint256 var in
@@ -80,7 +79,6 @@ let grow =
     | None => Uint256 0 (* should never happen *)
     end
 
-(* @dev: Convert Int256 to Uint128 *)
 let shrink =
   fun (var : Int256) =>
     let maybe_small = builtin to_uint128 var in
@@ -89,7 +87,6 @@ let shrink =
     | None => let one = Uint128 1 in builtin sub zero_amount one (* throw on overflow *)
     end
 
-(* @dev: Convert Uint256 to Uint128 *)
 let reduce =
   fun (var : Uint256) =>
     let maybe_small = builtin to_uint128 var in
@@ -110,7 +107,6 @@ let frac =
     let ans_u256 = builtin div xy_u256 z_u256 in
     reduce ans_u256
 
-(* @dev: (x * y) / z in Uint256 *)
 let frac_u256 =
   fun (x_u256: Uint256) => 
   fun (y_u256: Uint256) => 
@@ -118,7 +114,6 @@ let frac_u256 =
     let xy_u256 = builtin mul x_u256 y_u256 in
     builtin div xy_u256 z_u256
 
-(* @dev: Converts 2 Uint128 numbers to Uint256 and returns the product in Uint256 *)
 let u128_mul_grow =
   fun (x: Uint128) =>
   fun (y: Uint128) =>
@@ -199,7 +194,6 @@ let get_trade_info =
     end
   end
 
-(* @dev: Returns x*y in precision *)
 let mul_in_precision =
   fun (x : Uint256) =>
   fun (y : Uint256) =>
@@ -474,14 +468,16 @@ type Error =
 | CodeNotPendingGovernor
 | CodeDuplicateUnamplifiedPool
 | CodeInvalidPool
+| CodeSamePools
+| CodeInvalidPaths
 | CodeInvalidWZIL
 | CodeInsufficientAmount
 | CodeInsufficientLiquidity
 | CodeBlockExpired
 | CodeOutOfBoundVReserve
-| CodeInsufficientInputAmt
-| CodeInsufficientOutputAmt
 | CodeExcessiveInputAmt
+| CodeInsufficientOutputAmt
+| CodeInvalidSwapAmt
 
 let make_error =
   fun (result : Error) =>
@@ -492,14 +488,16 @@ let make_error =
       | CodeNotPendingGovernor        => Int32 -3
       | CodeDuplicateUnamplifiedPool  => Int32 -4
       | CodeInvalidPool               => Int32 -5
-      | CodeInvalidWZIL               => Int32 -6
-      | CodeInsufficientAmount        => Int32 -7
-      | CodeInsufficientLiquidity     => Int32 -8
-      | CodeBlockExpired              => Int32 -9
-      | CodeOutOfBoundVReserve        => Int32 -10
-      | CodeInsufficientInputAmt      => Int32 -11
-      | CodeInsufficientOutputAmt     => Int32 -12
+      | CodeSamePools                 => Int32 -6
+      | CodeInvalidPaths              => Int32 -7
+      | CodeInvalidWZIL               => Int32 -8
+      | CodeInsufficientAmount        => Int32 -9
+      | CodeInsufficientLiquidity     => Int32 -10
+      | CodeBlockExpired              => Int32 -11
+      | CodeOutOfBoundVReserve        => Int32 -12
       | CodeExcessiveInputAmt         => Int32 -13
+      | CodeInsufficientOutputAmt     => Int32 -14
+      | CodeInvalidSwapAmt            => Int32 -15
       end
     in
     { _exception : "Error"; code : result_code }
@@ -656,11 +654,12 @@ procedure VerifySufficientLiquidity(r_in: Uint128, r_out: Uint128, amount_in: Ui
 end
 
 (* @dev: Checks if amount in more than 0 *)
-procedure VerifyValidAmountIn(amount_in: Uint128)
-  is_valid_amount_in = let a = builtin eq amount_in zero_amount in negb a;
-  match is_valid_amount_in with
-  | True => | False =>
-    err = CodeInsufficientInputAmt;
+procedure VerifyValidSwapAmt(amount: Uint128)
+  is_valid_swap_amount = uint128_gt amount zero_amount;
+  match is_valid_swap_amount with
+  | True => 
+  | False =>
+    err = CodeInvalidSwapAmt;
     ThrowError err
   end
 end
@@ -812,13 +811,7 @@ procedure GetAmountOut(
   deadline_block: BNum
 )
   VerifyBlock deadline_block;
-  is_valid_amount_in = uint128_gt amount_in zero_amount;
-  match is_valid_amount_in with
-  | True =>
-  | False =>
-    err = CodeInsufficientInputAmt;
-    ThrowError err
-  end;
+  VerifyValidSwapAmt amount_in;
 
   match path with 
   | Pair token_in token_out =>
@@ -858,11 +851,13 @@ procedure GetAmountOut(
         VerifySufficientLiquidity r_in r_out zero_amount zero_amount;
 
         amount_out = get_amount_out amount_in v_r_in v_r_out fee_in_precision;
-        amt_out := amount_out;
+        VerifyValidSwapAmt amount_out;
 
         is_valid_reserve_out = uint128_gt r_out amount_out;
         match is_valid_reserve_out with 
-        | True => | False => 
+        | True => 
+          amt_out := amount_out
+        | False => 
           err = CodeInsufficientLiquidity;
           ThrowError err
         end
@@ -889,13 +884,7 @@ procedure GetAmountIn(
   deadline_block: BNum
 )
   VerifyBlock deadline_block;
-  is_valid_amount_out = uint128_gt amount_out zero_amount;
-  match is_valid_amount_out with
-  | True =>
-  | False =>
-    err = CodeInsufficientOutputAmt;
-    ThrowError err
-  end;
+  VerifyValidSwapAmt amount_out;
 
   match path with
   | Pair token_in token_out => 
@@ -935,22 +924,14 @@ procedure GetAmountIn(
         VerifySufficientLiquidity r_in r_out zero_amount amount_out;
 
         amount_in = get_amount_in amount_out v_r_in v_r_out fee_in_precision;
-        amt_in := amount_in;
-
-        is_valid_amount_in = uint128_gt amount_in zero_amount;
-        match is_valid_amount_in with
-        | True =>
-        | False =>
-          err = CodeInsufficientInputAmt;
-          ThrowError err
-        end
+        VerifyValidSwapAmt amount_in;
+        amt_in := amount_in
       end
     end
   end
 end
 
 (* @dev: Swaps ZRC2 for ZRC2 in one pool *)
-(* @param path: token_in token_out *)
 procedure SwapZRC2Once(
   pool: ByStr20,
   path: Pair ByStr20 ByStr20, 
@@ -1614,9 +1595,6 @@ transition SwapExactTokensForTokensOnce(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: amount_in -> pool1 -> intermediate_amount_out *)
-(* @dev: intermediate_amount_out -> pool2 -> final_amount_out *)
-(* @param path: token_in token_out *)
 transition SwapExactTokensForTokensTwice(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1649,9 +1627,25 @@ transition SwapExactTokensForTokensTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
   GetAmountOut amount_in pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn intermediate_amount_out;
 
   GetAmountOut intermediate_amount_out pool2 path2 deadline_block;
   final_amount_out <- amt_out;
@@ -1673,10 +1667,6 @@ transition SwapExactTokensForTokensTwice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: amount_in -> pool1 -> first_intermediate_amount_out *)
-(* @dev: first_intermediate_amount_out -> pool2 -> second_intermediate_amount_out *)
-(* @dev: second_intermediate_amount_out -> pool3 -> final_amount_out *)
-(* @param path: token_in token_out *)
 transition SwapExactTokensForTokensThrice(
   amount_in: Uint128,
   amount_out_min: Uint128,
@@ -1721,13 +1711,37 @@ transition SwapExactTokensForTokensThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
   GetAmountOut amount_in pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn first_intermediate_amount_out;
 
   GetAmountOut first_intermediate_amount_out pool2 path2 deadline_block;
   second_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn second_intermediate_amount_out;
 
   GetAmountOut second_intermediate_amount_out pool3 path3 deadline_block;
   final_amount_out <- amt_out;
@@ -1751,8 +1765,6 @@ transition SwapExactTokensForTokensThrice(
   amt_out := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amt_in -> pool -> amount_out *)
-(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensOnce(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1775,7 +1787,6 @@ transition SwapTokensForExactTokensOnce(
 
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -1792,9 +1803,6 @@ transition SwapTokensForExactTokensOnce(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amt_in -> pool1 -> intermediate_amt_in *)
-(* @dev: intermediate_amt_in -> pool2 -> amount_out *)
-(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensTwice(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1827,13 +1835,28 @@ transition SwapTokensForExactTokensTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn intermediate_amt_in;
 
   GetAmountIn intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -1853,10 +1876,6 @@ transition SwapTokensForExactTokensTwice(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
-(* @dev: init_amount_in -> pool1 -> first_intermediate_amount_in *)
-(* @dev: first_intermediate_amount_in -> pool2 -> second_intermediate_amount_in *)
-(* @dev: second_intermediate_amount_in -> pool3 -> amount_out *)
-(* @param path: token_in token_out *)
 transition SwapTokensForExactTokensThrice(
   amount_out: Uint128,
   amount_in_max: Uint128,
@@ -1901,17 +1920,40 @@ transition SwapTokensForExactTokensThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn second_intermediate_amt_in;
 
   GetAmountIn second_intermediate_amt_in pool2 path2 deadline_block;
   first_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn first_intermediate_amt_in;
 
   GetAmountIn first_intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -1952,6 +1994,9 @@ transition SwapExactZILForTokensOnce(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  wZIL = get_from_address path;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut _amount pool path deadline_block;
   final_amount_out <- amt_out;
   is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
@@ -1965,8 +2010,6 @@ transition SwapExactZILForTokensOnce(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path;
-  VerifyWZILAddress wZIL;
   WrapZIL _amount;
 
   (* pre-transfers wZIL balance from this contract straight to pool before swap *)
@@ -2009,9 +2052,28 @@ transition SwapExactZILForTokensTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut _amount pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn intermediate_amount_out;
 
   GetAmountOut intermediate_amount_out pool2 path2 deadline_block;
   final_amount_out <- amt_out;
@@ -2026,8 +2088,6 @@ transition SwapExactZILForTokensTwice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path1;
-  VerifyWZILAddress wZIL;
   WrapZIL _amount;
 
   (* pre-transfers wZIL balance from this contract straight to pool1 before swap *)
@@ -2084,13 +2144,40 @@ transition SwapExactZILForTokensThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut _amount pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn first_intermediate_amount_out;
 
   GetAmountOut first_intermediate_amount_out pool2 path2 deadline_block;
   second_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn second_intermediate_amount_out;
 
   GetAmountOut second_intermediate_amount_out pool3 path3 deadline_block;
   final_amount_out <- amt_out;
@@ -2105,8 +2192,6 @@ transition SwapExactZILForTokensThrice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path1;
-  VerifyWZILAddress wZIL;
   WrapZIL _amount;
 
   (* pre-transfers wZIL balance from this contract straight to pool1 before swap *)
@@ -2142,9 +2227,11 @@ transition SwapTokensForExactZILOnce(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  wZIL = get_to_address path;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -2160,8 +2247,6 @@ transition SwapTokensForExactZILOnce(
   SwapZRC2Once pool path amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path;
-  VerifyWZILAddress wZIL;
   UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
@@ -2199,13 +2284,31 @@ transition SwapTokensForExactZILTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_to_address path2;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn intermediate_amt_in;
   
   GetAmountIn intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -2223,8 +2326,6 @@ transition SwapTokensForExactZILTwice(
   SwapZRC2Once pool2 path2 amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path2;
-  VerifyWZILAddress wZIL;
   UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
@@ -2274,17 +2375,43 @@ transition SwapTokensForExactZILThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_to_address path3;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn second_intermediate_amt_in;
 
   GetAmountIn second_intermediate_amt_in pool2 path2 deadline_block;
   first_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn first_intermediate_amt_in;
   
   GetAmountIn first_intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in amount_in_max;
   match is_valid_amount_in with 
@@ -2304,8 +2431,6 @@ transition SwapTokensForExactZILThrice(
   SwapZRC2Once pool3 path3 amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path3;
-  VerifyWZILAddress wZIL;
   UnwrapZIL amount_out;
 
   amt_in := zero_amount (* Reassign back to 0 *)
@@ -2331,6 +2456,9 @@ transition SwapExactTokensForZILOnce(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  wZIL = get_to_address path;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut amount_in pool path deadline_block;
   final_amount_out <- amt_out;
   is_valid_final_amount_out = uint128_gt final_amount_out amount_out_min;
@@ -2347,8 +2475,6 @@ transition SwapExactTokensForZILOnce(
   SwapZRC2Once pool path final_amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path;
-  VerifyWZILAddress wZIL;
   UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
@@ -2386,9 +2512,28 @@ transition SwapExactTokensForZILTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_to_address path2;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut amount_in pool1 path1 deadline_block;
   intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn intermediate_amount_out;
 
   GetAmountOut intermediate_amount_out pool2 path2 deadline_block;
   final_amount_out <- amt_out;
@@ -2408,8 +2553,6 @@ transition SwapExactTokensForZILTwice(
   SwapZRC2Once pool2 path2 final_amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path2;
-  VerifyWZILAddress wZIL;
   UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
@@ -2459,13 +2602,40 @@ transition SwapExactTokensForZILThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_to_address path3;
+  VerifyWZILAddress wZIL;
+
   GetAmountOut amount_in pool1 path1 deadline_block;
   first_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn first_intermediate_amount_out;
 
   GetAmountOut first_intermediate_amount_out pool2 path2 deadline_block;
   second_intermediate_amount_out <- amt_out;
-  VerifyValidAmountIn second_intermediate_amount_out;
 
   GetAmountOut second_intermediate_amount_out pool3 path3 deadline_block;
   final_amount_out <- amt_out;
@@ -2487,8 +2657,6 @@ transition SwapExactTokensForZILThrice(
   SwapZRC2Once pool3 path3 final_amount_out _this_address;
 
   (* call Burn on wZIL to convert back to ZIL, callback will handle transfer of ZIL to user *)
-  wZIL = get_to_address path3;
-  VerifyWZILAddress wZIL;
   UnwrapZIL final_amount_out;
 
   amt_out := zero_amount (* Reassign back to 0 *)
@@ -2513,9 +2681,11 @@ transition SwapZILForExactTokensOnce(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  wZIL = get_from_address path;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool path deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in _amount;
   match is_valid_amount_in with 
@@ -2528,8 +2698,6 @@ transition SwapZILForExactTokensOnce(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path;
-  VerifyWZILAddress wZIL;
   WrapZIL init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
@@ -2576,13 +2744,31 @@ transition SwapZILForExactTokensTwice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = builtin eq pool1 pool2;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in 
+    let b = get_from_address path2 in
+    builtin eq a b;
+  match is_valid_path with
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool2 path2 deadline_block;
   intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn intermediate_amt_in;
 
   GetAmountIn intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in _amount;
   match is_valid_amount_in with 
@@ -2595,8 +2781,6 @@ transition SwapZILForExactTokensTwice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path1;
-  VerifyWZILAddress wZIL;
   WrapZIL init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
@@ -2657,17 +2841,43 @@ transition SwapZILForExactTokensThrice(
   (* Set amt_out to 0 *)
   amt_out := zero_amount;
 
+  is_same_pool = 
+    let a = builtin eq pool1 pool2 in
+    let b = builtin eq pool2 pool3 in
+    let c = builtin eq pool1 pool3 in
+    let a_b = orb a b in
+    orb a_b c;
+  match is_same_pool with
+  | False => | True => 
+    err = CodeSamePools;
+    ThrowError err
+  end;
+
+  is_valid_path = 
+    let a = get_to_address path1 in
+    let b = get_from_address path2 in
+    let c = get_to_address path2 in
+    let d = get_from_address path3 in
+    let is_same_bridge1_token = builtin eq a b in
+    let is_same_bridge2_token = builtin eq c d in
+    andb is_same_bridge1_token is_same_bridge2_token;
+  match is_valid_path with 
+  | True => | False =>
+    err = CodeInvalidPaths;
+    ThrowError err
+  end;
+
+  wZIL = get_from_address path1;
+  VerifyWZILAddress wZIL;
+
   GetAmountIn amount_out pool3 path3 deadline_block;
   second_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn second_intermediate_amt_in;
   
   GetAmountIn second_intermediate_amt_in pool2 path2 deadline_block;
   first_intermediate_amt_in <- amt_in;
-  VerifyValidAmountIn first_intermediate_amt_in;
 
   GetAmountIn first_intermediate_amt_in pool1 path1 deadline_block;
   init_amt_in <- amt_in;
-  VerifyValidAmountIn init_amt_in;
 
   is_valid_amount_in = uint128_le init_amt_in _amount;
   match is_valid_amount_in with 
@@ -2680,8 +2890,6 @@ transition SwapZILForExactTokensThrice(
   accept;
 
   (* convert ZIL to wZIL *)
-  wZIL = get_from_address path1;
-  VerifyWZILAddress wZIL;
   WrapZIL init_amt_in;
 
   (* refund back remaining ZIL not used up in conversion to wZIL *)
