@@ -96,30 +96,30 @@ getVReserveBound = async (pool) => {
 
   const newPoolState = await poolContract.getState()
 
-  // Increase Allowance for LP Token (to transfer LP token to Pool)
-  const txIncreaseAllowance = await callContract(
-    privateKey, poolContract,
-    'IncreaseAllowance',
-    [
-      param('spender', 'ByStr20', routerAddress.toLowerCase()),
-      param('amount', 'Uint128', `${newPoolState.balances[ownerAddress.toLowerCase()]}`)
-    ],
-    0, false, false
-  )
-  console.log(`increasing allowance for spender: ${routerAddress}, on pool: ${poolAddress}`, txIncreaseAllowance.id);
+  // // Increase Allowance for LP Token (to transfer LP token to Pool)
+  // const txIncreaseAllowance = await callContract(
+  //   privateKey, poolContract,
+  //   'IncreaseAllowance',
+  //   [
+  //     param('spender', 'ByStr20', routerAddress.toLowerCase()),
+  //     param('amount', 'Uint128', `${newPoolState.balances[ownerAddress.toLowerCase()]}`)
+  //   ],
+  //   0, false, false
+  // )
+  // console.log(`increasing allowance for spender: ${routerAddress}, on pool: ${poolAddress}`, txIncreaseAllowance.id);
 
-  // Remove Liquidity
-  const txRemoveLiquidity = await callContract(
-    privateKey, routerContract,
-    'RemoveLiquidityZIL',
-    [
-      param('token', 'ByStr20', `${hunyAddress.toLowerCase()}`),
-      param('pool', 'ByStr20', `${poolAddress.toLowerCase()}`),
-      param('liquidity', 'Uint128', `${newPoolState.balances[ownerAddress.toLowerCase()]}`),
-      param('amount_token_min', 'Uint128', '0'),
-      param('amount_wZIL_min', 'Uint128', '0'),
-    ],
-    0, false, true
-  )
-  console.log(`removing liquidity from pool: ${poolAddress}`, txRemoveLiquidity.id);
+  // // Remove Liquidity
+  // const txRemoveLiquidity = await callContract(
+  //   privateKey, routerContract,
+  //   'RemoveLiquidityZIL',
+  //   [
+  //     param('token', 'ByStr20', `${hunyAddress.toLowerCase()}`),
+  //     param('pool', 'ByStr20', `${poolAddress.toLowerCase()}`),
+  //     param('liquidity', 'Uint128', `${newPoolState.balances[ownerAddress.toLowerCase()]}`),
+  //     param('amount_token_min', 'Uint128', '0'),
+  //     param('amount_wZIL_min', 'Uint128', '0'),
+  //   ],
+  //   0, false, true
+  // )
+  // console.log(`removing liquidity from pool: ${poolAddress}`, txRemoveLiquidity.id);
 })();

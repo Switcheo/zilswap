@@ -963,7 +963,7 @@ transition Mint(to : ByStr20)
     Update is_amp_pool data;
     UpdateLastK is_amp_pool data;
 
-    e = {_eventname: "PoolMinted"; minter: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
+    e = {_eventname: "PoolMinted"; minter: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
     event e
   end
 end
@@ -1052,7 +1052,7 @@ transition Burn()
   Update is_amp_pool data;
   UpdateLastK is_amp_pool data;
 
-  e = {_eventname: "PoolBurnt"; burner: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
+  e = {_eventname: "PoolBurnt"; burner: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
   event e
 end
 
