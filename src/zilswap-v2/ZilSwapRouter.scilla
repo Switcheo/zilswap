@@ -1087,7 +1087,7 @@ transition AddPool(
   f <- & pool.factory;
   IsSelf f;
 
-  (* IsValidPoolContract pool; *)
+  IsValidPoolContract pool;
 
   (* TODO: not possible now as init var cannot be fetched *)
   (* validate name and symbol *)
