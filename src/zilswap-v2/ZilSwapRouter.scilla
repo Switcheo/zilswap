@@ -235,11 +235,12 @@ let unsafe_pow_in_precision =
   fun (k: Uint256) =>
     let z_in_precision = get_z_in_precision x_in_precision k in
 
-    let m = Uint32 128 in
+    let m = Uint32 256 in
     let m_nat = u32_to_nat_or_zero m in (* max no of loops is fixed at 128 times *)
 
     let xz_pair = Pair {Uint256 Uint256} x_in_precision z_in_precision in
-    let init_pair = Pair {Uint256 (Pair Uint256 Uint256)} k xz_pair in
+    let k_divided_by_2 = builtin div k two_u256 in
+    let init_pair = Pair {Uint256 (Pair Uint256 Uint256)} k_divided_by_2 xz_pair in
 
     let foldk = @nat_foldk (Pair Uint256 (Pair Uint256 Uint256)) in (* k (Pair x_in_precision z_in_precision) *)
     let iter =
@@ -257,7 +258,7 @@ let unsafe_pow_in_precision =
               let new_k = builtin div k two_u256 in
               let inter_x_in_precision = builtin mul x_in_precision x_in_precision in
               let new_x_in_precision = builtin div inter_x_in_precision precision in
-              let mod = builtin rem new_k two_u256 in
+              let mod = builtin rem k two_u256 in
               let is_odd = builtin eq mod one_u256 in
               match is_odd with
               | False =>
