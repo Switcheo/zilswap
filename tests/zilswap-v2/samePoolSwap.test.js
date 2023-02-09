@@ -1,22 +1,25 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
-const { callContract } = require('../../scripts/call.js')
+const { callContract, nextBlock } = require('../../scripts/call.js')
 const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 const { param } = require("../../scripts/zilliqa");
 
 let wZil, token0, token1, owner, feeAccount, tx, pool, router, prevPoolState, newPoolState, prevToken0State, prevToken1State, newToken0State, newToken1State
-const init_liquidity = 100
-let amountIn = 10
-let amountInMax = 1000
+const init_liquidity = 15
+let amountIn = 14.999_999_999_999
+let amountInMax = 100
 let amountOut = 10
-let amountOutMin = 1
+let amountOutMin = 0
 const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
+
+const userPrivateKey = '589417286a3213dceb37f8f89bd164c3505a4cec9200c61f7c6db13a30a71b45'
+const userAddress = '0xf6dad9e193fa2959a849b81caf9cb6ecde466771'
 
 describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
 
   beforeAll(async () => {
-    await setup(false)
+    await setup(true)
   })
 
   afterAll(async () => {
@@ -56,145 +59,67 @@ describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
   })
 
   test('swap exact token0 for token1 (Non-amp pool)', async () => {
-    // 3 isolated swap tests
+    console.log("INITIAL POOL STATE: \n")
+    console.log("reserve0: ",prevPoolState.reserve0)
+    console.log("reserve1: ", prevPoolState.reserve1)
+    console.log("vreserve0: ",prevPoolState.v_reserve0)
+    console.log("vreserve1: ", prevPoolState.v_reserve1)
+    for (let i = 0; i < 10; i++) {
+      // 3 isolated swap tests
+      tx = await callContract(
+        owner.key, router,
+        'SwapExactTokensForTokensOnce',
+        [
+          param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+          param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+          param('pool', 'ByStr20', pool.address.toLowerCase()),
+          param('path', 'Pair (ByStr20) (ByStr20)', {
+            "constructor": "Pair",
+            "argtypes": ["ByStr20", "ByStr20"],
+            "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
+          })
+        ],
+        0, false, true
+      )
+      expect(tx.status).toEqual(2)
+      let amountOut = tx.receipt.event_logs[1].params[5].value
+      console.log(tx.receipt.event_logs[1].params)
+      console.log("amount out for token1: ", amountOut)
+      let poolState = await pool.getState()
+      console.log("reserve0: ",poolState.reserve0)
+      console.log("reserve1: ", poolState.reserve1)
+      console.log("vreserve0: ",poolState.v_reserve0)
+      console.log("vreserve1: ", poolState.v_reserve1)
 
-    tx = await callContract(
-      owner.key, router,
-      'SwapExactTokensForTokensOnce',
-      [
-        param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-        param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-        param('pool', 'ByStr20', pool.address.toLowerCase()),
-        param('path', 'Pair (ByStr20) (ByStr20)', {
-          "constructor": "Pair",
-          "argtypes": ["ByStr20", "ByStr20"],
-          "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-        })
-      ],
-      0, false, true
-    )
-    expect(tx.status).toEqual(2)
-    let amountOut = tx.receipt.event_logs[1].params[5].value
-    console.log(tx.receipt.event_logs[1].params)
-    console.log(amountOut)
+      for (let i = 0; i < 30; i++) {
+        await nextBlock()
+      }
 
-    // tx = await callContract(
-    //   owner.key, router,
-    //   'SwapExactTokensForTokensOnce',
-    //   [
-    //     param('amount_in', 'Uint128', amountOut),
-    //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-    //     param('pool', 'ByStr20', pool.address.toLowerCase()),
-    //     param('path', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-    //     })
-    //   ],
-    //   0, false, true
-    // )
-    // expect(tx.status).toEqual(2)
-    // amountOut = tx.receipt.event_logs[1].params[4].value
-    // console.log(tx.receipt.event_logs[1].params)
-    // console.log(amountOut)
-
-    // tx = await callContract(
-    //   owner.key, router,
-    //   'SwapExactTokensForTokensOnce',
-    //   [
-    //     param('amount_in', 'Uint128', amountOut),
-    //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-    //     param('pool', 'ByStr20', pool.address.toLowerCase()),
-    //     param('path', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-    //     })
-    //   ],
-    //   0, false, true
-    // )
-    // expect(tx.status).toEqual(2)
-
-    // 2 double double swap test
-
-    // tx = await callContract(
-    //   owner.key, router,
-    //   'SwapExactTokensForTokensTwice',
-    //   [
-    //     param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-    //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-    //     param('pool1', 'ByStr20', pool.address.toLowerCase()),
-    //     param('pool2', 'ByStr20', pool.address.toLowerCase()),
-    //     param('path1', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-    //     }),
-    //     param('path2', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-    //     })
-    //   ],
-    //   0, false, true
-    // )
-    // expect(tx.status).toEqual(2)
-    // let amountOut = tx.receipt.event_logs[5].params[4].value
-    // console.log(amountOut)
-
-    // tx = await callContract(
-    //   owner.key, router,
-    //   'SwapExactTokensForTokensTwice',
-    //   [
-    //     param('amount_in', 'Uint128', amountOut),
-    //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-    //     param('pool1', 'ByStr20', pool.address.toLowerCase()),
-    //     param('pool2', 'ByStr20', pool.address.toLowerCase()),
-    //     param('path1', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-    //     }),
-    //     param('path2', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-    //     })
-    //   ],
-    //   0, false, true
-    // )
-    // expect(tx.status).toEqual(2)
-
-    // 1 single triple swap test
-
-    // tx = await callContract(
-    //   owner.key, router,
-    //   'SwapExactTokensForTokensThrice',
-    //   [
-    //     param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
-    //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
-    //     param('pool1', 'ByStr20', pool.address.toLowerCase()),
-    //     param('pool2', 'ByStr20', pool.address.toLowerCase()),
-    //     param('pool3', 'ByStr20', pool.address.toLowerCase()),
-    //     param('path1', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-    //     }),
-    //     param('path2', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
-    //     }),
-    //     param('path3', 'Pair (ByStr20) (ByStr20)', {
-    //       "constructor": "Pair",
-    //       "argtypes": ["ByStr20", "ByStr20"],
-    //       "arguments": [`${token0.address.toLowerCase()}`, `${token1.address.toLowerCase()}`]
-    //     })
-    //   ],
-    //   0, false, true
-    // )
-    // expect(tx.status).toEqual(2)
+      // tx = await callContract(
+      //   owner.key, router,
+      //   'SwapExactTokensForTokensOnce',
+      //   [
+      //     param('amount_in', 'Uint128', `${(new BigNumber(amountIn)).shiftedBy(12)}`),
+      //     param('amount_out_min', 'Uint128', `${(new BigNumber(amountOutMin)).shiftedBy(12)}`),
+      //     param('pool', 'ByStr20', pool.address.toLowerCase()),
+      //     param('path', 'Pair (ByStr20) (ByStr20)', {
+      //       "constructor": "Pair",
+      //       "argtypes": ["ByStr20", "ByStr20"],
+      //       "arguments": [`${token1.address.toLowerCase()}`, `${token0.address.toLowerCase()}`]
+      //     })
+      //   ],
+      //   0, false, true
+      // )
+      // expect(tx.status).toEqual(2)
+      // amountOut = tx.receipt.event_logs[1].params[4].value
+      // console.log(tx.receipt.event_logs[1].params)
+      // console.log("amount out for token0: ", amountOut)
+      // poolState = await pool.getState()
+      // console.log("reserve0: ",poolState.reserve0)
+      // console.log("reserve1: ", poolState.reserve1)
+      // console.log("vreserve0: ",poolState.v_reserve0)
+      // console.log("vreserve1: ", poolState.v_reserve1)
+    }
   })
 })
 
@@ -254,6 +179,32 @@ setup = async (isAmpPool) => {
     0, false, true
   )
   expect(tx.status).toEqual(2)
+
+  // // transfer token0 and token1 to user
+  // const transferToken0Tx = await callContract(owner.key, token0, "Transfer", [
+  //   param('to', 'ByStr20', userAddress),
+  //   param('amount', 'Uint128', `${(new BigNumber(100)).shiftedBy(12).toString()}`)
+  // ], 0 , false, false)
+  // console.log('transfer token0 from owner to user', transferToken0Tx.id)
+
+  // const transferToken1Tx = await callContract(owner.key, token1, "Transfer", [
+  //   param('to', 'ByStr20', userAddress),
+  //   param('amount', 'Uint128', `${(new BigNumber(100)).shiftedBy(12).toString()}`)
+  // ], 0 , false, false)
+  // console.log('transfer token1 from owner to user', transferToken1Tx.id)
+
+  // // increase allowance of router for userAddress on token0 and token1
+  // const increaseAllowanceToken0Tx = await callContract(userPrivateKey, token0, "IncreaseAllowance", [
+  //   param('spender', 'ByStr20', router.address),
+  //   param('amount', 'Uint128', `${(new BigNumber(100000000)).shiftedBy(12).toString()}`)
+  // ], 0, false, false)
+  // console.log('increase allowance of token0 on router', increaseAllowanceToken0Tx.id)
+
+  // const increaseAllowanceToken1Tx = await callContract(userPrivateKey, token1, "IncreaseAllowance", [
+  //   param('spender', 'ByStr20', router.address),
+  //   param('amount', 'Uint128', `${(new BigNumber(100000000)).shiftedBy(12).toString()}`)
+  // ], 0, false, false)
+  // console.log('increase allowance of token0 on router', increaseAllowanceToken1Tx.id)
 }
 
 getVReserveBound = async (pool) => {
