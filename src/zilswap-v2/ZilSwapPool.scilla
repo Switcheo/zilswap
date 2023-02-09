@@ -200,7 +200,7 @@ let unsafe_pow_in_precision =
     let z_in_precision = get_z_in_precision x_in_precision k in
 
     let m = Uint32 256 in
-    let m_nat = u32_to_nat_or_zero m in (* max no of loops is fixed at 128 times *)
+    let m_nat = u32_to_nat_or_zero m in (* max no of loops is fixed at 256 times *)
 
     let xz_pair = Pair {Uint256 Uint256} x_in_precision z_in_precision in
     let k_divided_by_2 = builtin div k two_u256 in
