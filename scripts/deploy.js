@@ -620,6 +620,28 @@ async function useZilswapV2Router(privateKey, params = {}, useExisting = process
   return deployZilswapV2Router(privateKey, params)
 }
 
+async function deployDefaultZilswapV2Pool(privateKey) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Load file and contract initialization variables
+  const file = `./src/zilswap-v2/ZilSwapPool.scilla`
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    }
+  ];
+  console.log(init)
+
+  console.info(`Deploying zilswap-v2 pool...`)
+  return deployContract(privateKey, file, init)
+}
+
 async function deployZilswapV2Pool(privateKey, { owner = null, factory = null, token0 = null, token1 = null, init_amp_bps = '10000', name, symbol } = {}) {
   // Check for key
   if (!privateKey || privateKey === '') {
@@ -628,7 +650,7 @@ async function deployZilswapV2Pool(privateKey, { owner = null, factory = null, t
 
   // Default vars
   if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
-  if (!factory) factory = useZilSwapV2Router(privateKey)
+  if (!factory) factory = useZilswapV2Router(privateKey)
   if (!token0) token0 = useFungibleToken(privateKey)
   if (!token1) token1 = useFungibleToken(privateKey)
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
@@ -669,11 +691,6 @@ async function deployZilswapV2Pool(privateKey, { owner = null, factory = null, t
       vname: 'init_amp_bps',
       type: 'Uint128',
       value: init_amp_bps,
-    },
-    {
-      vname: 'contract_owner',
-      type: 'ByStr20',
-      value: factory.address.toLowerCase(),
     },
     {
       vname: 'name',
@@ -944,7 +961,7 @@ async function deployContract(privateKey, file, init) {
       version: VERSION,
       amount: new BN(0),
       gasPrice: new BN(minGasPrice.result),
-      gasLimit: Long.fromNumber(80000),
+      gasLimit: Long.fromNumber(100000),
     },
     false,
   )
@@ -1058,6 +1075,7 @@ exports.useNonFungibleToken = useNonFungibleToken
 
 exports.deployZilswap = deployZilswap
 exports.deployZilswapV2Router = deployZilswapV2Router
+exports.deployDefaultZilswapV2Pool = deployDefaultZilswapV2Pool
 exports.deployZilswapV2Pool = deployZilswapV2Pool
 exports.useZilswap = useZilswap
 exports.useZilswapV2Router = useZilswapV2Router
