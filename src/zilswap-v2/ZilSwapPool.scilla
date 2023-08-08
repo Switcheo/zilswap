@@ -382,6 +382,7 @@ type Error =
 | CodeParamsAlreadySet
 | CodeInvalidFactoryContract
 | CodeInvalidTokenContract
+| CodeInvalidTokenOrder
 
 let make_error =
   fun (result : Error) =>
@@ -401,6 +402,7 @@ let make_error =
       | CodeParamsAlreadySet       =>  Int32 -12
       | CodeInvalidFactoryContract =>  Int32 -13
       | CodeInvalidTokenContract   =>  Int32 -14
+      | CodeInvalidTokenOrder      =>  Int32 -15
       end
     in
     { _exception : "Error"; code : result_code }
@@ -1402,32 +1404,42 @@ transition SetInitParams(
     err = CodeParamsAlreadySet;
     ThrowError err
   | True =>
-    token0 := init_token0;
-    token1 := init_token1;
-    factory := _sender;
-    amp_bps := init_amp_bps;
-    name := init_name;
-    symbol := init_symbol;
+    is_valid_token_order =
+      let a = builtin to_uint256 init_token0 in
+      let b = builtin to_uint256 init_token1 in
+      builtin lt a b;
+    match is_valid_token_order with
+    | False =>
+      err = CodeInvalidTokenOrder;
+      ThrowError err
+    | True =>
+      token0 := init_token0;
+      token1 := init_token1;
+      factory := _sender;
+      amp_bps := init_amp_bps;
+      name := init_name;
+      symbol := init_symbol;
 
-    (* invoke callback on router side to finish adding pool *)
-    msg_to_router = {
-      _tag: "AddPoolSuccessCallBack";
-      _recipient: _sender;
-      _amount: zero_amount;
-      pool: _this_address
-    };
-    msg = one_msg msg_to_router;
-    send msg;
+      (* invoke callback on router side to finish adding pool *)
+      msg_to_router = {
+        _tag: "AddPoolSuccessCallBack";
+        _recipient: _sender;
+        _amount: zero_amount;
+        pool: _this_address
+      };
+      msg = one_msg msg_to_router;
+      send msg;
 
-    e = {
-      _eventname: "PoolInitialised";
-      init_token0: init_token0;
-      init_token1: init_token1;
-      init_factory: _sender;
-      init_amp_bps: init_amp_bps;
-      init_name: init_name;
-      init_symbol: init_symbol
-    };
-    event e
+      e = {
+        _eventname: "PoolInitialised";
+        init_token0: init_token0;
+        init_token1: init_token1;
+        init_factory: _sender;
+        init_amp_bps: init_amp_bps;
+        init_name: init_name;
+        init_symbol: init_symbol
+      };
+      event e
+    end
   end
 end
