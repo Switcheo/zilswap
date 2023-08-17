@@ -10,8 +10,8 @@ async function compile(file) {
 }
 
 function compress(code) {
-  return code.replace(matchComments, '').replace(matchWhitespace, ' ')
-  // return code.replace(matchComments, '')
+  // return code.replace(matchComments, '').replace(matchWhitespace, ' ')
+  return code.replace(matchComments, '')
 }
 
 const matchComments = /[(][*].*?[*][)]/gs

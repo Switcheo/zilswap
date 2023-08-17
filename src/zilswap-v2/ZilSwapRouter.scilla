@@ -1077,35 +1077,59 @@ end
 (***************************************)
 
 transition AddPool(
-  init_token0 : ByStr20 with contract
-    field total_supply : Uint128,
-    field balances: Map ByStr20 Uint128,
-    field allowances: Map ByStr20 (Map ByStr20 Uint128)
-  end,
-  init_token1 : ByStr20 with contract
-    field total_supply : Uint128,
-    field balances: Map ByStr20 Uint128,
-    field allowances: Map ByStr20 (Map ByStr20 Uint128)
-  end,
-  init_amp_bps : Uint128,
-  init_name : String,
-  init_symbol : String,
-  pool : ByStr20
+  pool : ByStr20 with contract
+    field token0 : ByStr20,
+    field token1 : ByStr20,
+    field factory : ByStr20,
+    field amp_bps : Uint128
+  end
 )
+  (* validate factory *)
+  f <- & pool.factory;
+  IsSelf f;
+
   IsValidPoolContract pool;
 
-  msg_to_pool = {
-    _tag: "SetInitParams";
-    _recipient: pool;
-    _amount: zero_amount;
-    init_token0: init_token0;
-    init_token1: init_token1;
-    init_amp_bps: init_amp_bps;
-    init_name: init_name;
-    init_symbol: init_symbol
-  };
-  msg = one_msg msg_to_pool;
-  send msg
+  (* TODO: not possible now as init var cannot be fetched *)
+  (* validate name and symbol *)
+  (* t0 <- & pool.token0;
+  symbol <- & t0 as ByStr20 with contract field symbol : String end;
+  match symbol with
+  | Some _ =>
+  | None =>
+    err = CodeNotSelf;
+    ThrowError err
+  end *)
+
+  (* populate pool mapping for both directions *)
+  token0 <- & pool.token0;
+  token1 <- & pool.token1;
+  AddOnceToPools token0 token1 pool;
+  AddOnceToPools token1 token0 pool;
+
+  amp_bps <- & pool.amp_bps;
+  is_unamplified = builtin eq bps amp_bps;
+  match is_unamplified with
+  | False =>
+  | True =>
+    (* only allow one umaplified pool *)
+    is_exists <- exists unamplified_pools[token0][token1];
+    match is_exists with
+    | False =>
+    | True =>
+      err = CodeDuplicateUnamplifiedPool;
+      ThrowError err
+    end;
+    unamplified_pools[token0][token1] := pool;
+    unamplified_pools[token1][token0] := pool
+  end;
+
+  ap <- all_pools;
+  new_ap = add_once ap pool;
+  all_pools := new_ap;
+
+  e = {_eventname: "PoolCreated"; token0: token0; token1: token1; amp_bps: amp_bps};
+  event e
 end
 
 (*** Governance ***)
@@ -2886,16 +2910,6 @@ transition SwapZILForExactTokensThrice(
   amt_in := zero_amount (* Reassign back to 0 *)
 end
 
-transition SetPoolHash(codehash: ByStr32)
-  IsGovernor _sender;
-  pool_codehash := codehash;
-  e = {
-    _eventname : "PoolCodeHashSet";
-    pool_codehash : codehash
-  };
-  event e
-end
-
 (*************************************)
 (*             Callbacks             *)
 (*************************************)
@@ -2948,48 +2962,4 @@ transition AddFunds()
 
   msg = one_msg msg_to_origin;
   send msg
-end
-
-(* @dev: Handle callback when adding new pool to router *)
-transition AddPoolSuccessCallBack(
-  pool : ByStr20 with contract
-    field token0 : ByStr20,
-    field token1 : ByStr20,
-    field factory : ByStr20,
-    field amp_bps : Uint128
-end
-)
-  (* validate factory *)
-  f <- & pool.factory;
-  IsSelf f;
-
-  (* populate pool mapping for both directions *)
-  token0 <- & pool.token0;
-  token1 <- & pool.token1;
-  AddOnceToPools token0 token1 pool;
-  AddOnceToPools token1 token0 pool;
-
-  amp_bps <- & pool.amp_bps;
-  is_unamplified = builtin eq bps amp_bps;
-  match is_unamplified with
-  | False =>
-  | True =>
-    (* only allow one unamplified pool *)
-    is_exists <- exists unamplified_pools[token0][token1];
-    match is_exists with
-    | False =>
-    | True =>
-      err = CodeDuplicateUnamplifiedPool;
-      ThrowError err
-    end;
-    unamplified_pools[token0][token1] := pool;
-    unamplified_pools[token1][token0] := pool
-  end;
-
-  ap <- all_pools;
-  new_ap = add_once ap pool;
-  all_pools := new_ap;
-
-  e = {_eventname: "PoolCreated"; token0: token0; token1: token1; amp_bps: amp_bps};
-  event e
 end

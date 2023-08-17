@@ -7,9 +7,7 @@ library ZilSwapPool
 type ReserveData =
 | ReserveData of Uint128 Uint128 Uint128 Uint128 (* reserve0, reserve1, vReserve0, vReserve1 *)
 
-let empty_string = ""
 let zero_address = 0x0000000000000000000000000000000000000000
-let twelve_amount_u32 = Uint32 12
 let zero_amount = Uint128 0
 let zero_block = BNum 0
 let minimum_liquidity = Uint128 1000
@@ -18,8 +16,6 @@ let half_bps = Uint128 5000
 let precision = Uint256 1000000000000000000 (* for decimal calculations (18dp precision) *)
 let short_alpha = Uint256 370301795963710 (* 2 * precision / 5401 *)
 let long_alpha = Uint256 185168039996296 (* (2 * precision) / 10801 *)
-let true = True
-let false = False
 
 (* constants used for get_fee *)
 let zero_u256 = Uint256 0
@@ -379,28 +375,22 @@ type Error =
 | CodeUnsyncedReserves
 | CodeInvalidBalance
 | CodeInsufficientAmount
-| CodeParamsAlreadySet
-| CodeInvalidFactoryContract
-| CodeInvalidTokenContract
 
 let make_error =
   fun (result : Error) =>
     let result_code =
       match result with
-      | CodeIsSender               =>  Int32 -1
-      | CodeInsufficientFunds      =>  Int32 -2
-      | CodeInsufficientAllowance  =>  Int32 -3
-      | CodeNotFactory             =>  Int32 -4
-      | CodeInsufficientInput      =>  Int32 -5
-      | CodeInsufficientOutput     =>  Int32 -6
-      | CodeInsufficientLiquidity  =>  Int32 -7
-      | CodeInvalidToAddress       =>  Int32 -8
-      | CodeUnsyncedReserves       =>  Int32 -9
-      | CodeInvalidBalance         =>  Int32 -10
-      | CodeInsufficientAmount     =>  Int32 -11
-      | CodeParamsAlreadySet       =>  Int32 -12
-      | CodeInvalidFactoryContract =>  Int32 -13
-      | CodeInvalidTokenContract   =>  Int32 -14
+      | CodeIsSender              => Int32 -1
+      | CodeInsufficientFunds     => Int32 -2
+      | CodeInsufficientAllowance => Int32 -3
+      | CodeNotFactory            => Int32 -4
+      | CodeInsufficientInput     => Int32 -5
+      | CodeInsufficientOutput    => Int32 -6
+      | CodeInsufficientLiquidity => Int32 -7
+      | CodeInvalidToAddress      => Int32 -8
+      | CodeUnsyncedReserves      => Int32 -9
+      | CodeInvalidBalance        => Int32 -10
+      | CodeInsufficientAmount    => Int32 -11
       end
     in
     { _exception : "Error"; code : result_code }
@@ -409,17 +399,71 @@ let make_error =
 type Unit =
 | Unit
 
-contract ZilSwapPool()
+contract ZilSwapPool
+(
+  init_token0 : ByStr20 with contract
+    field total_supply : Uint128,
+    field balances: Map ByStr20 Uint128,
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end,
+  init_token1 : ByStr20 with contract
+    field total_supply : Uint128,
+    field balances: Map ByStr20 Uint128,
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end,
+  init_factory : ByStr20 with contract
+    field fee_configuration : Pair ByStr20 Uint128
+  end,
+  init_amp_bps : Uint128,
+  (* zrc-2 required vars *)
+  contract_owner: ByStr20,
+  name : String,
+  symbol : String,
+  decimals : Uint32,
+  init_supply : Uint128
+)
+
+with
+  let not_identical_address = let eql = builtin eq init_token0 init_token1 in negb eql in
+  let not_zero_address = let eql = builtin eq init_token0 zero_address in negb eql in
+  let valid_bps = uint128_ge init_amp_bps bps in
+  let valid_token_order = let a = builtin to_uint256 init_token0 in let b = builtin to_uint256 init_token1 in builtin lt a b in
+  (* validate zrc-2 required vars *)
+  let valid_owner = builtin eq init_factory contract_owner in
+  let valid_init_supply = builtin eq init_supply zero_amount in
+  let valid_decimals = let twelve = Uint32 12 in builtin eq decimals twelve in
+  (* @dev: symbol and name is validated by initializer *)
+
+  let l0 = Nil {Bool} in
+  let l1 = Cons {Bool} not_identical_address l0 in
+  let l2 = Cons {Bool} not_zero_address l1 in
+  let l3 = Cons {Bool} valid_bps l2 in
+  let l4 = Cons {Bool} valid_token_order l3 in
+  let l5 = Cons {Bool} valid_owner l4 in
+  let l6 = Cons {Bool} valid_init_supply l5 in
+  let l7 = Cons {Bool} valid_decimals l6 in
+  all_true l7
+=>
 
 (* @dev: to allow reading of these values by other contracts, these vars are not immutable even though
    @dev: they are never changed and cannot be changed. *)
-field factory : ByStr20 = zero_address
-field token0 : ByStr20 = zero_address
-field token1 : ByStr20 = zero_address
+field factory : ByStr20 with contract
+  field fee_configuration : Pair ByStr20 Uint128 (* _feeTo, _governanceFeeBps *)
+end = init_factory
+field token0 : ByStr20 with contract
+  field total_supply : Uint128,
+  field balances: Map ByStr20 Uint128,
+  field allowances: Map ByStr20 (Map ByStr20 Uint128)
+end = init_token0
+field token1 : ByStr20 with contract
+  field total_supply : Uint128,
+  field balances: Map ByStr20 Uint128,
+  field allowances: Map ByStr20 (Map ByStr20 Uint128)
+end = init_token1
 
 field reserve0 : Uint128 = zero_amount
 field reserve1 : Uint128 = zero_amount
-field amp_bps : Uint128 = zero_amount
+field amp_bps : Uint128 = init_amp_bps
 field r_factor_in_precision : Uint256 = zero_u256
 
 (* @dev: only used when amp factor > 1 *)
@@ -436,12 +480,6 @@ field last_trade_block : BNum = zero_block
 field total_supply : Uint128 = zero_amount
 field balances: Map ByStr20 Uint128 = Emp ByStr20 Uint128
 field allowances: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
-
-(* @dev: for init *)
-field name: String = empty_string
-field symbol: String = empty_string
-field decimals: Uint32 = twelve_amount_u32
-field init_supply: Uint128 = zero_amount
 
 (**************************************)
 (*             Procedures             *)
@@ -534,74 +572,63 @@ end
 
 (* @dev: If fee is on, mint LP tokens equivalent to configured fee of the growth in sqrt(k)*)
 procedure MintFee(is_amp_pool: Bool)
-  factory_contract_address <- factory;
-  maybe_factory_contract <- & factory_contract_address as ByStr20 with contract
-    field fee_configuration : Pair ByStr20 Uint128
-  end;
+  fee_config <- & init_factory.fee_configuration;
+  match fee_config with
+  | Pair fee_to fee_bps =>
+    is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
+    kl <- k_last;
+    v_r0_ <- v_reserve0;
+    v_r1_ <- v_reserve1;
+    r0_ <- reserve0;
+    r1_ <- reserve1;
+    r0 = match is_amp_pool with | False => r0_ | True => v_r0_ end;
+    r1 = match is_amp_pool with | False => r1_ | True => v_r1_ end;
+    r0_u256 = grow r0;
+    r1_u256 = grow r1;
+    kl_u256 = grow kl;
 
-  match maybe_factory_contract with
-  | None =>
-    err = CodeInvalidFactoryContract;
-    ThrowError err
-  | Some factory_contract =>
-    fee_config <- & factory_contract.fee_configuration;
-    match fee_config with
-    | Pair fee_to fee_bps =>
-      is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
-      kl <- k_last;
-      v_r0_ <- v_reserve0;
-      v_r1_ <- v_reserve1;
-      r0_ <- reserve0;
-      r1_ <- reserve1;
-      r0 = match is_amp_pool with | False => r0_ | True => v_r0_ end;
-      r1 = match is_amp_pool with | False => r1_ | True => v_r1_ end;
-      r0_u256 = grow r0;
-      r1_u256 = grow r1;
-      kl_u256 = grow kl;
-
-      match is_fee_on with (* Checks if fee_config is set *)
+    match is_fee_on with (* Checks if fee_config is set *)
+    | False =>
+      is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
+      match is_not_eq_zero with
       | False =>
-        is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
-        match is_not_eq_zero with
-        | False =>
-        | True =>
-          k_last := zero_amount
-        end
       | True =>
-        is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
-        match is_not_eq_zero with
+        k_last := zero_amount
+      end
+    | True =>
+      is_not_eq_zero = let a = builtin eq kl zero_amount in negb a;
+      match is_not_eq_zero with
+      | False =>
+      | True =>
+        t_u256 = u128_mul_grow kl r0;
+        t_r0_u256 = builtin div t_u256 r0_u256;
+        is_eq = builtin eq t_r0_u256 kl_u256;
+        collected_fee = match is_eq with (* value is in token 0 *)
+        | True =>
+          (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
+          let t_r1_u256 = builtin div t_u256 r1_u256 in
+          let sqrt_u256 = builtin isqrt t_r1_u256 in
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
+        | False =>
+          (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
+          let kl_r1 = builtin div kl r1 in
+          let kl_r1_r0_u256 = u128_mul_grow kl_r1 r0 in
+          let sqrt_u256 = builtin isqrt kl_r1_r0_u256 in
+          let sub_u256 = builtin sub r0_u256 sqrt_u256 in
+          reduce sub_u256
+        end;
+        pool_value = let r1_value = frac r1_ r0 r1 in builtin add r0_ r1_value; (* value in token0 *)
+        ts <- total_supply;
+        liquidity =
+          let numerator = let a = builtin mul ts collected_fee in builtin mul a fee_bps in
+          let denominator = let a = builtin sub pool_value collected_fee in builtin mul a half_bps in
+          builtin div numerator denominator;
+        has_fee = uint128_gt liquidity zero_amount;
+        match has_fee with 
         | False =>
         | True =>
-          t_u256 = u128_mul_grow kl r0;
-          t_r0_u256 = builtin div t_u256 r0_u256;
-          is_eq = builtin eq t_r0_u256 kl_u256;
-          collected_fee = match is_eq with (* value is in token 0 *)
-          | True =>
-            (* _vReserve0.sub(MathExt.sqrt(_tmp.div(_vReserve1))); *)
-            let t_r1_u256 = builtin div t_u256 r1_u256 in
-            let sqrt_u256 = builtin isqrt t_r1_u256 in
-            let sub_u256 = builtin sub r0_u256 sqrt_u256 in
-            reduce sub_u256
-          | False =>
-            (* _vReserve0.sub(MathExt.sqrt(_kLast.div(_vReserve1).mul(_vReserve0))); *)
-            let kl_r1 = builtin div kl r1 in
-            let kl_r1_r0_u256 = u128_mul_grow kl_r1 r0 in
-            let sqrt_u256 = builtin isqrt kl_r1_r0_u256 in
-            let sub_u256 = builtin sub r0_u256 sqrt_u256 in
-            reduce sub_u256
-          end;
-          pool_value = let r1_value = frac r1_ r0 r1 in builtin add r0_ r1_value; (* value in token0 *)
-          ts <- total_supply;
-          liquidity =
-            let numerator = let a = builtin mul ts collected_fee in builtin mul a fee_bps in
-            let denominator = let a = builtin sub pool_value collected_fee in builtin mul a half_bps in
-            builtin div numerator denominator;
-          has_fee = uint128_gt liquidity zero_amount;
-          match has_fee with 
-          | False =>
-          | True =>
-            AuthorizedMint fee_to liquidity
-          end
+          AuthorizedMint fee_to liquidity
         end
       end
     end
@@ -864,103 +891,81 @@ end
 (* @dev This low-level function should be called from a contract
    which performs important safety checks *)
 transition Mint(to : ByStr20)
-  token0_contract_address <- token0;
-  token1_contract_address <- token1;
-  
-  maybe_token0_contract <- & token0_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
-  maybe_token1_contract <- & token1_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+
+  r0 <- reserve0;
+  r1 <- reserve1;
+  vr0 <- v_reserve0;
+  vr1 <- v_reserve1;
+
+  m_r0 <- & init_token0.balances[_this_address];
+  new_r0 = get_amount_or_zero m_r0;
+  m_r1 <- & init_token1.balances[_this_address];
+  new_r1 = get_amount_or_zero m_r1;
+
+  (* Amount of zrc2 tokens transferred to pool by liquidity provider *)
+  amount0 = builtin sub new_r0 r0;
+  amount1 = builtin sub new_r1 r1;
+
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+
+  is_zero = builtin eq supply zero_amount;
+  result = match is_zero with
+  | True =>
+    (* new pool *)
+    let data = match is_amp_pool with
+    | False =>
+      ReserveData new_r0 new_r1 zero_amount zero_amount
+    | True =>
+      let v_r0 = let n0 = builtin mul new_r0 amp in builtin div n0 bps in
+      let v_r1 = let n1 = builtin mul new_r1 amp in builtin div n1 bps in
+      ReserveData new_r0 new_r1 v_r0 v_r1
+    end in
+    let liquidity = let x = builtin mul amount0 amount1 in let y = builtin isqrt x in builtin sub y minimum_liquidity in
+    Pair {Uint128 ReserveData} liquidity data
+  | False =>
+    (* existing pool *)
+    let liquidity =
+      let a = frac amount0 supply r0 in
+      let b = frac amount1 supply r1 in
+      min a b
+    in
+    let data = match is_amp_pool with
+    | False =>
+      ReserveData new_r0 new_r1 zero_amount zero_amount
+    | True =>
+      let ls = builtin add liquidity supply in
+      let v_r0 = let n0 = frac vr0 ls supply in max n0 new_r0 in
+      let v_r1 = let n1 = frac vr1 ls supply in max n1 new_r1 in
+      ReserveData new_r0 new_r1 v_r0 v_r1
+    end in
+    Pair {Uint128 ReserveData} liquidity data
   end;
 
-  match maybe_token0_contract with
-  | None =>
-    err = CodeInvalidTokenContract;
-    ThrowError err
-  | Some token0_contract =>
-    match maybe_token1_contract with
-    | None =>
-      err = CodeInvalidTokenContract;
+  match is_zero with
+  | False => | True =>
+    (* permanently lock the first minimum_liquidity tokens *)
+    AuthorizedMint zero_address minimum_liquidity
+  end;
+
+  match result with
+  | Pair liquidity data =>
+    mint_failed = builtin eq liquidity zero_amount;
+    match mint_failed with
+    | False => | True =>
+      err = CodeInsufficientLiquidity;
       ThrowError err
-    | Some token1_contract =>
-      amp <- amp_bps;
-      is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
-  
-      r0 <- reserve0;
-      r1 <- reserve1;
-      vr0 <- v_reserve0;
-      vr1 <- v_reserve1;
-  
-      m_r0 <- & token0_contract.balances[_this_address];
-      new_r0 = get_amount_or_zero m_r0;
-      m_r1 <- & token1_contract.balances[_this_address];
-      new_r1 = get_amount_or_zero m_r1;
-  
-      (* Amount of zrc2 tokens transferred to pool by liquidity provider *)
-      amount0 = builtin sub new_r0 r0;
-      amount1 = builtin sub new_r1 r1;
-  
-      MintFee is_amp_pool;
-  
-      supply <- total_supply;
-  
-      is_zero = builtin eq supply zero_amount;
-      result = match is_zero with
-      | True =>
-        (* new pool *)
-        let data = match is_amp_pool with
-        | False =>
-          ReserveData new_r0 new_r1 zero_amount zero_amount
-        | True =>
-          let v_r0 = let n0 = builtin mul new_r0 amp in builtin div n0 bps in
-          let v_r1 = let n1 = builtin mul new_r1 amp in builtin div n1 bps in
-          ReserveData new_r0 new_r1 v_r0 v_r1
-        end in
-        let liquidity = let x = builtin mul amount0 amount1 in let y = builtin isqrt x in builtin sub y minimum_liquidity in
-        Pair {Uint128 ReserveData} liquidity data
-      | False =>
-        (* existing pool *)
-        let liquidity =
-          let a = frac amount0 supply r0 in
-          let b = frac amount1 supply r1 in
-          min a b
-        in
-        let data = match is_amp_pool with
-        | False =>
-          ReserveData new_r0 new_r1 zero_amount zero_amount
-        | True =>
-          let ls = builtin add liquidity supply in
-          let v_r0 = let n0 = frac vr0 ls supply in max n0 new_r0 in
-          let v_r1 = let n1 = frac vr1 ls supply in max n1 new_r1 in
-          ReserveData new_r0 new_r1 v_r0 v_r1
-        end in
-        Pair {Uint128 ReserveData} liquidity data
-      end;
-  
-      match is_zero with
-      | False => | True =>
-        (* permanently lock the first minimum_liquidity tokens *)
-        AuthorizedMint zero_address minimum_liquidity
-      end;
-  
-      match result with
-      | Pair liquidity data =>
-        mint_failed = builtin eq liquidity zero_amount;
-        match mint_failed with
-        | False => | True =>
-          err = CodeInsufficientLiquidity;
-          ThrowError err
-        end;
-  
-        AuthorizedMint to liquidity;
-        Update is_amp_pool data;
-        UpdateLastK is_amp_pool data;
-  
-        e = {_eventname: "PoolMinted"; minter: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
-        event e
-      end
-    end
+    end;
+
+    AuthorizedMint to liquidity;
+    Update is_amp_pool data;
+    UpdateLastK is_amp_pool data;
+
+    e = {_eventname: "PoolMinted"; minter: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
+    event e
   end
 end
 
@@ -968,113 +973,88 @@ end
    which performs important safety checks.
    User must transfer LP token to this contract before call burn *)
 transition Burn()
-  token0_contract_address <- token0;
-  token1_contract_address <- token1;
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
 
-  maybe_token0_contract <- & token0_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
-  maybe_token1_contract <- & token1_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  v_r0 <- v_reserve0;
+  v_r1 <- v_reserve1;
 
-  match maybe_token0_contract with
-  | None =>
-    err = CodeInvalidTokenContract;
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
+
+  is_reserves_synced =
+    let b0_ok = uint128_ge balance0 r0 in
+    let b1_ok = uint128_ge balance1 r1 in
+    andb b0_ok b1_ok;
+  match is_reserves_synced with
+  | True =>
+  | False =>
+    err = CodeUnsyncedReserves;
     ThrowError err
-  | Some token0_contract =>
-    match maybe_token1_contract with
-    | None =>
-      err = CodeInvalidTokenContract;
-      ThrowError err
-    | Some token1_contract =>
-      amp <- amp_bps;
-      is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
-  
-      r0 <- reserve0;
-      r1 <- reserve1;
-      v_r0 <- v_reserve0;
-      v_r1 <- v_reserve1;
-  
-      m_b0 <- & token0_contract.balances[_this_address];
-      balance0 = get_amount_or_zero m_b0;
-      m_b1 <- & token1_contract.balances[_this_address];
-      balance1 = get_amount_or_zero m_b1;
-  
-      is_reserves_synced =
-        let b0_ok = uint128_ge balance0 r0 in
-        let b1_ok = uint128_ge balance1 r1 in
-        andb b0_ok b1_ok;
-      match is_reserves_synced with
-      | True =>
-      | False =>
-        err = CodeUnsyncedReserves;
-        ThrowError err
-      end;
-  
-      MintFee is_amp_pool;
-  
-      supply <- total_supply;
-      m_l <- balances[_this_address];
-      liquidity = get_amount_or_zero m_l;
-  
-      (* Amount of tokens to transfer to liquidity provider *)
-      amount0 = frac liquidity balance0 supply;
-      amount1 = frac liquidity balance1 supply;
-  
-      is_sufficient_liquidity_burnt =
-        let a0_ok = uint128_gt amount0 zero_amount in
-        let a1_ok = uint128_gt amount1 zero_amount in
-        andb a0_ok a1_ok;
-      match is_sufficient_liquidity_burnt with
-      | True =>
-      | False =>
-        err = CodeInsufficientLiquidity;
-        ThrowError err
-      end;
-  
-      AuthorizedBurnIfSufficientBalance _this_address liquidity;
-  
-      token0_address <- token0;
-      token1_address <- token1;
+  end;
 
-      msg_to_token0 = {
-        _tag: "Transfer"; _recipient: token0_address; _amount: zero_amount;
-        to: _origin; amount: amount0
-      };
-  
-      msg_to_token1 = {
-        _tag: "Transfer"; _recipient: token1_address; _amount: zero_amount;
-        to: _origin; amount: amount1
-      };
-  
-      msgs = two_msgs msg_to_token0 msg_to_token1;
-      send msgs;
-  
-      new_r0 = builtin sub balance0 amount0;
-      new_r1 = builtin sub balance1 amount1;
-  
-      data = match is_amp_pool with
-      | True =>
-        let x = frac new_r0 supply r0 in
-        let y = frac new_r1 supply r1 in
-        let b = min x y in
-        let vx = frac v_r0 b supply in
-        let vy = frac v_r1 b supply in
-        let v_r0 = max vx new_r0 in
-        let v_r1 = max vy new_r1 in
-        ReserveData new_r0 new_r1 v_r0 v_r1
-      | False =>
-        ReserveData new_r0 new_r1 zero_amount zero_amount
-      end;
-  
-      Update is_amp_pool data;
-      UpdateLastK is_amp_pool data;
-  
-      e = {_eventname: "PoolBurnt"; burner: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
-      event e
-    end
-  end
+  MintFee is_amp_pool;
+
+  supply <- total_supply;
+  m_l <- balances[_this_address];
+  liquidity = get_amount_or_zero m_l;
+
+  (* Amount of tokens to transfer to liquidity provider *)
+  amount0 = frac liquidity balance0 supply;
+  amount1 = frac liquidity balance1 supply;
+
+  is_sufficient_liquidity_burnt =
+    let a0_ok = uint128_gt amount0 zero_amount in
+    let a1_ok = uint128_gt amount1 zero_amount in
+    andb a0_ok a1_ok;
+  match is_sufficient_liquidity_burnt with
+  | True =>
+  | False =>
+    err = CodeInsufficientLiquidity;
+    ThrowError err
+  end;
+
+  AuthorizedBurnIfSufficientBalance _this_address liquidity;
+
+  msg_to_token0 = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: _origin; amount: amount0
+  };
+
+  msg_to_token1 = {
+    _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+    to: _origin; amount: amount1
+  };
+
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs;
+
+  new_r0 = builtin sub balance0 amount0;
+  new_r1 = builtin sub balance1 amount1;
+
+  data = match is_amp_pool with
+  | True =>
+    let x = frac new_r0 supply r0 in
+    let y = frac new_r1 supply r1 in
+    let b = min x y in
+    let vx = frac v_r0 b supply in
+    let vy = frac v_r1 b supply in
+    let v_r0 = max vx new_r0 in
+    let v_r1 = max vy new_r1 in
+    ReserveData new_r0 new_r1 v_r0 v_r1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
+  end;
+
+  Update is_amp_pool data;
+  UpdateLastK is_amp_pool data;
+
+  e = {_eventname: "PoolBurnt"; burner: _origin; router: _sender; amount0: amount0; amount1: amount1; liquidity: liquidity};
+  event e
 end
 
 (* @dev This low-level function should be called from a contract
@@ -1116,12 +1096,9 @@ transition Swap(
     ThrowError err
   end;
 
-  token0_address <- token0;
-  token1_address <- token1;
-
   is_valid_to =
-    let t0_ok = let e0 = builtin eq token0_address to in negb e0 in
-    let t1_ok = let e1 = builtin eq token1_address to in negb e1 in
+    let t0_ok = let e0 = builtin eq init_token0 to in negb e0 in
+    let t1_ok = let e1 = builtin eq init_token1 to in negb e1 in
     andb t0_ok t1_ok;
   match is_valid_to with
   | True =>
@@ -1134,7 +1111,7 @@ transition Swap(
   | False =>
   | True =>
     msg_to_token0 = {
-      _tag: "Transfer"; _recipient: token0_address; _amount: zero_amount;
+      _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
       to: to; amount: amount0_out
     };
     msgs = one_msg msg_to_token0;
@@ -1145,289 +1122,166 @@ transition Swap(
   | False =>
   | True =>
     msg_to_token1 = {
-      _tag: "Transfer"; _recipient: token1_address; _amount: zero_amount;
+      _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
       to: to; amount: amount1_out
     };
     msgs = one_msg msg_to_token1;
     send msgs
   end;
 
-  token0_contract_address <- token0;
-  token1_contract_address <- token1;
+  (* Pool's new token balances after user transfers token_in to the pool *)
+  m_b0 <- & init_token0.balances[_this_address];
+  b0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  b1 = get_amount_or_zero m_b1;
+  
+  (* Pool's new reserves after Swap transition is completed *)
+  new_r0 = builtin sub b0 amount0_out;
+  new_r1 = builtin sub b1 amount1_out;
 
-  maybe_token0_contract <- & token0_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
-  maybe_token1_contract <- & token1_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
+  new_data = match is_amp_pool with
+  | True =>
+    let new_vr0 = let a = builtin add v_r0 new_r0 in builtin sub a r0 in
+    let new_vr1 = let b = builtin add v_r1 new_r1 in builtin sub b r1 in
+    ReserveData new_r0 new_r1 new_vr0 new_vr1
+  | False =>
+    ReserveData new_r0 new_r1 zero_amount zero_amount
   end;
 
-  match maybe_token0_contract with
-  | None =>
-    err = CodeInvalidTokenContract;
-    ThrowError err
-  | Some token0_contract =>
-    match maybe_token1_contract with
-    | None =>
-      err = CodeInvalidTokenContract;
+  amount0_in =
+    let r0_sub_amount0_out = builtin sub r0 amount0_out in
+    let has_input = uint128_gt new_r0 r0_sub_amount0_out in
+    match has_input with
+    | False => zero_amount
+    | True => builtin sub new_r0 r0_sub_amount0_out
+    end;
+
+  amount1_in =
+    let r1_sub_amount1_out = builtin sub r1 amount1_out in
+    let has_input = uint128_gt new_r1 r1_sub_amount1_out in
+    match has_input with
+    | False => zero_amount
+    | True => builtin sub new_r1 r1_sub_amount1_out
+    end;
+  
+  a0_ok = uint128_gt amount0_in zero_amount;
+  a1_ok = uint128_gt amount1_in zero_amount;
+  match a0_ok with 
+  | True => | False =>
+    match a1_ok with 
+    | True => | False =>
+      err = CodeInsufficientInput;
       ThrowError err
-    | Some token1_contract =>
-      (* Pool's new token balances after user transfers token_in to the pool *)
-      m_b0 <- & token0_contract.balances[_this_address];
-      b0 = get_amount_or_zero m_b0;
-      m_b1 <- & token1_contract.balances[_this_address];
-      b1 = get_amount_or_zero m_b1;
-  
-      (* Pool's new reserves after Swap transition is completed *)
-      new_r0 = builtin sub b0 amount0_out;
-      new_r1 = builtin sub b1 amount1_out;
-
-      new_data = match is_amp_pool with
-      | True =>
-        let new_vr0 = let a = builtin add v_r0 new_r0 in builtin sub a r0 in
-        let new_vr1 = let b = builtin add v_r1 new_r1 in builtin sub b r1 in
-        ReserveData new_r0 new_r1 new_vr0 new_vr1
-      | False =>
-         ReserveData new_r0 new_r1 zero_amount zero_amount
-      end;
-
-      amount0_in =
-        let r0_sub_amount0_out = builtin sub r0 amount0_out in
-        let has_input = uint128_gt new_r0 r0_sub_amount0_out in
-        match has_input with
-        | False => zero_amount
-        | True => builtin sub new_r0 r0_sub_amount0_out
-        end;
-
-      amount1_in =
-        let r1_sub_amount1_out = builtin sub r1 amount1_out in
-        let has_input = uint128_gt new_r1 r1_sub_amount1_out in
-        match has_input with
-        | False => zero_amount
-        | True => builtin sub new_r1 r1_sub_amount1_out
-        end;
-  
-      a0_ok = uint128_gt amount0_in zero_amount;
-      a1_ok = uint128_gt amount1_in zero_amount;
-      match a0_ok with 
-      | True => | False =>
-        match a1_ok with 
-        | True => | False =>
-          err = CodeInsufficientInput;
-          ThrowError err
-        end
-      end;
-
-      match new_data with
-      | ReserveData new_r0 new_r1 new_v_r0 new_v_r1 =>
-        before_r0 = get_reserve is_amp_pool v_r0 r0;
-        before_r1 = get_reserve is_amp_pool v_r1 r1;
-        after_r0 = get_reserve is_amp_pool new_v_r0 new_r0;
-        after_r1 = get_reserve is_amp_pool new_v_r1 new_r1;
-
-        VerifyBalanceAndUpdateEMA
-          amount0_in
-          amount1_in
-          before_r0
-          before_r1
-          after_r0
-          after_r1
-      end;
-
-      Update is_amp_pool new_data;
-
-      e = {
-        _eventname: "PoolSwapped"; origin: _origin; sender: _sender;
-        amount0_in: amount0_in; amount1_in: amount1_in;
-        amount0_out: amount0_out; amount1_out: amount1_out;
-        to: to
-      };
-      event e
     end
-  end
+  end;
+
+  match new_data with
+  | ReserveData new_r0 new_r1 new_v_r0 new_v_r1 =>
+    before_r0 = get_reserve is_amp_pool v_r0 r0;
+    before_r1 = get_reserve is_amp_pool v_r1 r1;
+    after_r0 = get_reserve is_amp_pool new_v_r0 new_r0;
+    after_r1 = get_reserve is_amp_pool new_v_r1 new_r1;
+
+    VerifyBalanceAndUpdateEMA
+      amount0_in
+      amount1_in
+      before_r0
+      before_r1
+      after_r0
+      after_r1
+  end;
+
+  Update is_amp_pool new_data;
+
+  e = {
+    _eventname: "PoolSwapped"; origin: _origin; sender: _sender;
+    amount0_in: amount0_in; amount1_in: amount1_in;
+    amount0_out: amount0_out; amount1_out: amount1_out;
+    to: to
+  };
+  event e
 end
 
 (* @dev: Transfer tokens such that balances match reserves *)
 transition Skim(to: ByStr20)
-  token0_contract_address <- token0;
-  token1_contract_address <- token1;
+  r_0 <- reserve0;
+  r_1 <- reserve1;
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
 
-  maybe_token0_contract <- & token0_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
-  maybe_token1_contract <- & token1_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
+  amount0 = builtin sub balance0 r_0;
+  amount1 = builtin sub balance1 r_1;
 
-  match maybe_token0_contract with
-  | None =>
-    err = CodeInvalidTokenContract;
-    ThrowError err
-  | Some token0_contract =>
-    match maybe_token1_contract with
-    | None =>
-      err = CodeInvalidTokenContract;
-      ThrowError err
-    | Some token1_contract =>
-      r_0 <- reserve0;
-      r_1 <- reserve1;
-      m_b0 <- & token0_contract.balances[_this_address];
-      balance0 = get_amount_or_zero m_b0;
-      m_b1 <- & token1_contract.balances[_this_address];
-      balance1 = get_amount_or_zero m_b1;
-  
-      amount0 = builtin sub balance0 r_0;
-      amount1 = builtin sub balance1 r_1;
-      token0_address <- token0;
-      token1_address <- token1;
+  msg_to_token0  = {
+    _tag: "Transfer"; _recipient: init_token0; _amount: zero_amount;
+    to: to; amount: amount0
+  };
 
-      msg_to_token0  = {
-        _tag: "Transfer"; _recipient: token0_address; _amount: zero_amount;
-        to: to; amount: amount0
-      };
-  
-      msg_to_token1  = {
-        _tag: "Transfer"; _recipient: token1_address; _amount: zero_amount;
-        to: to; amount: amount1
-      };
-  
-      msgs = two_msgs msg_to_token0 msg_to_token1;
-      send msgs;
-  
-      e = {_eventname: "Skim"; to: to; amount0: amount0; amount1: amount1};
-      event e
-    end
-  end
+  msg_to_token1  = {
+    _tag: "Transfer"; _recipient: init_token1; _amount: zero_amount;
+    to: to; amount: amount1
+  };
+
+  msgs = two_msgs msg_to_token0 msg_to_token1;
+  send msgs;
+
+  e = {_eventname: "Skim"; to: to; amount0: amount0; amount1: amount1};
+  event e
 end
 
 (* @dev: Force reserves to match balances *)
 transition Sync()
-  token0_contract_address <- token0;
-  token1_contract_address <- token1;
+  r0 <- reserve0;
+  r1 <- reserve1;
+  vr0 <- v_reserve0;
+  vr1 <- v_reserve1;
 
-  maybe_token0_contract <- & token0_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
+  m_b0 <- & init_token0.balances[_this_address];
+  balance0 = get_amount_or_zero m_b0;
+  m_b1 <- & init_token1.balances[_this_address];
+  balance1 = get_amount_or_zero m_b1;
 
-  maybe_token1_contract <- & token1_contract_address as ByStr20 with contract
-    field balances : Map ByStr20 Uint128
-  end;
+  new_r0 = balance0;
+  new_r1 = balance1;
 
-  match maybe_token0_contract with
-  | None =>
-    err = CodeInvalidTokenContract;
-    ThrowError err
-  | Some token0_contract =>
-    match maybe_token1_contract with
-    | None =>
-      err = CodeInvalidTokenContract;
-      ThrowError err
-    | Some token1_contract =>
-      r0 <- reserve0;
-      r1 <- reserve1;
-      vr0 <- v_reserve0;
-      vr1 <- v_reserve1;
-  
-      m_b0 <- & token0_contract.balances[_this_address];
-      balance0 = get_amount_or_zero m_b0;
-      m_b1 <- & token1_contract.balances[_this_address];
-      balance1 = get_amount_or_zero m_b1;
-  
-      new_r0 = balance0;
-      new_r1 = balance1;
-  
-      amp <- amp_bps;
-      is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
-      MintFee is_amp_pool;
-  
-      supply <- total_supply;
-  
-      data = match is_amp_pool with 
-      | False =>
-        ReserveData new_r0 new_r1 zero_amount zero_amount
-      | True =>
-        let b = 
-          let c = frac new_r0 supply r0 in 
-          let d = frac new_r1 supply r1 in
-          min c d in
-        let new_vr0 = 
-          let x = frac vr0 b supply in 
-          max x new_r0 in
-        let new_vr1 = 
-          let y = frac vr1 b supply in 
-          max y new_r1 in
-        ReserveData new_r0 new_r1 new_vr0 new_vr1
-      end;
-  
-      Update is_amp_pool data;
-  
-      factory_contract_address <- factory;
-      maybe_factory_contract <- & factory_contract_address as ByStr20 with contract
-        field fee_configuration : Pair ByStr20 Uint128
-      end;
-  
-      match maybe_factory_contract with
-      | None =>
-        err = CodeInvalidFactoryContract;
-        ThrowError err
-      | Some factory_contract =>
-        fee_config <- & factory_contract.fee_configuration;
-        match fee_config with
-        | Pair fee_to fee_bps =>
-          is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
-          match is_fee_on with
-          | False =>
-          | True =>
-            UpdateLastK is_amp_pool data
-          end
-        end;
-        e = {_eventname: "Sync"; data: data};
-        event e
-      end
-    end
-  end
-end
+  amp <- amp_bps;
+  is_amp_pool = let is_eq = builtin eq amp bps in negb is_eq;
+  MintFee is_amp_pool;
 
-transition SetInitParams(
-  init_token0 : ByStr20,
-  init_token1 : ByStr20,
-  init_amp_bps : Uint128,
-  init_name : String,
-  init_symbol : String
-)
-  factory_address <- factory;
-  allow_init = builtin eq factory_address zero_address;
-  match allow_init with
+  supply <- total_supply;
+
+  data = match is_amp_pool with 
   | False =>
-    err = CodeParamsAlreadySet;
-    ThrowError err
+    ReserveData new_r0 new_r1 zero_amount zero_amount
   | True =>
-    token0 := init_token0;
-    token1 := init_token1;
-    factory := _sender;
-    amp_bps := init_amp_bps;
-    name := init_name;
-    symbol := init_symbol;
+    let b = 
+      let c = frac new_r0 supply r0 in 
+      let d = frac new_r1 supply r1 in
+      min c d in
+    let new_vr0 = 
+      let x = frac vr0 b supply in 
+      max x new_r0 in
+    let new_vr1 = 
+      let y = frac vr1 b supply in 
+      max y new_r1 in
+    ReserveData new_r0 new_r1 new_vr0 new_vr1
+  end;
 
-    (* invoke callback on router side to finish adding pool *)
-    msg_to_router = {
-      _tag: "AddPoolSuccessCallBack";
-      _recipient: _sender;
-      _amount: zero_amount;
-      pool: _this_address
-    };
-    msg = one_msg msg_to_router;
-    send msg;
+  Update is_amp_pool data;
 
-    e = {
-      _eventname: "PoolInitialised";
-      init_token0: init_token0;
-      init_token1: init_token1;
-      init_factory: _sender;
-      init_amp_bps: init_amp_bps;
-      init_name: init_name;
-      init_symbol: init_symbol
-    };
-    event e
-  end
+  fee_config <- & init_factory.fee_configuration;
+  match fee_config with
+  | Pair fee_to fee_bps =>
+    is_fee_on = let is_zero_addr = builtin eq fee_to zero_address in negb is_zero_addr;
+    match is_fee_on with
+    | False =>
+    | True =>
+      UpdateLastK is_amp_pool data
+    end
+  end;
+
+  e = {_eventname: "Sync"; data: data};
+  event e
 end
