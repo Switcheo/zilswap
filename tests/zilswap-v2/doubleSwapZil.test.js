@@ -1,7 +1,7 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract, getBalance, getContract } = require('../../scripts/call.js')
-const { getPoolContractCodeHash } = require('./helper.js');
+const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 const { param } = require("../../scripts/zilliqa");
 
@@ -11,6 +11,7 @@ let amountIn = 1000;
 let amountInMax = 10000;
 let amountOut = 100;
 let amountOutMin = 10;
+const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 describe('Zilswap swap exact zrc2/zil for zil/zrc2 (Non-amp pool)', () => {
 
@@ -1475,7 +1476,6 @@ getAmpBps = (isAmpPool) => {
 
 setup = async (isAmpPool) => {
   owner = getDefaultAccount()
-  const codehash = await getPoolContractCodeHash(owner)
   feeAccount = await createRandomAccount(owner.key)
 
   // Need to deploy wZIL first to deploy Router
@@ -1518,91 +1518,18 @@ setup = async (isAmpPool) => {
   expect(tx.status).toEqual(2)
 
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1, token2] = [token1, token0, token2]
-  pool1 = (await deployZilswapV2Pool(owner.key))[0]
-
-  // Add Pool
-  tx = await callContract(
-    owner.key,
-    router,
-    'AddPool',
-    [
-      {
-        vname: 'init_token0',
-        type: 'ByStr20',
-        value: `${token0.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_token1',
-        type: 'ByStr20',
-        value: `${token1.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_amp_bps',
-        type: 'Uint128',
-        value: getAmpBps(isAmpPool),
-      },
-      {
-        vname: 'init_name',
-        type: 'String',
-        value: `test-pool`,
-      },
-      {
-        vname: 'init_symbol',
-        type: 'String',
-        value: `TEST`,
-      },
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool1.address.toLowerCase()}`,
-      },
-    ], 0, false, false)
-  expect(tx.status).toEqual(2)
+  pool1 = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(isAmpPool) }))[0]
 
   if (parseInt(token1.address, 16) > parseInt(token2.address, 16)) [token0, token1, token2] = [token0, token2, token1]
-  pool2 = (await deployZilswapV2Pool(owner.key))[0]
+  pool2 = (await deployZilswapV2Pool(owner.key, { factory: router, token0: token1, token1: token2, init_amp_bps: getAmpBps(isAmpPool) }))[0]
   bridgeTokenAddress = token2.address.toLowerCase() == wZil ? token1.address.toLowerCase() : token2.address.toLowerCase()
   otherTokenAddress = bridgeTokenAddress == token0Address ? token1Address : token0Address
 
   // Add Pool
-  tx = await callContract(
-    owner.key,
-    router,
-    'AddPool',
-    [
-      {
-        vname: 'init_token0',
-        type: 'ByStr20',
-        value: `${token1.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_token1',
-        type: 'ByStr20',
-        value: `${token2.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_amp_bps',
-        type: 'Uint128',
-        value: getAmpBps(isAmpPool),
-      },
-      {
-        vname: 'init_name',
-        type: 'String',
-        value: `test-pool`,
-      },
-      {
-        vname: 'init_symbol',
-        type: 'String',
-        value: `TEST`,
-      },
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool2.address.toLowerCase()}`,
-      },
-    ], 0, false, false)
+  tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool1.address.toLowerCase())], 0, false, false)
   expect(tx.status).toEqual(2)
-
+  tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool2.address.toLowerCase())], 0, false, false)
+  expect(tx.status).toEqual(2)
 
   tx = await callContract(
     owner.key, router,
