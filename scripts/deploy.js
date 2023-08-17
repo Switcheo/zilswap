@@ -620,7 +620,7 @@ async function useZilswapV2Router(privateKey, params = {}, useExisting = process
   return deployZilswapV2Router(privateKey, params)
 }
 
-async function deployZilswapV2Pool(privateKey) {
+async function deployDefaultZilswapV2Pool(privateKey) {
   // Check for key
   if (!privateKey || privateKey === '') {
     throw new Error('No private key was provided!')
@@ -635,6 +635,83 @@ async function deployZilswapV2Pool(privateKey) {
       type: 'Uint32',
       value: '0',
     }
+  ];
+  console.log(init)
+
+  console.info(`Deploying zilswap-v2 pool...`)
+  return deployContract(privateKey, file, init)
+}
+
+async function deployZilswapV2Pool(privateKey, { owner = null, factory = null, token0 = null, token1 = null, init_amp_bps = '10000', name, symbol } = {}) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+
+  // Default vars
+  if (!owner) owner = getAddressFromPrivateKey(privateKey).toLowerCase()
+  if (!factory) factory = useZilswapV2Router(privateKey)
+  if (!token0) token0 = useFungibleToken(privateKey)
+  if (!token1) token1 = useFungibleToken(privateKey)
+  if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
+
+  if (!name || !symbol) {
+    const t0State = await token0.getInit()
+    const t1State = await token1.getInit()
+    const pair = `${t0State.find(i => i.vname == 'symbol').value}-${t1State.find(i => i.vname == 'symbol').value}`
+    if (!name) name = `ZilSwap V2 ${pair} LP Token`
+    if (!symbol) symbol = `ZWAPv2LP.${pair}`
+  }
+
+  // Load file and contract initialization variables
+  const file = `./src/zilswap-v2/ZilSwapPool.scilla`
+  const init = [
+    // this parameter is mandatory for all init arrays
+    {
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    },
+    {
+      vname: 'init_token0',
+      type: 'ByStr20',
+      value: token0.address.toLowerCase(),
+    },
+    {
+      vname: 'init_token1',
+      type: 'ByStr20',
+      value: token1.address.toLowerCase(),
+    },
+    {
+      vname: 'init_factory',
+      type: 'ByStr20',
+      value: factory.address.toLowerCase(),
+    },
+    {
+      vname: 'init_amp_bps',
+      type: 'Uint128',
+      value: init_amp_bps,
+    },
+    {
+      vname: 'name',
+      type: 'String',
+      value: name,
+    },
+    {
+      vname: 'symbol',
+      type: 'String',
+      value: symbol,
+    },
+    {
+      vname: 'decimals',
+      type: 'Uint32',
+      value: '12',
+    },
+    {
+      vname: 'init_supply',
+      type: 'Uint128',
+      value: '0',
+    },
   ];
   console.log(init)
 
@@ -998,6 +1075,7 @@ exports.useNonFungibleToken = useNonFungibleToken
 
 exports.deployZilswap = deployZilswap
 exports.deployZilswapV2Router = deployZilswapV2Router
+exports.deployDefaultZilswapV2Pool = deployDefaultZilswapV2Pool
 exports.deployZilswapV2Pool = deployZilswapV2Pool
 exports.useZilswap = useZilswap
 exports.useZilswapV2Router = useZilswapV2Router

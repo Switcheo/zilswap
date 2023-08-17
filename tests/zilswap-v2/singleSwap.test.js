@@ -1,7 +1,7 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
 const { deployZilswapV2Router, deployZilswapV2Pool, useFungibleToken, deployWrappedZIL } = require('../../scripts/deploy.js');
 const { callContract } = require('../../scripts/call.js')
-const { getPoolContractCodeHash } = require('./helper.js');
+const { getContractCodeHash } = require('./helper.js');
 const { default: BigNumber } = require('bignumber.js');
 const { param } = require("../../scripts/zilliqa");
 
@@ -11,6 +11,7 @@ let amountIn = 100
 let amountInMax = 1000
 let amountOut = 100
 let amountOutMin = 10
+const codehash = getContractCodeHash("./src/zilswap-v2/ZilSwapPool.scilla");
 
 describe('Zilswap swap exact zrc2 for zrc2 (Non-amp pool)', () => {
 
@@ -364,7 +365,6 @@ getAmpBps = (isAmpPool) => {
 
 setup = async (isAmpPool) => {
   owner = getDefaultAccount()
-  const codehash = await getPoolContractCodeHash(owner)
   feeAccount = await createRandomAccount(owner.key)
   wZil = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
@@ -389,43 +389,7 @@ setup = async (isAmpPool) => {
   pool = (await deployZilswapV2Pool(owner.key, { factory: router, token0, token1, init_amp_bps: getAmpBps(isAmpPool) }))[0]
 
   // Add Pool
-  tx = await callContract(
-    owner.key,
-    router,
-    'AddPool',
-    [
-      {
-        vname: 'init_token0',
-        type: 'ByStr20',
-        value: `${token0.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_token1',
-        type: 'ByStr20',
-        value: `${token1.address.toLowerCase()}`,
-      },
-      {
-        vname: 'init_amp_bps',
-        type: 'Uint128',
-        value: getAmpBps(isAmpPool),
-      },
-      {
-        vname: 'init_name',
-        type: 'String',
-        value: `test-pool`,
-      },
-      {
-        vname: 'init_symbol',
-        type: 'String',
-        value: `TEST`,
-      },
-      {
-        vname: 'pool',
-        type: 'ByStr20',
-        value: `${pool.address.toLowerCase()}`,
-      },
-    ],
-     0, false, false)
+  tx = await callContract(owner.key, router, 'AddPool', [param('pool', 'ByStr20', pool.address.toLowerCase())], 0, false, false)
   expect(tx.status).toEqual(2)
 
   // Add Liquidity

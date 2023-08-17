@@ -1,15 +1,40 @@
 const { getDefaultAccount, createRandomAccount } = require('../../scripts/account.js');
-const { deployZilswapV2Router, useFungibleToken, deployWrappedZIL, deployZilswapV2Pool } = require('../../scripts/deploy.js');
-const { getPoolContractCodeHash } = require('./helper.js');
+const { deployZilswapV2Router, useFungibleToken, deployContract, deployWrappedZIL, deployDefaultZilswapV2Pool } = require('../../scripts/deploy.js');
+const { getAddressFromPrivateKey } = require('@zilliqa-js/crypto');
 const { callContract } = require('../../scripts/call.js')
 
 let token0, token1, wZil, owner, tx, router, routerState, pool, poolState
 
 beforeAll(async () => {
   owner = getDefaultAccount()
-  const codehash = await getPoolContractCodeHash(owner)
   feeAccount = await createRandomAccount(owner.key)
   wZil = (await deployWrappedZIL(owner.key, { name: 'WrappedZIL', symbol: 'WZIL', decimals: 12, initSupply: '100000000000000000000000000000000000000' }))[0]
+  pool = (await deployDefaultZilswapV2Pool(owner.key))[0]
+
+  // Deploy CodeHash contract
+  const [codeHashContract] = await deployContract(
+    owner.key,
+    './src/zilswap-v2/TestCodeHash.scilla',
+    [{
+      vname: '_scilla_version',
+      type: 'Uint32',
+      value: '0',
+    }])
+
+  // Call GetCodeHash transition
+  const txGetCodeHash = await callContract(
+    owner.key, codeHashContract,
+    'foo',
+    [{
+      vname: 'addr',
+      type: 'ByStr20',
+      value: `${pool.address.toLowerCase()}`,
+    }],
+    0, false, false
+  )
+  expect(txGetCodeHash.status).toEqual(2)
+  const codehash = txGetCodeHash.receipt.event_logs.find(e => e._eventname === "Success")?.params?.[0]?.value;
+
   router = (await deployZilswapV2Router(owner.key, { governor: null, codehash, wZil: wZil.address.toLowerCase() }))[0]
   token0 = (await useFungibleToken(owner.key, { symbol: 'TKN0' }, router.address.toLowerCase(), null))[0]
   token1 = (await useFungibleToken(owner.key, { symbol: 'TKN1' }, router.address.toLowerCase(), null))[0]
@@ -18,7 +43,7 @@ beforeAll(async () => {
 test('add ZilswapV2 pool', async () => {
   if (parseInt(token0.address, 16) > parseInt(token1.address, 16)) [token0, token1] = [token1, token0];
 
-  pool = (await deployZilswapV2Pool(owner.key))[0]
+  // try to invoke setInitParams on poolContract, should fail as _sender is not factory
 
   // call addPool transition on router side
   const txAddPool = await callContract(
