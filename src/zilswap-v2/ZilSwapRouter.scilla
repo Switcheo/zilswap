@@ -804,7 +804,6 @@ procedure GetAmountOut(
     field v_reserve1 : Uint128,
     field short_ema : Uint256,
     field long_ema : Uint256,
-    field long_ema : Uint256,
     field current_block_volume : Uint128,
     field last_trade_block : BNum
   end,
