@@ -21,7 +21,7 @@ const getPrivateKey = (key = "PRIVATE_KEY") => {
 const deployHuny = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/zolar/Huny.scilla')).toString()
+  const file = './src/zolar/Huny.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -57,7 +57,7 @@ const deployHuny = async () => {
   ]
 
   console.info(`Deploying Huny...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 }
@@ -65,7 +65,7 @@ const deployHuny = async () => {
 const deployZilswap = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/zilswap-v1/ZilSwapV1.1.scilla')).toString()
+  const file = './src/zilswap-v1/ZilSwapV1.1.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -86,7 +86,7 @@ const deployZilswap = async () => {
   ]
 
   console.info(`Deploying ZilSwap...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 }
@@ -97,7 +97,7 @@ const deployRefinery = async ({
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
-  const code = (await fs.promises.readFile('./src/zolar/Refinery.scilla')).toString()
+  const file = './src/zolar/Refinery.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -118,7 +118,7 @@ const deployRefinery = async ({
   ]
 
   console.info(`Deploying Refinery...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 }
@@ -131,7 +131,7 @@ const deployHive = async ({
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
   const { result: blockHeight } = await zilliqa.blockchain.getNumTxBlocks();
-  const code = (await fs.promises.readFile('./src/zolar/MagicHiveV2.scilla')).toString()
+  const file = './src/zolar/MagicHiveV2.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -167,7 +167,7 @@ const deployHive = async ({
   ]
 
   console.info(`Deploying Hive...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 }
@@ -180,7 +180,7 @@ async function deployBankAuthority({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/zolar/BankAuthority.scilla')).toString()
+  const file = './src/zolar/BankAuthority.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -216,7 +216,7 @@ async function deployBankAuthority({
   ]
 
   console.info(`Deploying BankAuthority...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 };
@@ -230,7 +230,7 @@ async function deployGuildBank({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/zolar/GuildBank.scilla')).toString()
+  const file = './src/zolar/GuildBank.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -289,7 +289,7 @@ async function deployGuildBank({
   ]
 
   console.info(`Deploying GuildBank...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 };
