@@ -1133,6 +1133,15 @@ end
 
 (*** Governance ***)
 
+(* @dev: Only governor should be able to set fee pool codehash *)
+(* @dev: Should not be used unless there is a change in pool contract code *)
+transition UpdateCodeHash(codehash : ByStr32)
+  IsGovernor _sender;
+  pool_codehash := codehash;
+  e = {_eventname: "PoolCodeHashUpdated"; pool_codehash: codehash};
+  event e
+end
+
 (* @dev: Only governor should be able to set fee config *)
 (* @param config: fee_to fee_bps *)
 transition SetFeeConfiguration(config: Pair ByStr20 Uint128)
