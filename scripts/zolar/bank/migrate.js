@@ -37,7 +37,7 @@ const migrate = async (oldBankContract) => {
   console.log("members", members);
   console.log("officers", officers);
 
-  const code = (await fs.promises.readFile('./src/zolar/GuildBank.scilla')).toString()
+  const file = './src/zolar/GuildBank.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {

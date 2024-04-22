@@ -1,10 +1,9 @@
 const { getDefaultAccount } = require('./account')
-const fs = require("fs");
 const { callContract } = require('./call.js')
-const { deployNonFungibleToken, deployContract } = require('./deploy');
+// const { deployNonFungibleToken, deployContract } = require('./deploy');
 const { zilliqa } = require('./zilliqa')
 
-const ZIL_ZEROS = "000000000000"
+// const ZIL_ZEROS = "000000000000"
 
 const CONTRACT_HASH = '0x3bab722a53cb11bA7A46c16D2EB6cC867c90Fd42'
 
@@ -43,9 +42,9 @@ const run = async () => {
         ],
         0, false, false
       )
-      
-//   const gmCode = (await fs.readFileSync('./src/tbm/GiveawayMinter.scilla')).toString("utf8")
-//   const cmCode = (await fs.readFileSync('./src/tbm/CommunityMinter.scilla')).toString("utf8")
+
+//   const gmFile = './src/tbm/GiveawayMinter.scilla'
+//   const cmFile = './src/tbm/CommunityMinter.scilla'
 
 //   const owner = getDefaultAccount()
 //   const [nftContract, state] = await deployNonFungibleToken(owner.key, {
@@ -57,7 +56,7 @@ const run = async () => {
 //   })
 
 //   console.log("deploying giveaway minter")
-//   const [gmContract, gmState] = await deployContract(owner.key, gmCode, [
+//   const [gmContract, gmState] = await deployContract(owner.key, gmFile, [
 //     {
 //       vname: '_scilla_version',
 //       type: 'Uint32',
@@ -81,7 +80,7 @@ const run = async () => {
 //   ])
 
 //   console.log("deploying community minter")
-//   const [cmContract, cmState] = await deployContract(owner.key, cmCode, [
+//   const [cmContract, cmState] = await deployContract(owner.key, cmFile, [
 //     {
 //       vname: '_scilla_version',
 //       type: 'Uint32',

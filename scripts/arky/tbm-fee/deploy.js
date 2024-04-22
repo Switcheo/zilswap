@@ -16,7 +16,7 @@ const getPrivateKey = (key = "PRIVATE_KEY") => {
 const deployHuny = async () => {
   const privateKey = getPrivateKey();
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/zolar/Huny.scilla')).toString()
+  const file = './src/zolar/Huny.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -52,7 +52,7 @@ const deployHuny = async () => {
   ]
 
   console.info(`Deploying Huny...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 }
@@ -64,7 +64,7 @@ async function deployTbmFeeDistributor({
   const privateKey = getPrivateKey();
 
   const address = getAddressFromPrivateKey(privateKey)
-  const code = (await fs.promises.readFile('./src/tbm/TbmFeeDistributor.scilla')).toString()
+  const file = './src/tbm/TbmFeeDistributor.scilla'
   const init = [
     // this parameter is mandatory for all init arrays
     {
@@ -90,7 +90,7 @@ async function deployTbmFeeDistributor({
   ]
 
   console.info(`Deploying TbmFeeDistributor...`)
-  const [contract] = await deployContract(privateKey, code, init)
+  const [contract] = await deployContract(privateKey, file, init)
 
   return contract;
 };

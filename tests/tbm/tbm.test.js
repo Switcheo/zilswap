@@ -1,6 +1,6 @@
 const { createRandomAccount, getDefaultAccount } = require('../../scripts/account.js')
 const { callContract } = require('../../scripts/call.js')
-const { useNonFungibleToken } = require('../../scripts/deploy.js')
+const { deployNonFungibleToken, useNonFungibleToken } = require('../../scripts/deploy.js')
 
 let contract, key, owner, newOwner, newOwnerKey
 beforeAll(async () => {
@@ -15,6 +15,13 @@ beforeAll(async () => {
     const nonFungibleToken = await useNonFungibleToken(key, { owner: owner }, null)
     console.log('nonFungibleToken', nonFungibleToken)
     contract = nonFungibleToken[0]
+})
+
+test('deploy TBM', async () => {
+  const [contract, state] = await deployNonFungibleToken(key, { symbol: 'BEAR' })
+  expect(contract.address).toBeDefined()
+  expect(state.is_token_locked.constructor).toEqual('True')
+  expect(state.total_supply).toEqual('0')
 })
 
 test('toggle sale active', async () => {
